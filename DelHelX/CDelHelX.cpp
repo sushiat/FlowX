@@ -26,8 +26,30 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemFunction("Set ONFREQ/STUP/PUSH", TAG_FUNC_ON_FREQ);
 	this->RegisterTagItemType("New QNH", TAG_ITEM_NEWQNH);
 	this->RegisterTagItemFunction("Clear new QNH", TAG_FUNC_CLEAR_NEWQNH);
+	this->RegisterTagItemType("Same SID", TAG_ITEM_SAMESID);
+	this->RegisterTagItemType("HP1 SID", TAG_ITEM_HP1);
+	this->RegisterTagItemType("HP2 SID", TAG_ITEM_HP2);
+	this->RegisterTagItemType("HP3 SID", TAG_ITEM_HP3);
+	this->RegisterTagItemType("TIMER", TAG_ITEM_TAKEOFF_TIMER);
+	this->RegisterTagItemType("NM", TAG_ITEM_TAKEOFF_DISTANCE);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
+
+	this->twrSameSID = this->RegisterFpList("Tower same-SID");
+	if (this->twrSameSID.GetColumnNumber() == 0)
+	{
+		this->twrSameSID.AddColumnDefinition("C/S", 8, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("RW", 3, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_ASSIGNED_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("SID", 8, false, PLUGIN_NAME, TAG_ITEM_SAMESID, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("HP1", 4, false, PLUGIN_NAME, TAG_ITEM_HP1, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("TIMER", 7, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("NM", 5, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+	}
+	this->twrSameSID.ShowFpList(true);
 
 	this->updateCheck = false;
 	this->flashOnMessage = false;
@@ -225,7 +247,7 @@ void CDelHelX::RedoFlags()
 		if (airport == this->airports.end())
 		{
 			// Airport not in config
-			return;
+			continue;
 		}
 
 		if (fp.GetClearenceFlag())
@@ -341,6 +363,123 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		else
 		{
 			strcpy_s(sItemString, 16, "");
+		}
+	}
+	else if (ItemCode == TAG_ITEM_SAMESID)
+	{
+		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
+
+		std::string rwy = fpd.GetDepartureRwy();
+		std::string sid = fpd.GetSidName();
+		auto sidKey = sid.substr(0, sid.length() - 2);
+
+		//this->LogMessage(rwy + ": " + sid + ": " + sidKey, "TEST");
+
+		strcpy_s(sItemString, 16, sid.c_str());
+		*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+		*pRGB = TAG_COLOR_WHITE;
+
+		if (rwy == "11")
+		{
+			std::map<std::string, COLORREF> rwy11SameSidColors{
+				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+				{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
+				{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+				{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+
+				{"IRGO", TAG_COLOR_ORANGE}, {"IMVO", TAG_COLOR_ORANGE}, {"ODSU", TAG_COLOR_ORANGE}, {"OSMO", TAG_COLOR_ORANGE}, {"MEDIX", TAG_COLOR_ORANGE}
+			};
+
+			if (rwy11SameSidColors.find(sidKey) != rwy11SameSidColors.end())
+			{
+				*pRGB = rwy11SameSidColors.at(sidKey);
+			}
+		}
+
+		if (rwy == "16")
+		{
+			std::map<std::string, COLORREF> rwy16SameSidColors{
+				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+				{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+				{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
+				{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+			};
+
+			if (rwy16SameSidColors.find(sidKey) != rwy16SameSidColors.end())
+			{
+				*pRGB = rwy16SameSidColors.at(sidKey);
+			}
+		}
+
+		if (rwy == "29")
+		{
+			std::map<std::string, COLORREF> rwy29SameSidColors{
+				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+				{"MEDIX", TAG_COLOR_PURPLE}, {"LUGEM", TAG_COLOR_PURPLE},
+				{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"KOXER", TAG_COLOR_TURQ}, {"ADAMA", TAG_COLOR_TURQ},
+
+				{"IRGO", TAG_COLOR_GREEN}, {"IMVO", TAG_COLOR_GREEN}, {"ODSU", TAG_COLOR_GREEN}, {"OSMO", TAG_COLOR_GREEN}, {"OTGA", TAG_COLOR_GREEN},
+				{"UMSU", TAG_COLOR_PURPLE}, {"UNGU", TAG_COLOR_PURPLE}, {"VAGB", TAG_COLOR_PURPLE},
+				{"EMKO", TAG_COLOR_ORANGE}, {"EWUK", TAG_COLOR_ORANGE},
+				{"AGMI", TAG_COLOR_TURQ}, {"ASPI", TAG_COLOR_TURQ}
+			};
+
+			if (rwy29SameSidColors.find(sidKey) != rwy29SameSidColors.end())
+			{
+				*pRGB = rwy29SameSidColors.at(sidKey);
+			}
+		}
+
+		if (rwy == "34")
+		{
+			std::map<std::string, COLORREF> rw34SameSidColors{
+				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"RUPET", TAG_COLOR_TURQ}, {"OSPEN", TAG_COLOR_TURQ},
+				{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+				{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+
+				{"IRGO", TAG_COLOR_TURQ}, {"IMVO", TAG_COLOR_TURQ}, {"ODSU", TAG_COLOR_TURQ}, {"OSMO", TAG_COLOR_TURQ}, {"OTGA", TAG_COLOR_TURQ},
+				{"EMKO", TAG_COLOR_RED}, {"EWUK", TAG_COLOR_RED}
+			};
+
+			if (rw34SameSidColors.find(sidKey) != rw34SameSidColors.end())
+			{
+				*pRGB = rw34SameSidColors.at(sidKey);
+			}
+		}
+	}
+	else if (ItemCode == TAG_ITEM_TAKEOFF_TIMER)
+	{
+		std::string callSign = FlightPlan.GetCallsign();
+		if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
+		{
+			unsigned long now = GetTickCount();
+			auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
+
+			std::string printSeconds = std::to_string(seconds) + "s";
+			strcpy_s(sItemString, 16, printSeconds.c_str());
+		}
+	}
+	else if (ItemCode == TAG_ITEM_TAKEOFF_DISTANCE)
+	{
+		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		std::string rwy = fpd.GetDepartureRwy();
+
+		if (rwy == "29")
+		{
+			auto position = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
+			EuroScopePlugIn::CPosition rwyThreshold;
+			rwyThreshold.m_Latitude = 48.109137371047005;
+			rwyThreshold.m_Longitude = 16.57538568208911;
+			auto distance = position.DistanceTo(rwyThreshold);
+			std::string num_text = std::to_string(distance);
+			std::string rounded = num_text.substr(0, num_text.find(".") + 3);
+
+			strcpy_s(sItemString, 16, rounded.c_str());
 		}
 	}
 }
@@ -825,7 +964,6 @@ void CDelHelX::LogMessage(const std::string& message, const std::string& type)
 	this->DisplayUserMessage(PLUGIN_NAME, type.c_str(), message.c_str(), true, true, true, this->flashOnMessage, false);
 }
 
-
 void CDelHelX::LogDebugMessage(const std::string& message, const std::string& type)
 {
 	if (this->debug) {
@@ -878,7 +1016,100 @@ void CDelHelX::OnTimer(int Counter)
 			}
 		}
 	}
+
+	if (Counter > 0 && Counter % 2 == 0)
+	{
+		this->UpdateTowerSameSID();
+	}
 }
+
+void CDelHelX::UpdateTowerSameSID()
+{
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
+		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+		std::string callSign = fp.GetCallsign();
+
+		// Skip if aircraft is not on the ground (currently using ground speed threshold)
+		// TODO better option for finding aircraft on ground??? maybe airport elevation via config???
+		if (!pos.IsValid()) {
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+			{
+				this->twrSameSID.RemoveFpFromTheList(fp);
+				this->twrSameSID_flightPlans.erase(callSign);
+			}
+
+			continue;
+		}
+
+		// Skip if aircraft is tracked (with exception of aircraft tracked by current controller)
+		if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe())) {
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+			{
+				this->twrSameSID.RemoveFpFromTheList(fp);
+				this->twrSameSID_flightPlans.erase(callSign);
+			}
+
+			continue;
+		}
+
+		std::string dep = fp.GetFlightPlanData().GetOrigin();
+		to_upper(dep);
+
+		std::string arr = fp.GetFlightPlanData().GetDestination();
+		to_upper(arr);
+
+		// Skip aircraft without a valid flightplan (no departure/destination airport)
+		if (dep.empty() || arr.empty()) {
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+			{
+				this->twrSameSID.RemoveFpFromTheList(fp);
+				this->twrSameSID_flightPlans.erase(callSign);
+			}
+
+			continue;
+		}
+
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+		{
+			// Airport not in config
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+			{
+				this->twrSameSID.RemoveFpFromTheList(fp);
+				this->twrSameSID_flightPlans.erase(callSign);
+			}
+
+			continue;
+		}
+
+		// Check if the flight plan needs to be added to the list, TODO figure out status code for "LINE-UP" and re-enable full logic after testing
+		std::string groundState = fp.GetGroundState();
+		//this->LogMessage(callSign + ": " + groundState, "TEST");
+		if (/*(groundState == "TAXI" || groundState == "DEPA") &&*/ this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
+		{
+			this->twrSameSID.AddFpToTheList(fp);
+			this->twrSameSID_flightPlans.emplace(callSign, 0);
+		}
+
+		// Check if we need to remove the flight plan because of ground state
+		/*if (!(groundState == "TAXI" || groundState == "DEPA") && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+		{
+			this->twrSameSID.RemoveFpFromTheList(fp);
+			this->twrSameSID_flightPlans.erase(callSign);
+		}*/
+
+		// Check if the aircraft has departed (runway assignment is blank)
+		if (/*groundState == "DEPA" &&*/ rt.GetGS() > 40 && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+		{
+			if (this->twrSameSID_flightPlans.at(callSign) == 0)
+			{
+				this->twrSameSID_flightPlans[callSign] = GetTickCount();
+			}
+		}
+	}
+}
+
 
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 {

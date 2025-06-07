@@ -44,10 +44,13 @@ private:
 	RadarScreen* radarScreen;
 	std::map<std::string, airport> airports;
 	std::map<std::string, std::string> airportQNH;
+	EuroScopePlugIn::CFlightPlanList twrSameSID;
+	std::map<std::string, unsigned long> twrSameSID_flightPlans;
 
 	void LoadSettings();
 	void SaveSettings();
 	void LoadConfig();
+	void UpdateTowerSameSID();
 
 	validation CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
