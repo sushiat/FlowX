@@ -32,6 +32,7 @@ public:
 	void OnTimer(int Counter) override;
 	EuroScopePlugIn::CRadarScreen* OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated) override;
 	void OnNewMetarReceived(const char* sStation, const char* sFullMetar) override;
+	void OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan) override;
 
 private:
 	bool debug;
@@ -55,6 +56,9 @@ private:
 	validation CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
 	void RedoFlags();
+	static double DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition);
+	static bool MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index);
+	static std::string GetRunwayHoldingPoint(const std::string& rwy, int index);
 
 	void LogMessage(const std::string& message, const std::string& type);
 	void LogDebugMessage(const std::string& message, const std::string& type);

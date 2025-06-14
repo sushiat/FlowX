@@ -22,7 +22,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 	std::string myCS = this->GetPlugIn()->ControllerMyself().GetCallsign();
 	std::transform(myCS.begin(), myCS.end(), myCS.begin(), ::toupper);
 
-	// Not interested in observers, non-controllers and my own callsign
+	// Not interested in observers, non-controllers and my own call-sign
 	if (Controller.IsController() && Controller.GetRating() > 1 && cs != myCS)
 	{
 		if (Controller.GetFacility() == 3)
