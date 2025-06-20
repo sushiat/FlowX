@@ -49,6 +49,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	if (this->twrSameSID.GetColumnNumber() == 0)
 	{
 		this->twrSameSID.AddColumnDefinition("C/S", 8, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("STS", 7, false, "Ground Radar Plugin", 3, PLUGIN_NAME, TAG_FUNC_LINE_UP, PLUGIN_NAME, TAG_FUNC_TAKE_OFF);
 		this->twrSameSID.AddColumnDefinition("RWY", 4, false, PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("SID", 8, false, PLUGIN_NAME, TAG_ITEM_SAMESID, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
@@ -58,7 +59,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME,TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
 		this->twrSameSID.AddColumnDefinition("TIMER", 7, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("NM", 6, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("Freq", 9, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("Freq", 9, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);
 
@@ -766,6 +767,29 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
 		fpcad.SetFlightStripAnnotation(3, sItemString);
+	}
+	else if (FunctionId == TAG_FUNC_LINE_UP)
+	{
+		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+		fp.GetControllerAssignedData().SetScratchPadString("LINEUP");
+		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+	}
+	else if (FunctionId == TAG_FUNC_TAKE_OFF)
+	{
+		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+		fp.GetControllerAssignedData().SetScratchPadString("DEPA");
+		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+
+		fp.StartTracking();
+	}
+	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
+	{
+		fp.EndTracking();
+		std::string targetController = fp.GetCoordinatedNextController();
+		if (!targetController.empty())
+		{
+			fp.InitiateHandoff(targetController.c_str());
+		}
 	}
 }
 
