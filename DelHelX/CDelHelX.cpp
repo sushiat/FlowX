@@ -58,7 +58,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME,TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
 		this->twrSameSID.AddColumnDefinition("TIMER", 7, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("NM", 6, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("Freq", 7, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("Freq", 9, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);
 
@@ -1391,18 +1391,18 @@ void CDelHelX::UpdateTowerSameSID()
 		// Check if the flight plan needs to be added to the list
 		std::string groundState = fp.GetGroundState();
 		auto pressAlt = pos.GetPressureAltitude();
-		if (/*(groundState == "TAXI" || groundState == "DEPA") &&*/ pressAlt < 650 && this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
+		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
 		{
 			this->twrSameSID.AddFpToTheList(fp);
 			this->twrSameSID_flightPlans.emplace(callSign, 0);
 		}
 
 		// Check if we need to remove the flight plan because of ground state
-		//if (!(groundState == "TAXI" || groundState == "DEPA") && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
-		//{
-		//	this->twrSameSID.RemoveFpFromTheList(fp);
-		//	this->twrSameSID_flightPlans.erase(callSign);
-		//}
+		if (!(groundState == "TAXI" || groundState == "DEPA") && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+		{
+			this->twrSameSID.RemoveFpFromTheList(fp);
+			this->twrSameSID_flightPlans.erase(callSign);
+		}
 
 		// Check if aircraft started takeoff roll, gs>40 knots
 		if (groundState == "DEPA" && pressAlt >= 650 && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
