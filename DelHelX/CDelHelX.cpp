@@ -56,7 +56,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 		this->twrSameSID.AddColumnDefinition("HP1", 4, false, PLUGIN_NAME, TAG_ITEM_HP1, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP1, PLUGIN_NAME, TAG_FUNC_REQUEST_HP1);
 		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP2, PLUGIN_NAME, TAG_FUNC_REQUEST_HP2);
 		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP3, PLUGIN_NAME, TAG_FUNC_REQUEST_HP3);
-		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME,TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
+		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
 		this->twrSameSID.AddColumnDefinition("TIMER", 7, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("NM", 6, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("Freq", 9, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
@@ -1352,6 +1352,7 @@ void CDelHelX::OnTimer(int Counter)
 	if (Counter > 0 && Counter % 2 == 0)
 	{
 		this->UpdateTowerSameSID();
+		this->AutoUpdateDepartureHoldingPoints();
 	}
 }
 
@@ -1461,6 +1462,195 @@ void CDelHelX::UpdateTowerSameSID()
 			{
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
+			}
+		}
+	}
+}
+
+void CDelHelX::AutoUpdateDepartureHoldingPoints()
+{
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
+		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
+		std::string callSign = fp.GetCallsign();
+
+		if (!pos.IsValid() || !fp.IsValid())
+		{
+			continue;
+		}
+
+		std::string dep = fp.GetFlightPlanData().GetOrigin();
+		to_upper(dep);
+
+		std::string arr = fp.GetFlightPlanData().GetDestination();
+		to_upper(arr);
+
+		// Skip aircraft without a valid flight plan (no departure/destination airport)
+		if (dep.empty() || arr.empty())
+		{
+			continue;
+		}
+
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+		{
+			continue;
+		}
+
+		EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+		std::string rwy = fpd.GetDepartureRwy();
+		std::string groundState = fp.GetGroundState();
+		auto pressAlt = pos.GetPressureAltitude();
+		auto groundSpeed = pos.GetReportedGS();
+
+		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 30)
+		{
+			if (rwy == "29")
+			{
+				double polyX_A1[] = { 16.575017166000304, 16.57587010846486, 16.576755237437506, 16.575939845899068 };
+				double polyY_A1[] = { 48.10963587193707, 48.10939230478594, 48.11054207487674, 48.11067101945089 };
+				double polyX_A2[] = { 16.574126672609637, 16.574802589279663, 16.575521421293814, 16.574850869041803 };
+				double polyY_A2[] = { 48.10991525636538, 48.10969676354447, 48.11066385587193, 48.11092890762859 };
+				double polyX_A3[] = { 16.5707470892528, 16.571814608437997, 16.572565626960245, 16.57168586240561 };
+				double polyY_A3[] = { 48.110968307129184, 48.110710419149186, 48.1116022762453, 48.11187448657303 };
+				double polyX_A4[] = { 16.564658474791777, 16.567287039619643, 16.568107795576104, 16.567292404037662 };
+				double polyY_A4[] = { 48.11312806818993, 48.11213236874584, 48.11324626144721, 48.11343966800904 };
+				double polyX_A6[] = { 16.55801808013691, 16.560827559183743, 16.561581956335207, 16.55922771694874 };
+				double polyY_A6[] = { 48.11520333876569, 48.114222056963136, 48.11520333876569, 48.11592409133777 };
+				double polyX_A8[] = { 16.548848252668353, 16.551156968088797, 16.551748779647273, 16.549999358666724 };
+				double polyY_A8[] = { 48.11817746343429, 48.11736122447819, 48.118429279218226, 48.11895027347323 };
+
+				if (CDelHelX::PointInsidePolygon(4, polyX_A1, polyY_A1, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A1");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A2, polyY_A2, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A2");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A3, polyY_A3, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A3");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A4, polyY_A4, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A4");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A6, polyY_A6, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A6");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A8, polyY_A8, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A8");
+				}
+			}
+
+			if (rwy == "11")
+			{
+				double polyX_A12[] = { 16.533506042225728, 16.534412628870438, 16.53472912953339, 16.53421950982186 };
+				double polyY_A12[] = { 48.123124385103026, 48.12283432967016, 48.12391934344905, 48.1241377757948 };
+				double polyX_A11[] = { 16.534761316041482, 16.535496241309684, 16.536102420545497, 16.53547478363762 };
+				double polyY_A11[] = { 48.122683929911986, 48.122476234283916, 48.12350754223812, 48.12367584400152 };
+				double polyX_A10[] = { 16.539262062766852, 16.54024375126379, 16.54077482864738, 16.539878970838696 };
+				double polyY_A10[] = { 48.12122646179901, 48.120932814575376, 48.122028611512825, 48.12225063288102 };
+				double polyX_A9[] = { 16.544417268490587, 16.54728723212918, 16.546654230803284, 16.54508245632458 };
+				double polyY_A9[] = { 48.11955766374615, 48.118680269653105, 48.12015571562148, 48.12046727282223 };
+				double polyX_A7[] = { 16.5502949260553, 16.55391082964335, 16.554021387846582, 16.55095827527469 };
+				double polyY_A7[] = { 48.11764919470844, 48.116524680359404, 48.11764919470844, 48.118613044560995 };
+
+
+				if (CDelHelX::PointInsidePolygon(4, polyX_A12, polyY_A12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A12");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A11, polyY_A11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A11");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A10, polyY_A10, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A10");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A9, polyY_A9, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A9");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_A7, polyY_A7, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "A7");
+				}
+			}
+
+			if (rwy == "16")
+			{
+				double polyX_B1[] = { 16.576179185170687, 16.577895798935828, 16.577691951051214, 16.576125540990525 };
+				double polyY_B1[] = { 48.119518510356244, 48.11924992171454, 48.119837233722585, 48.12008791363267 };
+				double polyX_B2[] = { 16.576806822078563, 16.578437605155443, 16.578180113090674, 16.576592245357922 };
+				double polyY_B2[] = { 48.11829373475215, 48.11803230225993, 48.11870915898957, 48.11883092062948 };
+				double polyX_B4[] = { 16.57980561496776, 16.58195824821892, 16.581776152354777, 16.579799111544045 };
+				double polyY_B4[] = { 48.110527790794244,48.109533392525634, 48.11016303558523, 48.110940308446594 };
+				double polyX_B5[] = { 16.580601483468982, 16.582357407873253, 16.582487476347644, 16.580516938960628 };
+				double polyY_B5[] = { 48.10851538448417, 48.10729079094436, 48.10786400857423, 48.10909727331532 };
+				double polyX_B7[] = { 16.58227286336878, 16.584191373366036, 16.584165359671157, 16.582344401029694 };
+				double polyY_B7[] = { 48.104524491682014, 48.10366894985964, 48.10427260775143, 48.104928371959815 };
+
+				if (CDelHelX::PointInsidePolygon(4, polyX_B1, polyY_B1, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B1");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B2, polyY_B2, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B2");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B4, polyY_B4, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B4");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B5, polyY_B5, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B5");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B7, polyY_B7, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B7");
+				}
+			}
+
+			if (rwy == "34")
+			{
+				double polyX_B12[] = { 16.587968705466032, 16.591101525587412, 16.59067773656414, 16.586938737206946 };
+				double polyY_B12[] = { 48.08756701189099, 48.08793251731786, 48.089007518224186, 48.08863485378795 };
+				double polyX_B11[] = { 16.587344778760706, 16.590568793988357, 16.590123547293025, 16.586979998335615 };
+				double polyY_B11[] = { 48.08897443323162, 48.08936859485416, 48.090328903252, 48.08997058132015 };
+				double polyX_B10[] = { 16.58429723570477, 16.587451396208735, 16.586228752549466, 16.58309410231666 };
+				double polyY_B10[] = { 48.096111232527555, 48.09661942262088, 48.09958159310501, 48.09920807367939 };
+				double polyX_B8[] = { 16.583679410447537, 16.58554589305504, 16.5847004479715, 16.58284697221144 };
+				double polyY_B8[] = { 48.10110604549481, 48.101279769383865, 48.10351641201675, 48.10326886606825 };
+				double polyX_B6[] = { 16.58241774624248, 16.58376395495242, 16.58296403383492, 16.581286150515286 };
+				double polyY_B6[] = { 48.10515800240615, 48.1053143416084, 48.107042726654754, 48.10670834513769 };
+
+				if (CDelHelX::PointInsidePolygon(4, polyX_B12, polyY_B12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B21");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B11, polyY_B11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B11");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B10, polyY_B10, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B10");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B8, polyY_B8, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B8");
+				}
+				if (CDelHelX::PointInsidePolygon(4, polyX_B6, polyY_B6, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+				{
+					fpcad.SetFlightStripAnnotation(3, "B6");
+				}
 			}
 		}
 	}

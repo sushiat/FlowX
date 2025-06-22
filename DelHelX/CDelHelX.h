@@ -52,6 +52,7 @@ private:
 	void SaveSettings();
 	void LoadConfig();
 	void UpdateTowerSameSID();
+	void AutoUpdateDepartureHoldingPoints();
 
 	validation CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
