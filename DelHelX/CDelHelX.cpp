@@ -42,6 +42,9 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemFunction("Request other HP", TAG_FUNC_REQUEST_HPO);
 	this->RegisterTagItemType("TIMER", TAG_ITEM_TAKEOFF_TIMER);
 	this->RegisterTagItemType("NM", TAG_ITEM_TAKEOFF_DISTANCE);
+	this->RegisterTagItemFunction("Line up", TAG_FUNC_LINE_UP);
+	this->RegisterTagItemFunction("Take off", TAG_FUNC_TAKE_OFF);
+	this->RegisterTagItemFunction("Transfer next", TAG_FUNC_TRANSFER_NEXT);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 
@@ -784,11 +787,14 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	}
 	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
 	{
-		fp.EndTracking();
 		std::string targetController = fp.GetCoordinatedNextController();
 		if (!targetController.empty())
 		{
 			fp.InitiateHandoff(targetController.c_str());
+		}
+		else
+		{
+			fp.EndTracking();
 		}
 	}
 }
