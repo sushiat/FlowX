@@ -788,7 +788,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
 	{
 		std::string targetController = fp.GetCoordinatedNextController();
-		if (!targetController.empty())
+		if (!targetController.empty() && this->ControllerMyself().GetFacility() >= 4)
 		{
 			fp.InitiateHandoff(targetController.c_str());
 		}
@@ -1626,8 +1626,8 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 
 			if (rwy == "34")
 			{
-				double polyX_B12[] = { 16.587968705466032, 16.591101525587412, 16.59067773656414, 16.586938737206946 };
-				double polyY_B12[] = { 48.08756701189099, 48.08793251731786, 48.089007518224186, 48.08863485378795 };
+				double polyX_B12[] = { 16.58845903017965, 16.591316815971858, 16.59029435236105, 16.588126729506136 };
+				double polyY_B12[] = { 48.08739391988782, 48.087598820037584, 48.08936434250654, 48.08886918274589 };
 				double polyX_B11[] = { 16.587344778760706, 16.590568793988357, 16.590123547293025, 16.586979998335615 };
 				double polyY_B11[] = { 48.08897443323162, 48.08936859485416, 48.090328903252, 48.08997058132015 };
 				double polyX_B10[] = { 16.58429723570477, 16.587451396208735, 16.586228752549466, 16.58309410231666 };
@@ -1639,7 +1639,7 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 
 				if (CDelHelX::PointInsidePolygon(4, polyX_B12, polyY_B12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B21");
+					fpcad.SetFlightStripAnnotation(3, "B12");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B11, polyY_B11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
