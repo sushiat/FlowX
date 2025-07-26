@@ -22,6 +22,7 @@ const int TAG_ITEM_HPO = 8;
 const int TAG_ITEM_TAKEOFF_TIMER = 9;
 const int TAG_ITEM_TAKEOFF_DISTANCE = 10;
 const int TAG_ITEM_ASSIGNED_RUNWAY = 11;
+const int TAG_ITEM_DEPARTURE_INFO = 12;
 
 const int TAG_FUNC_ON_FREQ = 100;
 const int TAG_FUNC_CLEAR_NEWQNH = 101;
@@ -49,3 +50,6 @@ const COLORREF TAG_COLOR_WHITE = RGB(255, 255, 255);
 constexpr auto TOPSKY_PLUGIN_NAME = "TopSky plugin";
 const int TOPSKY_TAG_FUNC_SET_CLEARANCE_FLAG = 667;
 const int TOPSKY_TAG_TYPE_ATYP = 10028;
+
+constexpr auto GROUNDRADAR_PLUGIN_NAME = "Ground Radar plugin";
+const int GROUNDRADAR_TAG_TYPE_GROUNDSTATUS = 3;

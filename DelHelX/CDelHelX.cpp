@@ -45,6 +45,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemFunction("Line up", TAG_FUNC_LINE_UP);
 	this->RegisterTagItemFunction("Take off", TAG_FUNC_TAKE_OFF);
 	this->RegisterTagItemFunction("Transfer next", TAG_FUNC_TRANSFER_NEXT);
+	this->RegisterTagItemType("Departure Info", TAG_ITEM_DEPARTURE_INFO);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 
@@ -52,17 +53,18 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	if (this->twrSameSID.GetColumnNumber() == 0)
 	{
 		this->twrSameSID.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("STS", 12, false, "Ground Radar Plugin", 3, PLUGIN_NAME, TAG_FUNC_LINE_UP, PLUGIN_NAME, TAG_FUNC_TAKE_OFF);
+		this->twrSameSID.AddColumnDefinition("STS", 12, false, GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_GROUNDSTATUS, PLUGIN_NAME, TAG_FUNC_LINE_UP, PLUGIN_NAME, TAG_FUNC_TAKE_OFF);
 		this->twrSameSID.AddColumnDefinition("RWY", 4, false, PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("SID", 11, false, PLUGIN_NAME, TAG_ITEM_SAMESID, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("ATYP", 5, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("ATYP", 8, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("HP1", 4, false, PLUGIN_NAME, TAG_ITEM_HP1, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP1, PLUGIN_NAME, TAG_FUNC_REQUEST_HP1);
 		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP2, PLUGIN_NAME, TAG_FUNC_REQUEST_HP2);
 		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP3, PLUGIN_NAME, TAG_FUNC_REQUEST_HP3);
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
 		this->twrSameSID.AddColumnDefinition("TIMER", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("DEP", 6, false, PLUGIN_NAME, TAG_ITEM_DEPARTURE_INFO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("Freq", 15, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);
@@ -388,82 +390,83 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 		std::string rwy = fpd.GetDepartureRwy();
 		std::string sid = fpd.GetSidName();
-		auto sidKey = sid.substr(0, sid.length() - 2);
+		if (!sid.empty() && sid.length() > 2) {
+			auto sidKey = sid.substr(0, sid.length() - 2);
 
-		strcpy_s(sItemString, 16, sid.c_str());
-		*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-		*pRGB = TAG_COLOR_WHITE;
-		*pFontSize += 5.0;
+			strcpy_s(sItemString, 16, sid.c_str());
+			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+			*pRGB = TAG_COLOR_WHITE;
 
-		if (rwy == "11")
-		{
-			std::map<std::string, COLORREF> rwy11SameSidColors{
-				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-				{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
-				{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-				{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-
-				{"IRGO", TAG_COLOR_ORANGE}, {"IMVO", TAG_COLOR_ORANGE}, {"ODSU", TAG_COLOR_ORANGE}, {"OSMO", TAG_COLOR_ORANGE}, {"MEDIX", TAG_COLOR_ORANGE}
-			};
-
-			if (rwy11SameSidColors.find(sidKey) != rwy11SameSidColors.end())
+			if (rwy == "11")
 			{
-				*pRGB = rwy11SameSidColors.at(sidKey);
+				std::map<std::string, COLORREF> rwy11SameSidColors{
+					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+					{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
+					{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+					{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+
+					{"IRGO", TAG_COLOR_ORANGE}, {"IMVO", TAG_COLOR_ORANGE}, {"ODSU", TAG_COLOR_ORANGE}, {"OSMO", TAG_COLOR_ORANGE}, {"MEDIX", TAG_COLOR_ORANGE}
+				};
+
+				if (rwy11SameSidColors.find(sidKey) != rwy11SameSidColors.end())
+				{
+					*pRGB = rwy11SameSidColors.at(sidKey);
+				}
 			}
-		}
 
-		if (rwy == "16")
-		{
-			std::map<std::string, COLORREF> rwy16SameSidColors{
-				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-				{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-				{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
-				{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-			};
-
-			if (rwy16SameSidColors.find(sidKey) != rwy16SameSidColors.end())
+			if (rwy == "16")
 			{
-				*pRGB = rwy16SameSidColors.at(sidKey);
+				std::map<std::string, COLORREF> rwy16SameSidColors{
+					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+					{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+					{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
+					{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+				};
+
+				if (rwy16SameSidColors.find(sidKey) != rwy16SameSidColors.end())
+				{
+					*pRGB = rwy16SameSidColors.at(sidKey);
+				}
 			}
-		}
 
-		if (rwy == "29")
-		{
-			std::map<std::string, COLORREF> rwy29SameSidColors{
-				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-				{"MEDIX", TAG_COLOR_PURPLE}, {"LUGEM", TAG_COLOR_PURPLE},
-				{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"KOXER", TAG_COLOR_TURQ}, {"ADAMA", TAG_COLOR_TURQ},
-
-				{"IRGO", TAG_COLOR_GREEN}, {"IMVO", TAG_COLOR_GREEN}, {"ODSU", TAG_COLOR_GREEN}, {"OSMO", TAG_COLOR_GREEN}, {"OTGA", TAG_COLOR_GREEN},
-				{"UMSU", TAG_COLOR_PURPLE}, {"UNGU", TAG_COLOR_PURPLE}, {"VABG", TAG_COLOR_PURPLE},
-				{"EMKO", TAG_COLOR_ORANGE}, {"EWUK", TAG_COLOR_ORANGE},
-				{"AGMI", TAG_COLOR_TURQ}, {"ASPI", TAG_COLOR_TURQ}
-			};
-
-			if (rwy29SameSidColors.find(sidKey) != rwy29SameSidColors.end())
+			if (rwy == "29")
 			{
-				*pRGB = rwy29SameSidColors.at(sidKey);
+				std::map<std::string, COLORREF> rwy29SameSidColors{
+					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+					{"MEDIX", TAG_COLOR_PURPLE}, {"LUGEM", TAG_COLOR_PURPLE},
+					{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"KOXER", TAG_COLOR_TURQ}, {"ADAMA", TAG_COLOR_TURQ},
+
+					{"IRGO", TAG_COLOR_GREEN}, {"IMVO", TAG_COLOR_GREEN}, {"ODSU", TAG_COLOR_GREEN}, {"OSMO", TAG_COLOR_GREEN}, {"OTGA", TAG_COLOR_GREEN},
+					{"UMSU", TAG_COLOR_PURPLE}, {"UNGU", TAG_COLOR_PURPLE}, {"VABG", TAG_COLOR_PURPLE},
+					{"EMKO", TAG_COLOR_ORANGE}, {"EWUK", TAG_COLOR_ORANGE},
+					{"AGMI", TAG_COLOR_TURQ}, {"ASPI", TAG_COLOR_TURQ}
+				};
+
+				if (rwy29SameSidColors.find(sidKey) != rwy29SameSidColors.end())
+				{
+					*pRGB = rwy29SameSidColors.at(sidKey);
+				}
 			}
-		}
 
-		if (rwy == "34")
-		{
-			std::map<std::string, COLORREF> rw34SameSidColors{
-				{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-				{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"RUPET", TAG_COLOR_TURQ}, {"OSPEN", TAG_COLOR_TURQ},
-				{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-				{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-
-				{"IRGO", TAG_COLOR_TURQ}, {"IMVO", TAG_COLOR_TURQ}, {"ODSU", TAG_COLOR_TURQ}, {"OSMO", TAG_COLOR_TURQ}, {"OTGA", TAG_COLOR_TURQ},
-				{"EMKO", TAG_COLOR_RED}, {"EWUK", TAG_COLOR_RED}
-			};
-
-			if (rw34SameSidColors.find(sidKey) != rw34SameSidColors.end())
+			if (rwy == "34")
 			{
-				*pRGB = rw34SameSidColors.at(sidKey);
+				std::map<std::string, COLORREF> rw34SameSidColors{
+					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"RUPET", TAG_COLOR_TURQ}, {"OSPEN", TAG_COLOR_TURQ},
+					{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+					{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+
+					{"IRGO", TAG_COLOR_TURQ}, {"IMVO", TAG_COLOR_TURQ}, {"ODSU", TAG_COLOR_TURQ}, {"OSMO", TAG_COLOR_TURQ}, {"OTGA", TAG_COLOR_TURQ},
+					{"EMKO", TAG_COLOR_RED}, {"EWUK", TAG_COLOR_RED}
+				};
+
+				if (rw34SameSidColors.find(sidKey) != rw34SameSidColors.end())
+				{
+					*pRGB = rw34SameSidColors.at(sidKey);
+				}
 			}
 		}
 	}
@@ -607,6 +610,197 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		else
 		{
 			strcpy_s(sItemString, 16, "");
+		}
+	}
+	else if (ItemCode == TAG_ITEM_DEPARTURE_INFO)
+	{
+		try
+		{
+			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+			std::string groundState = FlightPlan.GetGroundState();
+			if (groundState == "TAXI" || groundState == "DEPA")
+			{
+				std::string callSign = FlightPlan.GetCallsign();
+				std::string rwy = FlightPlan.GetFlightPlanData().GetDepartureRwy();
+				if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) == 0)
+				{
+					std::string lastDeparted_callSign = this->twrSameSID_lastDeparted[rwy];
+					if (!lastDeparted_callSign.empty())
+					{
+						bool lastDeparted_active = false;
+						EuroScopePlugIn::CRadarTarget lastDeparted_radarTarget;
+						for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+						{
+							if (rt.IsValid() && lastDeparted_callSign == rt.GetCorrelatedFlightPlan().GetCallsign())
+							{
+								lastDeparted_active = true;
+								lastDeparted_radarTarget = rt;
+							}
+						}
+
+						if (lastDeparted_active)
+						{
+							char departedWtc = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
+							char wtc = FlightPlan.GetFlightPlanData().GetAircraftWtc();
+
+							if (GetAircraftWeightCategoryRanking(departedWtc) > GetAircraftWeightCategoryRanking(wtc))
+							{
+								// Time based
+								unsigned long secondsRequired = 120;
+								if (GetAircraftWeightCategoryRanking(departedWtc) == 4)
+								{
+									secondsRequired += 60;
+								}
+
+								std::string departedHP = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetControllerAssignedData().GetFlightStripAnnotation(3);
+								std::string hp = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(3);
+								if (!IsSameHoldingPoint(departedHP, hp))
+								{
+									secondsRequired += 60;
+								}
+
+								unsigned long now = GetTickCount();
+								auto secondsSinceDeparted = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
+
+								if (secondsSinceDeparted > secondsRequired)
+								{
+									*pRGB = TAG_COLOR_GREEN;
+									strcpy_s(sItemString, 16, "OK");
+								}
+								else
+								{
+									*pRGB = TAG_COLOR_RED;
+									strcpy_s(sItemString, 16, std::to_string(secondsRequired - secondsSinceDeparted).c_str());
+								}
+							}
+							else
+							{
+								// Distance based
+								std::string departedSID = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+								std::string sid = FlightPlan.GetFlightPlanData().GetSidName();
+
+								int distanceRequired = 5;
+
+								if (!departedSID.empty() && !sid.empty() && departedSID.length() > 2 && sid.length() > 2) {
+									auto depSidKey = departedSID.substr(0, departedSID.length() - 2);
+									auto sidKey = sid.substr(0, sid.length() - 2);
+									if (rwy == "11")
+									{
+										std::map<std::string, COLORREF> rwy11SameSidColors{
+											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+											{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
+											{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+											{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+
+											{"IRGO", TAG_COLOR_ORANGE}, {"IMVO", TAG_COLOR_ORANGE}, {"ODSU", TAG_COLOR_ORANGE}, {"OSMO", TAG_COLOR_ORANGE}, {"MEDIX", TAG_COLOR_ORANGE}
+										};
+
+										if (rwy11SameSidColors.find(depSidKey) != rwy11SameSidColors.end() && rwy11SameSidColors.find(sidKey) != rwy11SameSidColors.end())
+										{
+											if (rwy11SameSidColors.at(departedSID) == rwy11SameSidColors.at(departedSID))
+											{
+												distanceRequired = 3;
+											}
+										}
+									}
+
+									if (rwy == "16")
+									{
+										std::map<std::string, COLORREF> rwy16SameSidColors{
+											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+											{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+											{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
+											{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+										};
+
+										if (rwy16SameSidColors.find(depSidKey) != rwy16SameSidColors.end() && rwy16SameSidColors.find(sidKey) != rwy16SameSidColors.end())
+										{
+											if (rwy16SameSidColors.at(departedSID) == rwy16SameSidColors.at(departedSID))
+											{
+												distanceRequired = 3;
+											}
+										}
+									}
+
+									if (rwy == "29")
+									{
+										std::map<std::string, COLORREF> rwy29SameSidColors{
+											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+											{"MEDIX", TAG_COLOR_PURPLE}, {"LUGEM", TAG_COLOR_PURPLE},
+											{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
+											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"KOXER", TAG_COLOR_TURQ}, {"ADAMA", TAG_COLOR_TURQ},
+
+											{"IRGO", TAG_COLOR_GREEN}, {"IMVO", TAG_COLOR_GREEN}, {"ODSU", TAG_COLOR_GREEN}, {"OSMO", TAG_COLOR_GREEN}, {"OTGA", TAG_COLOR_GREEN},
+											{"UMSU", TAG_COLOR_PURPLE}, {"UNGU", TAG_COLOR_PURPLE}, {"VABG", TAG_COLOR_PURPLE},
+											{"EMKO", TAG_COLOR_ORANGE}, {"EWUK", TAG_COLOR_ORANGE},
+											{"AGMI", TAG_COLOR_TURQ}, {"ASPI", TAG_COLOR_TURQ}
+										};
+
+										if (rwy29SameSidColors.find(depSidKey) != rwy29SameSidColors.end() && rwy29SameSidColors.find(sidKey) != rwy29SameSidColors.end())
+										{
+											if (rwy29SameSidColors.at(departedSID) == rwy29SameSidColors.at(departedSID))
+											{
+												distanceRequired = 3;
+											}
+										}
+									}
+
+									if (rwy == "34")
+									{
+										std::map<std::string, COLORREF> rw34SameSidColors{
+											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
+											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"RUPET", TAG_COLOR_TURQ}, {"OSPEN", TAG_COLOR_TURQ},
+											{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+											{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+
+											{"IRGO", TAG_COLOR_TURQ}, {"IMVO", TAG_COLOR_TURQ}, {"ODSU", TAG_COLOR_TURQ}, {"OSMO", TAG_COLOR_TURQ}, {"OTGA", TAG_COLOR_TURQ},
+											{"EMKO", TAG_COLOR_RED}, {"EWUK", TAG_COLOR_RED}
+										};
+
+										if (rw34SameSidColors.find(depSidKey) != rw34SameSidColors.end() && rw34SameSidColors.find(sidKey) != rw34SameSidColors.end())
+										{
+											if (rw34SameSidColors.at(departedSID) == rw34SameSidColors.at(departedSID))
+											{
+												distanceRequired = 3;
+											}
+										}
+									}
+								}
+
+								auto distanceBetween = RadarTarget.GetPosition().GetPosition().DistanceTo(lastDeparted_radarTarget.GetPosition().GetPosition());
+								if (distanceBetween > distanceRequired)
+								{
+									*pRGB = TAG_COLOR_GREEN;
+									strcpy_s(sItemString, 16, "OK");
+								}
+								else
+								{
+									*pRGB = TAG_COLOR_RED;
+									std::string num_text = std::to_string(distanceRequired - distanceBetween);
+									std::string rounded = num_text.substr(0, num_text.find('.') + 3);
+									strcpy_s(sItemString, 16, rounded.c_str());
+								}
+							}
+						}
+
+						*pRGB = TAG_COLOR_GREEN;
+						strcpy_s(sItemString, 16, "OK?");
+					}
+				}
+				else if (this->twrSameSID_lastDeparted[rwy] == callSign)
+				{
+					// This is the last aircraft that departed this runway
+					*pRGB = TAG_COLOR_ORANGE;
+					strcpy_s(sItemString, 16, rwy.c_str());
+				}
+			}
+		}
+		catch (const std::exception& ex)
+		{
+			strcpy_s(sItemString, 16, "ERR");
+			this->LogMessage(ex.what(), "ERROR");
 		}
 	}
 }
@@ -1453,12 +1647,13 @@ void CDelHelX::UpdateTowerSameSID()
 			this->twrSameSID_flightPlans.erase(callSign);
 		}
 
-		// Check if aircraft started takeoff roll, gs>40 knots
+		// Check if aircraft started takeoff roll, press Alt > 650 feet
 		if (groundState == "DEPA" && pressAlt >= 650 && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
 		{
 			if (this->twrSameSID_flightPlans.at(callSign) == 0)
 			{
 				this->twrSameSID_flightPlans[callSign] = GetTickCount();
+				this->twrSameSID_lastDeparted[fp.GetFlightPlanData().GetDepartureRwy()] = callSign;
 			}
 		}
 
@@ -1887,6 +2082,62 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 			}
 		}
 	}
+}
+
+int CDelHelX::GetAircraftWeightCategoryRanking(char wtc)
+{
+	switch (wtc)
+	{
+	case 'S':
+	case 's':
+		return 4;
+	case 'H':
+	case 'h':
+		return 3;
+	case 'M':
+	case 'm':
+		return 2;
+	case 'L':
+	case 'l':
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+int CDelHelX::IsSameHoldingPoint(std::string hp1, std::string hp2)
+{
+	if (hp1.empty() || hp2.empty())
+	{
+		return false;
+	}
+
+	if (hp1 == hp2)
+	{
+		return true;
+	}
+
+	if (hp1 == "A1" && hp2 == "A2")
+	{
+		return true;
+	}
+
+	if (hp1 == "A11" && hp2 == "A12")
+	{
+		return true;
+	}
+
+	if (hp1 == "B1" && hp2 == "B2")
+	{
+		return true;
+	}
+
+	if (hp1 == "B11" && hp2 == "B12")
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void CDelHelX::CheckForUpdate()

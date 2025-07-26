@@ -47,6 +47,7 @@ private:
 	std::map<std::string, std::string> airportQNH;
 	EuroScopePlugIn::CFlightPlanList twrSameSID;
 	std::map<std::string, unsigned long> twrSameSID_flightPlans;
+	std::map<std::string, std::string> twrSameSID_lastDeparted;
 
 	void LoadSettings();
 	void SaveSettings();
@@ -60,6 +61,8 @@ private:
 	static double DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition);
 	static bool MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index);
 	static std::string GetRunwayHoldingPoint(const std::string& rwy, int index);
+	static int GetAircraftWeightCategoryRanking(char wtc);
+	static int IsSameHoldingPoint(std::string hp1, std::string hp2);
 
 	void LogMessage(const std::string& message, const std::string& type);
 	void LogDebugMessage(const std::string& message, const std::string& type);
