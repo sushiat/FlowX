@@ -469,7 +469,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_TAKEOFF_TIMER)
 	{
-		*pFontSize = 5.0;
 		std::string callSign = FlightPlan.GetCallsign();
 		if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 		{
@@ -486,7 +485,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_TAKEOFF_DISTANCE)
 	{
-		*pFontSize = 5.0;
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		auto position = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
@@ -502,7 +500,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_ASSIGNED_RUNWAY)
 	{
-		*pFontSize = 5.0;
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 
@@ -510,7 +507,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_HP1)
 	{
-		*pFontSize = 5.0;
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
@@ -523,6 +519,12 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 			if (annotation.find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
+
+			std::string callSign = FlightPlan.GetCallsign();
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
+			{
+				*pRGB = TAG_COLOR_NONE;
+			}
 		}
 		else
 		{
@@ -531,7 +533,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_HP2)
 	{
-		*pFontSize = 5.0;
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
@@ -544,6 +545,12 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 			if (annotation.find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
+
+			std::string callSign = FlightPlan.GetCallsign();
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
+			{
+				*pRGB = TAG_COLOR_NONE;
+			}
 		}
 		else
 		{
@@ -552,7 +559,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_HP3)
 	{
-		*pFontSize = 5.0;
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
@@ -565,6 +571,12 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 			if (annotation.find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
+
+			std::string callSign = FlightPlan.GetCallsign();
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
+			{
+				*pRGB = TAG_COLOR_NONE;
+			}
 		}
 		else
 		{
@@ -573,7 +585,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_HPO)
 	{
-		*pFontSize = 5.0;
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
@@ -586,6 +597,12 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 			if (annotation.find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
+
+			std::string callSign = FlightPlan.GetCallsign();
+			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
+			{
+				*pRGB = TAG_COLOR_NONE;
+			}
 		}
 		else
 		{
