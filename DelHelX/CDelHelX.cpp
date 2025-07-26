@@ -51,18 +51,19 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	this->twrSameSID = this->RegisterFpList("TowerHelper");
 	if (this->twrSameSID.GetColumnNumber() == 0)
 	{
-		this->twrSameSID.AddColumnDefinition("C/S", 8, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("STS", 7, false, "Ground Radar Plugin", 3, PLUGIN_NAME, TAG_FUNC_LINE_UP, PLUGIN_NAME, TAG_FUNC_TAKE_OFF);
+		this->twrSameSID.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("STS", 12, false, "Ground Radar Plugin", 3, PLUGIN_NAME, TAG_FUNC_LINE_UP, PLUGIN_NAME, TAG_FUNC_TAKE_OFF);
 		this->twrSameSID.AddColumnDefinition("RWY", 4, false, PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("SID", 8, false, PLUGIN_NAME, TAG_ITEM_SAMESID, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("SID", 11, false, PLUGIN_NAME, TAG_ITEM_SAMESID, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("ATYP", 5, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("HP1", 4, false, PLUGIN_NAME, TAG_ITEM_HP1, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP1, PLUGIN_NAME, TAG_FUNC_REQUEST_HP1);
 		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP2, PLUGIN_NAME, TAG_FUNC_REQUEST_HP2);
 		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP3, PLUGIN_NAME, TAG_FUNC_REQUEST_HP3);
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
-		this->twrSameSID.AddColumnDefinition("TIMER", 7, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("NM", 6, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("Freq", 9, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("TIMER", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("Freq", 15, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);
 
