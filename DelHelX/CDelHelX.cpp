@@ -64,7 +64,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
 		this->twrSameSID.AddColumnDefinition("TIMER", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("DEP", 6, false, PLUGIN_NAME, TAG_ITEM_DEPARTURE_INFO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("DEP", 10, false, PLUGIN_NAME, TAG_ITEM_DEPARTURE_INFO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("Freq", 15, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);
@@ -526,7 +526,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
-				*pRGB = TAG_COLOR_NONE;
+				*pRGB = TAG_COLOR_DARKGREY;
 			}
 		}
 		else
@@ -552,7 +552,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
-				*pRGB = TAG_COLOR_NONE;
+				*pRGB = TAG_COLOR_DARKGREY;
 			}
 		}
 		else
@@ -578,7 +578,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
-				*pRGB = TAG_COLOR_NONE;
+				*pRGB = TAG_COLOR_DARKGREY;
 			}
 		}
 		else
@@ -604,7 +604,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
-				*pRGB = TAG_COLOR_NONE;
+				*pRGB = TAG_COLOR_DARKGREY;
 			}
 		}
 		else
@@ -614,9 +614,10 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_DEPARTURE_INFO)
 	{
+		std::string info;
+		*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 		try
 		{
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 			std::string groundState = FlightPlan.GetGroundState();
 			if (groundState == "TAXI" || groundState == "DEPA")
 			{
@@ -624,14 +625,20 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 				std::string rwy = FlightPlan.GetFlightPlanData().GetDepartureRwy();
 				if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) == 0)
 				{
-					std::string lastDeparted_callSign = this->twrSameSID_lastDeparted[rwy];
+					std::string lastDeparted_callSign;
+					if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end())
+					{
+						lastDeparted_callSign = this->twrSameSID_lastDeparted[rwy];
+					}
+
 					if (!lastDeparted_callSign.empty())
 					{
+						info += lastDeparted_callSign + "->";
 						bool lastDeparted_active = false;
 						EuroScopePlugIn::CRadarTarget lastDeparted_radarTarget;
 						for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
 						{
-							if (rt.IsValid() && lastDeparted_callSign == rt.GetCorrelatedFlightPlan().GetCallsign())
+							if (lastDeparted_callSign == rt.GetCorrelatedFlightPlan().GetCallsign())
 							{
 								lastDeparted_active = true;
 								lastDeparted_radarTarget = rt;
@@ -640,12 +647,14 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 						if (lastDeparted_active)
 						{
+							info += "A:";
 							char departedWtc = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
 							char wtc = FlightPlan.GetFlightPlanData().GetAircraftWtc();
 
 							if (GetAircraftWeightCategoryRanking(departedWtc) > GetAircraftWeightCategoryRanking(wtc))
 							{
 								// Time based
+								info += "T:";
 								unsigned long secondsRequired = 120;
 								if (GetAircraftWeightCategoryRanking(departedWtc) == 4)
 								{
@@ -659,23 +668,33 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									secondsRequired += 60;
 								}
 
+								info += std::to_string(secondsRequired) + "s:";
 								unsigned long now = GetTickCount();
-								auto secondsSinceDeparted = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
+								if (this->twrSameSID_flightPlans.find(lastDeparted_callSign) != this->twrSameSID_flightPlans.end()) {
+									auto secondsSinceDeparted = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
 
-								if (secondsSinceDeparted > secondsRequired)
-								{
-									*pRGB = TAG_COLOR_GREEN;
-									strcpy_s(sItemString, 16, "OK");
+									if (secondsSinceDeparted > secondsRequired)
+									{
+										*pRGB = TAG_COLOR_GREEN;
+										strcpy_s(sItemString, 16, (info + "OK").c_str());
+									}
+									else
+									{
+										*pRGB = TAG_COLOR_RED;
+										strcpy_s(sItemString, 16, std::to_string(secondsRequired - secondsSinceDeparted).c_str());
+									}
 								}
 								else
 								{
-									*pRGB = TAG_COLOR_RED;
-									strcpy_s(sItemString, 16, std::to_string(secondsRequired - secondsSinceDeparted).c_str());
+									// Flight plan removed, either disconnected or out of range
+									*pRGB = TAG_COLOR_GREEN;
+									strcpy_s(sItemString, 16, (info + "OK").c_str());
 								}
 							}
 							else
 							{
 								// Distance based
+								info += "D:";
 								std::string departedSID = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
 								std::string sid = FlightPlan.GetFlightPlanData().GetSidName();
 
@@ -686,19 +705,19 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									auto sidKey = sid.substr(0, sid.length() - 2);
 									if (rwy == "11")
 									{
-										std::map<std::string, COLORREF> rwy11SameSidColors{
-											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-											{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
-											{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-											{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+										std::map<std::string, int> rwy11SameSid{
+											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+											{"OSPEN", 2}, {"RUPET", 2},
+											{"STEIN", 3}, {"ARSIN", 3},
+											{"KOXER", 4}, {"ADAMA", 4},
+											{"MEDIX", 5}, {"LUGEM", 5},
 
-											{"IRGO", TAG_COLOR_ORANGE}, {"IMVO", TAG_COLOR_ORANGE}, {"ODSU", TAG_COLOR_ORANGE}, {"OSMO", TAG_COLOR_ORANGE}, {"MEDIX", TAG_COLOR_ORANGE}
+											{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"MEDIX", 2}
 										};
 
-										if (rwy11SameSidColors.find(depSidKey) != rwy11SameSidColors.end() && rwy11SameSidColors.find(sidKey) != rwy11SameSidColors.end())
+										if (rwy11SameSid.find(depSidKey) != rwy11SameSid.end() && rwy11SameSid.find(sidKey) != rwy11SameSid.end())
 										{
-											if (rwy11SameSidColors.at(departedSID) == rwy11SameSidColors.at(departedSID))
+											if (rwy11SameSid.at(departedSID) == rwy11SameSid.at(sidKey))
 											{
 												distanceRequired = 3;
 											}
@@ -707,17 +726,17 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 									if (rwy == "16")
 									{
-										std::map<std::string, COLORREF> rwy16SameSidColors{
-											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-											{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-											{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
-											{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
+										std::map<std::string, int> rwy16SameSid{
+											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+											{"MEDIX", 2}, {"LUGEM", 2},
+											{"OSPEN", 3}, {"RUPET", 3},
+											{"STEIN", 4}, {"ARSIN", 4},
+											{"KOXER", 5}, {"ADAMA", 5},
 										};
 
-										if (rwy16SameSidColors.find(depSidKey) != rwy16SameSidColors.end() && rwy16SameSidColors.find(sidKey) != rwy16SameSidColors.end())
+										if (rwy16SameSid.find(depSidKey) != rwy16SameSid.end() && rwy16SameSid.find(sidKey) != rwy16SameSid.end())
 										{
-											if (rwy16SameSidColors.at(departedSID) == rwy16SameSidColors.at(departedSID))
+											if (rwy16SameSid.at(departedSID) == rwy16SameSid.at(sidKey))
 											{
 												distanceRequired = 3;
 											}
@@ -726,21 +745,21 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 									if (rwy == "29")
 									{
-										std::map<std::string, COLORREF> rwy29SameSidColors{
-											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-											{"MEDIX", TAG_COLOR_PURPLE}, {"LUGEM", TAG_COLOR_PURPLE},
-											{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"KOXER", TAG_COLOR_TURQ}, {"ADAMA", TAG_COLOR_TURQ},
+										std::map<std::string, int> rwy29SameSid{
+											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+											{"MEDIX", 2}, {"LUGEM", 2},
+											{"OSPEN", 3}, {"RUPET", 3},
+											{"STEIN", 4}, {"ARSIN", 4}, {"KOXER", 4}, {"ADAMA", 4},
 
-											{"IRGO", TAG_COLOR_GREEN}, {"IMVO", TAG_COLOR_GREEN}, {"ODSU", TAG_COLOR_GREEN}, {"OSMO", TAG_COLOR_GREEN}, {"OTGA", TAG_COLOR_GREEN},
-											{"UMSU", TAG_COLOR_PURPLE}, {"UNGU", TAG_COLOR_PURPLE}, {"VABG", TAG_COLOR_PURPLE},
-											{"EMKO", TAG_COLOR_ORANGE}, {"EWUK", TAG_COLOR_ORANGE},
-											{"AGMI", TAG_COLOR_TURQ}, {"ASPI", TAG_COLOR_TURQ}
+											{"IRGO", 1}, {"IMVO", 1}, {"ODSU", 1}, {"OSMO", 1}, {"OTGA", 1},
+											{"UMSU", 2}, {"UNGU", 2}, {"VABG", 2},
+											{"EMKO", 3}, {"EWUK", 3},
+											{"AGMI", 4}, {"ASPI", 4}
 										};
 
-										if (rwy29SameSidColors.find(depSidKey) != rwy29SameSidColors.end() && rwy29SameSidColors.find(sidKey) != rwy29SameSidColors.end())
+										if (rwy29SameSid.find(depSidKey) != rwy29SameSid.end() && rwy29SameSid.find(sidKey) != rwy29SameSid.end())
 										{
-											if (rwy29SameSidColors.at(departedSID) == rwy29SameSidColors.at(departedSID))
+											if (rwy29SameSid.at(departedSID) == rwy29SameSid.at(sidKey))
 											{
 												distanceRequired = 3;
 											}
@@ -749,19 +768,19 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 									if (rwy == "34")
 									{
-										std::map<std::string, COLORREF> rw34SameSidColors{
-											{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-											{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"RUPET", TAG_COLOR_TURQ}, {"OSPEN", TAG_COLOR_TURQ},
-											{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-											{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
+										std::map<std::string, int> rw34SameSid{
+											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+											{"STEIN", 2}, {"ARSIN", 2}, {"RUPET", 2}, {"OSPEN", 2},
+											{"KOXER", 3}, {"ADAMA", 3},
+											{"MEDIX", 4}, {"LUGEM", 4},
 
-											{"IRGO", TAG_COLOR_TURQ}, {"IMVO", TAG_COLOR_TURQ}, {"ODSU", TAG_COLOR_TURQ}, {"OSMO", TAG_COLOR_TURQ}, {"OTGA", TAG_COLOR_TURQ},
-											{"EMKO", TAG_COLOR_RED}, {"EWUK", TAG_COLOR_RED}
+											{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"OTGA", 2},
+											{"EMKO", 4}, {"EWUK", 4}
 										};
 
-										if (rw34SameSidColors.find(depSidKey) != rw34SameSidColors.end() && rw34SameSidColors.find(sidKey) != rw34SameSidColors.end())
+										if (rw34SameSid.find(depSidKey) != rw34SameSid.end() && rw34SameSid.find(sidKey) != rw34SameSid.end())
 										{
-											if (rw34SameSidColors.at(departedSID) == rw34SameSidColors.at(departedSID))
+											if (rw34SameSid.at(departedSID) == rw34SameSid.at(sidKey))
 											{
 												distanceRequired = 3;
 											}
@@ -769,11 +788,12 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									}
 								}
 
+								info += std::to_string(distanceRequired) + "NM:";
 								auto distanceBetween = RadarTarget.GetPosition().GetPosition().DistanceTo(lastDeparted_radarTarget.GetPosition().GetPosition());
 								if (distanceBetween > distanceRequired)
 								{
 									*pRGB = TAG_COLOR_GREEN;
-									strcpy_s(sItemString, 16, "OK");
+									strcpy_s(sItemString, 16, (info + "OK").c_str());
 								}
 								else
 								{
@@ -784,12 +804,12 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								}
 							}
 						}
-
-						*pRGB = TAG_COLOR_GREEN;
-						strcpy_s(sItemString, 16, "OK?");
 					}
+
+					*pRGB = TAG_COLOR_GREEN;
+					strcpy_s(sItemString, 16, (info + "OK?").c_str());
 				}
-				else if (this->twrSameSID_lastDeparted[rwy] == callSign)
+				else if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end() && this->twrSameSID_lastDeparted[rwy] == callSign)
 				{
 					// This is the last aircraft that departed this runway
 					*pRGB = TAG_COLOR_ORANGE;
@@ -799,8 +819,10 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		}
 		catch (const std::exception& ex)
 		{
+			*pRGB = TAG_COLOR_RED;
 			strcpy_s(sItemString, 16, "ERR");
 			this->LogMessage(ex.what(), "ERROR");
+			this->LogMessage(info, "ERROR");
 		}
 	}
 }
