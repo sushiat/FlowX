@@ -614,7 +614,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_DEPARTURE_INFO)
 	{
-		std::string info;
 		*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 		try
 		{
@@ -633,28 +632,21 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 					if (!lastDeparted_callSign.empty())
 					{
-						info += lastDeparted_callSign + "->";
 						bool lastDeparted_active = false;
-						EuroScopePlugIn::CRadarTarget lastDeparted_radarTarget;
-						for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+						EuroScopePlugIn::CRadarTarget lastDeparted_radarTarget = this->RadarTargetSelect(lastDeparted_callSign.c_str());
+						if (lastDeparted_radarTarget.IsValid())
 						{
-							if (lastDeparted_callSign == rt.GetCorrelatedFlightPlan().GetCallsign())
-							{
-								lastDeparted_active = true;
-								lastDeparted_radarTarget = rt;
-							}
+							lastDeparted_active = true;
 						}
 
 						if (lastDeparted_active)
 						{
-							info += "A:";
 							char departedWtc = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
 							char wtc = FlightPlan.GetFlightPlanData().GetAircraftWtc();
 
 							if (GetAircraftWeightCategoryRanking(departedWtc) > GetAircraftWeightCategoryRanking(wtc))
 							{
 								// Time based
-								info += "T:";
 								unsigned long secondsRequired = 120;
 								if (GetAircraftWeightCategoryRanking(departedWtc) == 4)
 								{
@@ -668,7 +660,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									secondsRequired += 60;
 								}
 
-								info += std::to_string(secondsRequired) + "s:";
 								unsigned long now = GetTickCount();
 								if (this->twrSameSID_flightPlans.find(lastDeparted_callSign) != this->twrSameSID_flightPlans.end()) {
 									auto secondsSinceDeparted = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
@@ -676,138 +667,133 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									if (secondsSinceDeparted > secondsRequired)
 									{
 										*pRGB = TAG_COLOR_GREEN;
-										strcpy_s(sItemString, 16, (info + "OK").c_str());
-									}
-									else
-									{
-										*pRGB = TAG_COLOR_RED;
-										strcpy_s(sItemString, 16, std::to_string(secondsRequired - secondsSinceDeparted).c_str());
-									}
-								}
-								else
-								{
-									// Flight plan removed, either disconnected or out of range
-									*pRGB = TAG_COLOR_GREEN;
-									strcpy_s(sItemString, 16, (info + "OK").c_str());
-								}
-							}
-							else
-							{
-								// Distance based
-								info += "D:";
-								std::string departedSID = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
-								std::string sid = FlightPlan.GetFlightPlanData().GetSidName();
-
-								int distanceRequired = 5;
-
-								if (!departedSID.empty() && !sid.empty() && departedSID.length() > 2 && sid.length() > 2) {
-									auto depSidKey = departedSID.substr(0, departedSID.length() - 2);
-									auto sidKey = sid.substr(0, sid.length() - 2);
-									if (rwy == "11")
-									{
-										std::map<std::string, int> rwy11SameSid{
-											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-											{"OSPEN", 2}, {"RUPET", 2},
-											{"STEIN", 3}, {"ARSIN", 3},
-											{"KOXER", 4}, {"ADAMA", 4},
-											{"MEDIX", 5}, {"LUGEM", 5},
-
-											{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"MEDIX", 2}
-										};
-
-										if (rwy11SameSid.find(depSidKey) != rwy11SameSid.end() && rwy11SameSid.find(sidKey) != rwy11SameSid.end())
-										{
-											if (rwy11SameSid.at(departedSID) == rwy11SameSid.at(sidKey))
-											{
-												distanceRequired = 3;
-											}
-										}
+										strcpy_s(sItemString, 16, "OK");
+										return;
 									}
 
-									if (rwy == "16")
-									{
-										std::map<std::string, int> rwy16SameSid{
-											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-											{"MEDIX", 2}, {"LUGEM", 2},
-											{"OSPEN", 3}, {"RUPET", 3},
-											{"STEIN", 4}, {"ARSIN", 4},
-											{"KOXER", 5}, {"ADAMA", 5},
-										};
-
-										if (rwy16SameSid.find(depSidKey) != rwy16SameSid.end() && rwy16SameSid.find(sidKey) != rwy16SameSid.end())
-										{
-											if (rwy16SameSid.at(departedSID) == rwy16SameSid.at(sidKey))
-											{
-												distanceRequired = 3;
-											}
-										}
-									}
-
-									if (rwy == "29")
-									{
-										std::map<std::string, int> rwy29SameSid{
-											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-											{"MEDIX", 2}, {"LUGEM", 2},
-											{"OSPEN", 3}, {"RUPET", 3},
-											{"STEIN", 4}, {"ARSIN", 4}, {"KOXER", 4}, {"ADAMA", 4},
-
-											{"IRGO", 1}, {"IMVO", 1}, {"ODSU", 1}, {"OSMO", 1}, {"OTGA", 1},
-											{"UMSU", 2}, {"UNGU", 2}, {"VABG", 2},
-											{"EMKO", 3}, {"EWUK", 3},
-											{"AGMI", 4}, {"ASPI", 4}
-										};
-
-										if (rwy29SameSid.find(depSidKey) != rwy29SameSid.end() && rwy29SameSid.find(sidKey) != rwy29SameSid.end())
-										{
-											if (rwy29SameSid.at(departedSID) == rwy29SameSid.at(sidKey))
-											{
-												distanceRequired = 3;
-											}
-										}
-									}
-
-									if (rwy == "34")
-									{
-										std::map<std::string, int> rw34SameSid{
-											{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-											{"STEIN", 2}, {"ARSIN", 2}, {"RUPET", 2}, {"OSPEN", 2},
-											{"KOXER", 3}, {"ADAMA", 3},
-											{"MEDIX", 4}, {"LUGEM", 4},
-
-											{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"OTGA", 2},
-											{"EMKO", 4}, {"EWUK", 4}
-										};
-
-										if (rw34SameSid.find(depSidKey) != rw34SameSid.end() && rw34SameSid.find(sidKey) != rw34SameSid.end())
-										{
-											if (rw34SameSid.at(departedSID) == rw34SameSid.at(sidKey))
-											{
-												distanceRequired = 3;
-											}
-										}
-									}
-								}
-
-								info += std::to_string(distanceRequired) + "NM:";
-								auto distanceBetween = RadarTarget.GetPosition().GetPosition().DistanceTo(lastDeparted_radarTarget.GetPosition().GetPosition());
-								if (distanceBetween > distanceRequired)
-								{
-									*pRGB = TAG_COLOR_GREEN;
-									strcpy_s(sItemString, 16, (info + "OK").c_str());
-								}
-								else
-								{
 									*pRGB = TAG_COLOR_RED;
-									std::string num_text = std::to_string(distanceRequired - distanceBetween);
-									std::string rounded = num_text.substr(0, num_text.find('.') + 3);
-									strcpy_s(sItemString, 16, rounded.c_str());
+									strcpy_s(sItemString, 16, (std::to_string(secondsRequired - secondsSinceDeparted) + "s").c_str());
+									return;
+								}
+
+								// Flight plan removed, either disconnected or out of range
+								*pRGB = TAG_COLOR_GREEN;
+								strcpy_s(sItemString, 16, "OK");
+								return;
+							}
+
+							// Distance based
+							std::string departedSID = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+							std::string sid = FlightPlan.GetFlightPlanData().GetSidName();
+
+							double distanceRequired = 5;
+
+							if (!departedSID.empty() && !sid.empty() && departedSID.length() > 2 && sid.length() > 2) {
+								auto depSidKey = departedSID.substr(0, departedSID.length() - 2);
+								auto sidKey = sid.substr(0, sid.length() - 2);
+								if (rwy == "11")
+								{
+									std::map<std::string, int> rwy11SameSid{
+										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+										{"OSPEN", 2}, {"RUPET", 2},
+										{"STEIN", 3}, {"ARSIN", 3},
+										{"KOXER", 4}, {"ADAMA", 4},
+										{"MEDIX", 5}, {"LUGEM", 5},
+
+										{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"MEDIX", 2}
+									};
+
+									if (rwy11SameSid.find(depSidKey) != rwy11SameSid.end() && rwy11SameSid.find(sidKey) != rwy11SameSid.end())
+									{
+										if (rwy11SameSid.at(depSidKey) != rwy11SameSid.at(sidKey))
+										{
+											distanceRequired = 3;
+										}
+									}
+								}
+
+								if (rwy == "16")
+								{
+									std::map<std::string, int> rwy16SameSid{
+										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+										{"MEDIX", 2}, {"LUGEM", 2},
+										{"OSPEN", 3}, {"RUPET", 3},
+										{"STEIN", 4}, {"ARSIN", 4},
+										{"KOXER", 5}, {"ADAMA", 5},
+									};
+
+									if (rwy16SameSid.find(depSidKey) != rwy16SameSid.end() && rwy16SameSid.find(sidKey) != rwy16SameSid.end())
+									{
+										if (rwy16SameSid.at(depSidKey) != rwy16SameSid.at(sidKey))
+										{
+											distanceRequired = 3;
+										}
+									}
+								}
+
+								if (rwy == "29")
+								{
+									std::map<std::string, int> rwy29SameSid{
+										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+										{"MEDIX", 2}, {"LUGEM", 2},
+										{"OSPEN", 3}, {"RUPET", 3},
+										{"STEIN", 4}, {"ARSIN", 4}, {"KOXER", 4}, {"ADAMA", 4},
+
+										{"IRGO", 1}, {"IMVO", 1}, {"ODSU", 1}, {"OSMO", 1}, {"OTGA", 1},
+										{"UMSU", 2}, {"UNGU", 2}, {"VABG", 2},
+										{"EMKO", 3}, {"EWUK", 3},
+										{"AGMI", 4}, {"ASPI", 4}
+									};
+
+									if (rwy29SameSid.find(depSidKey) != rwy29SameSid.end() && rwy29SameSid.find(sidKey) != rwy29SameSid.end())
+									{
+										if (rwy29SameSid.at(depSidKey) != rwy29SameSid.at(sidKey))
+										{
+											distanceRequired = 3;
+										}
+									}
+								}
+
+								if (rwy == "34")
+								{
+									std::map<std::string, int> rw34SameSid{
+										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
+										{"STEIN", 2}, {"ARSIN", 2}, {"RUPET", 2}, {"OSPEN", 2},
+										{"KOXER", 3}, {"ADAMA", 3},
+										{"MEDIX", 4}, {"LUGEM", 4},
+
+										{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"OTGA", 2},
+										{"EMKO", 4}, {"EWUK", 4}
+									};
+
+									if (rw34SameSid.find(depSidKey) != rw34SameSid.end() && rw34SameSid.find(sidKey) != rw34SameSid.end())
+									{
+										if (rw34SameSid.at(depSidKey) != rw34SameSid.at(sidKey))
+										{
+											distanceRequired = 3;
+										}
+									}
 								}
 							}
+
+							auto distanceBetween = RadarTarget.GetPosition().GetPosition().DistanceTo(lastDeparted_radarTarget.GetPosition().GetPosition());
+							if (distanceBetween > distanceRequired)
+							{
+								*pRGB = TAG_COLOR_GREEN;
+								strcpy_s(sItemString, 16, "OK");
+								return;
+							}
+
+							*pRGB = TAG_COLOR_RED;
+							std::string num_text = std::to_string(distanceRequired - distanceBetween);
+							std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
+							strcpy_s(sItemString, 16, rounded.c_str());
+							return;
 						}
 					}
 
 					*pRGB = TAG_COLOR_GREEN;
-					strcpy_s(sItemString, 16, (info + "OK?").c_str());
+					strcpy_s(sItemString, 16, "OK?");
 				}
 				else if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end() && this->twrSameSID_lastDeparted[rwy] == callSign)
 				{
@@ -821,8 +807,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		{
 			*pRGB = TAG_COLOR_RED;
 			strcpy_s(sItemString, 16, "ERR");
-			this->LogMessage(ex.what(), "ERROR");
-			this->LogMessage(info, "ERROR");
 		}
 	}
 }
@@ -2110,8 +2094,8 @@ int CDelHelX::GetAircraftWeightCategoryRanking(char wtc)
 {
 	switch (wtc)
 	{
-	case 'S':
-	case 's':
+	case 'J':
+	case 'j':
 		return 4;
 	case 'H':
 	case 'h':
