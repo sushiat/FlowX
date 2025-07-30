@@ -1023,6 +1023,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		{
 			fp.EndTracking();
 		}
+		fp.GetControllerAssignedData().SetFlightStripAnnotation(4, "T");
 	}
 }
 
@@ -1052,6 +1053,13 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 
 	if (!groundState.empty())
 	{
+		// Check if we passed the aircraft to the next frequency
+		std::string transferred = fp.GetControllerAssignedData().GetFlightStripAnnotation(4);
+		if (transferred == "T")
+		{
+			res.color = TAG_COLOR_DARKGREY;
+		}
+
 		if (groundState == "TAXI" || groundState == "DEPA") {
 			// Find next frequency
 			if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3 && me.GetFacility() <= 4)
@@ -1681,6 +1689,7 @@ void CDelHelX::UpdateTowerSameSID()
 				auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
 				if (seconds > 4 * 60)
 				{
+					fp.GetControllerAssignedData().SetFlightStripAnnotation(4, "");
 					this->twrSameSID.RemoveFpFromTheList(fp);
 					this->twrSameSID_flightPlans.erase(callSign);
 					continue;
@@ -1694,6 +1703,7 @@ void CDelHelX::UpdateTowerSameSID()
 
 			if (distance >= 15)
 			{
+				fp.GetControllerAssignedData().SetFlightStripAnnotation(4, "");
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
 			}
