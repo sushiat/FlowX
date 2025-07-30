@@ -784,6 +784,15 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								return;
 							}
 
+							if (distanceBetween > (distanceRequired - 1))
+							{
+								*pRGB = TAG_COLOR_YELLOW;
+								std::string num_text = std::to_string(distanceRequired - distanceBetween);
+								std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
+								strcpy_s(sItemString, 16, rounded.c_str());
+								return;
+							}
+
 							*pRGB = TAG_COLOR_RED;
 							std::string num_text = std::to_string(distanceRequired - distanceBetween);
 							std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
