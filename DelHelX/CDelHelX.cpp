@@ -62,10 +62,10 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP2, PLUGIN_NAME, TAG_FUNC_REQUEST_HP2);
 		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP3, PLUGIN_NAME, TAG_FUNC_REQUEST_HP3);
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
+		this->twrSameSID.AddColumnDefinition("DEP?", 10, false, PLUGIN_NAME, TAG_ITEM_DEPARTURE_INFO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("Freq", 15, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("TIMER", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("DEP", 10, false, PLUGIN_NAME, TAG_ITEM_DEPARTURE_INFO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("Freq", 15, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);
 
@@ -121,7 +121,10 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 			}
 
 			this->debug = !this->debug;
-			this->radarScreen->debug = this->debug;
+			if (this->radarScreen != nullptr)
+			{
+				this->radarScreen->debug = this->debug;
+			}
 
 			this->SaveSettings();
 
@@ -268,7 +271,7 @@ void CDelHelX::RedoFlags()
 			continue;
 		}
 
-		if (fp.GetClearenceFlag())
+		if (fp.GetClearenceFlag() && this->radarScreen != nullptr)
 		{
 			// Toggle off and back on
 			this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
@@ -1064,71 +1067,73 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 			// Find next frequency
 			if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3 && me.GetFacility() <= 4)
 			{
-				// Only show tower to ground, but not to tower
-				if (me.GetFacility() == 3) {
-					bool towerOnline = false;
-					for (auto station : this->radarScreen->towerStations)
-					{
-						if (station.find(dep) != std::string::npos)
+				if (this->radarScreen != nullptr) {
+					// Only show tower to ground, but not to tower
+					if (me.GetFacility() == 3) {
+						bool towerOnline = false;
+						for (auto station : this->radarScreen->towerStations)
 						{
-							towerOnline = true;
-							continue;
-						}
-					}
-
-					if (towerOnline || this->towerOverride)
-					{
-						for (auto rwyFreq : airport->second.rwyTwrFreq)
-						{
-							if (rwy == rwyFreq.first)
+							if (station.find(dep) != std::string::npos)
 							{
-								res.tag += "->" + rwyFreq.second;
-								return res;
+								towerOnline = true;
+								continue;
 							}
 						}
 
-						// Didn't find a runway specific tower, so return default
-						res.tag += "->" + airport->second.twrFreq;
-						return res;
-					}
-				}
+						if (towerOnline || this->towerOverride)
+						{
+							for (auto rwyFreq : airport->second.rwyTwrFreq)
+							{
+								if (rwy == rwyFreq.first)
+								{
+									res.tag += "->" + rwyFreq.second;
+									return res;
+								}
+							}
 
-				for (auto station : this->radarScreen->approachStations)
-				{
-					if (station.find(dep) != std::string::npos)
-					{
-						// Search for SID-specific freq
-						auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
-						auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
-						auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
-						if (sid129.find(sid) != sid129.end())
-						{
-							res.tag += "->129.050";
-						}
-						else if (sid125.find(sid) != sid125.end())
-						{
-							res.tag += "->125.175";
-						}
-						else if (sid134.find(sid) != sid134.end())
-						{
-							res.tag += "->134.675";
-						}
-						else
-						{
-							res.tag += "->" + airport->second.appFreq + "??";
-						}
-						return res;
-					}
-				}
-
-				for (auto center : airport->second.ctrStations)
-				{
-					for (auto station : this->radarScreen->centerStations)
-					{
-						if (station.first.find(center) != std::string::npos)
-						{
-							res.tag += "->" + station.second;
+							// Didn't find a runway specific tower, so return default
+							res.tag += "->" + airport->second.twrFreq;
 							return res;
+						}
+					}
+
+					for (auto station : this->radarScreen->approachStations)
+					{
+						if (station.find(dep) != std::string::npos)
+						{
+							// Search for SID-specific freq
+							auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
+							auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
+							auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
+							if (sid129.find(sid) != sid129.end())
+							{
+								res.tag += "->129.050";
+							}
+							else if (sid125.find(sid) != sid125.end())
+							{
+								res.tag += "->125.175";
+							}
+							else if (sid134.find(sid) != sid134.end())
+							{
+								res.tag += "->134.675";
+							}
+							else
+							{
+								res.tag += "->" + airport->second.appFreq + "??";
+							}
+							return res;
+						}
+					}
+
+					for (auto center : airport->second.ctrStations)
+					{
+						for (auto station : this->radarScreen->centerStations)
+						{
+							if (station.first.find(center) != std::string::npos)
+							{
+								res.tag += "->" + station.second;
+								return res;
+							}
 						}
 					}
 				}
@@ -1231,67 +1236,69 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 	}
 
 	bool towerOnline = false;
-	for (auto station : this->radarScreen->towerStations)
-	{
-		if (station.find(dep) != std::string::npos)
+	if (this->radarScreen != nullptr) {
+		for (auto station : this->radarScreen->towerStations)
 		{
-			towerOnline = true;
-			continue;
-		}
-	}
-
-	if (towerOnline || this->towerOverride)
-	{
-		for (auto rwyFreq : airport->second.rwyTwrFreq)
-		{
-			if (rwy == rwyFreq.first)
+			if (station.find(dep) != std::string::npos)
 			{
-				res.tag += "->" + rwyFreq.second;
-				return res;
+				towerOnline = true;
+				continue;
 			}
 		}
 
-		// Didn't find a runway specific tower, so return default
-		res.tag += "->" + airport->second.twrFreq;
-		return res;
-	}
-
-	for (auto station : this->radarScreen->approachStations)
-	{
-		if (station.find(dep) != std::string::npos)
+		if (towerOnline || this->towerOverride)
 		{
-			// Search for SID-specific freq
-			auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
-			auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
-			auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
-			if (sid129.find(sid) != sid129.end())
+			for (auto rwyFreq : airport->second.rwyTwrFreq)
 			{
-				res.tag += "->129.050";
+				if (rwy == rwyFreq.first)
+				{
+					res.tag += "->" + rwyFreq.second;
+					return res;
+				}
 			}
-			else if (sid125.find(sid) != sid125.end())
-			{
-				res.tag += "->125.175";
-			}
-			else if (sid134.find(sid) != sid134.end())
-			{
-				res.tag += "->134.675";
-			}
-			else
-			{
-				res.tag += "->" + airport->second.appFreq + "??";
-			}
+
+			// Didn't find a runway specific tower, so return default
+			res.tag += "->" + airport->second.twrFreq;
 			return res;
 		}
-	}
 
-	for (auto center : airport->second.ctrStations)
-	{
-		for (auto station : this->radarScreen->centerStations)
+		for (auto station : this->radarScreen->approachStations)
 		{
-			if (station.first.find(center) != std::string::npos)
+			if (station.find(dep) != std::string::npos)
 			{
-				res.tag += "->" + station.second;
+				// Search for SID-specific freq
+				auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
+				auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
+				auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
+				if (sid129.find(sid) != sid129.end())
+				{
+					res.tag += "->129.050";
+				}
+				else if (sid125.find(sid) != sid125.end())
+				{
+					res.tag += "->125.175";
+				}
+				else if (sid134.find(sid) != sid134.end())
+				{
+					res.tag += "->134.675";
+				}
+				else
+				{
+					res.tag += "->" + airport->second.appFreq + "??";
+				}
 				return res;
+			}
+		}
+
+		for (auto center : airport->second.ctrStations)
+		{
+			for (auto station : this->radarScreen->centerStations)
+			{
+				if (station.first.find(center) != std::string::npos)
+				{
+					res.tag += "->" + station.second;
+					return res;
+				}
 			}
 		}
 	}
