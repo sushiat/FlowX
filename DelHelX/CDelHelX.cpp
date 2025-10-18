@@ -702,8 +702,9 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 										{"STEIN", 3}, {"ARSIN", 3},
 										{"KOXER", 4}, {"ADAMA", 4},
 										{"MEDIX", 5}, {"LUGEM", 5},
+										{"SOVIL", 6},
 
-										{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"MEDIX", 2}
+										{"IRGO", 5}, {"IMVO", 5}, {"ODSU", 5}, {"OSMO", 5}
 									};
 
 									if (rwy11SameSid.find(depSidKey) != rwy11SameSid.end() && rwy11SameSid.find(sidKey) != rwy11SameSid.end())
@@ -723,6 +724,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 										{"OSPEN", 3}, {"RUPET", 3},
 										{"STEIN", 4}, {"ARSIN", 4},
 										{"KOXER", 5}, {"ADAMA", 5},
+										{"SOVIL", 6},
 									};
 
 									if (rwy16SameSid.find(depSidKey) != rwy16SameSid.end() && rwy16SameSid.find(sidKey) != rwy16SameSid.end())
@@ -741,6 +743,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 										{"MEDIX", 2}, {"LUGEM", 2},
 										{"OSPEN", 3}, {"RUPET", 3},
 										{"STEIN", 4}, {"ARSIN", 4}, {"KOXER", 4}, {"ADAMA", 4},
+										{"SOVIL", 5},
 
 										{"IRGO", 1}, {"IMVO", 1}, {"ODSU", 1}, {"OSMO", 1}, {"OTGA", 1},
 										{"UMSU", 2}, {"UNGU", 2}, {"VABG", 2},
@@ -764,6 +767,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 										{"STEIN", 2}, {"ARSIN", 2}, {"RUPET", 2}, {"OSPEN", 2},
 										{"KOXER", 3}, {"ADAMA", 3},
 										{"MEDIX", 4}, {"LUGEM", 4},
+										{"SOVIL", 5},
 
 										{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"OTGA", 2},
 										{"EMKO", 4}, {"EWUK", 4}
@@ -1067,73 +1071,101 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 			// Find next frequency
 			if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3 && me.GetFacility() <= 4)
 			{
-				if (this->radarScreen != nullptr) {
-					// Only show tower to ground, but not to tower
-					if (me.GetFacility() == 3) {
-						bool towerOnline = false;
-						for (auto station : this->radarScreen->towerStations)
-						{
-							if (station.find(dep) != std::string::npos)
-							{
-								towerOnline = true;
-								continue;
-							}
-						}
-
-						if (towerOnline || this->towerOverride)
-						{
-							for (auto rwyFreq : airport->second.rwyTwrFreq)
-							{
-								if (rwy == rwyFreq.first)
-								{
-									res.tag += "->" + rwyFreq.second;
-									return res;
-								}
-							}
-
-							// Didn't find a runway specific tower, so return default
-							res.tag += "->" + airport->second.twrFreq;
-							return res;
-						}
+				// Only show tower to ground, but not to tower
+				if (me.GetFacility() == 3) {
+					bool towerOnline = false;
+					if (this->radarScreen == nullptr)
+					{
+						return res;
 					}
 
-					for (auto station : this->radarScreen->approachStations)
+					for (auto station : this->radarScreen->towerStations)
 					{
 						if (station.find(dep) != std::string::npos)
 						{
-							// Search for SID-specific freq
-							auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
-							auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
-							auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
-							if (sid129.find(sid) != sid129.end())
-							{
-								res.tag += "->129.050";
-							}
-							else if (sid125.find(sid) != sid125.end())
-							{
-								res.tag += "->125.175";
-							}
-							else if (sid134.find(sid) != sid134.end())
-							{
-								res.tag += "->134.675";
-							}
-							else
-							{
-								res.tag += "->" + airport->second.appFreq + "??";
-							}
+							towerOnline = true;
+							continue;
+						}
+
+						if (this->radarScreen == nullptr)
+						{
 							return res;
 						}
 					}
 
-					for (auto center : airport->second.ctrStations)
+					if (towerOnline || this->towerOverride)
 					{
-						for (auto station : this->radarScreen->centerStations)
+						for (auto rwyFreq : airport->second.rwyTwrFreq)
 						{
-							if (station.first.find(center) != std::string::npos)
+							if (rwy == rwyFreq.first)
 							{
-								res.tag += "->" + station.second;
+								res.tag += "->" + rwyFreq.second;
 								return res;
 							}
+						}
+
+						// Didn't find a runway specific tower, so return default
+						res.tag += "->" + airport->second.twrFreq;
+						return res;
+					}
+				}
+
+				if (this->radarScreen == nullptr)
+				{
+					return res;
+				}
+
+				for (auto station : this->radarScreen->approachStations)
+				{
+					if (station.find(dep) != std::string::npos)
+					{
+						// Search for SID-specific freq
+						auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
+						auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
+						auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
+						if (sid129.find(sid) != sid129.end())
+						{
+							res.tag += "->129.050";
+						}
+						else if (sid125.find(sid) != sid125.end())
+						{
+							res.tag += "->125.175";
+						}
+						else if (sid134.find(sid) != sid134.end())
+						{
+							res.tag += "->134.675";
+						}
+						else
+						{
+							res.tag += "->" + airport->second.appFreq + "??";
+						}
+						return res;
+					}
+
+					if (this->radarScreen == nullptr)
+					{
+						return res;
+					}
+				}
+
+				for (auto center : airport->second.ctrStations)
+				{
+					if (this->radarScreen == nullptr)
+					{
+						return res;
+					}
+
+					for (auto station : this->radarScreen->centerStations)
+					{
+						if (station.first.find(center) != std::string::npos)
+						{
+							res.tag += "->" + station.second;
+							return res;
+						}
+
+						if (this->radarScreen == nullptr)
+						{
+							return res;
 						}
 					}
 				}
@@ -1601,6 +1633,7 @@ void CDelHelX::OnTimer(int Counter)
 	{
 		this->UpdateTowerSameSID();
 		this->AutoUpdateDepartureHoldingPoints();
+		this->UpdateTagRemarkWithDepartureInfo();
 	}
 }
 
@@ -1616,12 +1649,14 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 
 void CDelHelX::UpdateTowerSameSID()
 {
-	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+	{
 		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
 		std::string callSign = fp.GetCallsign();
 
-		if (!pos.IsValid() || !fp.IsValid()) {
+		if (!pos.IsValid() || !fp.IsValid())
+		{
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
 			{
 				this->twrSameSID.RemoveFpFromTheList(fp);
@@ -1718,9 +1753,84 @@ void CDelHelX::UpdateTowerSameSID()
 	}
 }
 
+void CDelHelX::UpdateTagRemarkWithDepartureInfo()
+{
+	if (this->ControllerMyself().GetFacility() >= 4)
+	{
+		for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+		{
+			EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+			EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+			EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
+
+			if (!pos.IsValid() || !fp.IsValid())
+			{
+				continue;
+			}
+
+			std::string dep = fp.GetFlightPlanData().GetOrigin();
+			to_upper(dep);
+
+			std::string arr = fp.GetFlightPlanData().GetDestination();
+			to_upper(arr);
+
+			// Skip aircraft without a valid flight plan (no departure/destination airport)
+			if (dep.empty() || arr.empty())
+			{
+				continue;
+			}
+
+			auto airport = this->airports.find(dep);
+			if (airport == this->airports.end())
+			{
+				continue;
+			}
+
+			std::string groundState = fp.GetGroundState();
+			auto pressAlt = pos.GetPressureAltitude();
+			auto groundSpeed = pos.GetReportedGS();
+			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 30)
+			{
+				// Add/update remark
+				char itemString[16];
+				int colorCode;
+				COLORREF colorRef;
+				double fontSize;
+				OnGetTagItem(fp, rt, TAG_ITEM_DEPARTURE_INFO, 0, itemString, &colorCode, &colorRef, &fontSize);
+
+				std::string depInfo = std::string(itemString);
+				std::string rmk = fpcad.GetScratchPadString();
+				if (rmk.find("..") != std::string::npos)
+				{
+					// Already there, replace
+					rmk = rmk.substr(rmk.find(' ') + 1);
+					fpcad.SetScratchPadString((".." + depInfo + " " + rmk).c_str());
+				}
+				else
+				{
+					// Not yet there, add
+					fpcad.SetScratchPadString((".." + depInfo + " " + rmk).c_str());
+				}
+			}
+			else
+			{
+				// Remove remark
+				std::string rmk = fpcad.GetScratchPadString();
+				if (rmk.find("..") != std::string::npos)
+				{
+					// Still there, remove
+					rmk = rmk.substr(rmk.find(' ') + 1);
+					fpcad.SetScratchPadString(rmk.c_str());
+				}
+			}
+		}
+	}
+}
+
 void CDelHelX::AutoUpdateDepartureHoldingPoints()
 {
-	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+	{
 		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
