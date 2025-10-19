@@ -13,8 +13,7 @@ CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
 	PLUGIN_NAME,
 	PLUGIN_VERSION,
 	PLUGIN_AUTHOR,
-	PLUGIN_LICENSE
-)
+	PLUGIN_LICENSE)
 {
 	std::ostringstream msg;
 	msg << "Version " << PLUGIN_VERSION << " loaded.";
@@ -791,7 +790,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								return;
 							}
 
-							if (distanceBetween > (distanceRequired - 1))
+							if (distanceBetween > (distanceRequired - 0.5))
+							{
+								*pRGB = TAG_COLOR_GREEN;
+								std::string num_text = std::to_string(distanceRequired - distanceBetween);
+								std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
+								strcpy_s(sItemString, 16, rounded.c_str());
+								return;
+							}
+
+							if (distanceBetween > (distanceRequired - 1.5))
 							{
 								*pRGB = TAG_COLOR_YELLOW;
 								std::string num_text = std::to_string(distanceRequired - distanceBetween);
@@ -1800,23 +1808,23 @@ void CDelHelX::UpdateTagRemarkWithDepartureInfo()
 
 				std::string depInfo = std::string(itemString);
 				std::string rmk = fpcad.GetScratchPadString();
-				if (rmk.find("..") != std::string::npos)
+				if (rmk.find(".:") != std::string::npos)
 				{
 					// Already there, replace
 					rmk = rmk.substr(rmk.find(' ') + 1);
-					fpcad.SetScratchPadString((".." + depInfo + " " + rmk).c_str());
+					fpcad.SetScratchPadString((".:" + depInfo + " " + rmk).c_str());
 				}
 				else
 				{
 					// Not yet there, add
-					fpcad.SetScratchPadString((".." + depInfo + " " + rmk).c_str());
+					fpcad.SetScratchPadString((".:" + depInfo + " " + rmk).c_str());
 				}
 			}
 			else
 			{
 				// Remove remark
 				std::string rmk = fpcad.GetScratchPadString();
-				if (rmk.find("..") != std::string::npos)
+				if (rmk.find(".:") != std::string::npos)
 				{
 					// Still there, remove
 					rmk = rmk.substr(rmk.find(' ') + 1);
