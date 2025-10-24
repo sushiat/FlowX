@@ -48,6 +48,7 @@ private:
 	EuroScopePlugIn::CFlightPlanList twrSameSID;
 	std::map<std::string, unsigned long> twrSameSID_flightPlans;
 	std::map<std::string, std::string> twrSameSID_lastDeparted;
+	std::map<std::string, std::string> flightStripAnnotation;
 
 	void LoadSettings();
 	void SaveSettings();
@@ -64,6 +65,7 @@ private:
 	static std::string GetRunwayHoldingPoint(const std::string& rwy, int index);
 	static int GetAircraftWeightCategoryRanking(char wtc);
 	static int IsSameHoldingPoint(std::string hp1, std::string hp2);
+	static std::string AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp);
 
 	void LogMessage(const std::string& message, const std::string& type);
 	void LogDebugMessage(const std::string& message, const std::string& type);

@@ -286,6 +286,8 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		return;
 	}
 
+	std::string callSign = FlightPlan.GetCallsign();
+
 	if (ItemCode == TAG_ITEM_PS_HELPER)
 	{
 		validation res = this->CheckPushStartStatus(FlightPlan, RadarTarget);
@@ -373,8 +375,8 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_NEWQNH)
 	{
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		std::string annotation = fpcad.GetFlightStripAnnotation(2);
-		if (annotation == "NQNH")
+		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(2);
+		if (!this->flightStripAnnotation[callSign].empty() && this->flightStripAnnotation[callSign][0] == 'Q')
 		{
 			strcpy_s(sItemString, 16, "X");
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -388,7 +390,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_SAMESID)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
 
 		std::string rwy = fpd.GetDepartureRwy();
 		std::string sid = fpd.GetSidName();
@@ -474,7 +475,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_TAKEOFF_TIMER)
 	{
-		std::string callSign = FlightPlan.GetCallsign();
 		if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 		{
 			unsigned long now = GetTickCount();
@@ -515,17 +515,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		std::string annotation = fpcad.GetFlightStripAnnotation(3);
-		if (MatchesRunwayHoldingPoint(rwy, annotation, 1))
+		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(2);
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 1))
 		{
-			strcpy_s(sItemString, 16, annotation.c_str());
+			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 			*pRGB = TAG_COLOR_GREEN;
 
-			if (annotation.find('*') != std::string::npos)
+			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
 
-			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
 				*pRGB = TAG_COLOR_DARKGREY;
@@ -541,17 +540,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		std::string annotation = fpcad.GetFlightStripAnnotation(3);
-		if (MatchesRunwayHoldingPoint(rwy, annotation, 2))
+		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(2);
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 2))
 		{
-			strcpy_s(sItemString, 16, annotation.c_str());
+			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 			*pRGB = TAG_COLOR_GREEN;
 
-			if (annotation.find('*') != std::string::npos)
+			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
 
-			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
 				*pRGB = TAG_COLOR_DARKGREY;
@@ -567,17 +565,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		std::string annotation = fpcad.GetFlightStripAnnotation(3);
-		if (MatchesRunwayHoldingPoint(rwy, annotation, 3))
+		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(2);
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 3))
 		{
-			strcpy_s(sItemString, 16, annotation.c_str());
+			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 			*pRGB = TAG_COLOR_GREEN;
 
-			if (annotation.find('*') != std::string::npos)
+			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
 
-			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
 				*pRGB = TAG_COLOR_DARKGREY;
@@ -593,17 +590,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		std::string annotation = fpcad.GetFlightStripAnnotation(3);
-		if (MatchesRunwayHoldingPoint(rwy, annotation, 4))
+		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(2);
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 4))
 		{
-			strcpy_s(sItemString, 16, annotation.c_str());
+			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 			*pRGB = TAG_COLOR_GREEN;
 
-			if (annotation.find('*') != std::string::npos)
+			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
 				*pRGB = TAG_COLOR_ORANGE;
 
-			std::string callSign = FlightPlan.GetCallsign();
 			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
 				*pRGB = TAG_COLOR_DARKGREY;
@@ -622,7 +618,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 			std::string groundState = FlightPlan.GetGroundState();
 			if (groundState == "TAXI" || groundState == "DEPA")
 			{
-				std::string callSign = FlightPlan.GetCallsign();
 				std::string rwy = FlightPlan.GetFlightPlanData().GetDepartureRwy();
 				if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) == 0)
 				{
@@ -655,11 +650,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									secondsRequired += 60;
 								}
 
-								std::string departedHP = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetControllerAssignedData().GetFlightStripAnnotation(3);
-								std::string hp = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(3);
-								if (!IsSameHoldingPoint(departedHP, hp))
+								this->flightStripAnnotation[lastDeparted_callSign] = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetControllerAssignedData().GetFlightStripAnnotation(2);
+								this->flightStripAnnotation[callSign] = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(2);
+								if (this->flightStripAnnotation[lastDeparted_callSign].length() > 2 && this->flightStripAnnotation[callSign].length() > 2)
 								{
-									secondsRequired += 60;
+									std::string departedHP = this->flightStripAnnotation[lastDeparted_callSign].substr(2);
+									std::string hp = this->flightStripAnnotation[callSign].substr(2);
+									if (!IsSameHoldingPoint(departedHP, hp))
+									{
+										secondsRequired += 60;
+									}
 								}
 
 								unsigned long now = GetTickCount();
@@ -842,9 +842,14 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		return;
 	}
 
+	std::string callSign = fp.GetCallsign();
+
 	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+	std::string rwy = fpd.GetDepartureRwy();
 	std::string dep = fpd.GetOrigin();
 	to_upper(dep);
+
+	EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
 
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
@@ -904,44 +909,41 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	}
 	else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)
 	{
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(2, "");
+		if (!this->flightStripAnnotation[callSign].empty())
+		{
+			this->flightStripAnnotation[callSign][0] = ' ';
+			fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
+		}
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HP1)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, GetRunwayHoldingPoint(rwy, 1).c_str());
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1));
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HP2)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, GetRunwayHoldingPoint(rwy, 2).c_str());
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2));
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HP3)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, GetRunwayHoldingPoint(rwy, 3).c_str());
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3));
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HP1)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, (GetRunwayHoldingPoint(rwy, 1) + "*").c_str());
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1) + "*");
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HP2)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, (GetRunwayHoldingPoint(rwy, 2) + "*").c_str());
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2) + "*");
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HP3)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, (GetRunwayHoldingPoint(rwy, 3) + "*").c_str());
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3) + "*");
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HPO)
 	{
@@ -952,7 +954,6 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		area.bottom = Pt.y + 100;
 		this->OpenPopupList(area, "Assign HP", 1);
 
-		std::string rwy = fpd.GetDepartureRwy();
 		if (rwy == "29")
 		{
 			this->AddPopupListElement("A4", "", TAG_FUNC_HPO_LISTSELECT);
@@ -984,7 +985,6 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		area.bottom = Pt.y + 100;
 		this->OpenPopupList(area, "Request HP", 1);
 
-		std::string rwy = fpd.GetDepartureRwy();
 		if (rwy == "29")
 		{
 			this->AddPopupListElement("A4*", "", TAG_FUNC_HPO_LISTSELECT);
@@ -1009,9 +1009,8 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	}
 	else if (FunctionId == TAG_FUNC_HPO_LISTSELECT)
 	{
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-		fpcad.SetFlightStripAnnotation(3, sItemString);
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], sItemString);
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
 	else if (FunctionId == TAG_FUNC_LINE_UP)
 	{
@@ -1038,8 +1037,31 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		{
 			fp.EndTracking();
 		}
-		fp.GetControllerAssignedData().SetFlightStripAnnotation(4, "T");
+		if (this->flightStripAnnotation[callSign].length() > 1)
+		{
+			this->flightStripAnnotation[callSign][1] = 'T';
+		}
+		else
+		{
+			this->flightStripAnnotation[callSign] = " T";
+		}
+		fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 	}
+}
+
+std::string CDelHelX::AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp)
+{
+	if (annotation.length() > 2)
+	{
+		return annotation.substr(0, 2).append(hp);
+	}
+
+	if (!annotation.empty())
+	{
+		return annotation.substr(0, 1).append(" " + hp);
+	}
+
+	return "  " + hp;
 }
 
 validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
@@ -1050,7 +1072,7 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 		TAG_COLOR_NONE // color
 	};
 
-	std::string cs = fp.GetCallsign();
+	std::string callSign = fp.GetCallsign();
 	std::string groundState = fp.GetGroundState();
 	EuroScopePlugIn::CController me = this->ControllerMyself();
 	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
@@ -1069,8 +1091,8 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 	if (!groundState.empty())
 	{
 		// Check if we passed the aircraft to the next frequency
-		std::string transferred = fp.GetControllerAssignedData().GetFlightStripAnnotation(4);
-		if (transferred == "T")
+		this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(2);
+		if (this->flightStripAnnotation[callSign].length() > 1 && this->flightStripAnnotation[callSign][1] == 'T')
 		{
 			res.color = TAG_COLOR_DARKGREY;
 		}
@@ -1739,7 +1761,8 @@ void CDelHelX::UpdateTowerSameSID()
 				auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
 				if (seconds > 4 * 60)
 				{
-					fp.GetControllerAssignedData().SetFlightStripAnnotation(4, "");
+					this->flightStripAnnotation.erase(callSign);
+					fp.GetControllerAssignedData().SetFlightStripAnnotation(2, "");
 					this->twrSameSID.RemoveFpFromTheList(fp);
 					this->twrSameSID_flightPlans.erase(callSign);
 					continue;
@@ -1753,7 +1776,8 @@ void CDelHelX::UpdateTowerSameSID()
 
 			if (distance >= 15)
 			{
-				fp.GetControllerAssignedData().SetFlightStripAnnotation(4, "");
+				this->flightStripAnnotation.erase(callSign);
+				fp.GetControllerAssignedData().SetFlightStripAnnotation(2, "");
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
 			}
@@ -1892,27 +1916,27 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 
 				if (CDelHelX::PointInsidePolygon(4, polyX_A1, polyY_A1, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A1");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A1");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A2, polyY_A2, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A2");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A2");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A3, polyY_A3, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A3");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A3");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A4, polyY_A4, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A4");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A4");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A6, polyY_A6, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A6");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A6");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A8, polyY_A8, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A8");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A8");
 				}
 			}
 
@@ -1932,23 +1956,23 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 
 				if (CDelHelX::PointInsidePolygon(4, polyX_A12, polyY_A12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A12");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A12");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A11, polyY_A11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A11");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A11");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A10, polyY_A10, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A10");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A10");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A9, polyY_A9, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A9");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A9");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_A7, polyY_A7, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "A7");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A7");
 				}
 			}
 
@@ -1967,23 +1991,23 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 
 				if (CDelHelX::PointInsidePolygon(4, polyX_B1, polyY_B1, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B1");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B1");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B2, polyY_B2, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B2");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B2");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B4, polyY_B4, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B4");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B4");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B5, polyY_B5, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B5");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B5");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B7, polyY_B7, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B7");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B7");
 				}
 			}
 
@@ -2002,25 +2026,27 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 
 				if (CDelHelX::PointInsidePolygon(4, polyX_B12, polyY_B12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B12");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B12");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B11, polyY_B11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B11");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B11");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B10, polyY_B10, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B10");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B10");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B8, polyY_B8, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B8");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B8");
 				}
 				if (CDelHelX::PointInsidePolygon(4, polyX_B6, polyY_B6, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
 				{
-					fpcad.SetFlightStripAnnotation(3, "B6");
+					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B6");
 				}
 			}
+
+			fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 		}
 	}
 }
@@ -2219,13 +2245,22 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 							continue;
 						}
 
+						std::string callSign = fp.GetCallsign();
 						std::string dep = fp.GetFlightPlanData().GetOrigin();
 						to_upper(dep);
 
 						if (dep == station && fp.GetClearenceFlag())
 						{
 							EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-							fpcad.SetFlightStripAnnotation(2, "NQNH");
+							if (this->flightStripAnnotation[callSign].empty())
+							{
+								this->flightStripAnnotation[callSign].append("Q");
+							}
+							else
+							{
+								this->flightStripAnnotation[callSign][0] = 'Q';
+							}
+							fpcad.SetFlightStripAnnotation(2, this->flightStripAnnotation[callSign].c_str());
 						}
 					}
 				}
