@@ -1051,7 +1051,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 
 std::string CDelHelX::AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp)
 {
-	if (annotation.length() > 2)
+	if (annotation.length() >= 2)
 	{
 		return annotation.substr(0, 2).append(hp);
 	}
