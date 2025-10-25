@@ -827,7 +827,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 				}
 			}
 		}
-		catch (const std::exception& ex)
+		catch ([[maybe_unused]] const std::exception& ex)
 		{
 			*pRGB = TAG_COLOR_RED;
 			strcpy_s(sItemString, 16, "ERR");
@@ -1434,7 +1434,7 @@ void CDelHelX::LoadConfig()
 
 		config = json::parse(ifs);
 	}
-	catch (std::exception e)
+	catch (std::exception& e)
 	{
 		this->LogMessage("Failed to read config. Error: " + std::string(e.what()), "Config");
 		return;
@@ -1458,7 +1458,7 @@ void CDelHelX::LoadConfig()
 		{
 			json_geoGnds = json_airport.at("geoGndFreq");
 		}
-		catch (std::exception e)
+		catch (std::exception& e)
 		{
 			this->LogMessage("Failed to get geographic ground frequencies for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
 			continue;
@@ -1484,7 +1484,7 @@ void CDelHelX::LoadConfig()
 		{
 			json_rwyTwrs = json_airport.at("rwyTwrFreq");
 		}
-		catch (std::exception e)
+		catch (std::exception& e)
 		{
 			this->LogMessage("Failed to get runway tower frequencies for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
 			continue;
@@ -1501,7 +1501,7 @@ void CDelHelX::LoadConfig()
 		{
 			json_taxiouts = json_airport.at("taxiOutStands");
 		}
-		catch (std::exception e)
+		catch (std::exception& e)
 		{
 			this->LogMessage("Failed to get taxi out stands for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
 			continue;
@@ -1509,9 +1509,7 @@ void CDelHelX::LoadConfig()
 
 		for (auto& [name, json_taxiout] : json_taxiouts.items())
 		{
-			taxiOutStands tos{
-				name
-			};
+			taxiOutStands tos{ name };
 
 			auto lat{ json_taxiout["lat"].get<std::vector<double>>() };
 			auto lon{ json_taxiout["lon"].get<std::vector<double>>() };
@@ -1526,7 +1524,7 @@ void CDelHelX::LoadConfig()
 		{
 			json_nap_reminder = json_airport.at("napReminder");
 		}
-		catch (std::exception e)
+		catch (std::exception& e)
 		{
 			this->LogMessage("Failed to load NAP reminder config for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
 			continue;
@@ -1554,7 +1552,7 @@ void CDelHelX::LoadConfig()
 		this->LogDebugMessage("--> TWR: " + airport.second.twrFreq, "Config");
 		this->LogDebugMessage("--> APP: " + airport.second.appFreq, "Config");
 		int ctrIndex = 0;
-		for (auto ctr : airport.second.ctrStations)
+		for (const auto& ctr : airport.second.ctrStations)
 		{
 			this->LogDebugMessage("--> CTR[" + std::to_string(ctrIndex) + "]: " + ctr, "Config");
 			ctrIndex++;
@@ -1564,13 +1562,13 @@ void CDelHelX::LoadConfig()
 			this->LogDebugMessage("--> GeoGnd " + geoGnd.first, "Config");
 			this->LogDebugMessage("----> FRQ: " + geoGnd.second.freq, "Config");
 			std::string lat_string = std::accumulate(std::begin(geoGnd.second.lat), std::end(geoGnd.second.lat), std::string(),
-				[](std::string& ss, double s)
+				[](const std::string& ss, const double s)
 				{
 					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
 				});
 			this->LogDebugMessage("----> LAT: " + lat_string, "Config");
 			std::string lon_string = std::accumulate(std::begin(geoGnd.second.lon), std::end(geoGnd.second.lon), std::string(),
-				[](std::string& ss, double s)
+				[](const std::string& ss, const double s)
 				{
 					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
 				});
@@ -1584,13 +1582,13 @@ void CDelHelX::LoadConfig()
 		{
 			this->LogDebugMessage("--> TaxiOut " + taxiOut.first, "Config");
 			std::string lat_string = std::accumulate(std::begin(taxiOut.second.lat), std::end(taxiOut.second.lat), std::string(),
-				[](std::string& ss, double s)
+				[](const std::string& ss, const double s)
 				{
 					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
 				});
 			this->LogDebugMessage("----> LAT: " + lat_string, "Config");
 			std::string lon_string = std::accumulate(std::begin(taxiOut.second.lon), std::end(taxiOut.second.lon), std::string(),
-				[](std::string& ss, double s)
+				[](const std::string& ss, const double s)
 				{
 					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
 				});
@@ -1651,7 +1649,7 @@ void CDelHelX::OnTimer(int Counter)
 						}
 					}
 				}
-				catch (std::exception e)
+				catch (std::exception& e)
 				{
 					this->LogMessage("Error processing NAP-reminder for airport " + airport.first + ". Error: " + std::string(e.what()), "Config");
 				}
@@ -2240,7 +2238,7 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 						}
 
 						EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-						// Skip aircraft is tracked (with exception of aircraft tracked by current controller)
+						// Skip aircraft is tracked (except aircraft tracked by current controller)
 						if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe())) {
 							continue;
 						}
