@@ -1661,7 +1661,7 @@ void CDelHelX::OnTimer(int Counter)
 	{
 		this->UpdateTowerSameSID();
 		this->AutoUpdateDepartureHoldingPoints();
-		this->UpdateTagRemarkWithDepartureInfo();
+		this->UpdateRadarTargetDepartureInfo();
 	}
 }
 
@@ -1783,15 +1783,14 @@ void CDelHelX::UpdateTowerSameSID()
 	}
 }
 
-void CDelHelX::UpdateTagRemarkWithDepartureInfo()
+void CDelHelX::UpdateRadarTargetDepartureInfo()
 {
-	if (this->ControllerMyself().GetFacility() >= 4)
+	if (this->ControllerMyself().GetFacility() >= 3)
 	{
 		for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
 		{
 			EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 			EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-			EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
 
 			if (!pos.IsValid() || !fp.IsValid())
 			{
@@ -1821,7 +1820,7 @@ void CDelHelX::UpdateTagRemarkWithDepartureInfo()
 			auto groundSpeed = pos.GetReportedGS();
 			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 30)
 			{
-				// Add/update remark
+				// Add/update departure info
 				char itemString[16];
 				int colorCode;
 				COLORREF colorRef;
@@ -1829,28 +1828,16 @@ void CDelHelX::UpdateTagRemarkWithDepartureInfo()
 				OnGetTagItem(fp, rt, TAG_ITEM_DEPARTURE_INFO, 0, itemString, &colorCode, &colorRef, &fontSize);
 
 				std::string depInfo = std::string(itemString);
-				std::string rmk = fpcad.GetScratchPadString();
-				if (rmk.find(".:") != std::string::npos)
-				{
-					// Already there, replace
-					rmk = rmk.substr(rmk.find(' ') + 1);
-					fpcad.SetScratchPadString((".:" + depInfo + " " + rmk).c_str());
-				}
-				else
-				{
-					// Not yet there, add
-					fpcad.SetScratchPadString((".:" + depInfo + " " + rmk).c_str());
-				}
+				this->radarScreen->radarTargetDepartureInfos.insert_or_assign(rt.GetCallsign(), depInfo);
+				
 			}
 			else
 			{
-				// Remove remark
-				std::string rmk = fpcad.GetScratchPadString();
-				if (rmk.find(".:") != std::string::npos)
+				// Remove departure info
+				auto findCallSign = this->radarScreen->radarTargetDepartureInfos.find(rt.GetCallsign());
+				if (findCallSign != this->radarScreen->radarTargetDepartureInfos.end())
 				{
-					// Still there, remove
-					rmk = rmk.substr(rmk.find(' ') + 1);
-					fpcad.SetScratchPadString(rmk.c_str());
+					this->radarScreen->radarTargetDepartureInfos.erase(findCallSign);
 				}
 			}
 		}

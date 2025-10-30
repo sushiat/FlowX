@@ -141,3 +141,38 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
 	}
 }
 
+void RadarScreen::OnRefresh(HDC hDC, int Phase)
+{
+	if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
+	{
+		for (auto it = this->radarTargetDepartureInfos.begin(); it != this->radarTargetDepartureInfos.end(); ++it)
+		{
+			auto color = this->radarTargetDepartureInfoColors.find(it->first);
+			auto position = this->radarTargetScreenPositions.find(it->first);
+
+			if (color != this->radarTargetDepartureInfoColors.end() && position != this->radarTargetScreenPositions.end())
+			{
+				SetTextColor(hDC, color->second);
+				TextOutA(hDC, position->second.x, position->second.y, it->second.c_str(), it->second.length());
+			}
+		}
+
+		
+		//SelectFont(hDC, )
+		
+	}
+}
+
+void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget)
+{
+	if (RadarTarget.IsValid() && this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign()) != this->radarTargetDepartureInfos.end())
+	{
+		POINT screenPos = this->ConvertCoordFromPositionToPixel(RadarTarget.GetPosition().GetPosition());
+		screenPos.x += 25;
+		screenPos.y += 25;
+		this->radarTargetScreenPositions.insert_or_assign(RadarTarget.GetCallsign(), screenPos);
+	}
+}
+
+
+
