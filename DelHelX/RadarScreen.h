@@ -7,6 +7,16 @@
 
 #include "EuroScope/EuroScopePlugIn.h"
 
+struct depInfo
+{
+	std::string info;
+	POINT pos;
+	COLORREF color;
+	POINT lastDrag;
+	int dragX;
+	int dragY;
+};
+
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
 {
 public:
@@ -18,13 +28,14 @@ public:
 	std::set<std::string> towerStations;
 	std::set<std::string> approachStations;
 	std::map<std::string, std::string> centerStations;
-	std::map<std::string, std::string> radarTargetDepartureInfos;
-	std::map<std::string, POINT> radarTargetScreenPositions;
-	std::map<std::string, COLORREF> radarTargetDepartureInfoColors;
+
+	std::map<std::string, depInfo> radarTargetDepartureInfos;
 
 	inline void OnAsrContentToBeClosed() override { delete this; }
 	void OnControllerPositionUpdate(EuroScopePlugIn::CController Controller) override;
 	void OnControllerDisconnect(EuroScopePlugIn::CController Controller) override;
 	void OnRefresh(HDC hDC, int Phase) override;
 	void OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget) override;
+	void OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan) override;
+	void OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released) override;
 };

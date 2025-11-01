@@ -147,32 +147,76 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 	{
 		for (auto it = this->radarTargetDepartureInfos.begin(); it != this->radarTargetDepartureInfos.end(); ++it)
 		{
-			auto color = this->radarTargetDepartureInfoColors.find(it->first);
-			auto position = this->radarTargetScreenPositions.find(it->first);
-
-			if (color != this->radarTargetDepartureInfoColors.end() && position != this->radarTargetScreenPositions.end())
+			if (it->second.pos.x > -1 && it->second.pos.y > -1)
 			{
-				SetTextColor(hDC, color->second);
-				TextOutA(hDC, position->second.x, position->second.y, it->second.c_str(), it->second.length());
+				SetTextColor(hDC, it->second.color);
+				SIZE textSize;
+				GetTextExtentPoint32A(hDC, it->second.info.c_str(), it->second.info.length(), &textSize);
+				TextOutA(hDC, it->second.pos.x - textSize.cx + it->second.dragX, it->second.pos.y + it->second.dragY, it->second.info.c_str(), it->second.info.length());
+				RECT area;
+				area.left = it->second.pos.x - textSize.cx - 2 + it->second.dragX;
+				area.top = it->second.pos.y - 2 + it->second.dragY;
+				area.right = it->second.pos.x + 2 + it->second.dragX;
+				area.bottom = it->second.pos.y + textSize.cy + 2 + it->second.dragY;
+
+				auto pen = CreatePen(PS_SOLID, 1, it->second.color);
+				SelectObject(hDC, pen);
+				MoveToEx(hDC, it->second.pos.x + 16, it->second.pos.y - 3, nullptr);
+				if (area.right <= it->second.pos.x + 16)
+				{
+					LineTo(hDC, area.right, area.top + (area.bottom - area.top) / 2);
+				}
+				else
+				{
+					LineTo(hDC, area.left, area.top + (area.bottom - area.top) / 2);
+				}
+
+				AddScreenObject(66, it->first.c_str(), area, true, "Click me test");
 			}
 		}
-
-		
-		//SelectFont(hDC, )
-		
 	}
 }
 
 void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget)
 {
-	if (RadarTarget.IsValid() && this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign()) != this->radarTargetDepartureInfos.end())
+	auto depInfo = this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign());
+	if (RadarTarget.IsValid() && depInfo != this->radarTargetDepartureInfos.end())
 	{
 		POINT screenPos = this->ConvertCoordFromPositionToPixel(RadarTarget.GetPosition().GetPosition());
-		screenPos.x += 25;
-		screenPos.y += 25;
-		this->radarTargetScreenPositions.insert_or_assign(RadarTarget.GetCallsign(), screenPos);
+		screenPos.x -= 16;
+		screenPos.y += 3;
+		depInfo->second.pos = screenPos;
 	}
 }
 
+void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
+{
+	auto findCallSign = this->radarTargetDepartureInfos.find(FlightPlan.GetCallsign());
+	if (findCallSign != this->radarTargetDepartureInfos.end())
+	{
+		this->radarTargetDepartureInfos.erase(findCallSign);
+	}
+}
 
+void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released)
+{
+	auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));
+	if (depInfo != this->radarTargetDepartureInfos.end())
+	{
+		if (depInfo->second.lastDrag.x == -1 || depInfo->second.lastDrag.y == -1)
+		{
+			depInfo->second.lastDrag = Pt;
+		}
 
+		depInfo->second.dragX += Pt.x - depInfo->second.lastDrag.x;
+		depInfo->second.dragY += Pt.y - depInfo->second.lastDrag.y;
+
+		depInfo->second.lastDrag = Pt;
+
+		if (Released)
+		{
+			depInfo->second.lastDrag.x = -1;
+			depInfo->second.lastDrag.y = -1;
+		}
+	}
+}

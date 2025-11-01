@@ -790,7 +790,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								return;
 							}
 
-							if (distanceBetween > (distanceRequired - 0.5))
+							if (distanceBetween > (distanceRequired - 1.2))
 							{
 								*pRGB = TAG_COLOR_GREEN;
 								std::string num_text = std::to_string(distanceRequired - distanceBetween);
@@ -1827,9 +1827,25 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 				double fontSize;
 				OnGetTagItem(fp, rt, TAG_ITEM_DEPARTURE_INFO, 0, itemString, &colorCode, &colorRef, &fontSize);
 
-				std::string depInfo = std::string(itemString);
-				this->radarScreen->radarTargetDepartureInfos.insert_or_assign(rt.GetCallsign(), depInfo);
-				
+				auto findDepInfo = this->radarScreen->radarTargetDepartureInfos.find(rt.GetCallsign());
+				if (findDepInfo == this->radarScreen->radarTargetDepartureInfos.end())
+				{
+					depInfo departureInfo;
+					departureInfo.info = std::string(itemString);
+					departureInfo.color = colorRef;
+					departureInfo.pos.x = -1;
+					departureInfo.pos.y = -1;
+					departureInfo.dragX = 0;
+					departureInfo.dragY = 0;
+					departureInfo.lastDrag.x = -1;
+					departureInfo.lastDrag.y = -1;
+					this->radarScreen->radarTargetDepartureInfos.insert_or_assign(rt.GetCallsign(), departureInfo);
+				}
+				else
+				{
+					findDepInfo->second.info = std::string(itemString);
+					findDepInfo->second.color = colorRef;
+				}
 			}
 			else
 			{
