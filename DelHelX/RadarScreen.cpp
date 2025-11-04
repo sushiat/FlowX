@@ -149,17 +149,24 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 		{
 			if (it->second.pos.x > -1 && it->second.pos.y > -1)
 			{
-				SetTextColor(hDC, it->second.color);
+				SetTextColor(hDC, it->second.dep_color);
 				SIZE textSize;
-				GetTextExtentPoint32A(hDC, it->second.info.c_str(), it->second.info.length(), &textSize);
-				TextOutA(hDC, it->second.pos.x - textSize.cx + it->second.dragX, it->second.pos.y + it->second.dragY, it->second.info.c_str(), it->second.info.length());
+				GetTextExtentPoint32A(hDC, it->second.dep_info.c_str(), it->second.dep_info.length(), &textSize);
+				TextOutA(hDC, it->second.pos.x - textSize.cx + it->second.dragX, it->second.pos.y + it->second.dragY, it->second.dep_info.c_str(), it->second.dep_info.length());
 				RECT area;
 				area.left = it->second.pos.x - textSize.cx - 2 + it->second.dragX;
 				area.top = it->second.pos.y - 2 + it->second.dragY;
 				area.right = it->second.pos.x + 2 + it->second.dragX;
 				area.bottom = it->second.pos.y + textSize.cy + 2 + it->second.dragY;
 
-				auto pen = CreatePen(PS_SOLID, 1, it->second.color);
+				if (!it->second.hp_info.empty())
+				{
+					SetTextColor(hDC, it->second.hp_color);
+					TextOutA(hDC, it->second.pos.x - textSize.cx + it->second.dragX, it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5, it->second.hp_info.c_str(), it->second.hp_info.length());
+					area.bottom += (area.bottom - area.top) - 5;
+				}
+
+				auto pen = CreatePen(PS_SOLID, 1, it->second.dep_color);
 				SelectObject(hDC, pen);
 				MoveToEx(hDC, it->second.pos.x + 16, it->second.pos.y - 3, nullptr);
 				if (area.right <= it->second.pos.x + 16)
@@ -171,7 +178,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 					LineTo(hDC, area.left, area.top + (area.bottom - area.top) / 2);
 				}
 
-				AddScreenObject(66, it->first.c_str(), area, true, "Click me test");
+				AddScreenObject(66, it->first.c_str(), area, true, "");
 			}
 		}
 	}
@@ -217,6 +224,30 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
 		{
 			depInfo->second.lastDrag.x = -1;
 			depInfo->second.lastDrag.y = -1;
+		}
+	}
+}
+
+void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
+{
+	if (Button == EuroScopePlugIn::BUTTON_RIGHT)
+	{
+		auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));
+		if (depInfo != this->radarTargetDepartureInfos.end())
+		{
+			auto cs = depInfo->first;
+
+			for (EuroScopePlugIn::CRadarTarget rt = this->GetPlugIn()->RadarTargetSelectFirst(); rt.IsValid(); rt = this->GetPlugIn()->RadarTargetSelectNext(rt))
+			{
+				if (rt.GetCallsign() == cs)
+				{
+					POINT pt = {};
+					RECT area = {};
+					this->GetPlugIn()->OnFunctionCall(TAG_FUNC_TRANSFER_NEXT, "", pt, area);
+
+					break;
+				}
+			}
 		}
 	}
 }

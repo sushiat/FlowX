@@ -1791,6 +1791,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 		{
 			EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 			EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+			EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
 
 			if (!pos.IsValid() || !fp.IsValid())
 			{
@@ -1815,6 +1816,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 				continue;
 			}
 
+			std::string cs = rt.GetCallsign();
 			std::string groundState = fp.GetGroundState();
 			auto pressAlt = pos.GetPressureAltitude();
 			auto groundSpeed = pos.GetReportedGS();
@@ -1827,30 +1829,52 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 				double fontSize;
 				OnGetTagItem(fp, rt, TAG_ITEM_DEPARTURE_INFO, 0, itemString, &colorCode, &colorRef, &fontSize);
 
-				auto findDepInfo = this->radarScreen->radarTargetDepartureInfos.find(rt.GetCallsign());
+				std::string dep_info = std::string(itemString);
+				auto hp_color = TAG_COLOR_GREEN;
+				std::string hp;
+				this->flightStripAnnotation[cs] = fpcad.GetFlightStripAnnotation(2);
+				if (this->flightStripAnnotation[cs].length() > 2)
+				{
+					hp = this->flightStripAnnotation[cs].substr(2);
+					if (this->flightStripAnnotation[cs].substr(2).find('*') != std::string::npos)
+					{
+						hp_color = TAG_COLOR_ORANGE;
+					}
+				}
+
+				if (this->flightStripAnnotation[cs].length() < 2 || this->flightStripAnnotation[cs][1] != 'T')
+				{
+					dep_info += ",T";
+				}
+
+				auto findDepInfo = this->radarScreen->radarTargetDepartureInfos.find(cs);
 				if (findDepInfo == this->radarScreen->radarTargetDepartureInfos.end())
 				{
 					depInfo departureInfo;
-					departureInfo.info = std::string(itemString);
-					departureInfo.color = colorRef;
+					departureInfo.dep_info = dep_info;
+					departureInfo.dep_color = colorRef;
 					departureInfo.pos.x = -1;
 					departureInfo.pos.y = -1;
 					departureInfo.dragX = 0;
 					departureInfo.dragY = 0;
 					departureInfo.lastDrag.x = -1;
 					departureInfo.lastDrag.y = -1;
-					this->radarScreen->radarTargetDepartureInfos.insert_or_assign(rt.GetCallsign(), departureInfo);
+					departureInfo.hp_info = hp;
+					departureInfo.hp_color = hp_color;
+					this->radarScreen->radarTargetDepartureInfos.insert_or_assign(cs, departureInfo);
 				}
 				else
 				{
-					findDepInfo->second.info = std::string(itemString);
-					findDepInfo->second.color = colorRef;
+					findDepInfo->second.dep_info = dep_info;
+					findDepInfo->second.dep_color = colorRef;
+					findDepInfo->second.hp_info = hp;
+					findDepInfo->second.hp_color = hp_color;
 				}
 			}
 			else
 			{
 				// Remove departure info
-				auto findCallSign = this->radarScreen->radarTargetDepartureInfos.find(rt.GetCallsign());
+				auto findCallSign = this->radarScreen->radarTargetDepartureInfos.find(cs);
 				if (findCallSign != this->radarScreen->radarTargetDepartureInfos.end())
 				{
 					this->radarScreen->radarTargetDepartureInfos.erase(findCallSign);

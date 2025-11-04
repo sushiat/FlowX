@@ -9,12 +9,14 @@
 
 struct depInfo
 {
-	std::string info;
+	std::string dep_info;
 	POINT pos;
-	COLORREF color;
+	COLORREF dep_color;
 	POINT lastDrag;
 	int dragX;
 	int dragY;
+	std::string hp_info;
+	COLORREF hp_color;
 };
 
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
@@ -38,4 +40,5 @@ public:
 	void OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget) override;
 	void OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan) override;
 	void OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released) override;
+	void OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
 };
