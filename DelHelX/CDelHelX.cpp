@@ -1820,7 +1820,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 			std::string groundState = fp.GetGroundState();
 			auto pressAlt = pos.GetPressureAltitude();
 			auto groundSpeed = pos.GetReportedGS();
-			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 30)
+			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 40)
 			{
 				// Add/update departure info
 				char itemString[16];

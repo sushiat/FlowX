@@ -143,7 +143,7 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
 
 void RadarScreen::OnRefresh(HDC hDC, int Phase)
 {
-	if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
+	if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
 	{
 		for (auto it = this->radarTargetDepartureInfos.begin(); it != this->radarTargetDepartureInfos.end(); ++it)
 		{
@@ -178,7 +178,9 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 					LineTo(hDC, area.left, area.top + (area.bottom - area.top) / 2);
 				}
 
-				AddScreenObject(66, it->first.c_str(), area, true, "");
+				DeleteObject(pen);
+
+				AddScreenObject(6681, it->first.c_str(), area, true, "");
 			}
 		}
 	}
@@ -224,30 +226,6 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
 		{
 			depInfo->second.lastDrag.x = -1;
 			depInfo->second.lastDrag.y = -1;
-		}
-	}
-}
-
-void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
-{
-	if (Button == EuroScopePlugIn::BUTTON_RIGHT)
-	{
-		auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));
-		if (depInfo != this->radarTargetDepartureInfos.end())
-		{
-			auto cs = depInfo->first;
-
-			for (EuroScopePlugIn::CRadarTarget rt = this->GetPlugIn()->RadarTargetSelectFirst(); rt.IsValid(); rt = this->GetPlugIn()->RadarTargetSelectNext(rt))
-			{
-				if (rt.GetCallsign() == cs)
-				{
-					POINT pt = {};
-					RECT area = {};
-					this->GetPlugIn()->OnFunctionCall(TAG_FUNC_TRANSFER_NEXT, "", pt, area);
-
-					break;
-				}
-			}
 		}
 	}
 }

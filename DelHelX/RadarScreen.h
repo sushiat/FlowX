@@ -5,18 +5,19 @@
 #include <string>
 #include <windowsx.h>
 
+#include "constants.h"
 #include "EuroScope/EuroScopePlugIn.h"
 
 struct depInfo
 {
-	std::string dep_info;
-	POINT pos;
-	COLORREF dep_color;
-	POINT lastDrag;
-	int dragX;
-	int dragY;
-	std::string hp_info;
-	COLORREF hp_color;
+	std::string dep_info = std::string("");
+	POINT pos = { -1,-1 };
+	COLORREF dep_color = TAG_COLOR_TURQ;
+	POINT lastDrag = { -1,-1 };
+	int dragX = 0;
+	int dragY = 0;
+	std::string hp_info = std::string("");
+	COLORREF hp_color = TAG_COLOR_TURQ;
 };
 
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
@@ -40,5 +41,4 @@ public:
 	void OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget) override;
 	void OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan) override;
 	void OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released) override;
-	void OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
 };
