@@ -66,6 +66,7 @@ private:
 	static int GetAircraftWeightCategoryRanking(char wtc);
 	static int IsSameHoldingPoint(std::string hp1, std::string hp2);
 	static std::string AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp);
+	void PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const;
 
 	void LogMessage(const std::string& message, const std::string& type);
 	void LogDebugMessage(const std::string& message, const std::string& type);
