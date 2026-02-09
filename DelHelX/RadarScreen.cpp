@@ -5,14 +5,12 @@
 #include <string>
 #include "constants.h"
 
-RadarScreen::RadarScreen() : EuroScopePlugIn::CRadarScreen()
+RadarScreen::RadarScreen()
 {
 	this->debug = false;
 }
 
-RadarScreen::~RadarScreen()
-{
-}
+RadarScreen::~RadarScreen() = default;
 
 void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Controller)
 {
@@ -30,7 +28,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 			if (this->groundStations.find(cs) == this->groundStations.end())
 			{
 				this->groundStations.insert(cs);
-				if (this->debug) 
+				if (this->debug)
 				{
 					this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Ground", (cs + " online").c_str(), true, true, true, false, false);
 				}
@@ -42,7 +40,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 			if (this->towerStations.find(cs) == this->towerStations.end())
 			{
 				this->towerStations.insert(cs);
-				if (this->debug) 
+				if (this->debug)
 				{
 					this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Tower", (cs + " online").c_str(), true, true, true, false, false);
 				}
@@ -54,7 +52,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 			if (this->approachStations.find(cs) == this->approachStations.end())
 			{
 				this->approachStations.insert(cs);
-				if (this->debug) 
+				if (this->debug)
 				{
 					this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " online").c_str(), true, true, true, false, false);
 				}
@@ -70,7 +68,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 				std::string rounded = freqString.substr(0, freqString.find('.') + 4);
 
 				this->centerStations.emplace(cs, rounded);
-				if (this->debug) 
+				if (this->debug)
 				{
 					this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " online").c_str(), true, true, true, false, false);
 				}
@@ -132,7 +130,7 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
 			{
 				this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " disconnected").c_str(), true, true, true, false, false);
 			}
-			
+
 			if (this->centerStations.find(cs) != this->centerStations.end())
 			{
 				this->centerStations.erase(cs);
@@ -159,10 +157,23 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 				area.right = it->second.pos.x + 2 + it->second.dragX;
 				area.bottom = it->second.pos.y + textSize.cy + 2 + it->second.dragY;
 
+				auto sidBrush = CreateSolidBrush(it->second.sid_color);
+				auto sidPen = CreatePen(PS_SOLID, 1, it->second.sid_color);
+				SelectObject(hDC, sidBrush);
+				SelectObject(hDC, sidPen);
+				RECT rect = {
+					it->second.pos.x - textSize.cx + it->second.dragX + 2,
+					it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5 + 2,
+					it->second.pos.x - textSize.cx + it->second.dragX + 14,
+					it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5 + 14 };
+				Ellipse(hDC, rect.left, rect.top, rect.right, rect.bottom);
+				DeleteObject(sidBrush);
+				DeleteObject(sidPen);
+
 				if (!it->second.hp_info.empty())
 				{
 					SetTextColor(hDC, it->second.hp_color);
-					TextOutA(hDC, it->second.pos.x - textSize.cx + it->second.dragX, it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5, it->second.hp_info.c_str(), it->second.hp_info.length());
+					TextOutA(hDC, it->second.pos.x - textSize.cx + 18 + it->second.dragX, it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5, it->second.hp_info.c_str(), it->second.hp_info.length());
 					area.bottom += (area.bottom - area.top) - 5;
 				}
 

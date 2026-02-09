@@ -203,6 +203,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CDelHelX.cpp" />
+    <ClCompile Include="CDelHelX_Base.cpp" />
+    <ClCompile Include="CDelHelX_Logging.cpp" />
+    <ClCompile Include="CDelHelX_LookupsTools.cpp" />
+    <ClCompile Include="CDelHelX_Settings.cpp" />
     <ClCompile Include="DelHelX.cpp" />
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="pch.cpp">
@@ -223,6 +227,10 @@
     <ClInclude Include="..\include\date\date.h" />
     <ClInclude Include="..\include\date\tz.h" />
     <ClInclude Include="..\include\date\tz_private.h" />
+    <ClInclude Include="CDelHelX_Base.h" />
+    <ClInclude Include="CDelHelX_Logging.h" />
+    <ClInclude Include="CDelHelX_LookupsTools.h" />
+    <ClInclude Include="CDelHelX_Settings.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="CDelHelX.h" />
     <ClInclude Include="constants.h" />

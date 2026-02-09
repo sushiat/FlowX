@@ -1,95 +1,17 @@
 #include "pch.h"
 #include "CDelHelX.h"
+
+#include <fstream>
 #include <iostream>
+
+#include "helpers.h"
 #include "date/tz.h"
 
-static CDelHelX* pPlugin;
-
-CDelHelX::CDelHelX() : EuroScopePlugIn::CPlugIn(
-	EuroScopePlugIn::COMPATIBILITY_CODE,
-	PLUGIN_NAME,
-	PLUGIN_VERSION,
-	PLUGIN_AUTHOR,
-	PLUGIN_LICENSE)
+CDelHelX::CDelHelX()
 {
-	std::ostringstream msg;
-	msg << "Version " << PLUGIN_VERSION << " loaded.";
-
-	this->LogMessage(msg.str(), "Init");
-
-	this->RegisterTagItemType("Push+Start Helper", TAG_ITEM_PS_HELPER);
-	this->RegisterTagItemType("Taxi out?", TAG_ITEM_TAXIOUT);
-	this->RegisterTagItemFunction("Set ONFREQ/STUP/PUSH", TAG_FUNC_ON_FREQ);
-	this->RegisterTagItemType("New QNH", TAG_ITEM_NEWQNH);
-	this->RegisterTagItemFunction("Clear new QNH", TAG_FUNC_CLEAR_NEWQNH);
-	this->RegisterTagItemType("Same SID", TAG_ITEM_SAMESID);
-	this->RegisterTagItemType("Assigned RWY", TAG_ITEM_ASSIGNED_RUNWAY);
-	this->RegisterTagItemType("HP1", TAG_ITEM_HP1);
-	this->RegisterTagItemFunction("Assign HP1", TAG_FUNC_ASSIGN_HP1);
-	this->RegisterTagItemFunction("Request HP1", TAG_FUNC_REQUEST_HP1);
-	this->RegisterTagItemType("HP2", TAG_ITEM_HP2);
-	this->RegisterTagItemFunction("Assign HP2", TAG_FUNC_ASSIGN_HP2);
-	this->RegisterTagItemFunction("Request HP2", TAG_FUNC_REQUEST_HP2);
-	this->RegisterTagItemType("HP3", TAG_ITEM_HP3);
-	this->RegisterTagItemFunction("Assign HP3", TAG_FUNC_ASSIGN_HP3);
-	this->RegisterTagItemFunction("Request HP3", TAG_FUNC_REQUEST_HP3);
-	this->RegisterTagItemType("HP other", TAG_ITEM_HPO);
-	this->RegisterTagItemFunction("Assign other HP", TAG_FUNC_ASSIGN_HPO);
-	this->RegisterTagItemFunction("Request other HP", TAG_FUNC_REQUEST_HPO);
-	this->RegisterTagItemType("TIMER", TAG_ITEM_TAKEOFF_TIMER);
-	this->RegisterTagItemType("NM", TAG_ITEM_TAKEOFF_DISTANCE);
-	this->RegisterTagItemFunction("Line up", TAG_FUNC_LINE_UP);
-	this->RegisterTagItemFunction("Take off", TAG_FUNC_TAKE_OFF);
-	this->RegisterTagItemFunction("Transfer next", TAG_FUNC_TRANSFER_NEXT);
-	this->RegisterTagItemType("Departure Info", TAG_ITEM_DEPARTURE_INFO);
-
-	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
-
-	this->twrSameSID = this->RegisterFpList("TowerHelper");
-	if (this->twrSameSID.GetColumnNumber() == 0)
-	{
-		this->twrSameSID.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("STS", 12, false, GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_GROUNDSTATUS, PLUGIN_NAME, TAG_FUNC_LINE_UP, PLUGIN_NAME, TAG_FUNC_TAKE_OFF);
-		this->twrSameSID.AddColumnDefinition("RWY", 4, false, PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("SID", 11, false, PLUGIN_NAME, TAG_ITEM_SAMESID, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("ATYP", 8, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("HP1", 4, false, PLUGIN_NAME, TAG_ITEM_HP1, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP1, PLUGIN_NAME, TAG_FUNC_REQUEST_HP1);
-		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP2, PLUGIN_NAME, TAG_FUNC_REQUEST_HP2);
-		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP3, PLUGIN_NAME, TAG_FUNC_REQUEST_HP3);
-		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
-		this->twrSameSID.AddColumnDefinition("DEP?", 10, false, PLUGIN_NAME, TAG_ITEM_DEPARTURE_INFO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("Freq", 15, false, PLUGIN_NAME, TAG_ITEM_PS_HELPER, PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("TIMER", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-	}
-	this->twrSameSID.ShowFpList(true);
-
-	this->updateCheck = false;
-	this->flashOnMessage = false;
 	this->groundOverride = false;
 	this->towerOverride = false;
 	this->noChecks = false;
-
-	this->LoadSettings();
-	this->LoadConfig();
-
-	std::filesystem::path base(GetPluginDirectory());
-	base.append("tzdata");
-	date::set_install(base.string());
-
-	if (this->updateCheck) {
-		this->latestVersion = std::async(FetchLatestVersion);
-	}
-}
-
-CDelHelX::~CDelHelX() = default;
-
-EuroScopePlugIn::CRadarScreen* CDelHelX::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
-{
-	this->radarScreen = new RadarScreen();
-	this->radarScreen->debug = this->debug;
-	return this->radarScreen;
 }
 
 bool CDelHelX::OnCompileCommand(const char* sCommandLine)
@@ -642,10 +564,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 							{
 								// Time based
 								unsigned long secondsRequired = 120;
-								if (GetAircraftWeightCategoryRanking(departedWtc) == 4)
-								{
-									secondsRequired += 60;
-								}
 
 								this->flightStripAnnotation[lastDeparted_callSign] = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetControllerAssignedData().GetFlightStripAnnotation(8);
 								this->flightStripAnnotation[callSign] = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(8);
@@ -667,6 +585,13 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									{
 										*pRGB = TAG_COLOR_GREEN;
 										strcpy_s(sItemString, 16, "OK");
+										return;
+									}
+
+									if (secondsSinceDeparted + 45 > secondsRequired)
+									{
+										*pRGB = TAG_COLOR_YELLOW;
+										strcpy_s(sItemString, 16, (std::to_string(secondsRequired - secondsSinceDeparted) + "s").c_str());
 										return;
 									}
 
@@ -787,7 +712,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								return;
 							}
 
-							if (distanceBetween > (distanceRequired - 1.2))
+							if (distanceRequired <= 3.1 && distanceBetween > 1.3)
 							{
 								*pRGB = TAG_COLOR_GREEN;
 								std::string num_text = std::to_string(distanceRequired - distanceBetween);
@@ -796,7 +721,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								return;
 							}
 
-							if (distanceBetween > (distanceRequired - 1.5))
+							if (distanceBetween > 3)
+							{
+								*pRGB = TAG_COLOR_GREEN;
+								std::string num_text = std::to_string(distanceRequired - distanceBetween);
+								std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
+								strcpy_s(sItemString, 16, rounded.c_str());
+								return;
+							}
+
+							if (distanceBetween > 2.5)
 							{
 								*pRGB = TAG_COLOR_YELLOW;
 								std::string num_text = std::to_string(distanceRequired - distanceBetween);
@@ -1053,21 +987,6 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
-}
-
-std::string CDelHelX::AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp)
-{
-	if (annotation.length() >= 2)
-	{
-		return annotation.substr(0, 2).append(hp);
-	}
-
-	if (!annotation.empty())
-	{
-		return annotation.substr(0, 1).append(" " + hp);
-	}
-
-	return "  " + hp;
 }
 
 validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
@@ -1376,247 +1295,6 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 	return res;
 }
 
-bool CDelHelX::PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y) {
-	int   i, j = polyCorners - 1;
-	bool  oddNodes = false;
-
-	for (i = 0; i < polyCorners; i++) {
-		if (polyY[i] < y && polyY[j] >= y
-			|| polyY[j] < y && polyY[i] >= y) {
-			if (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x) {
-				oddNodes = !oddNodes;
-			}
-		}
-		j = i;
-	}
-
-	return oddNodes;
-}
-
-void CDelHelX::LoadSettings()
-{
-	const char* settings = this->GetDataFromSettings(PLUGIN_NAME);
-	if (settings) {
-		std::vector<std::string> splitSettings = split(settings, SETTINGS_DELIMITER);
-
-		if (splitSettings.size() < 3) {
-			this->LogMessage("Invalid saved settings found, reverting to default.", "Settings");
-
-			this->SaveSettings();
-
-			return;
-		}
-
-		std::istringstream(splitSettings[0]) >> this->updateCheck;
-		std::istringstream(splitSettings[1]) >> this->flashOnMessage;
-		std::istringstream(splitSettings[2]) >> this->debug;
-
-		this->LogMessage("Successfully loaded settings.", "Settings");
-	}
-	else {
-		this->LogMessage("No saved settings found, using defaults.", "Settings");
-	}
-}
-
-void CDelHelX::SaveSettings()
-{
-	std::ostringstream ss;
-	ss << this->updateCheck << SETTINGS_DELIMITER
-		<< this->flashOnMessage << SETTINGS_DELIMITER
-		<< this->debug;
-
-	this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
-}
-
-void CDelHelX::LoadConfig()
-{
-	json config;
-	try
-	{
-		std::filesystem::path base(GetPluginDirectory());
-		base.append("config.json");
-
-		std::ifstream ifs(base.c_str());
-
-		config = json::parse(ifs);
-	}
-	catch (std::exception& e)
-	{
-		this->LogMessage("Failed to read config. Error: " + std::string(e.what()), "Config");
-		return;
-	}
-
-	for (auto& [icao, json_airport] : config.items())
-	{
-		// Get basic airport attributes
-		airport ap{
-			icao,
-			json_airport.value<std::string>("gndFreq", ""),
-			json_airport.value<std::string>("twrFreq", ""),
-			json_airport.value<std::string>("appFreq", "")
-		};
-
-		auto ctrStations{ json_airport["ctrStations"].get<std::vector<std::string>>() };
-		ap.ctrStations = ctrStations;
-
-		json json_geoGnds;
-		try
-		{
-			json_geoGnds = json_airport.at("geoGndFreq");
-		}
-		catch (std::exception& e)
-		{
-			this->LogMessage("Failed to get geographic ground frequencies for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
-			continue;
-		}
-
-		for (auto& [name, json_geoGnd] : json_geoGnds.items())
-		{
-			geoGndFreq ggf{
-				name,
-				json_geoGnd.value<std::string>("freq", "")
-			};
-
-			auto lat{ json_geoGnd["lat"].get<std::vector<double>>() };
-			auto lon{ json_geoGnd["lon"].get<std::vector<double>>() };
-			ggf.lat = lat;
-			ggf.lon = lon;
-
-			ap.geoGndFreq.emplace(name, ggf);
-		}
-
-		json json_rwyTwrs;
-		try
-		{
-			json_rwyTwrs = json_airport.at("rwyTwrFreq");
-		}
-		catch (std::exception& e)
-		{
-			this->LogMessage("Failed to get runway tower frequencies for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
-			continue;
-		}
-
-		for (auto& [rwyid, json_rwy] : json_rwyTwrs.items())
-		{
-			auto rwyFreq = json_rwy.value<std::string>("freq", "");
-			ap.rwyTwrFreq.emplace(rwyid, rwyFreq);
-		}
-
-		json json_taxiouts;
-		try
-		{
-			json_taxiouts = json_airport.at("taxiOutStands");
-		}
-		catch (std::exception& e)
-		{
-			this->LogMessage("Failed to get taxi out stands for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
-			continue;
-		}
-
-		for (auto& [name, json_taxiout] : json_taxiouts.items())
-		{
-			taxiOutStands tos{ name };
-
-			auto lat{ json_taxiout["lat"].get<std::vector<double>>() };
-			auto lon{ json_taxiout["lon"].get<std::vector<double>>() };
-			tos.lat = lat;
-			tos.lon = lon;
-
-			ap.taxiOutStands.emplace(name, tos);
-		}
-
-		json json_nap_reminder;
-		try
-		{
-			json_nap_reminder = json_airport.at("napReminder");
-		}
-		catch (std::exception& e)
-		{
-			this->LogMessage("Failed to load NAP reminder config for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
-			continue;
-		}
-
-		napReminder reminder{
-			json_nap_reminder.value<bool>("enabled", false),
-			json_nap_reminder.value<int>("hour", 0),
-			json_nap_reminder.value<int>("minute", 0),
-			json_nap_reminder.value<std::string>("tzone", ""),
-			false
-		};
-		ap.nap_reminder = reminder;
-
-
-		this->airports.emplace(icao, ap);
-	}
-
-	this->LogMessage("Successfully loaded config for " + std::to_string(this->airports.size()) + " airport(s).", "Config");
-
-	for (auto& airport : this->airports)
-	{
-		this->LogDebugMessage("Airport: " + airport.first, "Config");
-		this->LogDebugMessage("--> GND: " + airport.second.gndFreq, "Config");
-		this->LogDebugMessage("--> TWR: " + airport.second.twrFreq, "Config");
-		this->LogDebugMessage("--> APP: " + airport.second.appFreq, "Config");
-		int ctrIndex = 0;
-		for (const auto& ctr : airport.second.ctrStations)
-		{
-			this->LogDebugMessage("--> CTR[" + std::to_string(ctrIndex) + "]: " + ctr, "Config");
-			ctrIndex++;
-		}
-		for (auto& geoGnd : airport.second.geoGndFreq)
-		{
-			this->LogDebugMessage("--> GeoGnd " + geoGnd.first, "Config");
-			this->LogDebugMessage("----> FRQ: " + geoGnd.second.freq, "Config");
-			std::string lat_string = std::accumulate(std::begin(geoGnd.second.lat), std::end(geoGnd.second.lat), std::string(),
-				[](const std::string& ss, const double s)
-				{
-					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-				});
-			this->LogDebugMessage("----> LAT: " + lat_string, "Config");
-			std::string lon_string = std::accumulate(std::begin(geoGnd.second.lon), std::end(geoGnd.second.lon), std::string(),
-				[](const std::string& ss, const double s)
-				{
-					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-				});
-			this->LogDebugMessage("----> LON: " + lon_string, "Config");
-		}
-		for (auto& twrRwy : airport.second.rwyTwrFreq)
-		{
-			this->LogDebugMessage("--> TWR[" + twrRwy.first + "]: " + twrRwy.second, "Config");
-		}
-		for (auto& taxiOut : airport.second.taxiOutStands)
-		{
-			this->LogDebugMessage("--> TaxiOut " + taxiOut.first, "Config");
-			std::string lat_string = std::accumulate(std::begin(taxiOut.second.lat), std::end(taxiOut.second.lat), std::string(),
-				[](const std::string& ss, const double s)
-				{
-					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-				});
-			this->LogDebugMessage("----> LAT: " + lat_string, "Config");
-			std::string lon_string = std::accumulate(std::begin(taxiOut.second.lon), std::end(taxiOut.second.lon), std::string(),
-				[](const std::string& ss, const double s)
-				{
-					return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-				});
-			this->LogDebugMessage("----> LON: " + lon_string, "Config");
-		}
-		this->LogDebugMessage("---> NAP reminder: Enabled=" + std::to_string(airport.second.nap_reminder.enabled) + ", Hour=" + std::to_string(airport.second.nap_reminder.hour) + ", Minute=" + std::to_string(airport.second.nap_reminder.minute) + ", TZone=" + airport.second.nap_reminder.tzone, "Config");
-	}
-
-}
-
-void CDelHelX::LogMessage(const std::string& message, const std::string& type)
-{
-	this->DisplayUserMessage(PLUGIN_NAME, type.c_str(), message.c_str(), true, true, true, this->flashOnMessage, false);
-}
-
-void CDelHelX::LogDebugMessage(const std::string& message, const std::string& type)
-{
-	if (this->debug) {
-		this->LogMessage(message, type);
-	}
-}
-
 void CDelHelX::OnTimer(int Counter)
 {
 	if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready) {
@@ -1681,23 +1359,24 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 	}
 }
 
-void CDelHelX::PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const
-{
-	for (EuroScopePlugIn::CController c = this->ControllerSelectFirst(); c.IsValid(); c = this->ControllerSelectNext(c)) {
-		if (c.IsController()) 
-		{
-			std::string callsign = c.GetCallsign();
-			if (callsign.size() >= 3) {
-				if (callsign.find("DEL") != std::string::npos || callsign.find("GND") != std::string::npos || callsign.find("TWR") != std::string::npos) {
-					fp.PushFlightStrip(c.GetCallsign());
-				}
-			}
-		}
-	}
-}
-
 void CDelHelX::UpdateTowerSameSID()
 {
+	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
+	{
+		if (!this->twrSameSID_flightPlans.empty())
+		{
+			for (auto twr_fp : this->twrSameSID_flightPlans)
+			{
+				auto fp = this->FlightPlanSelect(twr_fp.first.c_str());
+				this->twrSameSID.RemoveFpFromTheList(fp);
+			}
+			
+			this->twrSameSID_flightPlans.clear();
+		}
+
+		return;
+	}
+
 	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
 	{
 		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
@@ -1808,6 +1487,16 @@ void CDelHelX::UpdateTowerSameSID()
 
 void CDelHelX::UpdateRadarTargetDepartureInfo()
 {
+	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
+	{
+		if (!this->radarScreen->radarTargetDepartureInfos.empty())
+		{
+			this->radarScreen->radarTargetDepartureInfos.clear();
+		}
+
+		return;
+	}
+
 	if (this->ControllerMyself().GetFacility() >= 3)
 	{
 		for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
@@ -1851,8 +1540,12 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 				COLORREF colorRef;
 				double fontSize;
 				OnGetTagItem(fp, rt, TAG_ITEM_DEPARTURE_INFO, 0, itemString, &colorCode, &colorRef, &fontSize);
-
 				std::string dep_info = std::string(itemString);
+
+				COLORREF sideColorRef;
+				OnGetTagItem(fp, rt, TAG_ITEM_SAMESID, 0, itemString, &colorCode, &sideColorRef, &fontSize);
+
+				
 				auto hp_color = TAG_COLOR_GREEN;
 				std::string hp;
 				this->flightStripAnnotation[cs] = fpcad.GetFlightStripAnnotation(8);
@@ -1884,6 +1577,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 					departureInfo.lastDrag.y = -1;
 					departureInfo.hp_info = hp;
 					departureInfo.hp_color = hp_color;
+					departureInfo.sid_color = sideColorRef;
 					this->radarScreen->radarTargetDepartureInfos.insert_or_assign(cs, departureInfo);
 				}
 				else
@@ -1892,6 +1586,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 					findDepInfo->second.dep_color = colorRef;
 					findDepInfo->second.hp_info = hp;
 					findDepInfo->second.hp_color = hp_color;
+					findDepInfo->second.sid_color = sideColorRef;
 				}
 			}
 			else
@@ -2104,144 +1799,6 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 	}
 }
 
-double CDelHelX::DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition)
-{
-	EuroScopePlugIn::CPosition rwyThreshold;
-	if (rwy == "29")
-	{
-		rwyThreshold.m_Latitude = 48.109137371047005;
-		rwyThreshold.m_Longitude = 16.57538568208911;
-	}
-
-	if (rwy == "11")
-	{
-		rwyThreshold.m_Latitude = 48.122766803767036;
-		rwyThreshold.m_Longitude = 16.53361062366087;
-	}
-
-	if (rwy == "34")
-	{
-		rwyThreshold.m_Latitude = 48.088822783854226;
-		rwyThreshold.m_Longitude = 16.5912652809662;
-	}
-
-	if (rwy == "16")
-	{
-		rwyThreshold.m_Latitude = 48.119602230239316;
-		rwyThreshold.m_Longitude = 16.57825221198715;
-	}
-
-	return currentPosition.DistanceTo(rwyThreshold);
-}
-
-bool CDelHelX::MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index)
-{
-	if (rwy == "29")
-	{
-		if (hp.rfind("A1", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("A2", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("A3", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("A4", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("A6", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("A8", 0) == 0 && index == 4)
-			return true;
-	}
-
-	if (rwy == "11")
-	{
-		if (hp.rfind("A12", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("A11", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("A10", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("A9", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("A7", 0) == 0 && index == 4)
-			return true;
-	}
-
-	if (rwy == "16")
-	{
-		if (hp.rfind("B1", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("B2", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("B4", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("B5", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("B7", 0) == 0 && index == 4)
-			return true;
-	}
-
-	if (rwy == "34")
-	{
-		if (hp.rfind("B12", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("B11", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("B10", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("B8", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("B6", 0) == 0 && index == 4)
-			return true;
-	}
-
-	return false;
-}
-
-std::string CDelHelX::GetRunwayHoldingPoint(const std::string& rwy, int index)
-{
-	if (rwy == "29")
-	{
-		if (index == 1)
-			return "A1";
-		if (index == 2)
-			return "A2";
-		if (index == 3)
-			return "A3";
-	}
-
-	if (rwy == "11")
-	{
-		if (index == 1)
-			return "A12";
-		if (index == 2)
-			return "A11";
-		if (index == 3)
-			return "A10";
-	}
-
-	if (rwy == "16")
-	{
-		if (index == 1)
-			return "B1";
-		if (index == 2)
-			return "B2";
-		if (index == 3)
-			return "B4";
-	}
-
-	if (rwy == "34")
-	{
-		if (index == 1)
-			return "B12";
-		if (index == 2)
-			return "B11";
-		if (index == 3)
-			return "B10";
-	}
-
-	return "";
-}
-
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 {
 	std::string station = sStation;
@@ -2323,83 +1880,7 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 	}
 }
 
-int CDelHelX::GetAircraftWeightCategoryRanking(char wtc)
-{
-	switch (wtc)
-	{
-	case 'J':
-	case 'j':
-		return 4;
-	case 'H':
-	case 'h':
-		return 3;
-	case 'M':
-	case 'm':
-		return 2;
-	case 'L':
-	case 'l':
-		return 1;
-	default:
-		return 0;
-	}
-}
-
-int CDelHelX::IsSameHoldingPoint(std::string hp1, std::string hp2)
-{
-	if (hp1.empty() || hp2.empty())
-	{
-		return false;
-	}
-
-	if (hp1 == hp2)
-	{
-		return true;
-	}
-
-	if (hp1 == "A1" && hp2 == "A2")
-	{
-		return true;
-	}
-
-	if (hp1 == "A11" && hp2 == "A12")
-	{
-		return true;
-	}
-
-	if (hp1 == "B1" && hp2 == "B2")
-	{
-		return true;
-	}
-
-	if (hp1 == "B11" && hp2 == "B12")
-	{
-		return true;
-	}
-
-	return false;
-}
-
-void CDelHelX::CheckForUpdate()
-{
-	try
-	{
-		semver::version latest{ this->latestVersion.get() };
-		semver::version current{ PLUGIN_VERSION };
-
-		if (latest > current) {
-			std::ostringstream ss;
-			ss << "A new version (" << latest << ") of " << PLUGIN_NAME << " is available, download it at " << PLUGIN_LATEST_DOWNLOAD_URL;
-
-			this->LogMessage(ss.str(), "Update");
-		}
-	}
-	catch (std::exception& e)
-	{
-		MessageBox(NULL, e.what(), PLUGIN_NAME, MB_OK | MB_ICONERROR);
-	}
-
-	this->latestVersion = std::future<std::string>();
-}
+static CDelHelX* pPlugin;
 
 void __declspec (dllexport) EuroScopePlugInInit(EuroScopePlugIn::CPlugIn** ppPlugInInstance)
 {

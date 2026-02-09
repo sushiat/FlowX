@@ -3,7 +3,6 @@
 #include <map>
 #include <set>
 #include <string>
-#include <windowsx.h>
 
 #include "constants.h"
 #include "EuroScope/EuroScopePlugIn.h"
@@ -18,6 +17,7 @@ struct depInfo
 	int dragY = 0;
 	std::string hp_info = std::string("");
 	COLORREF hp_color = TAG_COLOR_TURQ;
+	COLORREF sid_color = TAG_COLOR_TURQ;
 };
 
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
