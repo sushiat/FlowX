@@ -588,6 +588,13 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 										return;
 									}
 
+									if (secondsSinceDeparted + 30 > secondsRequired)
+									{
+										*pRGB = TAG_COLOR_GREEN;
+										strcpy_s(sItemString, 16, (std::to_string(secondsRequired - secondsSinceDeparted) + "s").c_str());
+										return;
+									}
+
 									if (secondsSinceDeparted + 45 > secondsRequired)
 									{
 										*pRGB = TAG_COLOR_YELLOW;
