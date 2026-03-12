@@ -314,10 +314,24 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		std::string sid = fpd.GetSidName();
 		if (!sid.empty() && sid.length() > 2) {
 			auto sidKey = sid.substr(0, sid.length() - 2);
+			auto sidDesignator = sid.substr(sid.length() - 2);
 
-			strcpy_s(sItemString, 16, sid.c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 			*pRGB = TAG_COLOR_WHITE;
+
+			// Extend night SIDs
+			std::map<std::string, std::string> nightTimeSids{
+				{"IRGO", "IRGOT"}, {"IMVO", "IMVOB"}, {"ODSU", "ODSUD"}, {"OSMO", "OSMOD"},
+				{"OTGA", "OTGAR"}, {"UMSU", "UMSUM"}, {"UNGU", "UNGUT"}, {"VABG", "VABGU"},
+				{"EMKO", "EMKOG"}, {"EWUK", "EWUKE"}, {"AGMI", "AGMIM"}, {"ASPI", "ASPIB"}
+			};
+
+			if (nightTimeSids.find(sidKey) != nightTimeSids.end())
+			{
+				sid = nightTimeSids.at(sidKey) + sidDesignator;
+			}
+
+			strcpy_s(sItemString, 16, sid.c_str());
 
 			if (rwy == "11")
 			{
