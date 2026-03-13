@@ -5,7 +5,7 @@
 #include <string>
 #include "constants.h"
 
-RadarScreen::RadarScreen()
+RadarScreen::RadarScreen(RadarScreen** ownerPtr) : m_ownerPtr(ownerPtr)
 {
 	this->debug = false;
 }

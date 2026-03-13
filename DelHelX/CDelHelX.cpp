@@ -1080,6 +1080,9 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 		return res;
 	}
 
+	if (this->radarScreen == nullptr)
+		return res;
+
 	bool groundOnline = false;
 	for (auto station : this->radarScreen->groundStations)
 	{

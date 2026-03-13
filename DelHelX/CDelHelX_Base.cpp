@@ -72,7 +72,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 
 EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
 {
-	this->radarScreen = new RadarScreen();
+	this->radarScreen = new RadarScreen(&this->radarScreen);
 	this->radarScreen->debug = this->debug;
 	return this->radarScreen;
 }
