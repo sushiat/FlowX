@@ -23,7 +23,7 @@ struct depInfo
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
 {
 public:
-	explicit RadarScreen(RadarScreen** ownerPtr);
+	RadarScreen();
 	virtual ~RadarScreen();
 
 	bool debug;
@@ -34,10 +34,9 @@ public:
 
 	std::map<std::string, depInfo> radarTargetDepartureInfos;
 
-	inline void OnAsrContentToBeClosed() override { if (m_ownerPtr) *m_ownerPtr = nullptr; delete this; }
+	void OnAsrContentToBeClosed() override;
 
 private:
-	RadarScreen** m_ownerPtr;
 	void OnControllerPositionUpdate(EuroScopePlugIn::CController Controller) override;
 	void OnControllerDisconnect(EuroScopePlugIn::CController Controller) override;
 	void OnRefresh(HDC hDC, int Phase) override;

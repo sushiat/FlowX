@@ -1,16 +1,23 @@
 #include "pch.h"
 #include "RadarScreen.h"
+#include "CDelHelX_Base.h"
 
 #include <algorithm>
 #include <string>
 #include "constants.h"
 
-RadarScreen::RadarScreen(RadarScreen** ownerPtr) : m_ownerPtr(ownerPtr)
+RadarScreen::RadarScreen()
 {
 	this->debug = false;
 }
 
 RadarScreen::~RadarScreen() = default;
+
+void RadarScreen::OnAsrContentToBeClosed()
+{
+	static_cast<CDelHelX_Base*>(GetPlugIn())->ClearRadarScreen();
+	delete this;
+}
 
 void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Controller)
 {

@@ -8,6 +8,7 @@ class CDelHelX_Base : public EuroScopePlugIn::CPlugIn
 public:
 	CDelHelX_Base();
 	EuroScopePlugIn::CRadarScreen* OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated) override;
+	void ClearRadarScreen() { radarScreen = nullptr; }
 
 protected:
 	bool debug;
