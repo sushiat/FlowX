@@ -8,15 +8,15 @@ struct geoGndFreq
 {
 	std::string name;
 	std::string freq;
-	std::vector<double> lat;
-	std::vector<double> lon;
+	std::vector<double> lat = {};
+	std::vector<double> lon = {};
 };
 
 struct taxiOutStands
 {
 	std::string name;
-	std::vector<double> lat;
-	std::vector<double> lon;
+	std::vector<double> lat = {};
+	std::vector<double> lon = {};
 };
 
 struct napReminder
@@ -28,6 +28,26 @@ struct napReminder
 	bool triggered;
 };
 
+struct holdingPoint
+{
+	std::string name;
+	int index = 0;
+	bool assignable = false;
+	std::string sameAs;
+	std::vector<double> lat = {};
+	std::vector<double> lon = {};
+};
+
+struct runway
+{
+	std::string designator;
+	double thresholdLat = 0.0;
+	double thresholdLon = 0.0;
+	std::map<std::string, holdingPoint> holdingPoints = {};
+	std::map<std::string, int> sidGroups = {};
+	std::map<std::string, std::string> sidColors = {};
+};
+
 struct airport
 {
 	std::string icao;
@@ -35,9 +55,12 @@ struct airport
 	std::string twrFreq;
 	std::string appFreq;
 
-	std::map<std::string, geoGndFreq> geoGndFreq;
-	std::map<std::string, std::string> rwyTwrFreq;
-	std::vector<std::string> ctrStations;
-	std::map<std::string, taxiOutStands> taxiOutStands;
-	napReminder nap_reminder;
+	std::map<std::string, geoGndFreq> geoGndFreq = {};
+	std::map<std::string, std::string> rwyTwrFreq = {};
+	std::vector<std::string> ctrStations = {};
+	std::map<std::string, taxiOutStands> taxiOutStands = {};
+	napReminder nap_reminder = {};
+	std::map<std::string, std::string> nightTimeSids = {};
+	std::map<std::string, std::string> sidAppFreqs = {};
+	std::map<std::string, runway> runways = {};
 };
