@@ -1372,6 +1372,9 @@ void CDelHelX::UpdateTowerSameSID()
 
 void CDelHelX::UpdateRadarTargetDepartureInfo()
 {
+	if (this->radarScreen == nullptr)
+		return;
+
 	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
 	{
 		if (!this->radarScreen->radarTargetDepartureInfos.empty())
