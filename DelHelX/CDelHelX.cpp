@@ -309,9 +309,15 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_SAMESID)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-
+		std::string dep = fpd.GetOrigin();
+		to_upper(dep);
 		std::string rwy = fpd.GetDepartureRwy();
 		std::string sid = fpd.GetSidName();
+
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+			return;
+
 		if (!sid.empty() && sid.length() > 2) {
 			auto sidKey = sid.substr(0, sid.length() - 2);
 			auto sidDesignator = sid.substr(sid.length() - 2);
@@ -320,88 +326,21 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 			*pRGB = TAG_COLOR_WHITE;
 
 			// Extend night SIDs
-			std::map<std::string, std::string> nightTimeSids{
-				{"IRGO", "IRGOT"}, {"IMVO", "IMVOB"}, {"ODSU", "ODSUD"}, {"OSMO", "OSMOD"},
-				{"OTGA", "OTGAR"}, {"UMSU", "UMSUM"}, {"UNGU", "UNGUT"}, {"VABG", "VABGU"},
-				{"EMKO", "EMKOG"}, {"EWUK", "EWUKE"}, {"AGMI", "AGMIM"}, {"ASPI", "ASPIB"}
-			};
-
-			if (nightTimeSids.find(sidKey) != nightTimeSids.end())
+			auto nightIt = airport->second.nightTimeSids.find(sidKey);
+			if (nightIt != airport->second.nightTimeSids.end())
 			{
-				sid = nightTimeSids.at(sidKey) + sidDesignator;
+				sid = nightIt->second + sidDesignator;
 			}
 
 			strcpy_s(sItemString, 16, sid.c_str());
 
-			if (rwy == "11")
+			auto rwyIt = airport->second.runways.find(rwy);
+			if (rwyIt != airport->second.runways.end())
 			{
-				std::map<std::string, COLORREF> rwy11SameSidColors{
-					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-					{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
-					{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-					{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-
-					{"IRGO", TAG_COLOR_ORANGE}, {"IMVO", TAG_COLOR_ORANGE}, {"ODSU", TAG_COLOR_ORANGE}, {"OSMO", TAG_COLOR_ORANGE}, {"MEDIX", TAG_COLOR_ORANGE}
-				};
-
-				if (rwy11SameSidColors.find(sidKey) != rwy11SameSidColors.end())
+				auto colorIt = rwyIt->second.sidColors.find(sidKey);
+				if (colorIt != rwyIt->second.sidColors.end())
 				{
-					*pRGB = rwy11SameSidColors.at(sidKey);
-				}
-			}
-
-			if (rwy == "16")
-			{
-				std::map<std::string, COLORREF> rwy16SameSidColors{
-					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-					{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-					{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ},
-					{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-				};
-
-				if (rwy16SameSidColors.find(sidKey) != rwy16SameSidColors.end())
-				{
-					*pRGB = rwy16SameSidColors.at(sidKey);
-				}
-			}
-
-			if (rwy == "29")
-			{
-				std::map<std::string, COLORREF> rwy29SameSidColors{
-					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-					{"MEDIX", TAG_COLOR_PURPLE}, {"LUGEM", TAG_COLOR_PURPLE},
-					{"OSPEN", TAG_COLOR_ORANGE}, {"RUPET", TAG_COLOR_ORANGE},
-					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"KOXER", TAG_COLOR_TURQ}, {"ADAMA", TAG_COLOR_TURQ},
-
-					{"IRGO", TAG_COLOR_GREEN}, {"IMVO", TAG_COLOR_GREEN}, {"ODSU", TAG_COLOR_GREEN}, {"OSMO", TAG_COLOR_GREEN}, {"OTGA", TAG_COLOR_GREEN},
-					{"UMSU", TAG_COLOR_PURPLE}, {"UNGU", TAG_COLOR_PURPLE}, {"VABG", TAG_COLOR_PURPLE},
-					{"EMKO", TAG_COLOR_ORANGE}, {"EWUK", TAG_COLOR_ORANGE},
-					{"AGMI", TAG_COLOR_TURQ}, {"ASPI", TAG_COLOR_TURQ}
-				};
-
-				if (rwy29SameSidColors.find(sidKey) != rwy29SameSidColors.end())
-				{
-					*pRGB = rwy29SameSidColors.at(sidKey);
-				}
-			}
-
-			if (rwy == "34")
-			{
-				std::map<std::string, COLORREF> rw34SameSidColors{
-					{"LANUX", TAG_COLOR_GREEN}, {"BUWUT", TAG_COLOR_GREEN}, {"LEDVA", TAG_COLOR_GREEN},
-					{"STEIN", TAG_COLOR_TURQ}, {"ARSIN", TAG_COLOR_TURQ}, {"RUPET", TAG_COLOR_TURQ}, {"OSPEN", TAG_COLOR_TURQ},
-					{"KOXER", TAG_COLOR_PURPLE}, {"ADAMA", TAG_COLOR_PURPLE},
-					{"MEDIX", TAG_COLOR_RED}, {"LUGEM", TAG_COLOR_RED},
-
-					{"IRGO", TAG_COLOR_TURQ}, {"IMVO", TAG_COLOR_TURQ}, {"ODSU", TAG_COLOR_TURQ}, {"OSMO", TAG_COLOR_TURQ}, {"OTGA", TAG_COLOR_TURQ},
-					{"EMKO", TAG_COLOR_RED}, {"EWUK", TAG_COLOR_RED}
-				};
-
-				if (rw34SameSidColors.find(sidKey) != rw34SameSidColors.end())
-				{
-					*pRGB = rw34SameSidColors.at(sidKey);
+					*pRGB = ColorFromString(colorIt->second);
 				}
 			}
 		}
@@ -424,9 +363,14 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_TAKEOFF_DISTANCE)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		std::string dep = fpd.GetOrigin();
+		to_upper(dep);
 		std::string rwy = fpd.GetDepartureRwy();
 		auto position = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
-		auto distance = DistanceFromRunwayThreshold(rwy, position);
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+			return;
+		auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
 		std::string num_text = std::to_string(distance);
 		std::string rounded = num_text.substr(0, num_text.find('.') + 3);
 		if (distance < 10.0)
@@ -446,10 +390,15 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_HP1)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		std::string dep = fpd.GetOrigin();
+		to_upper(dep);
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
 		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 1))
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+			return;
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 1, airport->second.runways))
 		{
 			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -471,10 +420,15 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_HP2)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		std::string dep = fpd.GetOrigin();
+		to_upper(dep);
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
 		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 2))
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+			return;
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 2, airport->second.runways))
 		{
 			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -496,10 +450,15 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_HP3)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		std::string dep = fpd.GetOrigin();
+		to_upper(dep);
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
 		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 3))
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+			return;
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 3, airport->second.runways))
 		{
 			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -521,10 +480,15 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_HPO)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		std::string dep = fpd.GetOrigin();
+		to_upper(dep);
 		std::string rwy = fpd.GetDepartureRwy();
 		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
 		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 4))
+		auto airport = this->airports.find(dep);
+		if (airport == this->airports.end())
+			return;
+		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 4, airport->second.runways))
 		{
 			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -548,6 +512,11 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 		try
 		{
+			std::string depAirport = FlightPlan.GetFlightPlanData().GetOrigin();
+			to_upper(depAirport);
+			auto airport = this->airports.find(depAirport);
+			if (airport == this->airports.end())
+				return;
 			std::string groundState = FlightPlan.GetGroundState();
 			if (groundState == "TAXI" || groundState == "DEPA")
 			{
@@ -585,7 +554,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 								{
 									std::string departedHP = this->flightStripAnnotation[lastDeparted_callSign].substr(2);
 									std::string hp = this->flightStripAnnotation[callSign].substr(2);
-									if (!IsSameHoldingPoint(departedHP, hp))
+									if (!IsSameHoldingPoint(departedHP, hp, airport->second.runways))
 									{
 										secondsRequired += 60;
 									}
@@ -636,88 +605,16 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 							if (!departedSID.empty() && !sid.empty() && departedSID.length() > 2 && sid.length() > 2) {
 								auto depSidKey = departedSID.substr(0, departedSID.length() - 2);
 								auto sidKey = sid.substr(0, sid.length() - 2);
-								if (rwy == "11")
+
+								auto rwyIt = airport->second.runways.find(rwy);
+								if (rwyIt != airport->second.runways.end())
 								{
-									std::map<std::string, int> rwy11SameSid{
-										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-										{"OSPEN", 2}, {"RUPET", 2},
-										{"STEIN", 3}, {"ARSIN", 3},
-										{"KOXER", 4}, {"ADAMA", 4},
-										{"MEDIX", 5}, {"LUGEM", 5},
-										{"SOVIL", 6},
-
-										{"IRGO", 5}, {"IMVO", 5}, {"ODSU", 5}, {"OSMO", 5}
-									};
-
-									if (rwy11SameSid.find(depSidKey) != rwy11SameSid.end() && rwy11SameSid.find(sidKey) != rwy11SameSid.end())
+									auto& sidGroupsMap = rwyIt->second.sidGroups;
+									auto depGroupIt = sidGroupsMap.find(depSidKey);
+									auto sidGroupIt = sidGroupsMap.find(sidKey);
+									if (depGroupIt != sidGroupsMap.end() && sidGroupIt != sidGroupsMap.end())
 									{
-										if (rwy11SameSid.at(depSidKey) != rwy11SameSid.at(sidKey))
-										{
-											distanceRequired = 3;
-										}
-									}
-								}
-
-								if (rwy == "16")
-								{
-									std::map<std::string, int> rwy16SameSid{
-										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-										{"MEDIX", 2}, {"LUGEM", 2},
-										{"OSPEN", 3}, {"RUPET", 3},
-										{"STEIN", 4}, {"ARSIN", 4},
-										{"KOXER", 5}, {"ADAMA", 5},
-										{"SOVIL", 6},
-									};
-
-									if (rwy16SameSid.find(depSidKey) != rwy16SameSid.end() && rwy16SameSid.find(sidKey) != rwy16SameSid.end())
-									{
-										if (rwy16SameSid.at(depSidKey) != rwy16SameSid.at(sidKey))
-										{
-											distanceRequired = 3;
-										}
-									}
-								}
-
-								if (rwy == "29")
-								{
-									std::map<std::string, int> rwy29SameSid{
-										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-										{"MEDIX", 2}, {"LUGEM", 2},
-										{"OSPEN", 3}, {"RUPET", 3},
-										{"STEIN", 4}, {"ARSIN", 4}, {"KOXER", 4}, {"ADAMA", 4},
-										{"SOVIL", 5},
-
-										{"IRGO", 1}, {"IMVO", 1}, {"ODSU", 1}, {"OSMO", 1}, {"OTGA", 1},
-										{"UMSU", 2}, {"UNGU", 2}, {"VABG", 2},
-										{"EMKO", 3}, {"EWUK", 3},
-										{"AGMI", 4}, {"ASPI", 4}
-									};
-
-									if (rwy29SameSid.find(depSidKey) != rwy29SameSid.end() && rwy29SameSid.find(sidKey) != rwy29SameSid.end())
-									{
-										if (rwy29SameSid.at(depSidKey) != rwy29SameSid.at(sidKey))
-										{
-											distanceRequired = 3;
-										}
-									}
-								}
-
-								if (rwy == "34")
-								{
-									std::map<std::string, int> rw34SameSid{
-										{"LANUX", 1}, {"BUWUT", 1}, {"LEDVA", 1},
-										{"STEIN", 2}, {"ARSIN", 2}, {"RUPET", 2}, {"OSPEN", 2},
-										{"KOXER", 3}, {"ADAMA", 3},
-										{"MEDIX", 4}, {"LUGEM", 4},
-										{"SOVIL", 5},
-
-										{"IRGO", 2}, {"IMVO", 2}, {"ODSU", 2}, {"OSMO", 2}, {"OTGA", 2},
-										{"EMKO", 4}, {"EWUK", 4}
-									};
-
-									if (rw34SameSid.find(depSidKey) != rw34SameSid.end() && rw34SameSid.find(sidKey) != rw34SameSid.end())
-									{
-										if (rw34SameSid.at(depSidKey) != rw34SameSid.at(sidKey))
+										if (depGroupIt->second != sidGroupIt->second)
 										{
 											distanceRequired = 3;
 										}
@@ -870,37 +767,37 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HP1)
 	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1));
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1, airport->second.runways));
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HP2)
 	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2));
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2, airport->second.runways));
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
 	else if (FunctionId == TAG_FUNC_ASSIGN_HP3)
 	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3));
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3, airport->second.runways));
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HP1)
 	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1) + "*");
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1, airport->second.runways) + "*");
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HP2)
 	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2) + "*");
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2, airport->second.runways) + "*");
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HP3)
 	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3) + "*");
+		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3, airport->second.runways) + "*");
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
@@ -913,26 +810,16 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		area.bottom = Pt.y + 100;
 		this->OpenPopupList(area, "Assign HP", 1);
 
-		if (rwy == "29")
+		auto rwyIt = airport->second.runways.find(rwy);
+		if (rwyIt != airport->second.runways.end())
 		{
-			this->AddPopupListElement("A4", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("A6", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("A8", "", TAG_FUNC_HPO_LISTSELECT);
-		}
-		if (rwy == "11")
-		{
-			this->AddPopupListElement("A9", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("A7", "", TAG_FUNC_HPO_LISTSELECT);
-		}
-		if (rwy == "16")
-		{
-			this->AddPopupListElement("B5", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("B7", "", TAG_FUNC_HPO_LISTSELECT);
-		}
-		if (rwy == "34")
-		{
-			this->AddPopupListElement("B8", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("B6", "", TAG_FUNC_HPO_LISTSELECT);
+			for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
+			{
+				if (hpData.assignable)
+				{
+					this->AddPopupListElement(hpName.c_str(), "", TAG_FUNC_HPO_LISTSELECT);
+				}
+			}
 		}
 	}
 	else if (FunctionId == TAG_FUNC_REQUEST_HPO)
@@ -944,26 +831,16 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		area.bottom = Pt.y + 100;
 		this->OpenPopupList(area, "Request HP", 1);
 
-		if (rwy == "29")
+		auto rwyIt = airport->second.runways.find(rwy);
+		if (rwyIt != airport->second.runways.end())
 		{
-			this->AddPopupListElement("A4*", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("A6*", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("A8*", "", TAG_FUNC_HPO_LISTSELECT);
-		}
-		if (rwy == "11")
-		{
-			this->AddPopupListElement("A9*", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("A7*", "", TAG_FUNC_HPO_LISTSELECT);
-		}
-		if (rwy == "16")
-		{
-			this->AddPopupListElement("B5*", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("B7*", "", TAG_FUNC_HPO_LISTSELECT);
-		}
-		if (rwy == "34")
-		{
-			this->AddPopupListElement("B8*", "", TAG_FUNC_HPO_LISTSELECT);
-			this->AddPopupListElement("B6*", "", TAG_FUNC_HPO_LISTSELECT);
+			for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
+			{
+				if (hpData.assignable)
+				{
+					this->AddPopupListElement((hpName + "*").c_str(), "", TAG_FUNC_HPO_LISTSELECT);
+				}
+			}
 		}
 	}
 	else if (FunctionId == TAG_FUNC_HPO_LISTSELECT)
@@ -1096,26 +973,18 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 					if (station.find(dep) != std::string::npos)
 					{
 						// Search for SID-specific freq
-						auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
-						auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
-						auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
-						if (sid129.find(sid) != sid129.end())
+					{
+						auto freqIt = airport->second.sidAppFreqs.find(sid);
+						if (freqIt != airport->second.sidAppFreqs.end())
 						{
-							res.tag += "->129.050";
-						}
-						else if (sid125.find(sid) != sid125.end())
-						{
-							res.tag += "->125.175";
-						}
-						else if (sid134.find(sid) != sid134.end())
-						{
-							res.tag += "->134.675";
+							res.tag += "->" + freqIt->second;
 						}
 						else
 						{
 							res.tag += "->" + airport->second.appFreq + "??";
 						}
 						return res;
+					}
 					}
 
 					if (this->radarScreen == nullptr)
@@ -1275,26 +1144,18 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 			if (station.find(dep) != std::string::npos)
 			{
 				// Search for SID-specific freq
-				auto sid125 = std::set<std::string>{ "BUWUT2A", "LANUX4A", "LEDVA4A", "ADAMA2B", "BUWUT2B", "", "KOXER2B", "LANUX6B", "LEDVA3B", "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D", "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D", "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D" };
-				auto sid129 = std::set<std::string>{ "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A", "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E", "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A" };
-				auto sid134 = std::set<std::string>{ "ADAMA2C", "ARSIN1B", "ARSIN1C", "ARSIN1D", "BUWUT1C", "KOXER1C", "LANUX2C", "LEDVA3C", "LUGEM2B", "LUGEM1C", "LUGEM1D", "MEDIX2B", "MEDIX1C", "MEDIX1D", "OSPEN5B", "OSPEN4C", "OSPEN3D", "RUPET2B", "RUPET2C", "RUPET2D", "SOVIL2B", "SOVIL1C", "SOVIL1D", "STEIN4B", "STEIN3C", "STEIN3D", "AGMI2C", "ASPI2C", "EMKO3C", "EWUK1C", "IMVO3C", "IRGO2C", "ODSU2C", "OSMO2C", "OTGA2C", "UMSU3C", "UNGU2C", "VABG2C", "EMKO3D", "EWUK1D", "IMVO3D", "IRGO2D", "ODSU2D", "OSMO2D", "OTGA2D", "LOWW1C" };
-				if (sid129.find(sid) != sid129.end())
 				{
-					res.tag += "->129.050";
+					auto freqIt = airport->second.sidAppFreqs.find(sid);
+					if (freqIt != airport->second.sidAppFreqs.end())
+					{
+						res.tag += "->" + freqIt->second;
+					}
+					else
+					{
+						res.tag += "->" + airport->second.appFreq + "??";
+					}
+					return res;
 				}
-				else if (sid125.find(sid) != sid125.end())
-				{
-					res.tag += "->125.175";
-				}
-				else if (sid134.find(sid) != sid134.end())
-				{
-					res.tag += "->134.675";
-				}
-				else
-				{
-					res.tag += "->" + airport->second.appFreq + "??";
-				}
-				return res;
 			}
 		}
 
@@ -1492,7 +1353,7 @@ void CDelHelX::UpdateTowerSameSID()
 			EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
 			std::string rwy = fpd.GetDepartureRwy();
 			auto position = pos.GetPosition();
-			auto distance = DistanceFromRunwayThreshold(rwy, position);
+			auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
 
 			if (distance >= 15)
 			{
@@ -1664,150 +1525,20 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 		std::string before = this->flightStripAnnotation[callSign];
 		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 30)
 		{
-			if (rwy == "29")
+			auto rwyIt = airport->second.runways.find(rwy);
+			if (rwyIt != airport->second.runways.end())
 			{
-				double polyX_A1[] = { 16.575017166000304, 16.57587010846486, 16.576755237437506, 16.575939845899068 };
-				double polyY_A1[] = { 48.10963587193707, 48.10939230478594, 48.11054207487674, 48.11067101945089 };
-				double polyX_A2[] = { 16.574126672609637, 16.574802589279663, 16.575521421293814, 16.574850869041803 };
-				double polyY_A2[] = { 48.10991525636538, 48.10969676354447, 48.11066385587193, 48.11092890762859 };
-				double polyX_A3[] = { 16.5707470892528, 16.571814608437997, 16.572565626960245, 16.57168586240561 };
-				double polyY_A3[] = { 48.110968307129184, 48.110710419149186, 48.1116022762453, 48.11187448657303 };
-				double polyX_A4[] = { 16.564658474791777, 16.567287039619643, 16.568107795576104, 16.567292404037662 };
-				double polyY_A4[] = { 48.11312806818993, 48.11213236874584, 48.11324626144721, 48.11343966800904 };
-				double polyX_A6[] = { 16.55801808013691, 16.560827559183743, 16.561581956335207, 16.55922771694874 };
-				double polyY_A6[] = { 48.11520333876569, 48.114222056963136, 48.11520333876569, 48.11592409133777 };
-				double polyX_A8[] = { 16.548848252668353, 16.551156968088797, 16.551748779647273, 16.549999358666724 };
-				double polyY_A8[] = { 48.11817746343429, 48.11736122447819, 48.118429279218226, 48.11895027347323 };
+				for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
+				{
+					u_int corners = static_cast<u_int>(hpData.lat.size());
+					double polyX[10], polyY[10];
+					std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
+					std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
 
-				if (CDelHelX::PointInsidePolygon(4, polyX_A1, polyY_A1, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A1");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A2, polyY_A2, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A2");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A3, polyY_A3, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A3");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A4, polyY_A4, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A4");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A6, polyY_A6, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A6");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A8, polyY_A8, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A8");
-				}
-			}
-
-			if (rwy == "11")
-			{
-				double polyX_A12[] = { 16.533506042225728, 16.534412628870438, 16.53472912953339, 16.53421950982186 };
-				double polyY_A12[] = { 48.123124385103026, 48.12283432967016, 48.12391934344905, 48.1241377757948 };
-				double polyX_A11[] = { 16.534761316041482, 16.535496241309684, 16.536102420545497, 16.53547478363762 };
-				double polyY_A11[] = { 48.122683929911986, 48.122476234283916, 48.12350754223812, 48.12367584400152 };
-				double polyX_A10[] = { 16.539262062766852, 16.54024375126379, 16.54077482864738, 16.539878970838696 };
-				double polyY_A10[] = { 48.12122646179901, 48.120932814575376, 48.122028611512825, 48.12225063288102 };
-				double polyX_A9[] = { 16.544417268490587, 16.54728723212918, 16.546654230803284, 16.54508245632458 };
-				double polyY_A9[] = { 48.11955766374615, 48.118680269653105, 48.12015571562148, 48.12046727282223 };
-				double polyX_A7[] = { 16.5502949260553, 16.55391082964335, 16.554021387846582, 16.55095827527469 };
-				double polyY_A7[] = { 48.11764919470844, 48.116524680359404, 48.11764919470844, 48.118613044560995 };
-
-
-				if (CDelHelX::PointInsidePolygon(4, polyX_A12, polyY_A12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A12");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A11, polyY_A11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A11");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A10, polyY_A10, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A10");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A9, polyY_A9, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A9");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_A7, polyY_A7, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "A7");
-				}
-			}
-
-			if (rwy == "16")
-			{
-				double polyX_B1[] = { 16.576179185170687, 16.577895798935828, 16.577691951051214, 16.576125540990525 };
-				double polyY_B1[] = { 48.119518510356244, 48.11924992171454, 48.119837233722585, 48.12008791363267 };
-				double polyX_B2[] = { 16.576806822078563, 16.578437605155443, 16.578180113090674, 16.576592245357922 };
-				double polyY_B2[] = { 48.11829373475215, 48.11803230225993, 48.11870915898957, 48.11883092062948 };
-				double polyX_B4[] = { 16.57980561496776, 16.58195824821892, 16.581776152354777, 16.579799111544045 };
-				double polyY_B4[] = { 48.110527790794244,48.109533392525634, 48.11016303558523, 48.110940308446594 };
-				double polyX_B5[] = { 16.580601483468982, 16.582357407873253, 16.582487476347644, 16.580516938960628 };
-				double polyY_B5[] = { 48.10851538448417, 48.10729079094436, 48.10786400857423, 48.10909727331532 };
-				double polyX_B7[] = { 16.58227286336878, 16.584191373366036, 16.584165359671157, 16.582344401029694 };
-				double polyY_B7[] = { 48.104524491682014, 48.10366894985964, 48.10427260775143, 48.104928371959815 };
-
-				if (CDelHelX::PointInsidePolygon(4, polyX_B1, polyY_B1, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B1");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B2, polyY_B2, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B2");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B4, polyY_B4, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B4");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B5, polyY_B5, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B5");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B7, polyY_B7, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B7");
-				}
-			}
-
-			if (rwy == "34")
-			{
-				double polyX_B12[] = { 16.58845903017965, 16.591316815971858, 16.59029435236105, 16.588126729506136 };
-				double polyY_B12[] = { 48.08739391988782, 48.087598820037584, 48.08936434250654, 48.08886918274589 };
-				double polyX_B11[] = { 16.587344778760706, 16.590568793988357, 16.590123547293025, 16.586979998335615 };
-				double polyY_B11[] = { 48.08897443323162, 48.08936859485416, 48.090328903252, 48.08997058132015 };
-				double polyX_B10[] = { 16.58429723570477, 16.587451396208735, 16.586228752549466, 16.58309410231666 };
-				double polyY_B10[] = { 48.096111232527555, 48.09661942262088, 48.09958159310501, 48.09920807367939 };
-				double polyX_B8[] = { 16.583679410447537, 16.58554589305504, 16.5847004479715, 16.58284697221144 };
-				double polyY_B8[] = { 48.10110604549481, 48.101279769383865, 48.10351641201675, 48.10326886606825 };
-				double polyX_B6[] = { 16.58241774624248, 16.58376395495242, 16.58296403383492, 16.581286150515286 };
-				double polyY_B6[] = { 48.10515800240615, 48.1053143416084, 48.107042726654754, 48.10670834513769 };
-
-				if (CDelHelX::PointInsidePolygon(4, polyX_B12, polyY_B12, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B12");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B11, polyY_B11, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B11");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B10, polyY_B10, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B10");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B8, polyY_B8, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B8");
-				}
-				if (CDelHelX::PointInsidePolygon(4, polyX_B6, polyY_B6, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-				{
-					this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], "B6");
+					if (CDelHelX::PointInsidePolygon(static_cast<int>(corners), polyX, polyY, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+					{
+						this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
+					}
 				}
 			}
 

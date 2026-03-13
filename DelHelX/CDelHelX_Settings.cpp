@@ -170,6 +170,71 @@ void CDelHelX_Settings::LoadConfig()
 		};
 		ap.nap_reminder = reminder;
 
+		// Load night SIDs
+		try
+		{
+			for (auto& [sidKey, nightName] : json_airport.at("nightTimeSids").items())
+			{
+				ap.nightTimeSids.emplace(sidKey, nightName.get<std::string>());
+			}
+		}
+		catch (std::exception& e)
+		{
+			this->LogMessage("Failed to load night-time SID replacements for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
+		}
+
+		// Load SID-specific approach frequencies
+		try
+		{
+			for (auto& [sidName, freq] : json_airport.at("sidAppFreqs").items())
+			{
+				ap.sidAppFreqs.emplace(sidName, freq.get<std::string>());
+			}
+		}
+		catch (std::exception& e)
+		{
+			this->LogMessage("Failed to load SID-specific frequencies for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
+		}
+
+		// Load runway configurations
+		try
+		{
+			for (auto& [rwyDesignator, json_rwy] : json_airport.at("runways").items())
+			{
+				runway rwy{};
+				rwy.designator = rwyDesignator;
+				rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
+				rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
+
+				for (auto& [sidKey, group] : json_rwy["sidGroups"].items())
+				{
+					rwy.sidGroups.emplace(sidKey, group.get<int>());
+				}
+
+				for (auto& [sidKey, color] : json_rwy["sidColors"].items())
+				{
+					rwy.sidColors.emplace(sidKey, color.get<std::string>());
+				}
+
+				for (auto& [hpName, json_hp] : json_rwy["holdingPoints"].items())
+				{
+					holdingPoint hp{};
+					hp.name = hpName;
+					hp.index = json_hp.value<int>("index", 0);
+					hp.assignable = json_hp.value<bool>("assignable", false);
+					hp.sameAs = json_hp.value<std::string>("sameAs", "");
+					hp.lat = json_hp["polygon"]["lat"].get<std::vector<double>>();
+					hp.lon = json_hp["polygon"]["lon"].get<std::vector<double>>();
+					rwy.holdingPoints.emplace(hpName, hp);
+				}
+
+				ap.runways.emplace(rwyDesignator, rwy);
+			}
+		}
+		catch (std::exception& e)
+		{
+			this->LogMessage("Failed to load runway config for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
+		}
 
 		this->airports.emplace(icao, ap);
 	}

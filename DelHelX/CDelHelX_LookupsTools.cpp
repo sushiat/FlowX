@@ -18,139 +18,44 @@ bool CDelHelX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], 
 	return oddNodes;
 }
 
-double CDelHelX_LookupsTools::DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition)
+double CDelHelX_LookupsTools::DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways)
 {
+	auto rwyIt = runways.find(rwy);
+	if (rwyIt == runways.end())
+		return 0.0;
+
 	EuroScopePlugIn::CPosition rwyThreshold;
-	if (rwy == "29")
-	{
-		rwyThreshold.m_Latitude = 48.109137371047005;
-		rwyThreshold.m_Longitude = 16.57538568208911;
-	}
-
-	if (rwy == "11")
-	{
-		rwyThreshold.m_Latitude = 48.122766803767036;
-		rwyThreshold.m_Longitude = 16.53361062366087;
-	}
-
-	if (rwy == "34")
-	{
-		rwyThreshold.m_Latitude = 48.088822783854226;
-		rwyThreshold.m_Longitude = 16.5912652809662;
-	}
-
-	if (rwy == "16")
-	{
-		rwyThreshold.m_Latitude = 48.119602230239316;
-		rwyThreshold.m_Longitude = 16.57825221198715;
-	}
+	rwyThreshold.m_Latitude = rwyIt->second.thresholdLat;
+	rwyThreshold.m_Longitude = rwyIt->second.thresholdLon;
 
 	return currentPosition.DistanceTo(rwyThreshold);
 }
 
-bool CDelHelX_LookupsTools::MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index)
+bool CDelHelX_LookupsTools::MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index, const std::map<std::string, runway>& runways)
 {
-	if (rwy == "29")
-	{
-		if (hp.rfind("A1", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("A2", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("A3", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("A4", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("A6", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("A8", 0) == 0 && index == 4)
-			return true;
-	}
+	auto rwyIt = runways.find(rwy);
+	if (rwyIt == runways.end())
+		return false;
 
-	if (rwy == "11")
+	for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
 	{
-		if (hp.rfind("A12", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("A11", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("A10", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("A9", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("A7", 0) == 0 && index == 4)
-			return true;
-	}
-
-	if (rwy == "16")
-	{
-		if (hp.rfind("B1", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("B2", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("B4", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("B5", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("B7", 0) == 0 && index == 4)
-			return true;
-	}
-
-	if (rwy == "34")
-	{
-		if (hp.rfind("B12", 0) == 0 && index == 1)
-			return true;
-		if (hp.rfind("B11", 0) == 0 && index == 2)
-			return true;
-		if (hp.rfind("B10", 0) == 0 && index == 3)
-			return true;
-		if (hp.rfind("B8", 0) == 0 && index == 4)
-			return true;
-		if (hp.rfind("B6", 0) == 0 && index == 4)
+		if (hp.rfind(hpName, 0) == 0 && hpData.index == index)
 			return true;
 	}
 
 	return false;
 }
 
-std::string CDelHelX_LookupsTools::GetRunwayHoldingPoint(const std::string& rwy, int index)
+std::string CDelHelX_LookupsTools::GetRunwayHoldingPoint(const std::string& rwy, int index, const std::map<std::string, runway>& runways)
 {
-	if (rwy == "29")
-	{
-		if (index == 1)
-			return "A1";
-		if (index == 2)
-			return "A2";
-		if (index == 3)
-			return "A3";
-	}
+	auto rwyIt = runways.find(rwy);
+	if (rwyIt == runways.end())
+		return "";
 
-	if (rwy == "11")
+	for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
 	{
-		if (index == 1)
-			return "A12";
-		if (index == 2)
-			return "A11";
-		if (index == 3)
-			return "A10";
-	}
-
-	if (rwy == "16")
-	{
-		if (index == 1)
-			return "B1";
-		if (index == 2)
-			return "B2";
-		if (index == 3)
-			return "B4";
-	}
-
-	if (rwy == "34")
-	{
-		if (index == 1)
-			return "B12";
-		if (index == 2)
-			return "B11";
-		if (index == 3)
-			return "B10";
+		if (hpData.index == index && !hpData.assignable)
+			return hpName;
 	}
 
 	return "";
@@ -177,36 +82,26 @@ int CDelHelX_LookupsTools::GetAircraftWeightCategoryRanking(char wtc)
 	}
 }
 
-int CDelHelX_LookupsTools::IsSameHoldingPoint(std::string hp1, std::string hp2)
+int CDelHelX_LookupsTools::IsSameHoldingPoint(std::string hp1, std::string hp2, const std::map<std::string, runway>& runways)
 {
 	if (hp1.empty() || hp2.empty())
-	{
 		return false;
-	}
 
 	if (hp1 == hp2)
-	{
 		return true;
-	}
 
-	if (hp1 == "A1" && hp2 == "A2")
+	for (auto& [rwyName, rwyData] : runways)
 	{
-		return true;
-	}
-
-	if (hp1 == "A11" && hp2 == "A12")
-	{
-		return true;
-	}
-
-	if (hp1 == "B1" && hp2 == "B2")
-	{
-		return true;
-	}
-
-	if (hp1 == "B11" && hp2 == "B12")
-	{
-		return true;
+		for (auto& [hpName, hpData] : rwyData.holdingPoints)
+		{
+			if (!hpData.sameAs.empty())
+			{
+				if (hpName == hp1 && hpData.sameAs == hp2)
+					return true;
+				if (hpName == hp2 && hpData.sameAs == hp1)
+					return true;
+			}
+		}
 	}
 
 	return false;
@@ -225,4 +120,16 @@ std::string CDelHelX_LookupsTools::AppendHoldingPointToFlightStripAnnotation(con
 	}
 
 	return "  " + hp;
+}
+
+COLORREF CDelHelX_LookupsTools::ColorFromString(const std::string& colorName)
+{
+	if (colorName == "green")  return TAG_COLOR_GREEN;
+	if (colorName == "orange") return TAG_COLOR_ORANGE;
+	if (colorName == "turq")   return TAG_COLOR_TURQ;
+	if (colorName == "purple") return TAG_COLOR_PURPLE;
+	if (colorName == "red")    return TAG_COLOR_RED;
+	if (colorName == "white")  return TAG_COLOR_WHITE;
+	if (colorName == "yellow") return TAG_COLOR_YELLOW;
+	return TAG_COLOR_NONE;
 }
