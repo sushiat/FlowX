@@ -31,7 +31,7 @@ private:
 	bool noChecks;
 	
 	std::map<std::string, std::string> airportQNH;
-	std::map<std::string, unsigned long> twrSameSID_flightPlans;
+	std::map<std::string, ULONGLONG> twrSameSID_flightPlans;
 	std::map<std::string, std::string> twrSameSID_lastDeparted;
 	std::map<std::string, std::string> flightStripAnnotation;
 

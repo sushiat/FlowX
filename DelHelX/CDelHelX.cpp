@@ -159,7 +159,7 @@ void CDelHelX::RedoFlags()
 		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 		// Skip if aircraft is not on the ground (currently using ground speed threshold)
 		// TODO better option for finding aircraft on ground??? maybe airport elevation via config???
-		if (!pos.IsValid() || pos.GetReportedGS() > 40) {
+		if (!pos.IsValid() || pos.GetReportedGS() > 40 || pos.GetPressureAltitude() >= 650) {
 			continue;
 		}
 
@@ -349,7 +349,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 		{
-			unsigned long now = GetTickCount();
+			ULONGLONG now = GetTickCount64();
 			auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
 
 			auto minutes = seconds / 60;
@@ -560,7 +560,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 									}
 								}
 
-								unsigned long now = GetTickCount();
+								ULONGLONG now = GetTickCount64();
 								if (this->twrSameSID_flightPlans.find(lastDeparted_callSign) != this->twrSameSID_flightPlans.end()) {
 									auto secondsSinceDeparted = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
 
@@ -1327,7 +1327,7 @@ void CDelHelX::UpdateTowerSameSID()
 		{
 			if (this->twrSameSID_flightPlans.at(callSign) == 0)
 			{
-				this->twrSameSID_flightPlans[callSign] = GetTickCount();
+				this->twrSameSID_flightPlans[callSign] = GetTickCount64();
 				this->twrSameSID_lastDeparted[fp.GetFlightPlanData().GetDepartureRwy()] = callSign;
 			}
 		}
@@ -1337,7 +1337,7 @@ void CDelHelX::UpdateTowerSameSID()
 		{
 			if (this->twrSameSID_flightPlans.at(callSign) > 0)
 			{
-				unsigned long now = GetTickCount();
+				ULONGLONG now = GetTickCount64();
 				auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
 				if (seconds > 4 * 60)
 				{
