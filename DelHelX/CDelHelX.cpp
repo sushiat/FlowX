@@ -1138,15 +1138,16 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 					{
 						// Search for SID-specific freq
 						{
-							auto freqIt = airport->second.sidAppFreqs.find(sid);
-							if (freqIt != airport->second.sidAppFreqs.end())
+							std::string freq = airport->second.defaultAppFreq;
+							for (auto& [f, sids] : airport->second.sidAppFreqs)
 							{
-								res.tag += "->" + freqIt->second;
+								if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+								{
+									freq = f;
+									break;
+								}
 							}
-							else
-							{
-								res.tag += "->" + airport->second.appFreq + "??";
-							}
+							res.tag += "->" + freq;
 							return res;
 						}
 					}
@@ -1312,15 +1313,16 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 			{
 				// Search for SID-specific freq
 				{
-					auto freqIt = airport->second.sidAppFreqs.find(sid);
-					if (freqIt != airport->second.sidAppFreqs.end())
+					std::string freq = airport->second.defaultAppFreq;
+					for (auto& [f, sids] : airport->second.sidAppFreqs)
 					{
-						res.tag += "->" + freqIt->second;
+						if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+						{
+							freq = f;
+							break;
+						}
 					}
-					else
-					{
-						res.tag += "->" + airport->second.appFreq + "??";
-					}
+					res.tag += "->" + freq;
 					return res;
 				}
 			}

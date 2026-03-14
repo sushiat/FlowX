@@ -187,9 +187,10 @@ void CDelHelX_Settings::LoadConfig()
 		// Load SID-specific approach frequencies
 		try
 		{
-			for (auto& [sidName, freq] : json_airport.at("sidAppFreqs").items())
+			ap.defaultAppFreq = json_airport.value<std::string>("defaultAppFreq", "");
+			for (auto& [freq, sids] : json_airport.at("sidAppFreqs").items())
 			{
-				ap.sidAppFreqs.emplace(sidName, freq.get<std::string>());
+				ap.sidAppFreqs.emplace(freq, sids.get<std::vector<std::string>>());
 			}
 		}
 		catch (std::exception& e)

@@ -57,38 +57,20 @@
             "OTGA": "OTGAR", "UMSU": "UMSUM", "UNGU": "UNGUT", "VABG": "VABGU",
             "EMKO": "EMKOG", "EWUK": "EWUKE", "AGMI": "AGMIM", "ASPI": "ASPIB"
         },
+        "defaultAppFreq": "134.675",
         "sidAppFreqs": {
-            "BUWUT2A": "125.175", "LANUX4A": "125.175", "LEDVA4A": "125.175",
-            "ADAMA2B": "125.175", "BUWUT2B": "125.175", "KOXER2B": "125.175",
-            "LANUX6B": "125.175", "LEDVA3B": "125.175", "ADAMA1A": "125.175",
-            "ADAMA1F": "125.175", "ADAMA1D": "125.175", "BUWUT1E": "125.175",
-            "BUWUT1F": "125.175", "BUWUT1D": "125.175", "KOXER1A": "125.175",
-            "KOXER1D": "125.175", "KOXER1F": "125.175", "LANUX1E": "125.175",
-            "LANUX1F": "125.175", "LANUX6D": "125.175", "LEDVA1E": "125.175",
-            "LEDVA1F": "125.175", "LEDVA4D": "125.175", "LOWW1A": "125.175",
-            "LOWW1B": "125.175", "LOWW1D": "125.175",
-            "ARSIN2A": "129.050", "LUGEM2A": "129.050", "MEDIX2A": "129.050",
-            "OSPEN3A": "129.050", "RUPET2A": "129.050", "SOVIL2A": "129.050",
-            "STEIN3A": "129.050", "ARSIN1E": "129.050", "LUGEM1E": "129.050",
-            "MEDIX1E": "129.050", "OSPEN1E": "129.050", "RUPET1E": "129.050",
-            "SOVIL1E": "129.050", "STEIN1E": "129.050", "IMVO3A": "129.050",
-            "IRGO1A": "129.050", "ODSU1A": "129.050", "OSMO1A": "129.050",
-            "ADAMA2C": "134.675", "ARSIN1B": "134.675", "ARSIN1C": "134.675",
-            "ARSIN1D": "134.675", "BUWUT1C": "134.675", "KOXER1C": "134.675",
-            "LANUX2C": "134.675", "LEDVA3C": "134.675", "LUGEM2B": "134.675",
-            "LUGEM1C": "134.675", "LUGEM1D": "134.675", "MEDIX2B": "134.675",
-            "MEDIX1C": "134.675", "MEDIX1D": "134.675", "OSPEN5B": "134.675",
-            "OSPEN4C": "134.675", "OSPEN3D": "134.675", "RUPET2B": "134.675",
-            "RUPET2C": "134.675", "RUPET2D": "134.675", "SOVIL2B": "134.675",
-            "SOVIL1C": "134.675", "SOVIL1D": "134.675", "STEIN4B": "134.675",
-            "STEIN3C": "134.675", "STEIN3D": "134.675", "AGMI2C": "134.675",
-            "ASPI2C": "134.675", "EMKO3C": "134.675", "EWUK1C": "134.675",
-            "IMVO3C": "134.675", "IRGO2C": "134.675", "ODSU2C": "134.675",
-            "OSMO2C": "134.675", "OTGA2C": "134.675", "UMSU3C": "134.675",
-            "UNGU2C": "134.675", "VABG2C": "134.675", "EMKO3D": "134.675",
-            "EWUK1D": "134.675", "IMVO3D": "134.675", "IRGO2D": "134.675",
-            "ODSU2D": "134.675", "OSMO2D": "134.675", "OTGA2D": "134.675",
-            "LOWW1C": "134.675"
+            "125.175": [
+                "BUWUT2A", "LANUX4A", "LEDVA4A",
+                "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B",
+                "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D",
+                "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D",
+                "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D"
+            ],
+            "129.050": [
+                "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A",
+                "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E",
+                "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A"
+            ]
         },
         "runways": {
             "11": {

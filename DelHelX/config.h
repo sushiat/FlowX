@@ -68,7 +68,8 @@ struct airport
 	std::vector<std::string> ctrStations = {};
 	std::map<std::string, taxiOutStands> taxiOutStands = {};
 	napReminder nap_reminder = {};
+	std::string defaultAppFreq;
 	std::map<std::string, std::string> nightTimeSids = {};
-	std::map<std::string, std::string> sidAppFreqs = {};
+	std::map<std::string, std::vector<std::string>> sidAppFreqs = {};
 	std::map<std::string, runway> runways = {};
 };
