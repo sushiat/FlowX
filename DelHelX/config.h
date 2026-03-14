@@ -38,6 +38,12 @@ struct holdingPoint
 	std::vector<double> lon = {};
 };
 
+struct vacatePoint
+{
+	double minGap = 0.0;
+	std::vector<std::string> stands = {};
+};
+
 struct runway
 {
 	std::string designator;
@@ -46,6 +52,7 @@ struct runway
 	std::map<std::string, holdingPoint> holdingPoints = {};
 	std::map<std::string, int> sidGroups = {};
 	std::map<std::string, std::string> sidColors = {};
+	std::map<std::string, vacatePoint> vacatePoints = {};
 };
 
 struct airport

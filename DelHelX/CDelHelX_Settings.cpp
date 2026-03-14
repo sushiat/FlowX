@@ -229,6 +229,17 @@ void CDelHelX_Settings::LoadConfig()
 					rwy.holdingPoints.emplace(hpName, hp);
 				}
 
+				if (json_rwy.contains("vacatePoints"))
+				{
+					for (auto& [vpName, json_vp] : json_rwy["vacatePoints"].items())
+					{
+						vacatePoint vp{};
+						vp.minGap = json_vp.value<double>("minGap", 0.0);
+						vp.stands = json_vp["stands"].get<std::vector<std::string>>();
+						rwy.vacatePoints.emplace(vpName, vp);
+					}
+				}
+
 				ap.runways.emplace(rwyDesignator, rwy);
 			}
 		}

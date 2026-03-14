@@ -470,7 +470,86 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_SUGGESTED_VACATE)
 	{
-		// todo
+		[&]()
+		{
+			std::string rawStand = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(6);
+
+			// Extract stand from "s/STAND/s" format
+			auto first = rawStand.find('/');
+			auto last = rawStand.rfind('/');
+			if (first == std::string::npos || last == std::string::npos || first == last)
+				return;
+
+			std::string stand = rawStand.substr(first + 1, last - first - 1);
+			to_upper(stand);
+
+			// Find this aircraft in the sorted inbound list
+			auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+				[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
+			if (myPlan == this->ttt_flightPlans.end())
+				return;
+
+			auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
+			if (sortedIt == this->ttt_sortedByRunway.end())
+				return;
+
+			const auto& keys = sortedIt->second;
+			auto myIdx = std::find(keys.begin(), keys.end(), myPlan->first);
+			if (myIdx == keys.end())
+				return;
+
+			// Calculate gap to follower if one exists
+			bool hasFollower = myIdx + 1 != keys.end();
+			double gap = hasFollower
+				? this->ttt_distanceToRunway.at(*(myIdx + 1)) - this->ttt_distanceToRunway.at(myPlan->first)
+				: 0.0;
+
+			// Look up runway vacate config
+			std::string arr = FlightPlan.GetFlightPlanData().GetDestination();
+			to_upper(arr);
+			auto airportIt = this->airports.find(arr);
+			if (airportIt == this->airports.end())
+				return;
+
+			auto rwyIt = airportIt->second.runways.find(myPlan->second.designator);
+			if (rwyIt == airportIt->second.runways.end())
+				return;
+
+			for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
+			{
+				if (hasFollower && gap >= vp.minGap)
+					continue;
+
+				for (auto& pattern : vp.stands)
+				{
+					bool matched = false;
+					if (pattern == "*")
+					{
+						matched = true;
+					}
+					else if (pattern.back() == '*')
+					{
+						std::string prefix = pattern.substr(0, pattern.size() - 1);
+						to_upper(prefix);
+						matched = stand.rfind(prefix, 0) == 0;
+					}
+					else
+					{
+						std::string p = pattern;
+						to_upper(p);
+						matched = stand == p;
+					}
+
+					if (matched)
+					{
+						strcpy_s(sItemString, 16, vpName.c_str());
+						*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+						*pRGB = TAG_COLOR_WHITE;
+						return;
+					}
+				}
+			}
+		}();
 	}
 	else if (ItemCode == TAG_ITEM_HP1)
 	{
