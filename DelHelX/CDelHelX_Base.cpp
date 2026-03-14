@@ -78,6 +78,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 		this->tttInbound.AddColumnDefinition("TTT", 12, false, PLUGIN_NAME, TAG_ITEM_TTT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_INBOUND_NM, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->tttInbound.AddColumnDefinition("SPD", 5, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_GROUND_SPEED_WOUT_N, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("ATYP", 8, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("Gate", 5, true, GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_ASSIGNED_STAND, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);

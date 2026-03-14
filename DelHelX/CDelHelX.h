@@ -37,6 +37,7 @@ private:
 	std::map<std::string, std::string> flightStripAnnotation;
 	std::map<std::string, runway> ttt_flightPlans;
 	std::map<std::string, double> ttt_distanceToRunway;
+	std::map<std::string, std::vector<std::string>> ttt_sortedByRunway; // designator -> keys sorted by distance ascending
 
 	void UpdateTowerSameSID();
 	void AutoUpdateDepartureHoldingPoints();

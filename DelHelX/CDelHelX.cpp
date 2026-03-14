@@ -429,7 +429,44 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_INBOUND_NM)
 	{
-		// todo
+		auto myIt = std::find_if(this->ttt_distanceToRunway.begin(), this->ttt_distanceToRunway.end(),
+			[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
+		auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+			[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
+
+		if (myIt != this->ttt_distanceToRunway.end() && myPlan != this->ttt_flightPlans.end())
+		{
+			auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
+			if (sortedIt != this->ttt_sortedByRunway.end())
+			{
+				const auto& keys = sortedIt->second;
+				char buf[16];
+				if (keys.front() == myIt->first)
+				{
+					sprintf_s(buf, "%.1f", myIt->second);
+				}
+				else
+				{
+					for (size_t i = 1; i < keys.size(); ++i)
+					{
+						if (keys[i] == myIt->first)
+						{
+							double gap = myIt->second - this->ttt_distanceToRunway.at(keys[i - 1]);
+							sprintf_s(buf, "+%.1f", gap);
+							*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+							if (gap > 3.0)
+								*pRGB = TAG_COLOR_GREEN;
+							else if (gap > 2.5)
+								*pRGB = TAG_COLOR_YELLOW;
+							else
+								*pRGB = TAG_COLOR_RED;
+							break;
+						}
+					}
+				}
+				strcpy_s(sItemString, 16, buf);
+			}
+		}
 	}
 	else if (ItemCode == TAG_ITEM_SUGGESTED_VACATE)
 	{
@@ -1359,7 +1396,7 @@ void CDelHelX::UpdateTTTInbounds()
 				int depElevation = this->airportElevation.count(airport->first) ? this->airportElevation.at(airport->first) : 0;
 				if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 3.0)
 				{
-					// todo store current distance to threshold in map
+					this->ttt_distanceToRunway[rwyCallsign] = distance;
 
 					if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
 					{
@@ -1374,9 +1411,25 @@ void CDelHelX::UpdateTTTInbounds()
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
 					}
+					this->ttt_distanceToRunway.erase(rwyCallsign);
 				}
 			}
 		}
+	}
+
+	// Rebuild sorted-by-runway index
+	this->ttt_sortedByRunway.clear();
+	for (auto& [key, dist] : this->ttt_distanceToRunway)
+	{
+		auto planIt = this->ttt_flightPlans.find(key);
+		if (planIt != this->ttt_flightPlans.end())
+			this->ttt_sortedByRunway[planIt->second.designator].push_back(key);
+	}
+	for (auto& [designator, keys] : this->ttt_sortedByRunway)
+	{
+		std::sort(keys.begin(), keys.end(), [this](const std::string& a, const std::string& b) {
+			return this->ttt_distanceToRunway.at(a) < this->ttt_distanceToRunway.at(b);
+		});
 	}
 }
 
