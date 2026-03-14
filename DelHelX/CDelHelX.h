@@ -36,6 +36,7 @@ private:
 	std::map<std::string, std::string> twrSameSID_lastDeparted;
 	std::map<std::string, std::string> flightStripAnnotation;
 	std::map<std::string, runway> ttt_flightPlans;
+	std::map<std::string, double> ttt_distanceToRunway;
 
 	void UpdateTowerSameSID();
 	void AutoUpdateDepartureHoldingPoints();

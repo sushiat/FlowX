@@ -46,6 +46,9 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemFunction("Take off", TAG_FUNC_TAKE_OFF);
 	this->RegisterTagItemFunction("Transfer next", TAG_FUNC_TRANSFER_NEXT);
 	this->RegisterTagItemType("Departure Info", TAG_ITEM_DEPARTURE_INFO);
+	this->RegisterTagItemType("TTT", TAG_ITEM_TTT);
+	this->RegisterTagItemType("Inbound NM", TAG_ITEM_INBOUND_NM);
+	this->RegisterTagItemType("Suggested vacate", TAG_ITEM_SUGGESTED_VACATE);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 
@@ -72,9 +75,8 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->tttInbound = this->RegisterFpList("TTT Inbound");
 	if (this->tttInbound.GetColumnNumber() == 0)
 	{
-		this->tttInbound.AddColumnDefinition("RWY", 4, false, PLUGIN_NAME, TAG_ITEM_INBOUND_RWY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->tttInbound.AddColumnDefinition("TTT", 12, false, PLUGIN_NAME, TAG_ITEM_TTT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->tttInbound.AddColumnDefinition("TTT", 8, false, PLUGIN_NAME, TAG_ITEM_TTT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_INBOUND_NM, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("ATYP", 8, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);

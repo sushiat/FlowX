@@ -394,6 +394,47 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 		strcpy_s(sItemString, 16, rwy.c_str());
 	}
+	else if (ItemCode == TAG_ITEM_TTT)
+	{
+		auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+			[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
+		if (it != this->ttt_flightPlans.end())
+		{
+			auto position = RadarTarget.GetPosition().GetPosition();
+			auto speed = RadarTarget.GetGS();
+			
+			EuroScopePlugIn::CPosition rwyThreshold;
+			rwyThreshold.m_Latitude = it->second.thresholdLat;
+			rwyThreshold.m_Longitude = it->second.thresholdLon;
+
+			// Calculate TTT based on current position/speed and runway distance
+			if (speed > 0)
+			{
+				double distanceNm = position.DistanceTo(rwyThreshold);
+				int totalSeconds = static_cast<int>((distanceNm / speed) * 3600.0);
+				int mm = totalSeconds / 60;
+				int ss = totalSeconds % 60;
+				char buf[16];
+				sprintf_s(buf, "%s_%02d:%02d", it->second.designator.c_str(), mm, ss);
+				strcpy_s(sItemString, 16, buf);
+				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+				if (totalSeconds > 120)
+					*pRGB = TAG_COLOR_GREEN;
+				else if (totalSeconds > 60)
+					*pRGB = TAG_COLOR_YELLOW;
+				else
+					*pRGB = TAG_COLOR_RED;
+			}
+		}
+	}
+	else if (ItemCode == TAG_ITEM_INBOUND_NM)
+	{
+		// todo
+	}
+	else if (ItemCode == TAG_ITEM_SUGGESTED_VACATE)
+	{
+		// todo
+	}
 	else if (ItemCode == TAG_ITEM_HP1)
 	{
 		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
@@ -1318,6 +1359,8 @@ void CDelHelX::UpdateTTTInbounds()
 				int depElevation = this->airportElevation.count(airport->first) ? this->airportElevation.at(airport->first) : 0;
 				if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 3.0)
 				{
+					// todo store current distance to threshold in map
+
 					if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
 					{
 						this->tttInbound.AddFpToTheList(fp);
