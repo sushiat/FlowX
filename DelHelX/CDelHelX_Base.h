@@ -14,6 +14,7 @@ protected:
 	bool debug;
 	RadarScreen* radarScreen;
 	EuroScopePlugIn::CFlightPlanList twrSameSID;
+	EuroScopePlugIn::CFlightPlanList tttInbound;
 	void PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const;
 };
 

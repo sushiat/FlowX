@@ -3,9 +3,9 @@
 #include <regex>
 
 #define PLUGIN_NAME    "DelHelX"
-#define PLUGIN_VERSION "0.4.0"
+#define PLUGIN_VERSION "0.5.0"
 #define PLUGIN_AUTHOR  "Markus Korbel"
-#define PLUGIN_LICENSE "(c) 2025, MIT License"
+#define PLUGIN_LICENSE "(c) 2026, MIT License"
 #define PLUGIN_LATEST_VERSION_URL "https://raw.githubusercontent.com/sushiat/DelHelX/master/version.txt"
 #define PLUGIN_LATEST_DOWNLOAD_URL "https://github.com/sushiat/DelHelX/releases/latest"
 
@@ -23,6 +23,10 @@ const int TAG_ITEM_TAKEOFF_TIMER = 9;
 const int TAG_ITEM_TAKEOFF_DISTANCE = 10;
 const int TAG_ITEM_ASSIGNED_RUNWAY = 11;
 const int TAG_ITEM_DEPARTURE_INFO = 12;
+const int TAG_ITEM_TTT = 13;
+const int TAG_ITEM_INBOUND_NM = 14;
+const int TAG_ITEM_SUGGESTED_VACATE = 15;
+const int TAG_ITEM_INBOUND_RWY = 16;
 
 const int TAG_FUNC_ON_FREQ = 100;
 const int TAG_FUNC_CLEAR_NEWQNH = 101;
@@ -55,3 +59,4 @@ const int TOPSKY_TAG_TYPE_ATYP = 10028;
 
 constexpr auto GROUNDRADAR_PLUGIN_NAME = "Ground Radar plugin";
 const int GROUNDRADAR_TAG_TYPE_GROUNDSTATUS = 3;
+const int GROUNDRADAR_ASSIGNED_STAND = 2;

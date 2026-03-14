@@ -6,6 +6,7 @@ class CDelHelX_LookupsTools : public CDelHelX_Settings
 protected:
 	static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
 	static double DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways);
+	static double DirectionFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways);
 	static bool MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index, const std::map<std::string, runway>& runways);
 	static std::string GetRunwayHoldingPoint(const std::string& rwy, int index, const std::map<std::string, runway>& runways);
 	static int GetAircraftWeightCategoryRanking(char wtc);

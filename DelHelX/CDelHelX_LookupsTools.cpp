@@ -31,6 +31,19 @@ double CDelHelX_LookupsTools::DistanceFromRunwayThreshold(const std::string& rwy
 	return currentPosition.DistanceTo(rwyThreshold);
 }
 
+double CDelHelX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways)
+{
+	auto rwyIt = runways.find(rwy);
+	if (rwyIt == runways.end())
+		return -1;
+
+	EuroScopePlugIn::CPosition rwyThreshold;
+	rwyThreshold.m_Latitude = rwyIt->second.thresholdLat;
+	rwyThreshold.m_Longitude = rwyIt->second.thresholdLon;
+
+	return rwyThreshold.DirectionTo(currentPosition);
+}
+
 bool CDelHelX_LookupsTools::MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index, const std::map<std::string, runway>& runways)
 {
 	auto rwyIt = runways.find(rwy);

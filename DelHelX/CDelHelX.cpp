@@ -12,6 +12,9 @@ CDelHelX::CDelHelX()
 	this->groundOverride = false;
 	this->towerOverride = false;
 	this->noChecks = false;
+
+	for (auto& [icao, ap] : this->airports)
+		this->airportElevation.emplace(icao, ap.fieldElevation);
 }
 
 bool CDelHelX::OnCompileCommand(const char* sCommandLine)
@@ -973,18 +976,18 @@ validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, Euro
 					if (station.find(dep) != std::string::npos)
 					{
 						// Search for SID-specific freq
-					{
-						auto freqIt = airport->second.sidAppFreqs.find(sid);
-						if (freqIt != airport->second.sidAppFreqs.end())
 						{
-							res.tag += "->" + freqIt->second;
+							auto freqIt = airport->second.sidAppFreqs.find(sid);
+							if (freqIt != airport->second.sidAppFreqs.end())
+							{
+								res.tag += "->" + freqIt->second;
+							}
+							else
+							{
+								res.tag += "->" + airport->second.appFreq + "??";
+							}
+							return res;
 						}
-						else
-						{
-							res.tag += "->" + airport->second.appFreq + "??";
-						}
-						return res;
-					}
 					}
 
 					if (this->radarScreen == nullptr)
@@ -1231,6 +1234,7 @@ void CDelHelX::OnTimer(int Counter)
 		this->UpdateTowerSameSID();
 		this->AutoUpdateDepartureHoldingPoints();
 		this->UpdateRadarTargetDepartureInfo();
+		this->UpdateTTTInbounds();
 	}
 }
 
@@ -1241,6 +1245,90 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 	{
 		this->twrSameSID.RemoveFpFromTheList(FlightPlan);
 		this->twrSameSID_flightPlans.erase(callSign);
+	}
+}
+
+void CDelHelX::UpdateTTTInbounds()
+{
+	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
+	{
+		if (!this->ttt_flightPlans.empty())
+		{
+			for (auto ttt_fp : this->ttt_flightPlans)
+			{
+				auto fp = this->FlightPlanSelect(ttt_fp.first.c_str());
+				this->tttInbound.RemoveFpFromTheList(fp);
+			}
+
+			this->ttt_flightPlans.clear();
+		}
+
+		return;
+	}
+
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+	{
+		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+		std::string callSign = fp.GetCallsign();
+
+		if (!pos.IsValid())
+		{
+			this->tttInbound.RemoveFpFromTheList(fp);
+			continue;
+		}
+
+		for (auto airport = this->airports.begin(); airport != this->airports.end(); ++airport)
+		{
+			for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
+			{
+				std::string rwyCallsign = callSign + rwy->second.designator;
+				std::string arrRwyDigits = rwy->second.designator;
+				arrRwyDigits.erase(std::remove_if(arrRwyDigits.begin(), arrRwyDigits.end(),
+					[](char c) { return !std::isdigit(c); }), arrRwyDigits.end());
+				int arrRwyHdg = arrRwyDigits.empty() ? -1 : std::stoi(arrRwyDigits);
+
+				// If we can't determine the arrival runway heading, we can't determine if it's an inbound or not, so skip it
+				if (arrRwyHdg == -1)
+				{
+					if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end())
+					{
+						this->tttInbound.RemoveFpFromTheList(fp);
+						this->ttt_flightPlans.erase(rwyCallsign);
+					}
+					continue;
+				}
+
+				// Check if the flight plan needs to be added to the list
+				auto position = pos.GetPosition();
+				auto distance = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+				auto direction = DirectionFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+				auto pressAlt = pos.GetPressureAltitude();
+				auto heading = pos.GetReportedHeading();
+				int hdgDiff = std::abs(heading - arrRwyHdg * 10);
+				if (hdgDiff > 180) hdgDiff = 360 - hdgDiff;
+				double approachDir = std::fmod(arrRwyHdg * 10 + 180.0, 360.0);
+				double dirDiff = std::abs(direction - approachDir);
+				if (dirDiff > 180.0) dirDiff = 360.0 - dirDiff;
+			
+				if (pressAlt > 650 && pressAlt < 650 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 3.0)
+				{
+					if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
+					{
+						this->tttInbound.AddFpToTheList(fp);
+						this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
+					}
+				}
+				else
+				{
+					if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end())
+					{
+						this->tttInbound.RemoveFpFromTheList(fp);
+						this->ttt_flightPlans.erase(rwyCallsign);
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -1255,7 +1343,7 @@ void CDelHelX::UpdateTowerSameSID()
 				auto fp = this->FlightPlanSelect(twr_fp.first.c_str());
 				this->twrSameSID.RemoveFpFromTheList(fp);
 			}
-			
+
 			this->twrSameSID_flightPlans.clear();
 		}
 
@@ -1433,7 +1521,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 				COLORREF sideColorRef;
 				OnGetTagItem(fp, rt, TAG_ITEM_SAMESID, 0, itemString, &colorCode, &sideColorRef, &fontSize);
 
-				
+
 				auto hp_color = TAG_COLOR_GREEN;
 				std::string hp;
 				this->flightStripAnnotation[cs] = fpcad.GetFlightStripAnnotation(8);
@@ -1579,6 +1667,20 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 
 		if (std::regex_match(metarElement, qnh) || std::regex_match(metarElement, alt))
 		{
+			// Re-calculate pressure altitude of airport based on new QNH
+			auto airportIt = this->airports.find(station);
+			if (airportIt != this->airports.end())
+			{
+				double qnhHpa;
+				if (metarElement[0] == 'Q')
+					qnhHpa = std::stod(metarElement.substr(1));
+				else
+					qnhHpa = std::stod(metarElement.substr(1)) / 100.0 * 33.8639;
+
+				int pressureAlt = airportIt->second.fieldElevation + static_cast<int>((1013.25 - qnhHpa) * 27.0);
+				this->airportElevation[station] = pressureAlt;
+			}
+
 			// Check if existing QNH and if that is now different
 			auto existingQNH = this->airportQNH.find(station);
 			if (existingQNH == this->airportQNH.end())

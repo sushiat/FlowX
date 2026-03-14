@@ -31,13 +31,16 @@ private:
 	bool noChecks;
 	
 	std::map<std::string, std::string> airportQNH;
+	std::map<std::string, int> airportElevation;
 	std::map<std::string, ULONGLONG> twrSameSID_flightPlans;
 	std::map<std::string, std::string> twrSameSID_lastDeparted;
 	std::map<std::string, std::string> flightStripAnnotation;
+	std::map<std::string, runway> ttt_flightPlans;
 
 	void UpdateTowerSameSID();
 	void AutoUpdateDepartureHoldingPoints();
 	void UpdateRadarTargetDepartureInfo();
+	void UpdateTTTInbounds();
 
 	validation CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	void RedoFlags();

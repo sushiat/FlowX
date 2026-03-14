@@ -1,5 +1,6 @@
 {
     "LOWW": {
+        "fieldElevation": 600,
         "gndFreq": "121.6",
         "geoGndFreq": {
             "west": {

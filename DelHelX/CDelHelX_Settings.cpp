@@ -80,6 +80,7 @@ void CDelHelX_Settings::LoadConfig()
 			json_airport.value<std::string>("twrFreq", ""),
 			json_airport.value<std::string>("appFreq", "")
 		};
+		ap.fieldElevation = json_airport.value<int>("fieldElevation", 0);
 
 		auto ctrStations{ json_airport["ctrStations"].get<std::vector<std::string>>() };
 		ap.ctrStations = ctrStations;
