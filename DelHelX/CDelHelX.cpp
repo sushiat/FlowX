@@ -161,8 +161,7 @@ void CDelHelX::RedoFlags()
 	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
 		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 		// Skip if aircraft is not on the ground (currently using ground speed threshold)
-		// TODO better option for finding aircraft on ground??? maybe airport elevation via config???
-		if (!pos.IsValid() || pos.GetReportedGS() > 40 || pos.GetPressureAltitude() >= 650) {
+		if (!pos.IsValid() || pos.GetReportedGS() > 40) {
 			continue;
 		}
 
@@ -189,6 +188,11 @@ void CDelHelX::RedoFlags()
 		if (airport == this->airports.end())
 		{
 			// Airport not in config
+			continue;
+		}
+
+		int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+		if (pos.GetPressureAltitude() >= depElevation + 50) {
 			continue;
 		}
 
@@ -1311,7 +1315,8 @@ void CDelHelX::UpdateTTTInbounds()
 				double dirDiff = std::abs(direction - approachDir);
 				if (dirDiff > 180.0) dirDiff = 360.0 - dirDiff;
 			
-				if (pressAlt > 650 && pressAlt < 650 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 3.0)
+				int depElevation = this->airportElevation.count(airport->first) ? this->airportElevation.at(airport->first) : 0;
+				if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 3.0)
 				{
 					if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
 					{
@@ -1400,7 +1405,8 @@ void CDelHelX::UpdateTowerSameSID()
 		// Check if the flight plan needs to be added to the list
 		std::string groundState = fp.GetGroundState();
 		auto pressAlt = pos.GetPressureAltitude();
-		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
+		int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
 		{
 			this->twrSameSID.AddFpToTheList(fp);
 			this->twrSameSID_flightPlans.emplace(callSign, 0);
@@ -1413,8 +1419,8 @@ void CDelHelX::UpdateTowerSameSID()
 			this->twrSameSID_flightPlans.erase(callSign);
 		}
 
-		// Check if aircraft started takeoff roll, press Alt > 650 feet
-		if (groundState == "DEPA" && pressAlt >= 650 && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+		// Check if aircraft started takeoff roll, press Alt > field elevation + 50 feet
+		if (groundState == "DEPA" && pressAlt >= depElevation + 50 && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
 		{
 			if (this->twrSameSID_flightPlans.at(callSign) == 0)
 			{
@@ -1508,7 +1514,8 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 			std::string groundState = fp.GetGroundState();
 			auto pressAlt = pos.GetPressureAltitude();
 			auto groundSpeed = pos.GetReportedGS();
-			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 40)
+			int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 40)
 			{
 				// Add/update departure info
 				char itemString[16];
@@ -1617,7 +1624,8 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 		auto groundSpeed = pos.GetReportedGS();
 
 		std::string before = this->flightStripAnnotation[callSign];
-		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < 650 && groundSpeed < 30)
+		int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 30)
 		{
 			auto rwyIt = airport->second.runways.find(rwy);
 			if (rwyIt != airport->second.runways.end())
@@ -1679,13 +1687,14 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 
 				int pressureAlt = airportIt->second.fieldElevation + static_cast<int>((1013.25 - qnhHpa) * 27.0);
 				this->airportElevation[station] = pressureAlt;
+				this->LogMessage("Updated pressure altitude for airport " + station + " to " + std::to_string(pressureAlt) + " feet based on new QNH value " + metarElement, "Metar");
 			}
 
 			// Check if existing QNH and if that is now different
 			auto existingQNH = this->airportQNH.find(station);
 			if (existingQNH == this->airportQNH.end())
 			{
-				this->LogDebugMessage("First QNH value for airport " + station + " is " + metarElement, "Metar");
+				this->LogMessage("First QNH value for airport " + station + " is " + metarElement, "Metar");
 
 				// No existing QNH, add it
 				this->airportQNH.emplace(station, metarElement);
@@ -1694,7 +1703,7 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 			{
 				if (existingQNH->second != metarElement)
 				{
-					this->LogDebugMessage("New QNH value for airport " + station + " is " + metarElement, "Metar");
+					this->LogMessage("New QNH value for airport " + station + " is " + metarElement, "Metar");
 
 					// Save new QNH
 					this->airportQNH[station] = metarElement;
@@ -1704,8 +1713,8 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 						EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 
 						// Skip aircraft is not on the ground
-						// TODO better option for finding aircraft on ground??? maybe airport elevation via config???
-						if (!pos.IsValid() || pos.GetReportedGS() > 40) {
+						int stationElevation = this->airportElevation.count(station) ? this->airportElevation.at(station) : 0;
+						if (!pos.IsValid() || pos.GetPressureAltitude() >= stationElevation + 50) {
 							continue;
 						}
 
