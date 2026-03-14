@@ -865,7 +865,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
 
 	auto airport = this->airports.find(dep);
-	if (airport == this->airports.end())
+	if (airport == this->airports.end() && FunctionId != TAG_FUNC_CLRD_TO_LAND && FunctionId != TAG_FUNC_MISSED_APP)
 	{
 		// Airport not in config
 		return;
@@ -1049,6 +1049,22 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
 		this->PushToOtherControllers(fp);
 	}
+	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)
+	{
+		fp.EndTracking();
+		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+		fp.GetControllerAssignedData().SetScratchPadString("!H");
+		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+	}
+	else if (FunctionId == TAG_FUNC_MISSED_APP)
+	{
+		fp.StartTracking();
+		fpcad.SetClearedAltitude(5000);
+
+		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+		fp.GetControllerAssignedData().SetScratchPadString("MISSED-APP");
+		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+		}
 }
 
 validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)

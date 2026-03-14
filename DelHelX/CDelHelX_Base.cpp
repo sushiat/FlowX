@@ -49,6 +49,8 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemType("TTT", TAG_ITEM_TTT);
 	this->RegisterTagItemType("Inbound NM", TAG_ITEM_INBOUND_NM);
 	this->RegisterTagItemType("Suggested vacate", TAG_ITEM_SUGGESTED_VACATE);
+	this->RegisterTagItemFunction("Cleared to Land", TAG_FUNC_CLRD_TO_LAND);
+	this->RegisterTagItemFunction("Missed App", TAG_FUNC_MISSED_APP);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 
