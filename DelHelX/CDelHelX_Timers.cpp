@@ -111,8 +111,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 5.0)
 				{
 					this->ttt_distanceToRunway[rwyCallsign] = distance;
+					std::string trackingControllerId = fp.GetTrackingControllerId();
 
-					if (fp.GetTrackingControllerIsMe() && this->standAssignment.find(callSign) == this->standAssignment.end())
+					if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && this->standAssignment.find(callSign) == this->standAssignment.end())
 					{
 						// Trigger auto stand assignment in GroundRadar plugin
 						this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
