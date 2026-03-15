@@ -49,7 +49,7 @@
         "napReminder": {
           "enabled": true,
           "hour": 20,
-          "minute": 40,
+          "minute": 30,
           "tzone": "Europe/Vienna"
         },
         "nightTimeSids": {

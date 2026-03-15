@@ -13,8 +13,6 @@ CDelHelX::CDelHelX()
 	this->towerOverride = false;
 	this->noChecks = false;
 
-	for (auto& [icao, ap] : this->airports)
-		this->airportElevation.emplace(icao, ap.fieldElevation);
 }
 
 bool CDelHelX::OnCompileCommand(const char* sCommandLine)
@@ -191,7 +189,7 @@ void CDelHelX::RedoFlags()
 			continue;
 		}
 
-		int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+		int depElevation = airport->second.fieldElevation;
 		if (pos.GetPressureAltitude() >= depElevation + 50) {
 			continue;
 		}
@@ -402,7 +400,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		{
 			auto position = RadarTarget.GetPosition().GetPosition();
 			auto speed = RadarTarget.GetGS();
-			
+
 			EuroScopePlugIn::CPosition rwyThreshold;
 			rwyThreshold.m_Latitude = it->second.thresholdLat;
 			rwyThreshold.m_Longitude = it->second.thresholdLon;
@@ -471,85 +469,85 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	else if (ItemCode == TAG_ITEM_SUGGESTED_VACATE)
 	{
 		[&]()
-		{
-			std::string rawStand = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(6);
-
-			// Extract stand from "s/STAND/s" format
-			auto first = rawStand.find('/');
-			auto last = rawStand.rfind('/');
-			if (first == std::string::npos || last == std::string::npos || first == last)
-				return;
-
-			std::string stand = rawStand.substr(first + 1, last - first - 1);
-			to_upper(stand);
-
-			// Find this aircraft in the sorted inbound list
-			auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-				[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
-			if (myPlan == this->ttt_flightPlans.end())
-				return;
-
-			auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
-			if (sortedIt == this->ttt_sortedByRunway.end())
-				return;
-
-			const auto& keys = sortedIt->second;
-			auto myIdx = std::find(keys.begin(), keys.end(), myPlan->first);
-			if (myIdx == keys.end())
-				return;
-
-			// Calculate gap to follower if one exists
-			bool hasFollower = myIdx + 1 != keys.end();
-			double gap = hasFollower
-				? this->ttt_distanceToRunway.at(*(myIdx + 1)) - this->ttt_distanceToRunway.at(myPlan->first)
-				: 0.0;
-
-			// Look up runway vacate config
-			std::string arr = FlightPlan.GetFlightPlanData().GetDestination();
-			to_upper(arr);
-			auto airportIt = this->airports.find(arr);
-			if (airportIt == this->airports.end())
-				return;
-
-			auto rwyIt = airportIt->second.runways.find(myPlan->second.designator);
-			if (rwyIt == airportIt->second.runways.end())
-				return;
-
-			for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
 			{
-				if (hasFollower && gap >= vp.minGap)
-					continue;
+				std::string rawStand = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(6);
 
-				for (auto& pattern : vp.stands)
+				// Extract stand from "s/STAND/s" format
+				auto first = rawStand.find('/');
+				auto last = rawStand.rfind('/');
+				if (first == std::string::npos || last == std::string::npos || first == last)
+					return;
+
+				std::string stand = rawStand.substr(first + 1, last - first - 1);
+				to_upper(stand);
+
+				// Find this aircraft in the sorted inbound list
+				auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+					[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
+				if (myPlan == this->ttt_flightPlans.end())
+					return;
+
+				auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
+				if (sortedIt == this->ttt_sortedByRunway.end())
+					return;
+
+				const auto& keys = sortedIt->second;
+				auto myIdx = std::find(keys.begin(), keys.end(), myPlan->first);
+				if (myIdx == keys.end())
+					return;
+
+				// Calculate gap to follower if one exists
+				bool hasFollower = myIdx + 1 != keys.end();
+				double gap = hasFollower
+					? this->ttt_distanceToRunway.at(*(myIdx + 1)) - this->ttt_distanceToRunway.at(myPlan->first)
+					: 0.0;
+
+				// Look up runway vacate config
+				std::string arr = FlightPlan.GetFlightPlanData().GetDestination();
+				to_upper(arr);
+				auto airportIt = this->airports.find(arr);
+				if (airportIt == this->airports.end())
+					return;
+
+				auto rwyIt = airportIt->second.runways.find(myPlan->second.designator);
+				if (rwyIt == airportIt->second.runways.end())
+					return;
+
+				for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
 				{
-					bool matched = false;
-					if (pattern == "*")
-					{
-						matched = true;
-					}
-					else if (pattern.back() == '*')
-					{
-						std::string prefix = pattern.substr(0, pattern.size() - 1);
-						to_upper(prefix);
-						matched = stand.rfind(prefix, 0) == 0;
-					}
-					else
-					{
-						std::string p = pattern;
-						to_upper(p);
-						matched = stand == p;
-					}
+					if (hasFollower && gap >= vp.minGap)
+						continue;
 
-					if (matched)
+					for (auto& pattern : vp.stands)
 					{
-						strcpy_s(sItemString, 16, vpName.c_str());
-						*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-						*pRGB = TAG_COLOR_WHITE;
-						return;
+						bool matched = false;
+						if (pattern == "*")
+						{
+							matched = true;
+						}
+						else if (pattern.back() == '*')
+						{
+							std::string prefix = pattern.substr(0, pattern.size() - 1);
+							to_upper(prefix);
+							matched = stand.rfind(prefix, 0) == 0;
+						}
+						else
+						{
+							std::string p = pattern;
+							to_upper(p);
+							matched = stand == p;
+						}
+
+						if (matched)
+						{
+							strcpy_s(sItemString, 16, vpName.c_str());
+							*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+							*pRGB = TAG_COLOR_WHITE;
+							return;
+						}
 					}
 				}
-			}
-		}();
+			}();
 	}
 	else if (ItemCode == TAG_ITEM_HP1)
 	{
@@ -1052,19 +1050,17 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)
 	{
 		fp.EndTracking();
-		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-		fp.GetControllerAssignedData().SetScratchPadString("!H");
-		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+		this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 	}
 	else if (FunctionId == TAG_FUNC_MISSED_APP)
 	{
 		fp.StartTracking();
 		fpcad.SetClearedAltitude(5000);
 
+		this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-		fp.GetControllerAssignedData().SetScratchPadString("MISSED-APP");
-		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-		}
+		fp.GetControllerAssignedData().SetScratchPadString((scratchBackup + "MISAP_").c_str());
+	}
 }
 
 validation CDelHelX::CheckPushStartStatus(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
@@ -1489,9 +1485,9 @@ void CDelHelX::UpdateTTTInbounds()
 				double approachDir = std::fmod(arrRwyHdg * 10 + 180.0, 360.0);
 				double dirDiff = std::abs(direction - approachDir);
 				if (dirDiff > 180.0) dirDiff = 360.0 - dirDiff;
-			
-				int depElevation = this->airportElevation.count(airport->first) ? this->airportElevation.at(airport->first) : 0;
-				if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 3.0)
+
+				int depElevation = airport->second.fieldElevation;
+				if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 5.0)
 				{
 					this->ttt_distanceToRunway[rwyCallsign] = distance;
 
@@ -1526,7 +1522,7 @@ void CDelHelX::UpdateTTTInbounds()
 	{
 		std::sort(keys.begin(), keys.end(), [this](const std::string& a, const std::string& b) {
 			return this->ttt_distanceToRunway.at(a) < this->ttt_distanceToRunway.at(b);
-		});
+			});
 	}
 }
 
@@ -1598,7 +1594,7 @@ void CDelHelX::UpdateTowerSameSID()
 		// Check if the flight plan needs to be added to the list
 		std::string groundState = fp.GetGroundState();
 		auto pressAlt = pos.GetPressureAltitude();
-		int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+		int depElevation = airport->second.fieldElevation;
 		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
 		{
 			this->twrSameSID.AddFpToTheList(fp);
@@ -1707,7 +1703,7 @@ void CDelHelX::UpdateRadarTargetDepartureInfo()
 			std::string groundState = fp.GetGroundState();
 			auto pressAlt = pos.GetPressureAltitude();
 			auto groundSpeed = pos.GetReportedGS();
-			int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+			int depElevation = airport->second.fieldElevation;
 			if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 40)
 			{
 				// Add/update departure info
@@ -1817,7 +1813,7 @@ void CDelHelX::AutoUpdateDepartureHoldingPoints()
 		auto groundSpeed = pos.GetReportedGS();
 
 		std::string before = this->flightStripAnnotation[callSign];
-		int depElevation = this->airportElevation.count(dep) ? this->airportElevation.at(dep) : 0;
+		int depElevation = airport->second.fieldElevation;
 		if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 30)
 		{
 			auto rwyIt = airport->second.runways.find(rwy);
@@ -1868,26 +1864,11 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 
 		if (std::regex_match(metarElement, qnh) || std::regex_match(metarElement, alt))
 		{
-			// Re-calculate pressure altitude of airport based on new QNH
-			auto airportIt = this->airports.find(station);
-			if (airportIt != this->airports.end())
-			{
-				double qnhHpa;
-				if (metarElement[0] == 'Q')
-					qnhHpa = std::stod(metarElement.substr(1));
-				else
-					qnhHpa = std::stod(metarElement.substr(1)) / 100.0 * 33.8639;
-
-				int pressureAlt = airportIt->second.fieldElevation + static_cast<int>((1013.25 - qnhHpa) * 27.0);
-				this->airportElevation[station] = pressureAlt;
-				this->LogMessage("Updated pressure altitude for airport " + station + " to " + std::to_string(pressureAlt) + " feet based on new QNH value " + metarElement, "Metar");
-			}
-
 			// Check if existing QNH and if that is now different
 			auto existingQNH = this->airportQNH.find(station);
 			if (existingQNH == this->airportQNH.end())
 			{
-				this->LogMessage("First QNH value for airport " + station + " is " + metarElement, "Metar");
+				this->LogDebugMessage("First QNH value for airport " + station + " is " + metarElement, "Metar");
 
 				// No existing QNH, add it
 				this->airportQNH.emplace(station, metarElement);
@@ -1896,7 +1877,7 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 			{
 				if (existingQNH->second != metarElement)
 				{
-					this->LogMessage("New QNH value for airport " + station + " is " + metarElement, "Metar");
+					this->LogDebugMessage("New QNH value for airport " + station + " is " + metarElement, "Metar");
 
 					// Save new QNH
 					this->airportQNH[station] = metarElement;
@@ -1906,7 +1887,8 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 						EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 
 						// Skip aircraft is not on the ground
-						int stationElevation = this->airportElevation.count(station) ? this->airportElevation.at(station) : 0;
+						auto stationAp = this->airports.find(station);
+						int stationElevation = stationAp != this->airports.end() ? stationAp->second.fieldElevation : 0;
 						if (!pos.IsValid() || pos.GetPressureAltitude() >= stationElevation + 50) {
 							continue;
 						}
