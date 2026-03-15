@@ -192,20 +192,20 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 	this->PushToOtherControllers(fp);
 }
 
-void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp)
+void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
 	std::string callSign = fp.GetCallsign();
 	fp.EndTracking();
-	this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
+	radarScreenInstance->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 }
 
-void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp)
+void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
 	std::string callSign = fp.GetCallsign();
 	fp.StartTracking();
 	fp.GetControllerAssignedData().SetClearedAltitude(5000);
 
-	this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
+	radarScreenInstance->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 	std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
 	fp.GetControllerAssignedData().SetScratchPadString((scratchBackup + "MISAP_").c_str());
 }

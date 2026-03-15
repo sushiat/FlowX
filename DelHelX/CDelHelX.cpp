@@ -280,7 +280,9 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	std::string dep = fp.GetFlightPlanData().GetOrigin();
 	to_upper(dep);
 
-	if (this->airports.find(dep) == this->airports.end() && FunctionId != TAG_FUNC_CLRD_TO_LAND && FunctionId != TAG_FUNC_MISSED_APP)
+	static const std::vector<int> noDepartureAirportCheckRequired = { TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP };
+	if (this->airports.find(dep) == this->airports.end() 
+		&& std::find(noDepartureAirportCheckRequired.begin(), noDepartureAirportCheckRequired.end(), FunctionId) == noDepartureAirportCheckRequired.end())
 		return;
 
 	EuroScopePlugIn::CRadarTarget rt = fp.GetCorrelatedRadarTarget();
@@ -299,8 +301,8 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	else if (FunctionId == TAG_FUNC_LINE_UP)        this->Func_LineUp(fp);
 	else if (FunctionId == TAG_FUNC_TAKE_OFF)       this->Func_TakeOff(fp);
 	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  this->Func_TransferNext(fp);
-	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   this->Func_ClrdToLand(fp);
-	else if (FunctionId == TAG_FUNC_MISSED_APP)     this->Func_MissedApp(fp);
+	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   Func_ClrdToLand(fp, this->radarScreen);
+	else if (FunctionId == TAG_FUNC_MISSED_APP)     Func_MissedApp(fp, this->radarScreen);
 }
 
 void CDelHelX::OnTimer(int Counter)

@@ -11,9 +11,9 @@ protected:
 	void Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
 	void Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
 	void Func_HpoListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString);
-	void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
-	void Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp);
+	static void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
+	static void Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp);
 	void Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp);
-	void Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp);
-	void Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp);
+	static void Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
+	static void Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
 };
