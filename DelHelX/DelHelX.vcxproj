@@ -207,6 +207,8 @@
     <ClCompile Include="CDelHelX_Logging.cpp" />
     <ClCompile Include="CDelHelX_LookupsTools.cpp" />
     <ClCompile Include="CDelHelX_Settings.cpp" />
+    <ClCompile Include="CDelHelX_Tags.cpp" />
+    <ClCompile Include="CDelHelX_Timers.cpp" />
     <ClCompile Include="DelHelX.cpp" />
     <ClCompile Include="helpers.cpp" />
     <ClCompile Include="pch.cpp">
@@ -231,6 +233,8 @@
     <ClInclude Include="CDelHelX_Logging.h" />
     <ClInclude Include="CDelHelX_LookupsTools.h" />
     <ClInclude Include="CDelHelX_Settings.h" />
+    <ClInclude Include="CDelHelX_Tags.h" />
+    <ClInclude Include="CDelHelX_Timers.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="CDelHelX.h" />
     <ClInclude Include="constants.h" />
@@ -242,7 +246,7 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="helpers.h" />
-    <ClInclude Include="validation.h" />
+    <ClInclude Include="tagInfo.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="DelHelX.rc" />

@@ -144,5 +144,5 @@ COLORREF CDelHelX_LookupsTools::ColorFromString(const std::string& colorName)
 	if (colorName == "red")    return TAG_COLOR_RED;
 	if (colorName == "white")  return TAG_COLOR_WHITE;
 	if (colorName == "yellow") return TAG_COLOR_YELLOW;
-	return TAG_COLOR_NONE;
+	return TAG_COLOR_DEFAULT_GRAY;
 }
