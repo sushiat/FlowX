@@ -204,6 +204,7 @@
   <ItemGroup>
     <ClCompile Include="CDelHelX.cpp" />
     <ClCompile Include="CDelHelX_Base.cpp" />
+    <ClCompile Include="CDelHelX_Functions.cpp" />
     <ClCompile Include="CDelHelX_Logging.cpp" />
     <ClCompile Include="CDelHelX_LookupsTools.cpp" />
     <ClCompile Include="CDelHelX_Settings.cpp" />
@@ -230,6 +231,7 @@
     <ClInclude Include="..\include\date\tz.h" />
     <ClInclude Include="..\include\date\tz_private.h" />
     <ClInclude Include="CDelHelX_Base.h" />
+    <ClInclude Include="CDelHelX_Functions.h" />
     <ClInclude Include="CDelHelX_Logging.h" />
     <ClInclude Include="CDelHelX_LookupsTools.h" />
     <ClInclude Include="CDelHelX_Settings.h" />

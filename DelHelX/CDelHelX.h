@@ -3,14 +3,14 @@
 #include <string>
 #include <filesystem>
 
-#include "CDelHelX_Tags.h"
+#include "CDelHelX_Functions.h"
 #include "EuroScope/EuroScopePlugIn.h"
 
 #include "config.h"
 
 using namespace std::chrono_literals;
 
-class CDelHelX : public CDelHelX_Tags
+class CDelHelX : public CDelHelX_Functions
 {
 public:
 	CDelHelX();

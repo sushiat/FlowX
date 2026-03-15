@@ -274,218 +274,33 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, RECT Area)
 {
 	EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectASEL();
-	if (!fp.IsValid()) {
+	if (!fp.IsValid())
 		return;
-	}
 
-	std::string callSign = fp.GetCallsign();
-
-	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
-	std::string rwy = fpd.GetDepartureRwy();
-	std::string dep = fpd.GetOrigin();
+	std::string dep = fp.GetFlightPlanData().GetOrigin();
 	to_upper(dep);
 
-	EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-
-	auto airport = this->airports.find(dep);
-	if (airport == this->airports.end() && FunctionId != TAG_FUNC_CLRD_TO_LAND && FunctionId != TAG_FUNC_MISSED_APP)
-	{
-		// Airport not in config
+	if (this->airports.find(dep) == this->airports.end() && FunctionId != TAG_FUNC_CLRD_TO_LAND && FunctionId != TAG_FUNC_MISSED_APP)
 		return;
-	}
 
 	EuroScopePlugIn::CRadarTarget rt = fp.GetCorrelatedRadarTarget();
 
-	if (FunctionId == TAG_FUNC_ON_FREQ) {
-		auto tag = this->GetPushStartHelperTag(fp, rt);
-		if (tag.color != TAG_COLOR_RED)
-		{
-			// Are we ground or higher?
-			if (this->ControllerMyself().GetFacility() >= 3)
-			{
-				EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
-
-				bool isTaxiOut = false;
-				for (auto& taxiOut : airport->second.taxiOutStands)
-				{
-					u_int corners = taxiOut.second.lat.size();
-					double lat[10], lon[10];
-					std::copy(taxiOut.second.lat.begin(), taxiOut.second.lat.end(), lat);
-					std::copy(taxiOut.second.lon.begin(), taxiOut.second.lon.end(), lon);
-
-					if (CDelHelX::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
-					{
-						isTaxiOut = true;
-						continue;
-					}
-				}
-
-				if (isTaxiOut)
-				{
-					std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-					fp.GetControllerAssignedData().SetScratchPadString("ST-UP");
-					fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-				}
-				else
-				{
-					// We could give PUSH here, but it's better to visually check, so let's just "pop" it up using ONFREQ
-					std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-					fp.GetControllerAssignedData().SetScratchPadString("ONFREQ");
-					fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-				}
-			}
-			else
-			{
-				// We are delivery set ONFREQ
-				std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-				fp.GetControllerAssignedData().SetScratchPadString("ONFREQ");
-				fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-			}
-		}
-	}
-	else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)
-	{
-		if (!this->flightStripAnnotation[callSign].empty())
-		{
-			this->flightStripAnnotation[callSign][0] = ' ';
-			fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-			this->PushToOtherControllers(fp);
-		}
-	}
-	else if (FunctionId == TAG_FUNC_ASSIGN_HP1)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1, airport->second.runways));
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_ASSIGN_HP2)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2, airport->second.runways));
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_ASSIGN_HP3)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3, airport->second.runways));
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_REQUEST_HP1)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 1, airport->second.runways) + "*");
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_REQUEST_HP2)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 2, airport->second.runways) + "*");
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_REQUEST_HP3)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, 3, airport->second.runways) + "*");
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_ASSIGN_HPO)
-	{
-		RECT area;
-		area.left = Pt.x;
-		area.right = Pt.x + 100;
-		area.top = Pt.y;
-		area.bottom = Pt.y + 100;
-		this->OpenPopupList(area, "Assign HP", 1);
-
-		auto rwyIt = airport->second.runways.find(rwy);
-		if (rwyIt != airport->second.runways.end())
-		{
-			for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-			{
-				if (hpData.assignable)
-				{
-					this->AddPopupListElement(hpName.c_str(), "", TAG_FUNC_HPO_LISTSELECT);
-				}
-			}
-		}
-	}
-	else if (FunctionId == TAG_FUNC_REQUEST_HPO)
-	{
-		RECT area;
-		area.left = Pt.x;
-		area.right = Pt.x + 100;
-		area.top = Pt.y;
-		area.bottom = Pt.y + 100;
-		this->OpenPopupList(area, "Request HP", 1);
-
-		auto rwyIt = airport->second.runways.find(rwy);
-		if (rwyIt != airport->second.runways.end())
-		{
-			for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-			{
-				if (hpData.assignable)
-				{
-					this->AddPopupListElement((hpName + "*").c_str(), "", TAG_FUNC_HPO_LISTSELECT);
-				}
-			}
-		}
-	}
-	else if (FunctionId == TAG_FUNC_HPO_LISTSELECT)
-	{
-		this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], sItemString);
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_LINE_UP)
-	{
-		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-		fp.GetControllerAssignedData().SetScratchPadString("LINEUP");
-		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-	}
-	else if (FunctionId == TAG_FUNC_TAKE_OFF)
-	{
-		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-		fp.GetControllerAssignedData().SetScratchPadString("DEPA");
-		fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-
-		fp.StartTracking();
-	}
-	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
-	{
-		std::string targetController = fp.GetCoordinatedNextController();
-		if (!targetController.empty() && this->ControllerMyself().GetFacility() >= 4)
-		{
-			fp.InitiateHandoff(targetController.c_str());
-		}
-		else
-		{
-			fp.EndTracking();
-		}
-		if (this->flightStripAnnotation[callSign].length() > 1)
-		{
-			this->flightStripAnnotation[callSign][1] = 'T';
-		}
-		else
-		{
-			this->flightStripAnnotation[callSign] = " T";
-		}
-		fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-		this->PushToOtherControllers(fp);
-	}
-	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)
-	{
-		fp.EndTracking();
-		this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
-	}
-	else if (FunctionId == TAG_FUNC_MISSED_APP)
-	{
-		fp.StartTracking();
-		fpcad.SetClearedAltitude(5000);
-
-		this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
-		std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-		fp.GetControllerAssignedData().SetScratchPadString((scratchBackup + "MISAP_").c_str());
-	}
+	if (FunctionId == TAG_FUNC_ON_FREQ)             this->Func_OnFreq(fp, rt);
+	else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)   this->Func_ClearNewQnh(fp);
+	else if (FunctionId == TAG_FUNC_ASSIGN_HP1)     this->Func_AssignHp(fp, 1);
+	else if (FunctionId == TAG_FUNC_ASSIGN_HP2)     this->Func_AssignHp(fp, 2);
+	else if (FunctionId == TAG_FUNC_ASSIGN_HP3)     this->Func_AssignHp(fp, 3);
+	else if (FunctionId == TAG_FUNC_REQUEST_HP1)    this->Func_RequestHp(fp, 1);
+	else if (FunctionId == TAG_FUNC_REQUEST_HP2)    this->Func_RequestHp(fp, 2);
+	else if (FunctionId == TAG_FUNC_REQUEST_HP3)    this->Func_RequestHp(fp, 3);
+	else if (FunctionId == TAG_FUNC_ASSIGN_HPO)     this->Func_AssignHpo(fp, Pt);
+	else if (FunctionId == TAG_FUNC_REQUEST_HPO)    this->Func_RequestHpo(fp, Pt);
+	else if (FunctionId == TAG_FUNC_HPO_LISTSELECT) this->Func_HpoListselect(fp, sItemString);
+	else if (FunctionId == TAG_FUNC_LINE_UP)        this->Func_LineUp(fp);
+	else if (FunctionId == TAG_FUNC_TAKE_OFF)       this->Func_TakeOff(fp);
+	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  this->Func_TransferNext(fp);
+	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   this->Func_ClrdToLand(fp);
+	else if (FunctionId == TAG_FUNC_MISSED_APP)     this->Func_MissedApp(fp);
 }
 
 void CDelHelX::OnTimer(int Counter)
