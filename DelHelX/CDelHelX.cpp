@@ -470,16 +470,11 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		[&]()
 			{
-				std::string rawStand = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(6);
-
-				// Extract stand from "s/STAND/s" format
-				auto first = rawStand.find('/');
-				auto last = rawStand.rfind('/');
-				if (first == std::string::npos || last == std::string::npos || first == last)
+				auto standIt = this->standAssignment.find(callSign);
+				if (standIt == this->standAssignment.end())
 					return;
 
-				std::string stand = rawStand.substr(first + 1, last - first - 1);
-				to_upper(stand);
+				std::string stand = standIt->second;
 
 				// Find this aircraft in the sorted inbound list
 				auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
@@ -515,7 +510,7 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 
 				for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
 				{
-					if (hasFollower && gap >= vp.minGap)
+					if (hasFollower && gap < vp.minGap)
 						continue;
 
 					for (auto& pattern : vp.stands)
@@ -1920,6 +1915,22 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 					}
 				}
 			}
+		}
+	}
+}
+
+void CDelHelX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType)
+{
+	if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
+	{
+		std::string callSign = fp.GetCallsign();
+
+		std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
+		size_t pos = scratch.find("GRP/S/");
+		if (pos != std::string::npos) {
+			std::string stand = scratch.substr(pos + 6);
+			
+			this->standAssignment[callSign] = stand;
 		}
 	}
 }

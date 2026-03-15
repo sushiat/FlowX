@@ -24,6 +24,7 @@ public:
 
 	void OnNewMetarReceived(const char* sStation, const char* sFullMetar) override;
 	void OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan) override;
+	void OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType) override;
 
 private:
 	bool groundOverride;
@@ -31,6 +32,7 @@ private:
 	bool noChecks;
 
 	std::map<std::string, std::string> airportQNH;
+	std::map<std::string, std::string> standAssignment;
 	std::map<std::string, ULONGLONG> twrSameSID_flightPlans;
 	std::map<std::string, std::string> twrSameSID_lastDeparted;
 	std::map<std::string, std::string> flightStripAnnotation;
