@@ -26,7 +26,6 @@ public:
 
 private:
 	std::map<std::string, std::string> airportQNH;
-	std::map<std::string, std::string> standAssignment;
 
 	void RedoFlags();
 };

@@ -209,7 +209,6 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 		return;
 	}
 
-	std::string callSign = FlightPlan.GetCallsign();
 	tagInfo tag;
 
 	if (ItemCode == TAG_ITEM_PS_HELPER)
@@ -222,546 +221,55 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	}
 	else if (ItemCode == TAG_ITEM_NEWQNH)
 	{
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		if (!this->flightStripAnnotation[callSign].empty() && this->flightStripAnnotation[callSign][0] == 'Q')
-		{
-			strcpy_s(sItemString, 16, "X");
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-			*pRGB = TAG_COLOR_ORANGE;
-		}
-		else
-		{
-			strcpy_s(sItemString, 16, "");
-		}
+		tag = this->GetNewQnhTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_SAMESID)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string dep = fpd.GetOrigin();
-		to_upper(dep);
-		std::string rwy = fpd.GetDepartureRwy();
-		std::string sid = fpd.GetSidName();
-
-		auto airport = this->airports.find(dep);
-		if (airport == this->airports.end())
-			return;
-
-		if (!sid.empty() && sid.length() > 2) {
-			auto sidKey = sid.substr(0, sid.length() - 2);
-			auto sidDesignator = sid.substr(sid.length() - 2);
-
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-			*pRGB = TAG_COLOR_WHITE;
-
-			// Extend night SIDs
-			auto nightIt = airport->second.nightTimeSids.find(sidKey);
-			if (nightIt != airport->second.nightTimeSids.end())
-			{
-				sid = nightIt->second + sidDesignator;
-			}
-
-			strcpy_s(sItemString, 16, sid.c_str());
-
-			auto rwyIt = airport->second.runways.find(rwy);
-			if (rwyIt != airport->second.runways.end())
-			{
-				auto colorIt = rwyIt->second.sidColors.find(sidKey);
-				if (colorIt != rwyIt->second.sidColors.end())
-				{
-					*pRGB = ColorFromString(colorIt->second);
-				}
-			}
-		}
+		tag = this->GetSameSidTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_TAKEOFF_TIMER)
 	{
-		if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
-		{
-			ULONGLONG now = GetTickCount64();
-			auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
-
-			auto minutes = seconds / 60;
-			seconds = seconds % 60;
-			auto leadingSeconds = seconds <= 9 ? "0" : "";
-
-			std::string printSeconds = std::to_string(minutes) + ":" + leadingSeconds + std::to_string(seconds);
-			strcpy_s(sItemString, 16, printSeconds.c_str());
-		}
+		tag = this->GetTakeoffTimerTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_TAKEOFF_DISTANCE)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string dep = fpd.GetOrigin();
-		to_upper(dep);
-		std::string rwy = fpd.GetDepartureRwy();
-		auto position = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
-		auto airport = this->airports.find(dep);
-		if (airport == this->airports.end())
-			return;
-		auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
-		std::string num_text = std::to_string(distance);
-		std::string rounded = num_text.substr(0, num_text.find('.') + 3);
-		if (distance < 10.0)
-		{
-			rounded = "0" + rounded;
-		}
-
-		strcpy_s(sItemString, 16, rounded.c_str());
+		tag = this->GetTakeoffDistanceTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_ASSIGNED_RUNWAY)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string rwy = fpd.GetDepartureRwy();
-
-		strcpy_s(sItemString, 16, rwy.c_str());
+		tag = this->GetAssignedRunwayTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_TTT)
 	{
-		auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-			[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
-		if (it != this->ttt_flightPlans.end())
-		{
-			auto position = RadarTarget.GetPosition().GetPosition();
-			auto speed = RadarTarget.GetGS();
-
-			EuroScopePlugIn::CPosition rwyThreshold;
-			rwyThreshold.m_Latitude = it->second.thresholdLat;
-			rwyThreshold.m_Longitude = it->second.thresholdLon;
-
-			// Calculate TTT based on current position/speed and runway distance
-			if (speed > 0)
-			{
-				double distanceNm = position.DistanceTo(rwyThreshold);
-				int totalSeconds = static_cast<int>((distanceNm / speed) * 3600.0);
-				int mm = totalSeconds / 60;
-				int ss = totalSeconds % 60;
-				char buf[16];
-				sprintf_s(buf, "%s_%02d:%02d", it->second.designator.c_str(), mm, ss);
-				strcpy_s(sItemString, 16, buf);
-				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-				if (totalSeconds > 120)
-					*pRGB = TAG_COLOR_GREEN;
-				else if (totalSeconds > 60)
-					*pRGB = TAG_COLOR_YELLOW;
-				else
-					*pRGB = TAG_COLOR_RED;
-			}
-		}
+		tag = this->GetTttTag(FlightPlan, RadarTarget);
 	}
 	else if (ItemCode == TAG_ITEM_INBOUND_NM)
 	{
-		auto myIt = std::find_if(this->ttt_distanceToRunway.begin(), this->ttt_distanceToRunway.end(),
-			[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
-		auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-			[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
-
-		if (myIt != this->ttt_distanceToRunway.end() && myPlan != this->ttt_flightPlans.end())
-		{
-			auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
-			if (sortedIt != this->ttt_sortedByRunway.end())
-			{
-				const auto& keys = sortedIt->second;
-				char buf[16];
-				if (keys.front() == myIt->first)
-				{
-					sprintf_s(buf, "%.1f", myIt->second);
-				}
-				else
-				{
-					for (size_t i = 1; i < keys.size(); ++i)
-					{
-						if (keys[i] == myIt->first)
-						{
-							double gap = myIt->second - this->ttt_distanceToRunway.at(keys[i - 1]);
-							sprintf_s(buf, "+%.1f", gap);
-							*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-							if (gap > 3.0)
-								*pRGB = TAG_COLOR_GREEN;
-							else if (gap > 2.5)
-								*pRGB = TAG_COLOR_YELLOW;
-							else
-								*pRGB = TAG_COLOR_RED;
-							break;
-						}
-					}
-				}
-				strcpy_s(sItemString, 16, buf);
-			}
-		}
+		tag = this->GetInboundNmTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_SUGGESTED_VACATE)
 	{
-		[&]()
-			{
-				auto standIt = this->standAssignment.find(callSign);
-				if (standIt == this->standAssignment.end())
-					return;
-
-				std::string stand = standIt->second;
-
-				// Find this aircraft in the sorted inbound list
-				auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-					[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
-				if (myPlan == this->ttt_flightPlans.end())
-					return;
-
-				auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
-				if (sortedIt == this->ttt_sortedByRunway.end())
-					return;
-
-				const auto& keys = sortedIt->second;
-				auto myIdx = std::find(keys.begin(), keys.end(), myPlan->first);
-				if (myIdx == keys.end())
-					return;
-
-				// Calculate gap to follower if one exists
-				bool hasFollower = myIdx + 1 != keys.end();
-				double gap = hasFollower
-					? this->ttt_distanceToRunway.at(*(myIdx + 1)) - this->ttt_distanceToRunway.at(myPlan->first)
-					: 0.0;
-
-				// Look up runway vacate config
-				std::string arr = FlightPlan.GetFlightPlanData().GetDestination();
-				to_upper(arr);
-				auto airportIt = this->airports.find(arr);
-				if (airportIt == this->airports.end())
-					return;
-
-				auto rwyIt = airportIt->second.runways.find(myPlan->second.designator);
-				if (rwyIt == airportIt->second.runways.end())
-					return;
-
-				for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
-				{
-					if (hasFollower && gap < vp.minGap)
-						continue;
-
-					for (auto& pattern : vp.stands)
-					{
-						bool matched = false;
-						if (pattern == "*")
-						{
-							matched = true;
-						}
-						else if (pattern.back() == '*')
-						{
-							std::string prefix = pattern.substr(0, pattern.size() - 1);
-							to_upper(prefix);
-							matched = stand.rfind(prefix, 0) == 0;
-						}
-						else
-						{
-							std::string p = pattern;
-							to_upper(p);
-							matched = stand == p;
-						}
-
-						if (matched)
-						{
-							strcpy_s(sItemString, 16, vpName.c_str());
-							*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-							*pRGB = TAG_COLOR_WHITE;
-							return;
-						}
-					}
-				}
-			}();
+		tag = this->GetSuggestedVacateTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_HP1)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string dep = fpd.GetOrigin();
-		to_upper(dep);
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		auto airport = this->airports.find(dep);
-		if (airport == this->airports.end())
-			return;
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 1, airport->second.runways))
-		{
-			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-			*pRGB = TAG_COLOR_GREEN;
-
-			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
-				*pRGB = TAG_COLOR_ORANGE;
-
-			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
-			{
-				*pRGB = TAG_COLOR_DARKGREY;
-			}
-		}
-		else
-		{
-			strcpy_s(sItemString, 16, "");
-		}
+		tag = this->GetHoldingPointTag(FlightPlan, 1);
 	}
 	else if (ItemCode == TAG_ITEM_HP2)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string dep = fpd.GetOrigin();
-		to_upper(dep);
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		auto airport = this->airports.find(dep);
-		if (airport == this->airports.end())
-			return;
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 2, airport->second.runways))
-		{
-			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-			*pRGB = TAG_COLOR_GREEN;
-
-			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
-				*pRGB = TAG_COLOR_ORANGE;
-
-			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
-			{
-				*pRGB = TAG_COLOR_DARKGREY;
-			}
-		}
-		else
-		{
-			strcpy_s(sItemString, 16, "");
-		}
+		tag = this->GetHoldingPointTag(FlightPlan, 2);
 	}
 	else if (ItemCode == TAG_ITEM_HP3)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string dep = fpd.GetOrigin();
-		to_upper(dep);
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		auto airport = this->airports.find(dep);
-		if (airport == this->airports.end())
-			return;
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 3, airport->second.runways))
-		{
-			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-			*pRGB = TAG_COLOR_GREEN;
-
-			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
-				*pRGB = TAG_COLOR_ORANGE;
-
-			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
-			{
-				*pRGB = TAG_COLOR_DARKGREY;
-			}
-		}
-		else
-		{
-			strcpy_s(sItemString, 16, "");
-		}
+		tag = this->GetHoldingPointTag(FlightPlan, 3);
 	}
 	else if (ItemCode == TAG_ITEM_HPO)
 	{
-		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-		std::string dep = fpd.GetOrigin();
-		to_upper(dep);
-		std::string rwy = fpd.GetDepartureRwy();
-		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = FlightPlan.GetControllerAssignedData();
-		this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-		auto airport = this->airports.find(dep);
-		if (airport == this->airports.end())
-			return;
-		if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), 4, airport->second.runways))
-		{
-			strcpy_s(sItemString, 16, this->flightStripAnnotation[callSign].substr(2).c_str());
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-			*pRGB = TAG_COLOR_GREEN;
-
-			if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
-				*pRGB = TAG_COLOR_ORANGE;
-
-			if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
-			{
-				*pRGB = TAG_COLOR_DARKGREY;
-			}
-		}
-		else
-		{
-			strcpy_s(sItemString, 16, "");
-		}
+		tag = this->GetHoldingPointTag(FlightPlan, 4);
 	}
 	else if (ItemCode == TAG_ITEM_DEPARTURE_INFO)
 	{
-		*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-		try
-		{
-			std::string depAirport = FlightPlan.GetFlightPlanData().GetOrigin();
-			to_upper(depAirport);
-			auto airport = this->airports.find(depAirport);
-			if (airport == this->airports.end())
-				return;
-			std::string groundState = FlightPlan.GetGroundState();
-			if (groundState == "TAXI" || groundState == "DEPA")
-			{
-				std::string rwy = FlightPlan.GetFlightPlanData().GetDepartureRwy();
-				if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) == 0)
-				{
-					std::string lastDeparted_callSign;
-					if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end())
-					{
-						lastDeparted_callSign = this->twrSameSID_lastDeparted[rwy];
-					}
-
-					if (!lastDeparted_callSign.empty())
-					{
-						bool lastDeparted_active = false;
-						EuroScopePlugIn::CRadarTarget lastDeparted_radarTarget = this->RadarTargetSelect(lastDeparted_callSign.c_str());
-						if (lastDeparted_radarTarget.IsValid())
-						{
-							lastDeparted_active = true;
-						}
-
-						if (lastDeparted_active)
-						{
-							char departedWtc = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
-							char wtc = FlightPlan.GetFlightPlanData().GetAircraftWtc();
-
-							if (GetAircraftWeightCategoryRanking(departedWtc) > GetAircraftWeightCategoryRanking(wtc))
-							{
-								// Time based
-								unsigned long secondsRequired = 120;
-
-								this->flightStripAnnotation[lastDeparted_callSign] = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetControllerAssignedData().GetFlightStripAnnotation(8);
-								this->flightStripAnnotation[callSign] = FlightPlan.GetControllerAssignedData().GetFlightStripAnnotation(8);
-								if (this->flightStripAnnotation[lastDeparted_callSign].length() > 2 && this->flightStripAnnotation[callSign].length() > 2)
-								{
-									std::string departedHP = this->flightStripAnnotation[lastDeparted_callSign].substr(2);
-									std::string hp = this->flightStripAnnotation[callSign].substr(2);
-									if (!IsSameHoldingPoint(departedHP, hp, airport->second.runways))
-									{
-										secondsRequired += 60;
-									}
-								}
-
-								ULONGLONG now = GetTickCount64();
-								if (this->twrSameSID_flightPlans.find(lastDeparted_callSign) != this->twrSameSID_flightPlans.end()) {
-									auto secondsSinceDeparted = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
-
-									if (secondsSinceDeparted > secondsRequired)
-									{
-										*pRGB = TAG_COLOR_GREEN;
-										strcpy_s(sItemString, 16, "OK");
-										return;
-									}
-
-									if (secondsSinceDeparted + 30 > secondsRequired)
-									{
-										*pRGB = TAG_COLOR_GREEN;
-										strcpy_s(sItemString, 16, (std::to_string(secondsRequired - secondsSinceDeparted) + "s").c_str());
-										return;
-									}
-
-									if (secondsSinceDeparted + 45 > secondsRequired)
-									{
-										*pRGB = TAG_COLOR_YELLOW;
-										strcpy_s(sItemString, 16, (std::to_string(secondsRequired - secondsSinceDeparted) + "s").c_str());
-										return;
-									}
-
-									*pRGB = TAG_COLOR_RED;
-									strcpy_s(sItemString, 16, (std::to_string(secondsRequired - secondsSinceDeparted) + "s").c_str());
-									return;
-								}
-
-								// Flight plan removed, either disconnected or out of range
-								*pRGB = TAG_COLOR_GREEN;
-								strcpy_s(sItemString, 16, "OK");
-								return;
-							}
-
-							// Distance based
-							std::string departedSID = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
-							std::string sid = FlightPlan.GetFlightPlanData().GetSidName();
-
-							double distanceRequired = 5;
-
-							if (!departedSID.empty() && !sid.empty() && departedSID.length() > 2 && sid.length() > 2) {
-								auto depSidKey = departedSID.substr(0, departedSID.length() - 2);
-								auto sidKey = sid.substr(0, sid.length() - 2);
-
-								auto rwyIt = airport->second.runways.find(rwy);
-								if (rwyIt != airport->second.runways.end())
-								{
-									auto& sidGroupsMap = rwyIt->second.sidGroups;
-									auto depGroupIt = sidGroupsMap.find(depSidKey);
-									auto sidGroupIt = sidGroupsMap.find(sidKey);
-									if (depGroupIt != sidGroupsMap.end() && sidGroupIt != sidGroupsMap.end())
-									{
-										if (depGroupIt->second != sidGroupIt->second)
-										{
-											distanceRequired = 3;
-										}
-									}
-								}
-							}
-
-							auto distanceBetween = RadarTarget.GetPosition().GetPosition().DistanceTo(lastDeparted_radarTarget.GetPosition().GetPosition());
-							if (distanceBetween > distanceRequired)
-							{
-								*pRGB = TAG_COLOR_GREEN;
-								strcpy_s(sItemString, 16, "OK");
-								return;
-							}
-
-							if (distanceRequired <= 3.1 && distanceBetween > 1.3)
-							{
-								*pRGB = TAG_COLOR_GREEN;
-								std::string num_text = std::to_string(distanceRequired - distanceBetween);
-								std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
-								strcpy_s(sItemString, 16, rounded.c_str());
-								return;
-							}
-
-							if (distanceBetween > 3)
-							{
-								*pRGB = TAG_COLOR_GREEN;
-								std::string num_text = std::to_string(distanceRequired - distanceBetween);
-								std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
-								strcpy_s(sItemString, 16, rounded.c_str());
-								return;
-							}
-
-							if (distanceBetween > 2.5)
-							{
-								*pRGB = TAG_COLOR_YELLOW;
-								std::string num_text = std::to_string(distanceRequired - distanceBetween);
-								std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
-								strcpy_s(sItemString, 16, rounded.c_str());
-								return;
-							}
-
-							*pRGB = TAG_COLOR_RED;
-							std::string num_text = std::to_string(distanceRequired - distanceBetween);
-							std::string rounded = num_text.substr(0, num_text.find('.') + 3) + "nm";
-							strcpy_s(sItemString, 16, rounded.c_str());
-							return;
-						}
-					}
-
-					*pRGB = TAG_COLOR_GREEN;
-					strcpy_s(sItemString, 16, "OK?");
-				}
-				else if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end() && this->twrSameSID_lastDeparted[rwy] == callSign)
-				{
-					// This is the last aircraft that departed this runway
-					*pRGB = TAG_COLOR_ORANGE;
-					strcpy_s(sItemString, 16, rwy.c_str());
-				}
-			}
-		}
-		catch ([[maybe_unused]] const std::exception& ex)
-		{
-			*pRGB = TAG_COLOR_RED;
-			strcpy_s(sItemString, 16, "ERR");
-		}
+		tag = this->GetDepartureInfoTag(FlightPlan, RadarTarget);
 	}
 
 	*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
