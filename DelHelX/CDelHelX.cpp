@@ -142,12 +142,6 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 
 			return true;
 		}
-		else if (args[1] == "testqnh")
-		{
-			this->OnNewMetarReceived("LOWW", "LOWW 231805Z 26011KT CAVOK 15/07 Q2000 TEMPO 32015KT");
-
-			return true;
-		}
 	}
 
 	return false;
