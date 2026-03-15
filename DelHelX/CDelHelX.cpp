@@ -298,8 +298,8 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	else if (FunctionId == TAG_FUNC_ASSIGN_HPO)     this->Func_AssignHpo(fp, Pt);
 	else if (FunctionId == TAG_FUNC_REQUEST_HPO)    this->Func_RequestHpo(fp, Pt);
 	else if (FunctionId == TAG_FUNC_HPO_LISTSELECT) this->Func_HpoListselect(fp, sItemString);
-	else if (FunctionId == TAG_FUNC_LINE_UP)        this->Func_LineUp(fp);
-	else if (FunctionId == TAG_FUNC_TAKE_OFF)       this->Func_TakeOff(fp);
+	else if (FunctionId == TAG_FUNC_LINE_UP)        Func_LineUp(fp);
+	else if (FunctionId == TAG_FUNC_TAKE_OFF)       Func_TakeOff(fp);
 	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  this->Func_TransferNext(fp);
 	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   Func_ClrdToLand(fp, this->radarScreen);
 	else if (FunctionId == TAG_FUNC_MISSED_APP)     Func_MissedApp(fp, this->radarScreen);
