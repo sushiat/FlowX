@@ -51,6 +51,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemType("Suggested vacate", TAG_ITEM_SUGGESTED_VACATE);
 	this->RegisterTagItemFunction("Cleared to Land", TAG_FUNC_CLRD_TO_LAND);
 	this->RegisterTagItemFunction("Missed App", TAG_FUNC_MISSED_APP);
+	this->RegisterTagItemFunction("Auto Stand Assignment", TAG_FUNC_STAND_AUTO);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 

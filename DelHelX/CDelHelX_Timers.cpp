@@ -112,6 +112,12 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				{
 					this->ttt_distanceToRunway[rwyCallsign] = distance;
 
+					if (fp.GetTrackingControllerIsMe() && this->standAssignment.find(callSign) == this->standAssignment.end())
+					{
+						// Trigger auto stand assignment in GroundRadar plugin
+						this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
+					}
+
 					if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
 					{
 						this->tttInbound.AddFpToTheList(fp);

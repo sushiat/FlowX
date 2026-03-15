@@ -9,8 +9,6 @@ protected:
 	bool towerOverride = false;
 	bool noChecks = false;
 
-	std::map<std::string, std::string> standAssignment;
-
 	tagInfo GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	tagInfo GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	tagInfo GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp);

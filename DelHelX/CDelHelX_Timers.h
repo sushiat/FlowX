@@ -10,6 +10,7 @@ protected:
 	std::map<std::string, runway> ttt_flightPlans;
 	std::map<std::string, double> ttt_distanceToRunway;
 	std::map<std::string, std::vector<std::string>> ttt_sortedByRunway;
+	std::map<std::string, std::string> standAssignment;
 
 	void CheckAirportNAPReminder();
 	void UpdateTTTInbounds();

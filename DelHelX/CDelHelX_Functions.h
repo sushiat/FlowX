@@ -16,4 +16,5 @@ protected:
 	void Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp);
 	static void Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
 	static void Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
+	static void Func_StandAuto(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
 };

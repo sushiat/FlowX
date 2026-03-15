@@ -195,17 +195,29 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
 	std::string callSign = fp.GetCallsign();
-	fp.EndTracking();
+	if (fp.GetTrackingControllerIsMe())
+	{
+		fp.EndTracking();
+	}
 	radarScreenInstance->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 }
 
 void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
-	std::string callSign = fp.GetCallsign();
-	fp.StartTracking();
+	if (!fp.GetTrackingControllerIsMe())
+	{
+		fp.StartTracking();
+	}
 	fp.GetControllerAssignedData().SetClearedAltitude(5000);
 
+	std::string callSign = fp.GetCallsign();
 	radarScreenInstance->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 	std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
 	fp.GetControllerAssignedData().SetScratchPadString((scratchBackup + "MISAP_").c_str());
+}
+
+void CDelHelX_Functions::Func_StandAuto(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
+{
+	std::string callSign = fp.GetCallsign();
+	radarScreenInstance->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
 }

@@ -280,7 +280,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	std::string dep = fp.GetFlightPlanData().GetOrigin();
 	to_upper(dep);
 
-	static const std::vector<int> noDepartureAirportCheckRequired = { TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP };
+	static const std::vector<int> noDepartureAirportCheckRequired = { TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP, TAG_FUNC_STAND_AUTO };
 	if (this->airports.find(dep) == this->airports.end() 
 		&& std::find(noDepartureAirportCheckRequired.begin(), noDepartureAirportCheckRequired.end(), FunctionId) == noDepartureAirportCheckRequired.end())
 		return;
@@ -303,6 +303,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  this->Func_TransferNext(fp);
 	else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   Func_ClrdToLand(fp, this->radarScreen);
 	else if (FunctionId == TAG_FUNC_MISSED_APP)     Func_MissedApp(fp, this->radarScreen);
+	else if (FunctionId == TAG_FUNC_STAND_AUTO)     Func_StandAuto(fp, this->radarScreen);
 }
 
 void CDelHelX::OnTimer(int Counter)
