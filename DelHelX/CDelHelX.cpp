@@ -1361,42 +1361,7 @@ void CDelHelX::OnTimer(int Counter)
 
 	if (Counter > 0 && Counter % 10 == 0)
 	{
-		for (auto& airport : this->airports)
-		{
-			if (airport.second.nap_reminder.enabled && !airport.second.nap_reminder.triggered)
-			{
-				try
-				{
-					std::ostringstream timeStream;
-					timeStream << date::make_zoned(airport.second.nap_reminder.tzone, std::chrono::system_clock::now());
-					std::string timeString = timeStream.str();
-
-					std::vector<std::string> timeSplit = split(timeString, ' ');
-					if (timeSplit.size() == 3)
-					{
-						auto tod = timeSplit[1];
-						std::vector<std::string> todSplit = split(tod, ':');
-						if (todSplit.size() == 3)
-						{
-							int hours = atoi(todSplit[0].c_str());
-							int minutes = atoi(todSplit[1].c_str());
-
-							if ((hours == airport.second.nap_reminder.hour && minutes >= airport.second.nap_reminder.minute) || hours > airport.second.nap_reminder.hour)
-							{
-								airport.second.nap_reminder.triggered = true;
-
-								Beep(1568, 300);
-								MessageBox(nullptr, ("What's the NAP procedure for " + airport.first + " tonight?").c_str(), "DelHelX Plugin", MB_OK | MB_ICONQUESTION | MB_TOPMOST);
-							}
-						}
-					}
-				}
-				catch (std::exception& e)
-				{
-					this->LogMessage("Error processing NAP-reminder for airport " + airport.first + ". Error: " + std::string(e.what()), "Config");
-				}
-			}
-		}
+		this->CheckAirportNAPReminder();
 	}
 
 	if (Counter > 0 && Counter % 2 == 0)
@@ -1405,6 +1370,46 @@ void CDelHelX::OnTimer(int Counter)
 		this->AutoUpdateDepartureHoldingPoints();
 		this->UpdateRadarTargetDepartureInfo();
 		this->UpdateTTTInbounds();
+	}
+}
+
+void CDelHelX::CheckAirportNAPReminder()
+{
+	for (auto& airport : this->airports)
+	{
+		if (airport.second.nap_reminder.enabled && !airport.second.nap_reminder.triggered)
+		{
+			try
+			{
+				std::ostringstream timeStream;
+				timeStream << date::make_zoned(airport.second.nap_reminder.tzone, std::chrono::system_clock::now());
+				std::string timeString = timeStream.str();
+
+				std::vector<std::string> timeSplit = split(timeString, ' ');
+				if (timeSplit.size() == 3)
+				{
+					auto tod = timeSplit[1];
+					std::vector<std::string> todSplit = split(tod, ':');
+					if (todSplit.size() == 3)
+					{
+						int hours = atoi(todSplit[0].c_str());
+						int minutes = atoi(todSplit[1].c_str());
+
+						if ((hours == airport.second.nap_reminder.hour && minutes >= airport.second.nap_reminder.minute) || hours > airport.second.nap_reminder.hour)
+						{
+							airport.second.nap_reminder.triggered = true;
+
+							Beep(1568, 300);
+							MessageBox(nullptr, ("What's the NAP procedure for " + airport.first + " tonight?").c_str(), "DelHelX Plugin", MB_OK | MB_ICONQUESTION | MB_TOPMOST);
+						}
+					}
+				}
+			}
+			catch (std::exception& e)
+			{
+				this->LogMessage("Error processing NAP-reminder for airport " + airport.first + ". Error: " + std::string(e.what()), "Config");
+			}
+		}
 	}
 }
 

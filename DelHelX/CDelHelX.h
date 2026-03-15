@@ -4,7 +4,6 @@
 #include <filesystem>
 
 #include "CDelHelX_LookupsTools.h"
-#include "CDelHelX_Settings.h"
 #include "EuroScope/EuroScopePlugIn.h"
 
 #include "validation.h"
@@ -40,6 +39,7 @@ private:
 	std::map<std::string, double> ttt_distanceToRunway;
 	std::map<std::string, std::vector<std::string>> ttt_sortedByRunway; // designator -> keys sorted by distance ascending
 
+	void CheckAirportNAPReminder();
 	void UpdateTowerSameSID();
 	void AutoUpdateDepartureHoldingPoints();
 	void UpdateRadarTargetDepartureInfo();
