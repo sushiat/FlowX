@@ -988,7 +988,45 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
 
-	// todo implement here
+	std::string callSign = fp.GetCallsign();
+	if (this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
+		return tag;
+
+	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+	std::string dep = fpd.GetOrigin();
+	to_upper(dep);
+	std::string rwy = fpd.GetDepartureRwy();
+
+	// Pad runway to 3 chars for consistent lexicographic ordering
+	std::string rwyPadded = rwy;
+	while (rwyPadded.size() < 3) rwyPadded += ' ';
+
+	ULONGLONG takeoffTick = this->twrSameSID_flightPlans.at(callSign);
+
+	if (takeoffTick == 0)
+	{
+		// Not yet departed: group A, then runway, then distance to threshold ascending
+		double dist = 0.0;
+		auto airport = this->airports.find(dep);
+		if (airport != this->airports.end())
+		{
+			auto position = fp.GetCorrelatedRadarTarget().GetPosition().GetPosition();
+			dist = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
+		}
+
+		char distBuf[16];
+		snprintf(distBuf, sizeof(distBuf), "%05.2f", dist);
+		tag.tag = "A" + rwyPadded + distBuf;
+	}
+	else
+	{
+		// Departed: group B, then runway, then departure sequence ascending
+		auto seqIt = this->dep_sequenceNumber.find(callSign);
+		int seq = seqIt != this->dep_sequenceNumber.end() ? seqIt->second : 0;
+		char seqBuf[8];
+		snprintf(seqBuf, sizeof(seqBuf), "%04d", seq);
+		tag.tag = "B" + rwyPadded + seqBuf;
+	}
 
 	return tag;
 }

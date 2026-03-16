@@ -11,6 +11,8 @@ protected:
 	std::map<std::string, char> dep_wtc;
 	std::map<std::string, ULONGLONG> dep_prevTakeoffOffset;
 	std::map<std::string, int> dep_timeRequired;
+	int dep_sequenceCounter = 0;
+	std::map<std::string, int> dep_sequenceNumber;
 	std::map<std::string, std::string> flightStripAnnotation;
 	std::map<std::string, runway> ttt_flightPlans;
 	std::map<std::string, double> ttt_distanceToRunway;

@@ -206,6 +206,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_wtc.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
+				this->dep_sequenceNumber.erase(callSign);
 			}
 
 			continue;
@@ -224,6 +225,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_wtc.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
+				this->dep_sequenceNumber.erase(callSign);
 			}
 
 			continue;
@@ -249,6 +251,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			this->dep_wtc.erase(callSign);
 			this->dep_prevTakeoffOffset.erase(callSign);
 			this->dep_timeRequired.erase(callSign);
+			this->dep_sequenceNumber.erase(callSign);
 		}
 
 		// Check if aircraft started takeoff roll, press Alt > field elevation + 50 feet
@@ -260,6 +263,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->twrSameSID_flightPlans[callSign] = GetTickCount64();
 				this->dep_sid[callSign] = fp.GetFlightPlanData().GetSidName();
 				this->dep_wtc[callSign] = fp.GetFlightPlanData().GetAircraftWtc();
+				this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
 				auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
 				if (prevDepIt != this->twrSameSID_lastDeparted.end())
 				{
@@ -329,6 +333,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_wtc.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
+				this->dep_sequenceNumber.erase(callSign);
 			}
 		}
 	}
