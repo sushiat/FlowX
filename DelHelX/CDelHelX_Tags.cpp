@@ -80,7 +80,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 						{
 							if (!transferred) 
 							{
-								tag.color = nearThreshold || atHoldingPoint ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+								tag.color = nearThreshold || atHoldingPoint ? (this->blinking ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE) : TAG_COLOR_WHITE;
 							}
 							tag.tag = "->" + rwyFreq.second;
 							return tag;
@@ -90,7 +90,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 					// Didn't find a runway specific tower, so return default
 					if (!transferred)
 					{
-						tag.color = nearThreshold || atHoldingPoint ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+						tag.color = nearThreshold || atHoldingPoint ? (this->blinking ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE) : TAG_COLOR_WHITE;
 					}
 					tag.tag = "->" + airport->second.twrFreq;
 					return tag;
@@ -101,7 +101,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 			if (!rt.GetPosition().GetTransponderC() && rt.GetPosition().GetPressureAltitude() > (airport->second.fieldElevation + 50))
 			{
 				tag.tag = "!MODE-C";
-				tag.color = TAG_COLOR_RED;
+				tag.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_ORANGE;
 				return tag;
 			}
 
@@ -115,7 +115,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 				}
 				else if (rt.GetPosition().GetPressureAltitude() >= airport->second.airborneTransferWarning)
 				{
-					tag.color = TAG_COLOR_ORANGE;
+					tag.color = this->blinking ? TAG_COLOR_ORANGE : TAG_COLOR_TURQ;
 				}
 			}
 

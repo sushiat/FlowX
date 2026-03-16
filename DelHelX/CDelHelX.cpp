@@ -312,6 +312,8 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 
 void CDelHelX::OnTimer(int Counter)
 {
+	this->blinking = !this->blinking;
+
 	if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready) {
 		this->CheckForUpdate();
 	}
