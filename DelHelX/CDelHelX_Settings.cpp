@@ -81,6 +81,8 @@ void CDelHelX_Settings::LoadConfig()
 			json_airport.value<std::string>("appFreq", "")
 		};
 		ap.fieldElevation = json_airport.value<int>("fieldElevation", 0);
+		ap.airborneTransfer = json_airport.value<int>("airborneTransfer", 0);
+		ap.airborneTransferWarning = json_airport.value<int>("airborneTransferWarning", 0);
 
 		auto ctrStations{ json_airport["ctrStations"].get<std::vector<std::string>>() };
 		ap.ctrStations = ctrStations;
@@ -326,4 +328,4 @@ void CDelHelX_Settings::CheckForUpdate()
 	}
 
 	this->latestVersion = std::future<std::string>();
-}
+}

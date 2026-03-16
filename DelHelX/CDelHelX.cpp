@@ -265,6 +265,10 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		tag = this->GetDepartureInfoTag(FlightPlan, RadarTarget);
 	}
+	else if (ItemCode == TAG_ITEM_TWR_NEXT_FREQ)
+	{
+		tag = this->GetTwrNextFreqTag(FlightPlan, RadarTarget);
+	}
 
 	*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 	strcpy_s(sItemString, 16, tag.tag.c_str());

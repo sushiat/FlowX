@@ -3,18 +3,14 @@
 
 #include "helpers.h"
 
-tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
+tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	tagInfo tag;
-	std::string callSign = fp.GetCallsign();
-	std::string groundState = fp.GetGroundState();
-	EuroScopePlugIn::CController me = this->ControllerMyself();
-	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+	tag.color = TAG_COLOR_DEFAULT_GRAY;
+
+	auto fpd = fp.GetFlightPlanData();
 	std::string dep = fpd.GetOrigin();
 	to_upper(dep);
-	std::string rwy = fpd.GetDepartureRwy();
-	std::string sid = fpd.GetSidName();
-
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
 	{
@@ -22,119 +18,158 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 		return tag;
 	}
 
-	if (!groundState.empty())
+	std::string groundState = fp.GetGroundState();
+	bool transferred = false;
+	if (groundState == "TAXI" || groundState == "DEPA")
 	{
-		// Check if we passed the aircraft to the next frequency
+		// Check if we passed the aircraft to the next frequency, clear the tag if we did
+		std::string callSign = fp.GetCallsign();
 		this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
 		if (this->flightStripAnnotation[callSign].length() > 1 && this->flightStripAnnotation[callSign][1] == 'T')
 		{
-			tag.color = TAG_COLOR_DARKGREY;
+			transferred = true;
 		}
 
-		if (groundState == "TAXI" || groundState == "DEPA") {
-			// Find next frequency
-			if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3 && me.GetFacility() <= 4)
-			{
-				// Only show tower to ground, but not to tower
-				if (me.GetFacility() == 3) {
-					bool towerOnline = false;
-					if (this->radarScreen == nullptr)
-					{
-						return tag;
-					}
+		if (this->radarScreen == nullptr)
+		{
+			return tag;
+		}
 
-					for (auto station : this->radarScreen->towerStations)
-					{
-						if (station.find(dep) != std::string::npos)
-						{
-							towerOnline = true;
-							continue;
-						}
-
-						if (this->radarScreen == nullptr)
-						{
-							return tag;
-						}
-					}
-
-					if (towerOnline || this->towerOverride)
-					{
-						for (auto rwyFreq : airport->second.rwyTwrFreq)
-						{
-							if (rwy == rwyFreq.first)
-							{
-								tag.tag += "->" + rwyFreq.second;
-								return tag;
-							}
-						}
-
-						// Didn't find a runway specific tower, so return default
-						tag.tag += "->" + airport->second.twrFreq;
-						return tag;
-					}
-				}
-
-				if (this->radarScreen == nullptr)
-				{
-					return tag;
-				}
-
-				for (auto station : this->radarScreen->approachStations)
+		auto me = this->ControllerMyself();
+		if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3 && me.GetFacility() <= 4)
+		{
+			// Only show tower to ground, but not to tower
+			if (me.GetFacility() == 3) {
+				bool towerOnline = false;
+				for (auto station : this->radarScreen->towerStations)
 				{
 					if (station.find(dep) != std::string::npos)
 					{
-						// Search for SID-specific freq
-						{
-							std::string freq = airport->second.defaultAppFreq;
-							for (auto& [f, sids] : airport->second.sidAppFreqs)
-							{
-								if (std::find(sids.begin(), sids.end(), sid) != sids.end())
-								{
-									freq = f;
-									break;
-								}
-							}
-							tag.tag += "->" + freq;
-							return tag;
-						}
-					}
-
-					if (this->radarScreen == nullptr)
-					{
-						return tag;
+						towerOnline = true;
+						continue;
 					}
 				}
 
-				for (auto center : airport->second.ctrStations)
+				if (towerOnline || this->towerOverride)
 				{
-					if (this->radarScreen == nullptr)
+					std::string rwy = fpd.GetDepartureRwy();
+					double distToThreshold = DistanceFromRunwayThreshold(rwy, rt.GetPosition().GetPosition(), airport->second.runways);
+					bool nearThreshold = distToThreshold < 0.25;
+
+					for (auto rwyFreq : airport->second.rwyTwrFreq)
 					{
+						if (rwy == rwyFreq.first)
+						{
+							if (!transferred) 
+							{
+								tag.color = nearThreshold ? TAG_COLOR_TURQ : TAG_COLOR_WHITE;
+							}
+							tag.tag = "->" + rwyFreq.second;
+							return tag;
+						}
+					}
+
+					// Didn't find a runway specific tower, so return default
+					if (!transferred)
+					{
+						tag.color = nearThreshold ? TAG_COLOR_TURQ : TAG_COLOR_WHITE;
+					}
+					tag.tag = "->" + airport->second.twrFreq;
+					return tag;
+				}
+			}
+
+			// Not squawking mode-C, don't show next freq
+			if (!rt.GetPosition().GetTransponderC() && rt.GetPosition().GetPressureAltitude() > (airport->second.fieldElevation + 50))
+			{
+				tag.tag = "!MODE-C";
+				tag.color = TAG_COLOR_RED;
+				return tag;
+			}
+
+			// We are TWR, find APP or CTR freq, plus more color coding
+			if (!transferred)
+			{
+				tag.color = TAG_COLOR_WHITE;
+				if (rt.GetPosition().GetPressureAltitude() >= airport->second.airborneTransfer && rt.GetPosition().GetPressureAltitude() < airport->second.airborneTransferWarning)
+				{
+					tag.color = TAG_COLOR_TURQ;
+				}
+				else if (rt.GetPosition().GetPressureAltitude() >= airport->second.airborneTransferWarning)
+				{
+					tag.color = TAG_COLOR_ORANGE;
+				}
+			}
+
+			for (auto station : this->radarScreen->approachStations)
+			{
+				if (station.find(dep) != std::string::npos)
+				{
+					// Search for SID-specific freq
+					std::string sid = fpd.GetSidName();
+					{
+						std::string freq = airport->second.defaultAppFreq;
+						for (auto& [f, sids] : airport->second.sidAppFreqs)
+						{
+							if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+							{
+								freq = f;
+								break;
+							}
+						}
+						tag.tag = "->" + freq;
+						return tag;
+					}
+				}
+			}
+
+			for (auto center : airport->second.ctrStations)
+			{
+				for (auto station : this->radarScreen->centerStations)
+				{
+					if (station.first.find(center) != std::string::npos)
+					{
+						tag.tag = "->" + station.second;
 						return tag;
 					}
 
-					for (auto station : this->radarScreen->centerStations)
-					{
-						if (station.first.find(center) != std::string::npos)
-						{
-							tag.tag += "->" + station.second;
-							return tag;
-						}
 
-						if (this->radarScreen == nullptr)
-						{
-							return tag;
-						}
-					}
 				}
-
-				// Nothing online, UNICOM
-				tag.tag += "->122.8";
 			}
-		}
 
+			// Nothing online, UNICOM
+			tag.tag = "->122.8";
+			return tag;
+		}
+	}
+
+	// Not taxiing or taking off, ignore it
+	return tag;
+}
+
+tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
+{
+	tagInfo tag;
+	tag.color = TAG_COLOR_GREEN;
+
+	auto fpd = fp.GetFlightPlanData();
+	std::string dep = fpd.GetOrigin();
+	to_upper(dep);
+	auto airport = this->airports.find(dep);
+	if (airport == this->airports.end())
+	{
+		// Airport not in config, so ignore it
 		return tag;
 	}
 
+	std::string groundState = fp.GetGroundState();
+	if (!groundState.empty())
+	{
+		// Aircraft is now moving, so we can remove the tag
+		return tag;
+	}
+
+	std::string rwy = fpd.GetDepartureRwy();
 	if (!this->noChecks && rwy.empty())
 	{
 		tag.tag = "!RWY";
@@ -143,7 +178,7 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 		return tag;
 	}
 
-	EuroScopePlugIn::CFlightPlanControllerAssignedData cad = fp.GetControllerAssignedData();
+	auto cad = fp.GetControllerAssignedData();
 	std::string assignedSquawk = cad.GetSquawk();
 	std::string currentSquawk = rt.GetPosition().GetSquawk();
 
@@ -175,6 +210,8 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 		tag.color = TAG_COLOR_ORANGE;
 	}
 
+	// If I'm a controller, not Observer(1) and facility at least GND(3), I can push and start aircraft myself
+	auto me = this->ControllerMyself();
 	if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3)
 	{
 		tag.tag.empty() ? tag.tag = "OK" : tag.tag += "->OK";
@@ -182,7 +219,9 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 	}
 
 	if (this->radarScreen == nullptr)
+	{
 		return tag;
+	}
 
 	bool groundOnline = false;
 	for (auto station : this->radarScreen->groundStations)
@@ -204,7 +243,7 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 			std::copy(geoGnd.second.lat.begin(), geoGnd.second.lat.end(), lat);
 			std::copy(geoGnd.second.lon.begin(), geoGnd.second.lon.end(), lon);
 
-			if (CDelHelX_Tags::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+			if (PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
 			{
 				tag.tag += "->" + geoGnd.second.freq;
 				return tag;
@@ -217,62 +256,61 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 	}
 
 	bool towerOnline = false;
-	if (this->radarScreen != nullptr) {
-		for (auto station : this->radarScreen->towerStations)
+	for (auto station : this->radarScreen->towerStations)
+	{
+		if (station.find(dep) != std::string::npos)
 		{
-			if (station.find(dep) != std::string::npos)
+			towerOnline = true;
+			continue;
+		}
+	}
+
+	if (towerOnline || this->towerOverride)
+	{
+		for (auto rwyFreq : airport->second.rwyTwrFreq)
+		{
+			if (rwy == rwyFreq.first)
 			{
-				towerOnline = true;
-				continue;
+				tag.tag += "->" + rwyFreq.second;
+				return tag;
 			}
 		}
 
-		if (towerOnline || this->towerOverride)
-		{
-			for (auto rwyFreq : airport->second.rwyTwrFreq)
-			{
-				if (rwy == rwyFreq.first)
-				{
-					tag.tag += "->" + rwyFreq.second;
-					return tag;
-				}
-			}
+		// Didn't find a runway specific tower, so return default
+		tag.tag += "->" + airport->second.twrFreq;
+		return tag;
+	}
 
-			// Didn't find a runway specific tower, so return default
-			tag.tag += "->" + airport->second.twrFreq;
-			return tag;
-		}
-
-		for (auto station : this->radarScreen->approachStations)
+	std::string sid = fpd.GetSidName();
+	for (auto station : this->radarScreen->approachStations)
+	{
+		if (station.find(dep) != std::string::npos)
 		{
-			if (station.find(dep) != std::string::npos)
+			// Search for SID-specific freq
 			{
-				// Search for SID-specific freq
+				std::string freq = airport->second.defaultAppFreq;
+				for (auto& [f, sids] : airport->second.sidAppFreqs)
 				{
-					std::string freq = airport->second.defaultAppFreq;
-					for (auto& [f, sids] : airport->second.sidAppFreqs)
+					if (std::find(sids.begin(), sids.end(), sid) != sids.end())
 					{
-						if (std::find(sids.begin(), sids.end(), sid) != sids.end())
-						{
-							freq = f;
-							break;
-						}
+						freq = f;
+						break;
 					}
-					tag.tag += "->" + freq;
-					return tag;
 				}
+				tag.tag += "->" + freq;
+				return tag;
 			}
 		}
+	}
 
-		for (auto center : airport->second.ctrStations)
+	for (auto center : airport->second.ctrStations)
+	{
+		for (auto station : this->radarScreen->centerStations)
 		{
-			for (auto station : this->radarScreen->centerStations)
+			if (station.first.find(center) != std::string::npos)
 			{
-				if (station.first.find(center) != std::string::npos)
-				{
-					tag.tag += "->" + station.second;
-					return tag;
-				}
+				tag.tag += "->" + station.second;
+				return tag;
 			}
 		}
 	}

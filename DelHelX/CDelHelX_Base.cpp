@@ -52,6 +52,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemFunction("Cleared to Land", TAG_FUNC_CLRD_TO_LAND);
 	this->RegisterTagItemFunction("Missed App", TAG_FUNC_MISSED_APP);
 	this->RegisterTagItemFunction("Auto Stand Assignment", TAG_FUNC_STAND_AUTO);
+	this->RegisterTagItemType("TWR Next Freq", TAG_ITEM_TWR_NEXT_FREQ);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 

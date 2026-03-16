@@ -21,4 +21,5 @@ protected:
 	tagInfo GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp);
 	tagInfo GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int index);
 	tagInfo GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
+	tagInfo GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 };

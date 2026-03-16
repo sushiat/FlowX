@@ -62,6 +62,8 @@ struct airport
 	std::string twrFreq;
 	std::string appFreq;
 	int fieldElevation = 0;
+	int airborneTransfer = 0;
+	int airborneTransferWarning = 0;
 
 	std::map<std::string, geoGndFreq> geoGndFreq = {};
 	std::map<std::string, std::string> rwyTwrFreq = {};

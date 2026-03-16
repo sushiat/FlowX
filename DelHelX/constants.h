@@ -26,6 +26,7 @@ const int TAG_ITEM_DEPARTURE_INFO = 12;
 const int TAG_ITEM_TTT = 13;
 const int TAG_ITEM_INBOUND_NM = 14;
 const int TAG_ITEM_SUGGESTED_VACATE = 15;
+const int TAG_ITEM_TWR_NEXT_FREQ = 16;
 
 const int TAG_FUNC_ON_FREQ = 100;
 const int TAG_FUNC_CLEAR_NEWQNH = 101;
