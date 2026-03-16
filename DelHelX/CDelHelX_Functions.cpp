@@ -186,6 +186,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 			{
 				// Check if we can find SID specific freq
 				auto airport = this->airports.find(dep);
+				bool wasAssigned = false;
 				if (airport != this->airports.end()) {
 					std::string sid = fp.GetFlightPlanData().GetSidName();
 					std::string freq = airport->second.defaultAppFreq;
@@ -203,6 +204,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 						if (station.first.find(dep) != std::string::npos && station.second == freq)
 						{
 							fp.InitiateHandoff(station.first.c_str());
+							wasAssigned = true;
 							break;
 						}
 					}
@@ -214,9 +216,19 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 					if (station.first.find(dep) != std::string::npos)
 					{
 						fp.InitiateHandoff(station.first.c_str());
+						wasAssigned = true;
 						break;
 					}
 				}
+
+				if (!wasAssigned)
+				{
+					fp.EndTracking();
+				}
+			} 
+			else
+			{
+				fp.EndTracking();
 			}
 		}
 		else {
