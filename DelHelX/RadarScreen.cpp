@@ -58,7 +58,11 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 		{
 			if (this->approachStations.find(cs) == this->approachStations.end())
 			{
-				this->approachStations.insert(cs);
+				double freq = Controller.GetPrimaryFrequency();
+				auto freqString = std::to_string(freq);
+				std::string rounded = freqString.substr(0, freqString.find('.') + 4);
+
+				this->approachStations.emplace(cs, rounded);
 				if (this->debug)
 				{
 					this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " online").c_str(), true, true, true, false, false);

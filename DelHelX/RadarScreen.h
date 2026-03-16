@@ -29,7 +29,7 @@ public:
 	bool debug;
 	std::set<std::string> groundStations;
 	std::set<std::string> towerStations;
-	std::set<std::string> approachStations;
+	std::map<std::string, std::string> approachStations;
 	std::map<std::string, std::string> centerStations;
 
 	std::map<std::string, depInfo> radarTargetDepartureInfos;

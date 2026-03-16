@@ -78,7 +78,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 					{
 						if (rwy == rwyFreq.first)
 						{
-							if (!transferred) 
+							if (!transferred)
 							{
 								tag.color = nearThreshold || atHoldingPoint ? (this->blinking ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE) : TAG_COLOR_WHITE;
 							}
@@ -119,25 +119,31 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 				}
 			}
 
+			std::string sid = fpd.GetSidName();
 			for (auto station : this->radarScreen->approachStations)
 			{
-				if (station.find(dep) != std::string::npos)
+				if (station.first.find(dep) != std::string::npos)
 				{
 					// Search for SID-specific freq
-					std::string sid = fpd.GetSidName();
+					std::string freq = airport->second.defaultAppFreq;
+					for (auto& [f, sids] : airport->second.sidAppFreqs)
 					{
-						std::string freq = airport->second.defaultAppFreq;
-						for (auto& [f, sids] : airport->second.sidAppFreqs)
+						if (std::find(sids.begin(), sids.end(), sid) != sids.end())
 						{
-							if (std::find(sids.begin(), sids.end(), sid) != sids.end())
-							{
-								freq = f;
-								break;
-							}
+							freq = f;
+							break;
 						}
-						tag.tag = "->" + freq;
-						return tag;
 					}
+					tag.tag = "->" + freq;
+
+					// Check if EuroScope has figured out the next coordinated controller yet
+					std::string targetController = fp.GetCoordinatedNextController();
+					if (targetController.empty())
+					{
+						tag.tag += " (?)";
+					}
+
+					return tag;
 				}
 			}
 
@@ -148,10 +154,16 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 					if (station.first.find(center) != std::string::npos)
 					{
 						tag.tag = "->" + station.second;
+
+						// Check if EuroScope has figured out the next coordinated controller yet
+						std::string targetController = fp.GetCoordinatedNextController();
+						if (targetController.empty())
+						{
+							tag.tag += " (?)";
+						}
+
 						return tag;
 					}
-
-
 				}
 			}
 
@@ -302,7 +314,7 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 	std::string sid = fpd.GetSidName();
 	for (auto station : this->radarScreen->approachStations)
 	{
-		if (station.find(dep) != std::string::npos)
+		if (station.first.find(dep) != std::string::npos)
 		{
 			// Search for SID-specific freq
 			{

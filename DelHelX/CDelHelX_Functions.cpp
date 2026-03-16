@@ -171,13 +171,57 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 {
 	std::string callSign = fp.GetCallsign();
 	std::string targetController = fp.GetCoordinatedNextController();
+	std::string dep = fp.GetFlightPlanData().GetOrigin();
+	to_upper(dep);
 	if (!targetController.empty() && this->ControllerMyself().GetFacility() >= 4)
 	{
 		fp.InitiateHandoff(targetController.c_str());
 	}
 	else
 	{
-		fp.EndTracking();
+		// If we are TWR, check if any APP station is online, and transfer there
+		if (this->ControllerMyself().GetFacility() == 4)
+		{
+			if (this->radarScreen != nullptr)
+			{
+				// Check if we can find SID specific freq
+				auto airport = this->airports.find(dep);
+				if (airport != this->airports.end()) {
+					std::string sid = fp.GetFlightPlanData().GetSidName();
+					std::string freq = airport->second.defaultAppFreq;
+					for (auto& [f, sids] : airport->second.sidAppFreqs)
+					{
+						if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+						{
+							freq = f;
+							break;
+						}
+					}
+
+					for (auto station : this->radarScreen->approachStations)
+					{
+						if (station.first.find(dep) != std::string::npos && station.second == freq)
+						{
+							fp.InitiateHandoff(station.first.c_str());
+							break;
+						}
+					}
+				}
+
+				// No SID specific freq, just look for any APP station and pick the first one
+				for (auto station : this->radarScreen->approachStations)
+				{
+					if (station.first.find(dep) != std::string::npos)
+					{
+						fp.InitiateHandoff(station.first.c_str());
+						break;
+					}
+				}
+			}
+		}
+		else {
+			fp.EndTracking();
+		}
 	}
 
 	if (this->flightStripAnnotation[callSign].length() > 1)
