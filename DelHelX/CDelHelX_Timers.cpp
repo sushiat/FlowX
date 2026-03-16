@@ -358,9 +358,12 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 					}
 				}
 
-				if (this->flightStripAnnotation[cs].length() < 2 || this->flightStripAnnotation[cs][1] != 'T')
-				{
-					dep_info += ",T";
+				auto me = this->ControllerMyself();
+				if (me.IsController() && me.GetRating() > 1 && me.GetFacility() <= 3) {
+					if (this->flightStripAnnotation[cs].length() < 2 || this->flightStripAnnotation[cs][1] != 'T')
+					{
+						dep_info += ",T";
+					}
 				}
 
 				auto findDepInfo = this->radarScreen->radarTargetDepartureInfos.find(cs);
