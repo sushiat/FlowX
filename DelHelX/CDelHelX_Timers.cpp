@@ -204,6 +204,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_previousAircraft.erase(callSign);
 				this->dep_sid.erase(callSign);
 				this->dep_wtc.erase(callSign);
+				this->dep_prevTakeoffOffset.erase(callSign);
+				this->dep_timeRequired.erase(callSign);
 			}
 
 			continue;
@@ -220,6 +222,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_previousAircraft.erase(callSign);
 				this->dep_sid.erase(callSign);
 				this->dep_wtc.erase(callSign);
+				this->dep_prevTakeoffOffset.erase(callSign);
+				this->dep_timeRequired.erase(callSign);
 			}
 
 			continue;
@@ -243,6 +247,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			this->dep_previousAircraft.erase(callSign);
 			this->dep_sid.erase(callSign);
 			this->dep_wtc.erase(callSign);
+			this->dep_prevTakeoffOffset.erase(callSign);
+			this->dep_timeRequired.erase(callSign);
 		}
 
 		// Check if aircraft started takeoff roll, press Alt > field elevation + 50 feet
@@ -256,7 +262,31 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_wtc[callSign] = fp.GetFlightPlanData().GetAircraftWtc();
 				auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
 				if (prevDepIt != this->twrSameSID_lastDeparted.end())
-					this->dep_previousAircraft[callSign] = prevDepIt->second;
+				{
+					const std::string& prevCallSign = prevDepIt->second;
+					this->dep_previousAircraft[callSign] = prevCallSign;
+
+					// Compute time offset between consecutive takeoffs
+					auto prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
+					if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
+						this->dep_prevTakeoffOffset[callSign] = (this->twrSameSID_flightPlans.at(callSign) - prevTakeoffIt->second) / 1000;
+
+					// Compute required time separation from holding points
+					int timeRequired = 120;
+					this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+					auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
+					if (prevFp.IsValid())
+						this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+					if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
+						this->flightStripAnnotation[callSign].length() > 2 && this->flightStripAnnotation[prevCallSign].length() > 2)
+					{
+						std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(2);
+						std::string hp = this->flightStripAnnotation[callSign].substr(2);
+						if (!IsSameHoldingPoint(prevHP, hp, airport->second.runways))
+							timeRequired += 60;
+					}
+					this->dep_timeRequired[callSign] = timeRequired;
+				}
 				this->twrSameSID_lastDeparted[depRwy] = callSign;
 			}
 		}
@@ -297,6 +327,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_previousAircraft.erase(callSign);
 				this->dep_sid.erase(callSign);
 				this->dep_wtc.erase(callSign);
+				this->dep_prevTakeoffOffset.erase(callSign);
+				this->dep_timeRequired.erase(callSign);
 			}
 		}
 	}

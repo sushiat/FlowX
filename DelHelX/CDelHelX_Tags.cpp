@@ -464,17 +464,46 @@ tagInfo CDelHelX_Tags::GetTakeoffTimerTag(EuroScopePlugIn::CFlightPlan& fp)
 	tagInfo tag;
 	std::string callSign = fp.GetCallsign();
 
-	if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
+	if (this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end() || this->twrSameSID_flightPlans.at(callSign) == 0)
+		return tag;
+
+	// In departure sequence: show fixed offset between this and previous takeoff
+	auto prevIt = this->dep_previousAircraft.find(callSign);
+	if (prevIt != this->dep_previousAircraft.end())
 	{
-		ULONGLONG now = GetTickCount64();
-		auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
+		auto offsetIt = this->dep_prevTakeoffOffset.find(callSign);
+		ULONGLONG offsetSeconds = offsetIt != this->dep_prevTakeoffOffset.end() ? offsetIt->second : 0;
+		tag.tag = "+" + std::to_string(offsetSeconds) + "s";
 
-		auto minutes = seconds / 60;
-		seconds = seconds % 60;
-		auto leadingSeconds = seconds <= 9 ? "0" : "";
+		// Color code if lighter follows heavier (time-based separation applies)
+		auto prevWtcIt = this->dep_wtc.find(prevIt->second);
+		if (prevWtcIt != this->dep_wtc.end())
+		{
+			char curWtc = fp.GetFlightPlanData().GetAircraftWtc();
+			if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
+			{
+				auto reqIt = this->dep_timeRequired.find(callSign);
+				int timeRequired = reqIt != this->dep_timeRequired.end() ? reqIt->second : 120;
 
-		tag.tag = std::to_string(minutes) + ":" + leadingSeconds + std::to_string(seconds);
+				if (offsetSeconds >= (ULONGLONG)timeRequired)
+					tag.color = TAG_COLOR_GREEN;
+				else if (offsetSeconds >= (ULONGLONG)(timeRequired - 15))
+					tag.color = TAG_COLOR_YELLOW;
+				else
+					tag.color = TAG_COLOR_RED;
+			}
+		}
+
+		return tag;
 	}
+
+	// Normal timer: time since this aircraft took off
+	ULONGLONG now = GetTickCount64();
+	auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
+	auto minutes = seconds / 60;
+	seconds = seconds % 60;
+	auto leadingSeconds = seconds <= 9 ? "0" : "";
+	tag.tag = std::to_string(minutes) + ":" + leadingSeconds + std::to_string(seconds);
 
 	return tag;
 }
@@ -951,6 +980,15 @@ tagInfo CDelHelX_Tags::GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, Eur
 		tag.color = TAG_COLOR_RED;
 		tag.tag = "ERR";
 	}
+
+	return tag;
+}
+
+tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
+{
+	tagInfo tag;
+
+	// todo implement here
 
 	return tag;
 }

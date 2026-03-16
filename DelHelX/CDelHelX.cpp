@@ -269,6 +269,10 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		tag = this->GetTwrNextFreqTag(FlightPlan, RadarTarget);
 	}
+	else if (ItemCode == TAG_ITEM_TWR_SORT)
+	{
+		tag = this->GetTwrSortKey(FlightPlan);
+	}
 
 	*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 	strcpy_s(sItemString, 16, tag.tag.c_str());
@@ -371,7 +375,14 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 		if (prev == callSign)
 		{
 			if (!ownPrev.empty())
+			{
+				// Cascade offset: follower-to-disconnected + disconnected-to-its-predecessor
+				auto csOffsetIt = this->dep_prevTakeoffOffset.find(cs);
+				auto discOffsetIt = this->dep_prevTakeoffOffset.find(callSign);
+				if (csOffsetIt != this->dep_prevTakeoffOffset.end() && discOffsetIt != this->dep_prevTakeoffOffset.end())
+					csOffsetIt->second += discOffsetIt->second;
 				prev = ownPrev;
+			}
 			else
 				toErase.push_back(cs);
 		}
@@ -382,6 +393,8 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 	this->dep_previousAircraft.erase(callSign);
 	this->dep_sid.erase(callSign);
 	this->dep_wtc.erase(callSign);
+	this->dep_prevTakeoffOffset.erase(callSign);
+	this->dep_timeRequired.erase(callSign);
 }
 
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)

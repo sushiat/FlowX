@@ -9,6 +9,8 @@ protected:
 	std::map<std::string, std::string> dep_previousAircraft;
 	std::map<std::string, std::string> dep_sid;
 	std::map<std::string, char> dep_wtc;
+	std::map<std::string, ULONGLONG> dep_prevTakeoffOffset;
+	std::map<std::string, int> dep_timeRequired;
 	std::map<std::string, std::string> flightStripAnnotation;
 	std::map<std::string, runway> ttt_flightPlans;
 	std::map<std::string, double> ttt_distanceToRunway;
