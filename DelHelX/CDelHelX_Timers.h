@@ -6,6 +6,7 @@ class CDelHelX_Timers : public CDelHelX_LookupsTools
 protected:
 	std::map<std::string, ULONGLONG> twrSameSID_flightPlans;
 	std::map<std::string, std::string> twrSameSID_lastDeparted;
+	std::map<std::string, std::string> dep_previousAircraft;
 	std::map<std::string, std::string> flightStripAnnotation;
 	std::map<std::string, runway> ttt_flightPlans;
 	std::map<std::string, double> ttt_distanceToRunway;

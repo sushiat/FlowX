@@ -486,18 +486,39 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
 	std::string dep = fpd.GetOrigin();
 	to_upper(dep);
+	std::string callSign = fp.GetCallsign();
 	std::string rwy = fpd.GetDepartureRwy();
 	auto position = fp.GetCorrelatedRadarTarget().GetPosition().GetPosition();
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
 		return tag;
+
+	// If airborne and a previous aircraft is still tracked, show spacing to it
+	auto prevIt = this->dep_previousAircraft.find(callSign);
+	if (prevIt != this->dep_previousAircraft.end())
+	{
+		const std::string& prevCallSign = prevIt->second;
+		auto prevFpIt = this->twrSameSID_flightPlans.find(prevCallSign);
+		if (prevFpIt != this->twrSameSID_flightPlans.end() && prevFpIt->second > 0)
+		{
+			auto prevRt = this->RadarTargetSelect(prevCallSign.c_str());
+			if (prevRt.IsValid())
+			{
+				double dist = position.DistanceTo(prevRt.GetPosition().GetPosition());
+				std::string num_text = std::to_string(dist);
+				std::string rounded = num_text.substr(0, num_text.find('.') + 2);
+				tag.tag = "+" + rounded;
+				return tag;
+			}
+		}
+	}
+
+	// Ground aircraft or no valid previous: show distance to runway threshold
 	auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
 	std::string num_text = std::to_string(distance);
-	std::string rounded = num_text.substr(0, num_text.find('.') + 3);
+	std::string rounded = num_text.substr(0, num_text.find('.') + 2);
 	if (distance < 10.0)
-	{
 		rounded = "0" + rounded;
-	}
 
 	tag.tag = rounded;
 	return tag;

@@ -201,6 +201,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			{
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
+				this->dep_previousAircraft.erase(callSign);
 			}
 
 			continue;
@@ -214,6 +215,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			{
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
+				this->dep_previousAircraft.erase(callSign);
 			}
 
 			continue;
@@ -234,6 +236,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 		{
 			this->twrSameSID.RemoveFpFromTheList(fp);
 			this->twrSameSID_flightPlans.erase(callSign);
+			this->dep_previousAircraft.erase(callSign);
 		}
 
 		// Check if aircraft started takeoff roll, press Alt > field elevation + 50 feet
@@ -241,8 +244,12 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 		{
 			if (this->twrSameSID_flightPlans.at(callSign) == 0)
 			{
+				std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
 				this->twrSameSID_flightPlans[callSign] = GetTickCount64();
-				this->twrSameSID_lastDeparted[fp.GetFlightPlanData().GetDepartureRwy()] = callSign;
+				auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
+				if (prevDepIt != this->twrSameSID_lastDeparted.end())
+					this->dep_previousAircraft[callSign] = prevDepIt->second;
+				this->twrSameSID_lastDeparted[depRwy] = callSign;
 			}
 		}
 
@@ -260,6 +267,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 					this->PushToOtherControllers(fp);
 					this->twrSameSID.RemoveFpFromTheList(fp);
 					this->twrSameSID_flightPlans.erase(callSign);
+					this->dep_previousAircraft.erase(callSign);
 					continue;
 				}
 			}
@@ -276,6 +284,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->PushToOtherControllers(fp);
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
+				this->dep_previousAircraft.erase(callSign);
 			}
 		}
 	}

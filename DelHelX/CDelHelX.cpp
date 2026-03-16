@@ -359,6 +359,27 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 		else
 			++it;
 	}
+
+	// Re-link departure sequence chain: any follower that pointed to the disconnected
+	// aircraft should now point to its predecessor instead
+	auto ownPrevIt = this->dep_previousAircraft.find(callSign);
+	std::string ownPrev = (ownPrevIt != this->dep_previousAircraft.end()) ? ownPrevIt->second : "";
+
+	std::vector<std::string> toErase;
+	for (auto& [cs, prev] : this->dep_previousAircraft)
+	{
+		if (prev == callSign)
+		{
+			if (!ownPrev.empty())
+				prev = ownPrev;
+			else
+				toErase.push_back(cs);
+		}
+	}
+	for (auto& cs : toErase)
+		this->dep_previousAircraft.erase(cs);
+
+	this->dep_previousAircraft.erase(callSign);
 }
 
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
