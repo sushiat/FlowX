@@ -340,6 +340,25 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 		this->twrSameSID.RemoveFpFromTheList(FlightPlan);
 		this->twrSameSID_flightPlans.erase(callSign);
 	}
+
+	for (auto it = this->ttt_flightPlans.begin(); it != this->ttt_flightPlans.end(); )
+	{
+		if (it->first.substr(0, callSign.size()) == callSign)
+		{
+			this->tttInbound.RemoveFpFromTheList(FlightPlan);
+			it = this->ttt_flightPlans.erase(it);
+		}
+		else
+			++it;
+	}
+
+	for (auto it = this->ttt_distanceToRunway.begin(); it != this->ttt_distanceToRunway.end(); )
+	{
+		if (it->first.substr(0, callSign.size()) == callSign)
+			it = this->ttt_distanceToRunway.erase(it);
+		else
+			++it;
+	}
 }
 
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
