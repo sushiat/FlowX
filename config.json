@@ -1,6 +1,8 @@
 {
     "LOWW": {
         "fieldElevation": 600,
+        "airborneTransfer": 1500,
+        "airborneTransferWarning": 3000,
         "gndFreq": "121.6",
         "geoGndFreq": {
             "west": {

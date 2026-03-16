@@ -54,7 +54,25 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 				{
 					std::string rwy = fpd.GetDepartureRwy();
 					double distToThreshold = DistanceFromRunwayThreshold(rwy, rt.GetPosition().GetPosition(), airport->second.runways);
-					bool nearThreshold = distToThreshold < 0.25;
+					bool nearThreshold = distToThreshold < 0.2;
+
+					bool atHoldingPoint = false;
+					auto rwyIt = airport->second.runways.find(rwy);
+					if (rwyIt != airport->second.runways.end())
+					{
+						for (auto& hp : rwyIt->second.holdingPoints)
+						{
+							u_int corners = static_cast<u_int>(hp.second.lat.size());
+							double polyX[10], polyY[10];
+							std::copy(hp.second.lon.begin(), hp.second.lon.end(), polyX);
+							std::copy(hp.second.lat.begin(), hp.second.lat.end(), polyY);
+							if (PointInsidePolygon(static_cast<int>(corners), polyX, polyY, rt.GetPosition().GetPosition().m_Longitude, rt.GetPosition().GetPosition().m_Latitude))
+							{
+								atHoldingPoint = true;
+								break;
+							}
+						}
+					}
 
 					for (auto rwyFreq : airport->second.rwyTwrFreq)
 					{
@@ -62,7 +80,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 						{
 							if (!transferred) 
 							{
-								tag.color = nearThreshold ? TAG_COLOR_TURQ : TAG_COLOR_WHITE;
+								tag.color = nearThreshold || atHoldingPoint ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
 							}
 							tag.tag = "->" + rwyFreq.second;
 							return tag;
@@ -72,7 +90,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 					// Didn't find a runway specific tower, so return default
 					if (!transferred)
 					{
-						tag.color = nearThreshold ? TAG_COLOR_TURQ : TAG_COLOR_WHITE;
+						tag.color = nearThreshold || atHoldingPoint ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
 					}
 					tag.tag = "->" + airport->second.twrFreq;
 					return tag;
