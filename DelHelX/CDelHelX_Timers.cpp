@@ -202,6 +202,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
 				this->dep_previousAircraft.erase(callSign);
+				this->dep_sid.erase(callSign);
+				this->dep_wtc.erase(callSign);
 			}
 
 			continue;
@@ -216,6 +218,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
 				this->dep_previousAircraft.erase(callSign);
+				this->dep_sid.erase(callSign);
+				this->dep_wtc.erase(callSign);
 			}
 
 			continue;
@@ -237,6 +241,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			this->twrSameSID.RemoveFpFromTheList(fp);
 			this->twrSameSID_flightPlans.erase(callSign);
 			this->dep_previousAircraft.erase(callSign);
+			this->dep_sid.erase(callSign);
+			this->dep_wtc.erase(callSign);
 		}
 
 		// Check if aircraft started takeoff roll, press Alt > field elevation + 50 feet
@@ -246,6 +252,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			{
 				std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
 				this->twrSameSID_flightPlans[callSign] = GetTickCount64();
+				this->dep_sid[callSign] = fp.GetFlightPlanData().GetSidName();
+				this->dep_wtc[callSign] = fp.GetFlightPlanData().GetAircraftWtc();
 				auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
 				if (prevDepIt != this->twrSameSID_lastDeparted.end())
 					this->dep_previousAircraft[callSign] = prevDepIt->second;
@@ -268,6 +276,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 					this->twrSameSID.RemoveFpFromTheList(fp);
 					this->twrSameSID_flightPlans.erase(callSign);
 					this->dep_previousAircraft.erase(callSign);
+					this->dep_sid.erase(callSign);
+					this->dep_wtc.erase(callSign);
 					continue;
 				}
 			}
@@ -285,6 +295,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
 				this->dep_previousAircraft.erase(callSign);
+				this->dep_sid.erase(callSign);
+				this->dep_wtc.erase(callSign);
 			}
 		}
 	}

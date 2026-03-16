@@ -380,6 +380,8 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 		this->dep_previousAircraft.erase(cs);
 
 	this->dep_previousAircraft.erase(callSign);
+	this->dep_sid.erase(callSign);
+	this->dep_wtc.erase(callSign);
 }
 
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
