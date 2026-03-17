@@ -674,7 +674,10 @@ tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 				{
 					if (keys[i] == myIt->first)
 					{
-						double gap = myIt->second - this->ttt_distanceToRunway.at(keys[i - 1]);
+						auto leaderIt = this->ttt_distanceToRunway.find(keys[i - 1]);
+					if (leaderIt == this->ttt_distanceToRunway.end())
+						break; // stale index, bail
+					double gap = myIt->second - leaderIt->second;
 						sprintf_s(buf, "+%.1f", gap);
 						if (gap > 3.0)
 							tag.color = TAG_COLOR_GREEN;
@@ -721,9 +724,15 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 
 	// Calculate gap to follower if one exists
 	bool hasFollower = myIdx + 1 != keys.end();
-	double gap = hasFollower
-		? this->ttt_distanceToRunway.at(*(myIdx + 1)) - this->ttt_distanceToRunway.at(myPlan->first)
-		: 0.0;
+	double gap = 0.0;
+	if (hasFollower)
+	{
+		auto followerIt = this->ttt_distanceToRunway.find(*(myIdx + 1));
+		auto selfIt = this->ttt_distanceToRunway.find(myPlan->first);
+		if (followerIt == this->ttt_distanceToRunway.end() || selfIt == this->ttt_distanceToRunway.end())
+			return tag; // stale sortedByRunway index, bail until next rebuild
+		gap = followerIt->second - selfIt->second;
+	}
 
 	// Look up runway vacate config
 	std::string arr = fp.GetFlightPlanData().GetDestination();
