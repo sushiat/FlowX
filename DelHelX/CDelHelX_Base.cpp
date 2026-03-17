@@ -54,6 +54,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemFunction("Auto Stand Assignment", TAG_FUNC_STAND_AUTO);
 	this->RegisterTagItemType("TWR Next Freq", TAG_ITEM_TWR_NEXT_FREQ);
 	this->RegisterTagItemType("TWR Sort Key", TAG_ITEM_TWR_SORT);
+	this->RegisterTagItemType("GND state expanded", TAG_ITEM_GND_STATE_EXPANDED);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 

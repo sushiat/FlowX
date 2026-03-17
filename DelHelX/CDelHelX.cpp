@@ -273,6 +273,10 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		tag = this->GetTwrSortKey(FlightPlan);
 	}
+	else if (ItemCode == TAG_ITEM_GND_STATE_EXPANDED)
+	{
+		tag = this->GetGndStateExpandedTag(FlightPlan);
+	}
 
 	*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 	strcpy_s(sItemString, 16, tag.tag.c_str());
@@ -485,14 +489,38 @@ void CDelHelX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlight
 	if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
 	{
 		std::string callSign = fp.GetCallsign();
-
 		std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
+
+		//if (!scratch.empty())
+		//{
+		//	OutputDebugStringA(("[DelHelX] " + callSign + " scratch: " + scratch + "\n").c_str());
+		//}
+		
+		// Check for stand assignment
 		size_t pos = scratch.find("GRP/S/");
 		if (pos != std::string::npos) {
 			std::string stand = scratch.substr(pos + 6);
 			
 			this->standAssignment[callSign] = stand;
 		}
+
+		// Check for ground status
+		static const std::vector<std::string> groundStatuses = { "PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA" };
+		for (const auto& status : groundStatuses)
+		{
+			if (scratch.find(status) != std::string::npos)
+			{
+				this->groundStatus[callSign] = status;
+				break;
+			}
+		}
+	}
+
+	if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_GROUND_STATE)
+	{
+		std::string callSign = fp.GetCallsign();
+		std::string groundState = fp.GetGroundState();
+		this->groundStatus[callSign] = groundState;
 	}
 }
 

@@ -28,6 +28,7 @@ const int TAG_ITEM_INBOUND_NM = 14;
 const int TAG_ITEM_SUGGESTED_VACATE = 15;
 const int TAG_ITEM_TWR_NEXT_FREQ = 16;
 const int TAG_ITEM_TWR_SORT = 17;
+const int TAG_ITEM_GND_STATE_EXPANDED = 18;
 
 const int TAG_FUNC_ON_FREQ = 100;
 const int TAG_FUNC_CLEAR_NEWQNH = 101;

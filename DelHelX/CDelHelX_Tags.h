@@ -23,4 +23,5 @@ protected:
 	tagInfo GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	tagInfo GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	tagInfo GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp);
+	tagInfo GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp);
 };

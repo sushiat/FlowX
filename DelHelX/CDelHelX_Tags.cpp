@@ -550,7 +550,7 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 
 				if (colorCode)
 				{
-					double distRequired = 5.0;
+					double distRequired = 3.0;
 
 					std::string curSid = fp.GetFlightPlanData().GetSidName();
 					auto prevSidIt = this->dep_sid.find(prevCallSign);
@@ -569,7 +569,7 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 							if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end()
 								&& prevGroupIt->second == curGroupIt->second)
 							{
-								distRequired = 3.0;
+								distRequired = 5.0;
 							}
 						}
 					}
@@ -633,7 +633,7 @@ tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlug
 			int mm = totalSeconds / 60;
 			int ss = totalSeconds % 60;
 			char buf[16];
-			sprintf_s(buf, "%s_%02d:%02d", it->second.designator.c_str(), mm, ss);
+			(void)sprintf_s(buf, "%s_%02d:%02d", it->second.designator.c_str(), mm, ss);
 			tag.tag = std::string(buf);
 			if (totalSeconds > 120)
 				tag.color = TAG_COLOR_GREEN;
@@ -666,7 +666,7 @@ tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 			char buf[16] = {};
 			if (keys.front() == myIt->first)
 			{
-				sprintf_s(buf, "%.1f", myIt->second);
+				(void)sprintf_s(buf, "%.1f", myIt->second);
 			}
 			else
 			{
@@ -678,7 +678,7 @@ tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 					if (leaderIt == this->ttt_distanceToRunway.end())
 						break; // stale index, bail
 					double gap = myIt->second - leaderIt->second;
-						sprintf_s(buf, "+%.1f", gap);
+						(void)sprintf_s(buf, "+%.1f", gap);
 						if (gap > 3.0)
 							tag.color = TAG_COLOR_GREEN;
 						else if (gap > 2.5)
@@ -1014,7 +1014,7 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 
 	if (takeoffTick == 0)
 	{
-		// Not yet departed: group A, then runway, then distance to threshold ascending
+		// Not yet departed: group A, then ground status sub-group, then runway, then distance to threshold ascending
 		double dist = 0.0;
 		auto airport = this->airports.find(dep);
 		if (airport != this->airports.end())
@@ -1023,19 +1023,73 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 			dist = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
 		}
 
+		std::string defGroundState = fp.GetGroundState();
+		auto statusIt = this->groundStatus.find(callSign);
+		std::string status = statusIt != this->groundStatus.end() ? statusIt->second : defGroundState;
+
+		if (defGroundState == "DEPA" && status == "TAXI")
+		{
+			status = "DEPA";
+		}
+
+		char subGroup;
+		if (status == "DEPA")        subGroup = '1';
+		else if (status == "LINEUP") subGroup = '2';
+		else if (status == "TAXI")   subGroup = '3';
+		else                         subGroup = '4';
+
 		char distBuf[16];
-		snprintf(distBuf, sizeof(distBuf), "%05.2f", dist);
-		tag.tag = "A" + rwyPadded + distBuf;
+		(void)snprintf(distBuf, sizeof(distBuf), "%05.2f", dist);
+
+		std::string group = "A";
+		auto me = this->ControllerMyself();
+		if (me.IsController() && me.GetRating() > 1 && me.GetFacility() == 3 && subGroup < 3)
+		{
+			// If GND controller, line up and departures are not that important anymore, move them into the "in-between" group "B"
+			group = "B";
+		}
+
+		tag.tag = group + subGroup + rwyPadded + distBuf;
 	}
 	else
 	{
-		// Departed: group B, then runway, then departure sequence ascending
+		// Departed: group C, then runway, then departure sequence ascending
 		auto seqIt = this->dep_sequenceNumber.find(callSign);
 		int seq = seqIt != this->dep_sequenceNumber.end() ? seqIt->second : 0;
 		char seqBuf[8];
-		snprintf(seqBuf, sizeof(seqBuf), "%04d", seq);
-		tag.tag = "B" + rwyPadded + seqBuf;
+		(void)snprintf(seqBuf, sizeof(seqBuf), "%04d", seq);
+		tag.tag = "C" + rwyPadded + seqBuf;
 	}
 
+	return tag;
+}
+
+tagInfo CDelHelX_Tags::GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp)
+{
+	tagInfo tag;
+	tag.color = TAG_COLOR_DEFAULT_GRAY;
+
+	std::string callSign = fp.GetCallsign();
+	std::string defGroundState = fp.GetGroundState();
+	auto statusIt = this->groundStatus.find(callSign);
+	std::string status = statusIt != this->groundStatus.end() ? statusIt->second : defGroundState;
+
+	auto twtIt = this->twrSameSID_flightPlans.find(callSign);
+	if (twtIt != this->twrSameSID_flightPlans.end() && twtIt->second != 0)
+		status = "--DEP--";
+
+	if (status == "DEPA")
+	{
+		status = "TAKE OFF";
+		tag.color = TAG_COLOR_GREEN;
+	}
+	if (status == "LINEUP")
+	{
+		status = "LINE UP";
+		tag.color = TAG_COLOR_TURQ;
+	}
+	if (status == "ST-UP") status = "START-UP";
+
+	tag.tag = status;
 	return tag;
 }
