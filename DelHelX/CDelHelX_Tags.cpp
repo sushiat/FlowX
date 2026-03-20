@@ -440,7 +440,7 @@ tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 		auto nightIt = airport->second.nightTimeSids.find(sidKey);
 		if (nightIt != airport->second.nightTimeSids.end())
 		{
-			sid = nightIt->second + sidDesignator;
+			sid = nightIt->second + sidDesignator + "*";
 		}
 
 		tag.tag = sid;
@@ -478,7 +478,9 @@ tagInfo CDelHelX_Tags::GetTakeoffTimerTag(EuroScopePlugIn::CFlightPlan& fp)
 	if (offsetIt != this->dep_prevTakeoffOffset.end())
 	{
 		ULONGLONG offsetSeconds = offsetIt->second;
-		tag.tag = "+" + std::to_string(offsetSeconds) + "s";
+		auto reqIt = this->dep_timeRequired.find(callSign);
+		int timeRequired = reqIt != this->dep_timeRequired.end() ? reqIt->second : 120;
+		tag.tag = "+" + std::to_string(offsetSeconds) + (offsetSeconds < 100 ? "  [" : " [") + std::to_string(timeRequired) + "]";
 
 		// Color code if lighter follows heavier (time-based separation applies)
 		auto prevWtcIt = this->dep_prevWtc.find(callSign);
@@ -487,9 +489,6 @@ tagInfo CDelHelX_Tags::GetTakeoffTimerTag(EuroScopePlugIn::CFlightPlan& fp)
 			char curWtc = fp.GetFlightPlanData().GetAircraftWtc();
 			if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
 			{
-				auto reqIt = this->dep_timeRequired.find(callSign);
-				int timeRequired = reqIt != this->dep_timeRequired.end() ? reqIt->second : 120;
-
 				if (offsetSeconds >= (ULONGLONG)timeRequired)
 					tag.color = TAG_COLOR_GREEN;
 				else if (offsetSeconds >= (ULONGLONG)(timeRequired - 15))
@@ -527,7 +526,32 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 		double dist = lockedDistIt->second;
 		std::string num_text = std::to_string(dist);
 		std::string rounded = num_text.substr(0, num_text.find('.') + 2);
-		tag.tag = "+" + rounded;
+
+		// Compute required distance (needed for both display and color coding)
+		double distRequired = 3.0;
+		std::string curSid = fp.GetFlightPlanData().GetSidName();
+		auto prevSidIt = this->dep_prevSid.find(callSign);
+		if (prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty()
+			&& prevSidIt->second.length() > 2 && curSid.length() > 2)
+		{
+			auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+			auto curSidKey = curSid.substr(0, curSid.length() - 2);
+
+			auto rwyIt = airport->second.runways.find(rwy);
+			if (rwyIt != airport->second.runways.end())
+			{
+				auto& sidGroupsMap = rwyIt->second.sidGroups;
+				auto prevGroupIt = sidGroupsMap.find(prevSidKey);
+				auto curGroupIt = sidGroupsMap.find(curSidKey);
+				if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end()
+					&& prevGroupIt->second == curGroupIt->second)
+				{
+					distRequired = 5.0;
+				}
+			}
+		}
+
+		tag.tag = "+" + rounded + (dist < 10.0 ? "  [" : " [") + std::to_string(static_cast<int>(distRequired)) + "]";
 
 		// Color code by required separation, unless lighter follows heavier (time-based)
 		bool colorCode = true;
@@ -541,30 +565,6 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 
 		if (colorCode)
 		{
-			double distRequired = 3.0;
-
-			std::string curSid = fp.GetFlightPlanData().GetSidName();
-			auto prevSidIt = this->dep_prevSid.find(callSign);
-			if (prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty()
-				&& prevSidIt->second.length() > 2 && curSid.length() > 2)
-			{
-				auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
-				auto curSidKey = curSid.substr(0, curSid.length() - 2);
-
-				auto rwyIt = airport->second.runways.find(rwy);
-				if (rwyIt != airport->second.runways.end())
-				{
-					auto& sidGroupsMap = rwyIt->second.sidGroups;
-					auto prevGroupIt = sidGroupsMap.find(prevSidKey);
-					auto curGroupIt = sidGroupsMap.find(curSidKey);
-					if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end()
-						&& prevGroupIt->second == curGroupIt->second)
-					{
-						distRequired = 5.0;
-					}
-				}
-			}
-
 			if (dist >= distRequired)
 				tag.color = TAG_COLOR_GREEN;
 			else if (dist >= distRequired - 0.3)
