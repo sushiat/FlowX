@@ -369,6 +369,14 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 			++it;
 	}
 
+	for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end(); )
+	{
+		if (it->first.substr(0, callSign.size()) == callSign)
+			it = this->ttt_recentlyRemoved.erase(it);
+		else
+			++it;
+	}
+
 	this->dep_previousAircraft.erase(callSign);
 	this->dep_sid.erase(callSign);
 	this->dep_wtc.erase(callSign);

@@ -19,6 +19,7 @@ protected:
 	std::map<std::string, double> ttt_distanceToRunway;
 	std::map<std::string, std::vector<std::string>> ttt_sortedByRunway;
 	std::map<std::string, ULONGLONG> ttt_goAround;
+	std::map<std::string, ULONGLONG> ttt_recentlyRemoved;
 	std::map<std::string, std::string> standAssignment;
 	std::map<std::string, std::string> groundStatus;
 	bool blinking = false;

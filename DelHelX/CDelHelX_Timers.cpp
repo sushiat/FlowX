@@ -58,6 +58,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 
 			this->ttt_flightPlans.clear();
 			this->ttt_goAround.clear();
+			this->ttt_recentlyRemoved.clear();
 		}
 
 		return;
@@ -92,6 +93,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 					{
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
+						this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
 					}
 					continue;
 				}
@@ -135,13 +137,26 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
 						this->ttt_distanceToRunway.erase(rwyCallsign);
+						this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
 					}
 				}
 			}
 		}
 	}
 
-	// Go-around detection and lifecycle pass (independent of normal inbound state)
+	// Go-around detection and lifecycle pass
+	// Prune stale recently-removed entries (>60s with no active go-around)
+	{
+		ULONGLONG now = GetTickCount64();
+		for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end(); )
+		{
+			if ((now - it->second) / 1000 > 60)
+				it = this->ttt_recentlyRemoved.erase(it);
+			else
+				++it;
+		}
+	}
+
 	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
 	{
 		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
@@ -155,20 +170,23 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 		{
 			for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
 			{
-				const std::string& opp = rwy->second.opposite;
-				if (opp.empty())
+				std::string rwyCallsign = callSign + rwy->second.designator;
+				bool isGoAround = this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end();
+				bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
+
+				if (!isGoAround && !isRecentlyRemoved)
 					continue;
 
-				std::string rwyCallsign = callSign + rwy->second.designator;
+				const std::string& opp = rwy->second.opposite;
 				auto position = pos.GetPosition();
 				auto pressAlt = pos.GetPressureAltitude();
 				int depElevation = airport->second.fieldElevation;
 				double distance = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
 
-				if (this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end())
+				if (isGoAround)
 				{
 					// Active go-around: check removal conditions, otherwise keep distance updated
-					if (distance > 5.0 || pressAlt > depElevation + 3000)
+					if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 50)
 					{
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
@@ -180,9 +198,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 						this->ttt_distanceToRunway[rwyCallsign] = distance;
 					}
 				}
-				else if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
+				else if (!opp.empty())
 				{
-					// Not a current inbound: check for late-detected go-around
+					// Check for go-around: recently removed from normal list, now near opposite threshold and airborne
 					double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
 					if (distFromOpp < 5.0 && pressAlt > depElevation + 50)
 					{
@@ -190,6 +208,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 						this->ttt_distanceToRunway[rwyCallsign] = distance;
 						this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
 						this->tttInbound.AddFpToTheList(fp);
+						this->ttt_recentlyRemoved.erase(rwyCallsign);
 					}
 				}
 			}
