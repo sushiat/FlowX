@@ -40,8 +40,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemType("HP other", TAG_ITEM_HPO);
 	this->RegisterTagItemFunction("Assign other HP", TAG_FUNC_ASSIGN_HPO);
 	this->RegisterTagItemFunction("Request other HP", TAG_FUNC_REQUEST_HPO);
-	this->RegisterTagItemType("TIMER", TAG_ITEM_TAKEOFF_TIMER);
-	this->RegisterTagItemType("NM", TAG_ITEM_TAKEOFF_DISTANCE);
+	this->RegisterTagItemType("Spacing", TAG_ITEM_TAKEOFF_SPACING);
 	this->RegisterTagItemFunction("Line up", TAG_FUNC_LINE_UP);
 	this->RegisterTagItemFunction("Take off", TAG_FUNC_TAKE_OFF);
 	this->RegisterTagItemFunction("Transfer next", TAG_FUNC_TRANSFER_NEXT);
@@ -73,8 +72,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 		this->twrSameSID.AddColumnDefinition("HP2", 4, false, PLUGIN_NAME, TAG_ITEM_HP2, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP2, PLUGIN_NAME, TAG_FUNC_REQUEST_HP2);
 		this->twrSameSID.AddColumnDefinition("HP3", 4, false, PLUGIN_NAME, TAG_ITEM_HP3, PLUGIN_NAME, TAG_FUNC_ASSIGN_HP3, PLUGIN_NAME, TAG_FUNC_REQUEST_HP3);
 		this->twrSameSID.AddColumnDefinition("HPO", 4, false, PLUGIN_NAME, TAG_ITEM_HPO, PLUGIN_NAME, TAG_FUNC_ASSIGN_HPO, PLUGIN_NAME, TAG_FUNC_REQUEST_HPO);
-		this->twrSameSID.AddColumnDefinition("TIMER", 17, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_TIMER, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->twrSameSID.AddColumnDefinition("NM", 15, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_DISTANCE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->twrSameSID.AddColumnDefinition("Spacing", 17, false, PLUGIN_NAME, TAG_ITEM_TAKEOFF_SPACING, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->twrSameSID.AddColumnDefinition("S", 12, false, PLUGIN_NAME, TAG_ITEM_TWR_SORT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->twrSameSID.ShowFpList(true);

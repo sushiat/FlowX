@@ -19,8 +19,8 @@ const int TAG_ITEM_HP1 = 5;
 const int TAG_ITEM_HP2 = 6;
 const int TAG_ITEM_HP3 = 7;
 const int TAG_ITEM_HPO = 8;
-const int TAG_ITEM_TAKEOFF_TIMER = 9;
-const int TAG_ITEM_TAKEOFF_DISTANCE = 10;
+// 9 unused
+const int TAG_ITEM_TAKEOFF_SPACING = 10;
 const int TAG_ITEM_ASSIGNED_RUNWAY = 11;
 const int TAG_ITEM_DEPARTURE_INFO = 12;
 const int TAG_ITEM_TTT = 13;

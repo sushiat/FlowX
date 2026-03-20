@@ -13,8 +13,7 @@ protected:
 	tagInfo GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	tagInfo GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp);
 	tagInfo GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp);
-	tagInfo GetTakeoffTimerTag(EuroScopePlugIn::CFlightPlan& fp);
-	tagInfo GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp);
+	tagInfo GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp);
 	static tagInfo GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp);
 	tagInfo GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
 	tagInfo GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp);

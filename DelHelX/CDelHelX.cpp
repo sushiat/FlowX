@@ -221,13 +221,9 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		tag = this->GetSameSidTag(FlightPlan);
 	}
-	else if (ItemCode == TAG_ITEM_TAKEOFF_TIMER)
+	else if (ItemCode == TAG_ITEM_TAKEOFF_SPACING)
 	{
-		tag = this->GetTakeoffTimerTag(FlightPlan);
-	}
-	else if (ItemCode == TAG_ITEM_TAKEOFF_DISTANCE)
-	{
-		tag = this->GetTakeoffDistanceTag(FlightPlan);
+		tag = this->GetTakeoffSpacingTag(FlightPlan);
 	}
 	else if (ItemCode == TAG_ITEM_ASSIGNED_RUNWAY)
 	{
