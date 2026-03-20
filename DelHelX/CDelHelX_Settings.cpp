@@ -207,6 +207,7 @@ void CDelHelX_Settings::LoadConfig()
 			{
 				runway rwy{};
 				rwy.designator = rwyDesignator;
+				rwy.opposite = json_rwy.value<std::string>("opposite", "");
 				rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
 				rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
 

@@ -612,6 +612,18 @@ tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlug
 		[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
 	if (it != this->ttt_flightPlans.end())
 	{
+		// Go-around: show negative elapsed seconds, blink red/yellow
+		auto goAroundIt = this->ttt_goAround.find(it->first);
+		if (goAroundIt != this->ttt_goAround.end())
+		{
+			ULONGLONG elapsed = (GetTickCount64() - goAroundIt->second) / 1000;
+			char buf[16];
+			(void)sprintf_s(buf, "%s_-%03llu", it->second.designator.c_str(), elapsed);
+			tag.tag = std::string(buf);
+			tag.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
+			return tag;
+		}
+
 		auto position = rt.GetPosition().GetPosition();
 		auto speed = rt.GetGS();
 
@@ -653,6 +665,15 @@ tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 
 	if (myIt != this->ttt_distanceToRunway.end() && myPlan != this->ttt_flightPlans.end())
 	{
+		// Go-around: always show absolute distance from original runway threshold
+		if (this->ttt_goAround.find(myIt->first) != this->ttt_goAround.end())
+		{
+			char buf[16] = {};
+			(void)sprintf_s(buf, "%.1f", myIt->second);
+			tag.tag = std::string(buf);
+			return tag;
+		}
+
 		auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
 		if (sortedIt != this->ttt_sortedByRunway.end())
 		{

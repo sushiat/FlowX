@@ -47,6 +47,7 @@ struct vacatePoint
 struct runway
 {
 	std::string designator;
+	std::string opposite;
 	double thresholdLat = 0.0;
 	double thresholdLon = 0.0;
 	std::map<std::string, holdingPoint> holdingPoints = {};

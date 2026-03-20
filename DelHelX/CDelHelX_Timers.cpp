@@ -57,6 +57,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 			}
 
 			this->ttt_flightPlans.clear();
+			this->ttt_goAround.clear();
 		}
 
 		return;
@@ -127,12 +128,69 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				}
 				else
 				{
-					if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end())
+					// Only remove normal inbounds; go-arounds are handled in the separate pass below
+					if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end()
+						&& this->ttt_goAround.find(rwyCallsign) == this->ttt_goAround.end())
 					{
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
+						this->ttt_distanceToRunway.erase(rwyCallsign);
 					}
-					this->ttt_distanceToRunway.erase(rwyCallsign);
+				}
+			}
+		}
+	}
+
+	// Go-around detection and lifecycle pass (independent of normal inbound state)
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+	{
+		EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+		std::string callSign = fp.GetCallsign();
+
+		if (!pos.IsValid())
+			continue;
+
+		for (auto airport = this->airports.begin(); airport != this->airports.end(); ++airport)
+		{
+			for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
+			{
+				const std::string& opp = rwy->second.opposite;
+				if (opp.empty())
+					continue;
+
+				std::string rwyCallsign = callSign + rwy->second.designator;
+				auto position = pos.GetPosition();
+				auto pressAlt = pos.GetPressureAltitude();
+				int depElevation = airport->second.fieldElevation;
+				double distance = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+
+				if (this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end())
+				{
+					// Active go-around: check removal conditions, otherwise keep distance updated
+					if (distance > 5.0 || pressAlt > depElevation + 3000)
+					{
+						this->tttInbound.RemoveFpFromTheList(fp);
+						this->ttt_flightPlans.erase(rwyCallsign);
+						this->ttt_goAround.erase(rwyCallsign);
+						this->ttt_distanceToRunway.erase(rwyCallsign);
+					}
+					else
+					{
+						this->ttt_distanceToRunway[rwyCallsign] = distance;
+					}
+				}
+				else if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
+				{
+					// Not a current inbound: check for late-detected go-around
+					double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
+					if (distFromOpp < 5.0 && pressAlt > depElevation + 50)
+					{
+						this->ttt_goAround[rwyCallsign] = GetTickCount64();
+						this->ttt_distanceToRunway[rwyCallsign] = distance;
+						this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
+						this->tttInbound.AddFpToTheList(fp);
+					}
 				}
 			}
 		}
