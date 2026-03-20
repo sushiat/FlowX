@@ -368,36 +368,11 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 			++it;
 	}
 
-	// Re-link departure sequence chain: any follower that pointed to the disconnected
-	// aircraft should now point to its predecessor instead
-	auto ownPrevIt = this->dep_previousAircraft.find(callSign);
-	std::string ownPrev = (ownPrevIt != this->dep_previousAircraft.end()) ? ownPrevIt->second : "";
-
-	std::vector<std::string> toErase;
-	for (auto& [cs, prev] : this->dep_previousAircraft)
-	{
-		if (prev == callSign)
-		{
-			if (!ownPrev.empty())
-			{
-				// Cascade offset: follower-to-disconnected + disconnected-to-its-predecessor
-				auto csOffsetIt = this->dep_prevTakeoffOffset.find(cs);
-				auto discOffsetIt = this->dep_prevTakeoffOffset.find(callSign);
-				if (csOffsetIt != this->dep_prevTakeoffOffset.end() && discOffsetIt != this->dep_prevTakeoffOffset.end())
-					csOffsetIt->second += discOffsetIt->second;
-				prev = ownPrev;
-			}
-			else
-				toErase.push_back(cs);
-		}
-	}
-	for (auto& cs : toErase)
-		this->dep_previousAircraft.erase(cs);
-
 	this->dep_previousAircraft.erase(callSign);
 	this->dep_sid.erase(callSign);
 	this->dep_wtc.erase(callSign);
 	this->dep_prevTakeoffOffset.erase(callSign);
+	this->dep_prevDistanceAtTakeoff.erase(callSign);
 	this->dep_timeRequired.erase(callSign);
 	this->dep_sequenceNumber.erase(callSign);
 }

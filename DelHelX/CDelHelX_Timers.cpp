@@ -205,6 +205,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_sid.erase(callSign);
 				this->dep_wtc.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
+				this->dep_prevDistanceAtTakeoff.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
 				this->dep_sequenceNumber.erase(callSign);
 			}
@@ -224,6 +225,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_sid.erase(callSign);
 				this->dep_wtc.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
+				this->dep_prevDistanceAtTakeoff.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
 				this->dep_sequenceNumber.erase(callSign);
 			}
@@ -250,6 +252,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			this->dep_sid.erase(callSign);
 			this->dep_wtc.erase(callSign);
 			this->dep_prevTakeoffOffset.erase(callSign);
+			this->dep_prevDistanceAtTakeoff.erase(callSign);
 			this->dep_timeRequired.erase(callSign);
 			this->dep_sequenceNumber.erase(callSign);
 		}
@@ -274,6 +277,11 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 					auto prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
 					if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
 						this->dep_prevTakeoffOffset[callSign] = (this->twrSameSID_flightPlans.at(callSign) - prevTakeoffIt->second) / 1000;
+
+					// Lock nm distance at the moment of takeoff
+					auto prevRtLock = this->RadarTargetSelect(prevCallSign.c_str());
+					if (prevRtLock.IsValid())
+						this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRtLock.GetPosition().GetPosition());
 
 					// Compute required time separation from holding points
 					int timeRequired = 120;
@@ -321,7 +329,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			auto position = pos.GetPosition();
 			auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
 
-			if (distance >= 15)
+			if (distance >= 20)
 			{
 				this->flightStripAnnotation.erase(callSign);
 				fp.GetControllerAssignedData().SetFlightStripAnnotation(8, "");
@@ -332,6 +340,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->dep_sid.erase(callSign);
 				this->dep_wtc.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
+				this->dep_prevDistanceAtTakeoff.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
 				this->dep_sequenceNumber.erase(callSign);
 			}
