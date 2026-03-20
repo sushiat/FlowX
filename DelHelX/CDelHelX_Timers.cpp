@@ -186,7 +186,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				if (isGoAround)
 				{
 					// Active go-around: check removal conditions, otherwise keep distance updated
-					if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 50)
+					if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100)
 					{
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
@@ -202,7 +202,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				{
 					// Check for go-around: recently removed from normal list, now near opposite threshold and airborne
 					double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
-					if (distFromOpp < 5.0 && pressAlt > depElevation + 50)
+					if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
 					{
 						this->ttt_goAround[rwyCallsign] = GetTickCount64();
 						this->ttt_distanceToRunway[rwyCallsign] = distance;
@@ -278,9 +278,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			{
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
-				this->dep_previousAircraft.erase(callSign);
-				this->dep_sid.erase(callSign);
-				this->dep_wtc.erase(callSign);
+				this->dep_prevWtc.erase(callSign);
+				this->dep_prevSid.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
 				this->dep_prevDistanceAtTakeoff.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
@@ -298,9 +297,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			{
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
-				this->dep_previousAircraft.erase(callSign);
-				this->dep_sid.erase(callSign);
-				this->dep_wtc.erase(callSign);
+				this->dep_prevWtc.erase(callSign);
+				this->dep_prevSid.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
 				this->dep_prevDistanceAtTakeoff.erase(callSign);
 				this->dep_timeRequired.erase(callSign);
@@ -325,9 +323,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 		{
 			this->twrSameSID.RemoveFpFromTheList(fp);
 			this->twrSameSID_flightPlans.erase(callSign);
-			this->dep_previousAircraft.erase(callSign);
-			this->dep_sid.erase(callSign);
-			this->dep_wtc.erase(callSign);
+			this->dep_prevWtc.erase(callSign);
+			this->dep_prevSid.erase(callSign);
 			this->dep_prevTakeoffOffset.erase(callSign);
 			this->dep_prevDistanceAtTakeoff.erase(callSign);
 			this->dep_timeRequired.erase(callSign);
@@ -341,40 +338,41 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 			{
 				std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
 				this->twrSameSID_flightPlans[callSign] = GetTickCount64();
-				this->dep_sid[callSign] = fp.GetFlightPlanData().GetSidName();
-				this->dep_wtc[callSign] = fp.GetFlightPlanData().GetAircraftWtc();
 				this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
 				auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
 				if (prevDepIt != this->twrSameSID_lastDeparted.end())
 				{
 					const std::string& prevCallSign = prevDepIt->second;
-					this->dep_previousAircraft[callSign] = prevCallSign;
-
-					// Compute time offset between consecutive takeoffs
 					auto prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
 					if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
+					{
 						this->dep_prevTakeoffOffset[callSign] = (this->twrSameSID_flightPlans.at(callSign) - prevTakeoffIt->second) / 1000;
 
-					// Lock nm distance at the moment of takeoff
-					auto prevRtLock = this->RadarTargetSelect(prevCallSign.c_str());
-					if (prevRtLock.IsValid())
-						this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRtLock.GetPosition().GetPosition());
+						// Snapshot previous aircraft's data at the moment of takeoff
+						auto prevRtLock = this->RadarTargetSelect(prevCallSign.c_str());
+						if (prevRtLock.IsValid())
+						{
+							this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRtLock.GetPosition().GetPosition());
+							this->dep_prevWtc[callSign] = prevRtLock.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
+							this->dep_prevSid[callSign] = prevRtLock.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+						}
 
-					// Compute required time separation from holding points
-					int timeRequired = 120;
-					this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-					auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
-					if (prevFp.IsValid())
-						this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-					if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
-						this->flightStripAnnotation[callSign].length() > 2 && this->flightStripAnnotation[prevCallSign].length() > 2)
-					{
-						std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(2);
-						std::string hp = this->flightStripAnnotation[callSign].substr(2);
-						if (!IsSameHoldingPoint(prevHP, hp, airport->second.runways))
-							timeRequired += 60;
+						// Compute required time separation from holding points
+						int timeRequired = 120;
+						this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+						auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
+						if (prevFp.IsValid())
+							this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+						if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
+							this->flightStripAnnotation[callSign].length() > 2 && this->flightStripAnnotation[prevCallSign].length() > 2)
+						{
+							std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(2);
+							std::string hp = this->flightStripAnnotation[callSign].substr(2);
+							if (!IsSameHoldingPoint(prevHP, hp, airport->second.runways))
+								timeRequired += 60;
+						}
+						this->dep_timeRequired[callSign] = timeRequired;
 					}
-					this->dep_timeRequired[callSign] = timeRequired;
 				}
 				this->twrSameSID_lastDeparted[depRwy] = callSign;
 			}
@@ -394,9 +392,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 					this->PushToOtherControllers(fp);
 					this->twrSameSID.RemoveFpFromTheList(fp);
 					this->twrSameSID_flightPlans.erase(callSign);
-					this->dep_previousAircraft.erase(callSign);
-					this->dep_sid.erase(callSign);
-					this->dep_wtc.erase(callSign);
+					this->dep_prevWtc.erase(callSign);
+					this->dep_prevSid.erase(callSign);
 					continue;
 				}
 			}
@@ -413,9 +410,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 				this->PushToOtherControllers(fp);
 				this->twrSameSID.RemoveFpFromTheList(fp);
 				this->twrSameSID_flightPlans.erase(callSign);
-				this->dep_previousAircraft.erase(callSign);
-				this->dep_sid.erase(callSign);
-				this->dep_wtc.erase(callSign);
+				this->dep_prevWtc.erase(callSign);
+				this->dep_prevSid.erase(callSign);
 				this->dep_prevTakeoffOffset.erase(callSign);
 				this->dep_prevDistanceAtTakeoff.erase(callSign);
 				this->dep_timeRequired.erase(callSign);

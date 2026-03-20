@@ -474,16 +474,15 @@ tagInfo CDelHelX_Tags::GetTakeoffTimerTag(EuroScopePlugIn::CFlightPlan& fp)
 		return tag;
 
 	// In departure sequence: show fixed offset between this and previous takeoff
-	auto prevIt = this->dep_previousAircraft.find(callSign);
-	if (prevIt != this->dep_previousAircraft.end())
+	auto offsetIt = this->dep_prevTakeoffOffset.find(callSign);
+	if (offsetIt != this->dep_prevTakeoffOffset.end())
 	{
-		auto offsetIt = this->dep_prevTakeoffOffset.find(callSign);
-		ULONGLONG offsetSeconds = offsetIt != this->dep_prevTakeoffOffset.end() ? offsetIt->second : 0;
+		ULONGLONG offsetSeconds = offsetIt->second;
 		tag.tag = "+" + std::to_string(offsetSeconds) + "s";
 
 		// Color code if lighter follows heavier (time-based separation applies)
-		auto prevWtcIt = this->dep_wtc.find(prevIt->second);
-		if (prevWtcIt != this->dep_wtc.end())
+		auto prevWtcIt = this->dep_prevWtc.find(callSign);
+		if (prevWtcIt != this->dep_prevWtc.end())
 		{
 			char curWtc = fp.GetFlightPlanData().GetAircraftWtc();
 			if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
@@ -522,64 +521,59 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 		return tag;
 
 	// If airborne and a previous aircraft is tracked, show locked spacing at takeoff
-	auto prevIt = this->dep_previousAircraft.find(callSign);
-	if (prevIt != this->dep_previousAircraft.end())
+	auto lockedDistIt = this->dep_prevDistanceAtTakeoff.find(callSign);
+	if (lockedDistIt != this->dep_prevDistanceAtTakeoff.end())
 	{
-		const std::string& prevCallSign = prevIt->second;
-		auto lockedDistIt = this->dep_prevDistanceAtTakeoff.find(callSign);
-		if (lockedDistIt != this->dep_prevDistanceAtTakeoff.end())
+		double dist = lockedDistIt->second;
+		std::string num_text = std::to_string(dist);
+		std::string rounded = num_text.substr(0, num_text.find('.') + 2);
+		tag.tag = "+" + rounded;
+
+		// Color code by required separation, unless lighter follows heavier (time-based)
+		bool colorCode = true;
+		auto prevWtcIt = this->dep_prevWtc.find(callSign);
+		if (prevWtcIt != this->dep_prevWtc.end())
 		{
-			double dist = lockedDistIt->second;
-			std::string num_text = std::to_string(dist);
-			std::string rounded = num_text.substr(0, num_text.find('.') + 2);
-			tag.tag = "+" + rounded;
+			char curWtc = fp.GetFlightPlanData().GetAircraftWtc();
+			if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
+				colorCode = false;
+		}
 
-			// Color code by required separation, unless lighter follows heavier (time-based)
-			bool colorCode = true;
-			auto prevWtcIt = this->dep_wtc.find(prevCallSign);
-			if (prevWtcIt != this->dep_wtc.end())
+		if (colorCode)
+		{
+			double distRequired = 3.0;
+
+			std::string curSid = fp.GetFlightPlanData().GetSidName();
+			auto prevSidIt = this->dep_prevSid.find(callSign);
+			if (prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty()
+				&& prevSidIt->second.length() > 2 && curSid.length() > 2)
 			{
-				char curWtc = fp.GetFlightPlanData().GetAircraftWtc();
-				if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
-					colorCode = false;
-			}
+				auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+				auto curSidKey = curSid.substr(0, curSid.length() - 2);
 
-			if (colorCode)
-			{
-				double distRequired = 3.0;
-
-				std::string curSid = fp.GetFlightPlanData().GetSidName();
-				auto prevSidIt = this->dep_sid.find(prevCallSign);
-				if (prevSidIt != this->dep_sid.end() && !prevSidIt->second.empty() && !curSid.empty()
-					&& prevSidIt->second.length() > 2 && curSid.length() > 2)
+				auto rwyIt = airport->second.runways.find(rwy);
+				if (rwyIt != airport->second.runways.end())
 				{
-					auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
-					auto curSidKey = curSid.substr(0, curSid.length() - 2);
-
-					auto rwyIt = airport->second.runways.find(rwy);
-					if (rwyIt != airport->second.runways.end())
+					auto& sidGroupsMap = rwyIt->second.sidGroups;
+					auto prevGroupIt = sidGroupsMap.find(prevSidKey);
+					auto curGroupIt = sidGroupsMap.find(curSidKey);
+					if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end()
+						&& prevGroupIt->second == curGroupIt->second)
 					{
-						auto& sidGroupsMap = rwyIt->second.sidGroups;
-						auto prevGroupIt = sidGroupsMap.find(prevSidKey);
-						auto curGroupIt = sidGroupsMap.find(curSidKey);
-						if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end()
-							&& prevGroupIt->second == curGroupIt->second)
-						{
-							distRequired = 5.0;
-						}
+						distRequired = 5.0;
 					}
 				}
-
-				if (dist >= distRequired)
-					tag.color = TAG_COLOR_GREEN;
-				else if (dist >= distRequired - 0.3)
-					tag.color = TAG_COLOR_YELLOW;
-				else
-					tag.color = TAG_COLOR_RED;
 			}
 
-			return tag;
+			if (dist >= distRequired)
+				tag.color = TAG_COLOR_GREEN;
+			else if (dist >= distRequired - 0.3)
+				tag.color = TAG_COLOR_YELLOW;
+			else
+				tag.color = TAG_COLOR_RED;
 		}
+
+		return tag;
 	}
 
 	// Airborne but no preceding (or locked distance not yet set): show ---
@@ -990,12 +984,6 @@ tagInfo CDelHelX_Tags::GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, Eur
 
 				tag.color = TAG_COLOR_GREEN;
 				tag.tag = "OK?";
-			}
-			else if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end() && this->twrSameSID_lastDeparted[rwy] == callSign)
-			{
-				// This is the last aircraft that departed this runway
-				tag.color = TAG_COLOR_ORANGE;
-				tag.tag = rwy;
 			}
 		}
 	}
