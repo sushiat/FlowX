@@ -517,7 +517,6 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 	to_upper(dep);
 	std::string callSign = fp.GetCallsign();
 	std::string rwy = fpd.GetDepartureRwy();
-	auto position = fp.GetCorrelatedRadarTarget().GetPosition().GetPosition();
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
 		return tag;
@@ -590,14 +589,6 @@ tagInfo CDelHelX_Tags::GetTakeoffDistanceTag(EuroScopePlugIn::CFlightPlan& fp)
 		return tag;
 	}
 
-	// Ground aircraft: show distance to runway threshold
-	auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
-	std::string num_text = std::to_string(distance);
-	std::string rounded = num_text.substr(0, num_text.find('.') + 2);
-	if (distance < 10.0)
-		rounded = "0" + rounded;
-
-	tag.tag = rounded;
 	return tag;
 }
 
