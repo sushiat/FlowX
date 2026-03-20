@@ -7,6 +7,7 @@
 #include "helpers.h"
 #include "date/tz.h"
 
+/// @brief Registers all tag item types, tag functions, display type, and flight-plan lists with EuroScope.
 CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	EuroScopePlugIn::COMPATIBILITY_CODE,
 	PLUGIN_NAME,
@@ -92,6 +93,13 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->tttInbound.ShowFpList(true);
 }
 
+/// @brief Called by EuroScope when a new radar screen is created.
+/// @param sDisplayName Display name of the screen configuration.
+/// @param NeedRadarContent Whether radar content is required.
+/// @param GeoReferenced Whether the screen is geo-referenced.
+/// @param CanBeSaved Whether the screen layout can be saved.
+/// @param CanBeCreated Whether the screen can be created by the user.
+/// @return Pointer to the newly created RadarScreen instance.
 EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
 {
 	this->radarScreen = new RadarScreen();
@@ -99,6 +107,8 @@ EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* s
 	return this->radarScreen;
 }
 
+/// @brief Pushes the flight plan strip to all online DEL, GND, and TWR controllers.
+/// @param fp Flight plan to distribute.
 void CDelHelX_Base::PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const
 {
 	for (EuroScopePlugIn::CController c = this->ControllerSelectFirst(); c.IsValid(); c = this->ControllerSelectNext(c)) {

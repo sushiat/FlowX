@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "date/tz.h"
 
+/// @brief Checks each airport's NAP reminder configuration and fires a modal alert when the time is reached.
 void CDelHelX_Timers::CheckAirportNAPReminder()
 {
 	for (auto& airport : this->airports)
@@ -44,6 +45,7 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
 	}
 }
 
+/// @brief Updates the TTT inbound list: detects new inbounds, removes departed aircraft, and handles go-arounds.
 void CDelHelX_Timers::UpdateTTTInbounds()
 {
 	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
@@ -231,6 +233,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 	}
 }
 
+/// @brief Updates the TWR same-SID outbound list and records per-departure timing and sequencing data.
 void CDelHelX_Timers::UpdateTowerSameSID()
 {
 	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
@@ -421,6 +424,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 	}
 }
 
+/// @brief Updates or removes departure information overlays on the radar screen for taxiing aircraft.
 void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 {
 	if (this->radarScreen == nullptr)
@@ -545,6 +549,7 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 	}
 }
 
+/// @brief Detects which holding-point polygon a taxiing aircraft occupies and writes it to flight-strip slot 8.
 void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
 {
 	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))

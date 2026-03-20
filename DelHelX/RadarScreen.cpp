@@ -13,12 +13,15 @@ RadarScreen::RadarScreen()
 
 RadarScreen::~RadarScreen() = default;
 
+/// @brief Notifies the plugin that the screen is closing, then deletes this RadarScreen.
 void RadarScreen::OnAsrContentToBeClosed()
 {
 	static_cast<CDelHelX_Base*>(GetPlugIn())->ClearRadarScreen();
 	delete this;
 }
 
+/// @brief Adds the controller to the appropriate station set when they come online or update their position.
+/// @param Controller The updated controller.
 void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Controller)
 {
 	std::string cs = Controller.GetCallsign();
@@ -88,6 +91,8 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
 	}
 }
 
+/// @brief Removes the controller from the appropriate station set when they go offline.
+/// @param Controller The disconnected controller.
 void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller)
 {
 	std::string cs = Controller.GetCallsign();
@@ -150,6 +155,9 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
 	}
 }
 
+/// @brief Draws departure info overlays (text, SID dot, HP label, connector line) after tags are rendered.
+/// @param hDC GDI device context for drawing.
+/// @param Phase EuroScope refresh phase; overlays are only drawn during REFRESH_PHASE_AFTER_TAGS.
 void RadarScreen::OnRefresh(HDC hDC, int Phase)
 {
 	if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
@@ -208,6 +216,8 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 	}
 }
 
+/// @brief Updates the screen-pixel anchor for a departure overlay when the radar target moves.
+/// @param RadarTarget The target whose position has changed.
 void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget)
 {
 	auto depInfo = this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign());
@@ -220,6 +230,8 @@ void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget Rada
 	}
 }
 
+/// @brief Removes the departure overlay entry for a disconnecting flight plan.
+/// @param FlightPlan The disconnecting flight plan.
 void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 {
 	auto findCallSign = this->radarTargetDepartureInfos.find(FlightPlan.GetCallsign());
@@ -229,6 +241,12 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
 	}
 }
 
+/// @brief Accumulates drag offsets for departure overlays and resets the drag origin on mouse release.
+/// @param ObjectType EuroScope type identifier of the dragged object.
+/// @param sObjectId Callsign string identifying which departure overlay is being dragged.
+/// @param Pt Current cursor position.
+/// @param Area Bounding rectangle of the object.
+/// @param Released True when the mouse button has been released.
 void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released)
 {
 	auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));

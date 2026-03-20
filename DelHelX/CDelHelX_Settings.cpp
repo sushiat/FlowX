@@ -18,6 +18,7 @@ CDelHelX_Settings::CDelHelX_Settings()
 	}
 }
 
+/// @brief Loads persisted plugin settings from EuroScope's settings store.
 void CDelHelX_Settings::LoadSettings()
 {
 	const char* settings = this->GetDataFromSettings(PLUGIN_NAME);
@@ -43,6 +44,7 @@ void CDelHelX_Settings::LoadSettings()
 	}
 }
 
+/// @brief Serialises current settings and writes them to EuroScope's settings store.
 void CDelHelX_Settings::SaveSettings()
 {
 	std::ostringstream ss;
@@ -53,6 +55,7 @@ void CDelHelX_Settings::SaveSettings()
 	this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
 }
 
+/// @brief Parses config.json from the plugin directory and populates the airports map.
 void CDelHelX_Settings::LoadConfig()
 {
 	json config;
@@ -311,6 +314,7 @@ void CDelHelX_Settings::LoadConfig()
 
 }
 
+/// @brief Resolves the latestVersion future and logs a message if a newer version is available.
 void CDelHelX_Settings::CheckForUpdate()
 {
 	try

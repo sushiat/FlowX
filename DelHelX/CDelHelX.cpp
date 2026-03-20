@@ -14,6 +14,9 @@ CDelHelX::CDelHelX()
 	this->noChecks = false;
 }
 
+/// @brief Processes `.delhelx` chat commands.
+/// @param sCommandLine Full command line string.
+/// @return True if the command was handled; false otherwise.
 bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 {
 	std::vector<std::string> args = split(sCommandLine);
@@ -147,6 +150,7 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 	return false;
 }
 
+/// @brief Re-evaluates the EuroScope clearance flag for all on-ground cleared aircraft.
 void CDelHelX::RedoFlags()
 {
 	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
@@ -196,6 +200,15 @@ void CDelHelX::RedoFlags()
 	}
 }
 
+/// @brief Dispatches tag item rendering to the appropriate Get*Tag method.
+/// @param FlightPlan Flight plan for the tag row.
+/// @param RadarTarget Correlated radar target.
+/// @param ItemCode TAG_ITEM_* constant identifying the column.
+/// @param TagData Additional EuroScope tag data (unused).
+/// @param sItemString Output buffer for the tag text (max 15 chars + NUL).
+/// @param pColorCode Output for the EuroScope colour mode flag.
+/// @param pRGB Output for the RGB colour value.
+/// @param pFontSize Output for an optional font size override.
 void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlugIn::CRadarTarget RadarTarget, int ItemCode, int TagData, char sItemString[16], int* pColorCode, COLORREF* pRGB, double* pFontSize)
 {
 	if (!FlightPlan.IsValid())
@@ -279,6 +292,11 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	*pRGB = tag.color;
 }
 
+/// @brief Dispatches tag function callbacks to the appropriate Func_* method.
+/// @param FunctionId TAG_FUNC_* constant identifying the action.
+/// @param sItemString Current text of the clicked tag cell.
+/// @param Pt Screen position of the click.
+/// @param Area Bounding rectangle of the tag cell.
 void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, RECT Area)
 {
 	EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectASEL();
@@ -314,6 +332,8 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 	else if (FunctionId == TAG_FUNC_STAND_AUTO)     Func_StandAuto(fp, this->radarScreen);
 }
 
+/// @brief Drives periodic updates: blinking, update check, NAP reminder, and state-map refreshes.
+/// @param Counter EuroScope tick counter; updates run every 2 ticks, NAP check every 10 ticks.
 void CDelHelX::OnTimer(int Counter)
 {
 	this->blinking = !this->blinking;
@@ -336,6 +356,8 @@ void CDelHelX::OnTimer(int Counter)
 	}
 }
 
+/// @brief Removes the disconnecting aircraft from all departure and inbound state maps.
+/// @param FlightPlan The disconnecting flight plan.
 void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 {
 	std::string callSign = FlightPlan.GetCallsign();
@@ -381,6 +403,9 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 	this->dep_sequenceNumber.erase(callSign);
 }
 
+/// @brief Parses an incoming METAR for QNH changes and flags cleared ground aircraft at that airport.
+/// @param sStation ICAO station identifier.
+/// @param sFullMetar Full METAR string.
 void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 {
 	std::string station = sStation;
@@ -463,6 +488,9 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 	}
 }
 
+/// @brief Monitors scratch-pad and ground-state changes to keep stand assignment and ground-status maps current.
+/// @param fp Updated flight plan.
+/// @param dataType EuroScope constant indicating which assigned-data field changed.
 void CDelHelX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType)
 {
 	if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
@@ -503,13 +531,17 @@ void CDelHelX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlight
 	}
 }
 
+/// Singleton plugin instance owned by the DLL.
 static CDelHelX* pPlugin;
 
+/// @brief DLL export called by EuroScope to load the plugin; creates the CDelHelX singleton.
+/// @param ppPlugInInstance Output pointer that receives the newly created plugin instance.
 void __declspec (dllexport) EuroScopePlugInInit(EuroScopePlugIn::CPlugIn** ppPlugInInstance)
 {
 	*ppPlugInInstance = pPlugin = new CDelHelX();
 }
 
+/// @brief DLL export called by EuroScope when the plugin is unloaded; deletes the singleton.
 void __declspec (dllexport) EuroScopePlugInExit(void)
 {
 	delete pPlugin;

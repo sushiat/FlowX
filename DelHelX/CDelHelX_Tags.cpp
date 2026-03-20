@@ -3,6 +3,10 @@
 
 #include "helpers.h"
 
+/// @brief Builds the TWR next-frequency tag for a departing aircraft.
+/// @param fp Flight plan being evaluated.
+/// @param rt Correlated radar target.
+/// @return tagInfo with the "->frequency" string and urgency colour, or empty if not applicable.
 tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	tagInfo tag;
@@ -177,6 +181,10 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
 	return tag;
 }
 
+/// @brief Builds the Push+Start helper tag with the next applicable frequency or a validation error code.
+/// @param fp Flight plan being evaluated.
+/// @param rt Correlated radar target.
+/// @return tagInfo with frequency string and colour, or an error code in red.
 tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	tagInfo tag;
@@ -350,6 +358,10 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 	return tag;
 }
 
+/// @brief Builds the taxi-out indicator tag ("T" for taxi-out stand, "P" for push stand).
+/// @param fp Flight plan being evaluated.
+/// @param rt Correlated radar target.
+/// @return tagInfo with "T", "P", or empty text.
 tagInfo CDelHelX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	tagInfo tag;
@@ -396,6 +408,9 @@ tagInfo CDelHelX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScope
 	return tag;
 }
 
+/// @brief Builds the new-QNH tag showing orange "X" when annotation slot 8 contains the 'Q' flag.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with "X" in orange when a new QNH is pending, or empty.
 tagInfo CDelHelX_Tags::GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -416,6 +431,9 @@ tagInfo CDelHelX_Tags::GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the same-SID tag showing the SID name colour-coded by its configured group.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with the SID name and group colour, greyed out once the aircraft has departed.
 tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -465,6 +483,9 @@ tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the takeoff-spacing tag showing time or distance separation from the previous departure.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with spacing text and a colour indicating separation compliance.
 tagInfo CDelHelX_Tags::GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -565,6 +586,9 @@ tagInfo CDelHelX_Tags::GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the assigned runway tag showing the flight-plan departure runway designator.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with the runway designator string.
 tagInfo CDelHelX_Tags::GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -576,6 +600,10 @@ tagInfo CDelHelX_Tags::GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the TTT (time-to-touchdown) tag for an inbound aircraft.
+/// @param fp Flight plan being evaluated.
+/// @param rt Correlated radar target.
+/// @return tagInfo with "RWY_MM:SS" string and urgency colour; go-arounds show a negative elapsed counter.
 tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	tagInfo tag;
@@ -626,6 +654,9 @@ tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlug
 	return tag;
 }
 
+/// @brief Builds the inbound NM tag showing distance to threshold, or gap to the leading inbound.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with absolute NM for the nearest inbound, or "+X.X" gap with colour coding for others.
 tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -684,6 +715,9 @@ tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the suggested runway vacate point tag based on assigned stand and gap to the following inbound.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with the vacate point name in white, or empty if no match is found.
 tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -770,6 +804,10 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds a holding-point tag for the given slot index.
+/// @param fp Flight plan being evaluated.
+/// @param index Slot index (1 = HP1, 2 = HP2, 3 = HP3, 4 = HPO).
+/// @return tagInfo with the HP name: green for assigned, orange for requested (*), grey after departure.
 tagInfo CDelHelX_Tags::GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int index)
 {
 	tagInfo tag;
@@ -805,6 +843,10 @@ tagInfo CDelHelX_Tags::GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int 
 	return tag;
 }
 
+/// @brief Builds the departure-info tag summarising readiness to depart relative to the previous departure.
+/// @param fp Flight plan being evaluated.
+/// @param rt Correlated radar target.
+/// @return tagInfo with readiness text and colour (green=OK, yellow=almost, red=not yet).
 tagInfo CDelHelX_Tags::GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	tagInfo tag;
@@ -975,6 +1017,10 @@ tagInfo CDelHelX_Tags::GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, Eur
 	return tag;
 }
 
+/// @brief Builds the tower sort key tag used to order the TWR departure list lexicographically.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with a sort key string encoding group, ground status, runway, and distance or sequence.
+/// @note Pre-departure aircraft sort A/B first (nearest-to-threshold first); departed aircraft sort C last.
 tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;
@@ -1046,6 +1092,9 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the expanded ground-state tag with a human-readable label and colour.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with a text label (e.g. "PUSH", "TAXI", "T/O", "AIRBORNE") and appropriate colour.
 tagInfo CDelHelX_Tags::GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;

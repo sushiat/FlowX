@@ -3,6 +3,9 @@
 
 #include "helpers.h"
 
+/// @brief Sets ONFREQ, ST-UP, or PUSH ground state depending on the aircraft's current stand position.
+/// @param fp Currently selected flight plan.
+/// @param rt Correlated radar target.
 void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
 	auto tag = this->GetPushStartHelperTag(fp, rt);
@@ -56,6 +59,8 @@ void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScope
 	}
 }
 
+/// @brief Clears the 'Q' flag from flight-strip annotation slot 8 and syncs to other controllers.
+/// @param fp Currently selected flight plan.
 void CDelHelX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
 {
 	std::string callSign = fp.GetCallsign();
@@ -67,6 +72,9 @@ void CDelHelX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
 	}
 }
 
+/// @brief Assigns the standard holding point for slot @p index to flight-strip annotation slot 8.
+/// @param fp Currently selected flight plan.
+/// @param index Slot index (1-3 for HP1-HP3).
 void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, int index)
 {
 	std::string callSign = fp.GetCallsign();
@@ -79,6 +87,9 @@ void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, int ind
 	this->PushToOtherControllers(fp);
 }
 
+/// @brief Requests the holding point for slot @p index by appending '*' to indicate the pilot must confirm.
+/// @param fp Currently selected flight plan.
+/// @param index Slot index (1-3 for HP1-HP3).
 void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, int index)
 {
 	std::string callSign = fp.GetCallsign();
@@ -91,6 +102,9 @@ void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, int in
 	this->PushToOtherControllers(fp);
 }
 
+/// @brief Opens a popup list of assignable holding points so the controller can pick a non-standard HP.
+/// @param fp Currently selected flight plan.
+/// @param Pt Screen position at which to anchor the popup.
 void CDelHelX_Functions::Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
 	RECT area;
@@ -117,6 +131,9 @@ void CDelHelX_Functions::Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT 
 	}
 }
 
+/// @brief Opens a popup list of assignable holding points with each entry starred to denote a request.
+/// @param fp Currently selected flight plan.
+/// @param Pt Screen position at which to anchor the popup.
 void CDelHelX_Functions::Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
 	RECT area;
@@ -143,6 +160,9 @@ void CDelHelX_Functions::Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT
 	}
 }
 
+/// @brief Writes the user-selected holding-point name from the popup into flight-strip annotation slot 8.
+/// @param fp Currently selected flight plan.
+/// @param sItemString The holding-point name (possibly starred) chosen from the popup.
 void CDelHelX_Functions::Func_HpoListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
 {
 	std::string callSign = fp.GetCallsign();
@@ -151,6 +171,8 @@ void CDelHelX_Functions::Func_HpoListselect(EuroScopePlugIn::CFlightPlan& fp, co
 	this->PushToOtherControllers(fp);
 }
 
+/// @brief Sets the LINEUP ground state via a momentary scratch-pad toggle.
+/// @param fp Currently selected flight plan.
 void CDelHelX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
 {
 	std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
@@ -158,6 +180,8 @@ void CDelHelX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
 	fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
 }
 
+/// @brief Sets the DEPA ground state and starts tracking the flight plan.
+/// @param fp Currently selected flight plan.
 void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
 {
 	std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
@@ -167,6 +191,9 @@ void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
 	fp.StartTracking();
 }
 
+/// @brief Initiates a handoff to the next controller and marks the flight strip as transferred.
+/// @param fp Currently selected flight plan.
+/// @note Tower controllers search for a SID-specific approach frequency first; falls back to first APP, then drops tracking.
 void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 {
 	std::string callSign = fp.GetCallsign();
@@ -248,6 +275,9 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 	this->PushToOtherControllers(fp);
 }
 
+/// @brief Ends tracking of the inbound and triggers TopSky's highlight function.
+/// @param fp Currently selected flight plan.
+/// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
 void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
 	std::string callSign = fp.GetCallsign();
@@ -258,6 +288,9 @@ void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, Radar
 	radarScreenInstance->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
 }
 
+/// @brief Handles a missed approach: takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
+/// @param fp Currently selected flight plan.
+/// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
 void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
 	if (!fp.GetTrackingControllerIsMe())
@@ -272,6 +305,9 @@ void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarS
 	fp.GetControllerAssignedData().SetScratchPadString((scratchBackup + "MISAP_").c_str());
 }
 
+/// @brief Triggers the Ground Radar plugin's automatic stand assignment function.
+/// @param fp Currently selected flight plan.
+/// @param radarScreenInstance Active radar screen used to call the Ground Radar tag function.
 void CDelHelX_Functions::Func_StandAuto(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
 	std::string callSign = fp.GetCallsign();
