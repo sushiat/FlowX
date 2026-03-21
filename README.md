@@ -163,13 +163,13 @@ Tracks aircraft on approach ordered by distance to the runway threshold. Columns
 
 | Column | Source | Description | Left click | Right click |
 |---|---|---|---|---|
-| TTT | DelHelX | Time to touchdown, prefixed with runway designator (e.g. `29_03:42`) | — | — |
-| C/S | EuroScope | Callsign | — | — |
+| TTT | DelHelX | Time to touchdown, prefixed with runway designator (e.g. `29_03:42`) | Start tracking | — |
+| C/S | EuroScope | Callsign | Cleared to land | Missed App |
 | NM | DelHelX | Distance to threshold or gap to leading inbound | — | — |
 | SPD | EuroScope | Ground speed | — | — |
 | WTC | EuroScope | Wake turbulence category | — | — |
 | ATYP | TopSky | Aircraft type | — | — |
-| Gate | Ground Radar | Assigned stand | — | — |
+| Gate | Ground Radar | Assigned stand | Open stand menu | Auto stand assignment |
 | Vacate | DelHelX | Suggested vacate point | — | — |
 
 ---
