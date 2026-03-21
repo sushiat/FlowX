@@ -372,7 +372,9 @@ tagInfo CDelHelX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScope
 
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
+	{
 		return tag;
+	}
 
 	EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
 	std::string groundState = fp.GetGroundState();
@@ -446,7 +448,9 @@ tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
+	{
 		return tag;
+	}
 
 	if (!sid.empty() && sid.length() > 2) {
 		auto sidKey = sid.substr(0, sid.length() - 2);
@@ -477,7 +481,9 @@ tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 		std::string callSign = fp.GetCallsign();
 		auto depIt = this->twrSameSID_flightPlans.find(callSign);
 		if (depIt != this->twrSameSID_flightPlans.end() && depIt->second > 0)
+		{
 			tag.color = TAG_COLOR_DARKGREY;
+		}
 	}
 
 	return tag;
@@ -497,10 +503,14 @@ tagInfo CDelHelX_Tags::GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp)
 	std::string rwy = fpd.GetDepartureRwy();
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
+	{
 		return tag;
+	}
 
 	if (this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end() || this->twrSameSID_flightPlans.at(callSign) == 0)
+	{
 		return tag;
+	}
 
 	auto offsetIt = this->dep_prevTakeoffOffset.find(callSign);
 	if (offsetIt == this->dep_prevTakeoffOffset.end())
@@ -516,7 +526,9 @@ tagInfo CDelHelX_Tags::GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp)
 	{
 		char curWtc = fp.GetFlightPlanData().GetAircraftWtc();
 		if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
+		{
 			timeBased = true;
+		}
 	}
 
 	if (timeBased)
@@ -529,11 +541,17 @@ tagInfo CDelHelX_Tags::GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp)
 		tag.tag = valStr + " s  /" + std::to_string(timeRequired);
 
 		if (offsetSeconds >= (ULONGLONG)timeRequired)
+		{
 			tag.color = TAG_COLOR_GREEN;
+		}
 		else if (offsetSeconds >= (ULONGLONG)(timeRequired - 15))
+		{
 			tag.color = TAG_COLOR_YELLOW;
+		}
 		else
+		{
 			tag.color = TAG_COLOR_RED;
+		}
 	}
 	else
 	{
@@ -572,15 +590,23 @@ tagInfo CDelHelX_Tags::GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp)
 		}
 
 		if (rounded.size() < 4)
+		{
 			rounded = std::string(4 - rounded.size(), ' ') + rounded;
+		}
 		tag.tag = rounded + " nm /" + std::to_string(static_cast<int>(distRequired));
 
 		if (dist >= distRequired)
+		{
 			tag.color = TAG_COLOR_GREEN;
+		}
 		else if (dist >= distRequired - 0.3)
+		{
 			tag.color = TAG_COLOR_YELLOW;
+		}
 		else
+		{
 			tag.color = TAG_COLOR_RED;
+		}
 	}
 
 	return tag;
@@ -665,11 +691,17 @@ tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlug
 			(void)sprintf_s(buf, "%s_%02d:%02d", it->second.designator.c_str(), mm, ss);
 			tag.tag = std::string(buf);
 			if (totalSeconds > 120)
+			{
 				tag.color = TAG_COLOR_GREEN;
+			}
 			else if (totalSeconds > 60)
+			{
 				tag.color = TAG_COLOR_YELLOW;
+			}
 			else
+			{
 				tag.color = TAG_COLOR_RED;
+			}
 		}
 	}
 
@@ -717,16 +749,24 @@ tagInfo CDelHelX_Tags::GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp)
 					{
 						auto leaderIt = this->ttt_distanceToRunway.find(keys[i - 1]);
 					if (leaderIt == this->ttt_distanceToRunway.end())
+					{
 						break; // stale index, bail
+					}
 					double gap = myIt->second - leaderIt->second;
-						(void)sprintf_s(buf, "+%.1f", gap);
-						if (gap > 3.0)
-							tag.color = TAG_COLOR_GREEN;
-						else if (gap > 2.5)
-							tag.color = TAG_COLOR_YELLOW;
-						else
-							tag.color = TAG_COLOR_RED;
-						break;
+					(void)sprintf_s(buf, "+%.1f", gap);
+					if (gap > 3.0)
+					{
+						tag.color = TAG_COLOR_GREEN;
+					}
+					else if (gap > 2.5)
+					{
+						tag.color = TAG_COLOR_YELLOW;
+					}
+					else
+					{
+						tag.color = TAG_COLOR_RED;
+					}
+					break;
 					}
 				}
 			}
@@ -747,7 +787,9 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 
 	auto standIt = this->standAssignment.find(callSign);
 	if (standIt == this->standAssignment.end())
+	{
 		return tag;
+	}
 
 	std::string stand = standIt->second;
 
@@ -755,16 +797,22 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 	auto myPlan = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
 		[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
 	if (myPlan == this->ttt_flightPlans.end())
+	{
 		return tag;
+	}
 
 	auto sortedIt = this->ttt_sortedByRunway.find(myPlan->second.designator);
 	if (sortedIt == this->ttt_sortedByRunway.end())
+	{
 		return tag;
+	}
 
 	const auto& keys = sortedIt->second;
 	auto myIdx = std::find(keys.begin(), keys.end(), myPlan->first);
 	if (myIdx == keys.end())
+	{
 		return tag;
+	}
 
 	// Calculate gap to follower if one exists
 	bool hasFollower = myIdx + 1 != keys.end();
@@ -774,7 +822,9 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 		auto followerIt = this->ttt_distanceToRunway.find(*(myIdx + 1));
 		auto selfIt = this->ttt_distanceToRunway.find(myPlan->first);
 		if (followerIt == this->ttt_distanceToRunway.end() || selfIt == this->ttt_distanceToRunway.end())
+		{
 			return tag; // stale sortedByRunway index, bail until next rebuild
+		}
 		gap = followerIt->second - selfIt->second;
 	}
 
@@ -783,16 +833,22 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
 	to_upper(arr);
 	auto airportIt = this->airports.find(arr);
 	if (airportIt == this->airports.end())
+	{
 		return tag;
+	}
 
 	auto rwyIt = airportIt->second.runways.find(myPlan->second.designator);
 	if (rwyIt == airportIt->second.runways.end())
+	{
 		return tag;
+	}
 
 	for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
 	{
 		if (hasFollower && gap < vp.minGap)
+		{
 			continue;
+		}
 
 		for (auto& pattern : vp.stands)
 		{
@@ -843,14 +899,18 @@ tagInfo CDelHelX_Tags::GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int 
 	this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
 	auto airport = this->airports.find(dep);
 	if (airport == this->airports.end())
+	{
 		return tag;
+	}
 	if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), index, airport->second.runways))
 	{
 		tag.tag = this->flightStripAnnotation[callSign].substr(2);
 		tag.color = TAG_COLOR_GREEN;
 
 		if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
+		{
 			tag.color = TAG_COLOR_ORANGE;
+		}
 
 		if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
 		{
@@ -880,7 +940,9 @@ tagInfo CDelHelX_Tags::GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, Eur
 		to_upper(depAirport);
 		auto airport = this->airports.find(depAirport);
 		if (airport == this->airports.end())
+		{
 			return tag;
+		}
 		std::string groundState = fp.GetGroundState();
 		if (groundState == "TAXI" || groundState == "DEPA")
 		{
@@ -1049,7 +1111,9 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 
 	std::string callSign = fp.GetCallsign();
 	if (this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
+	{
 		return tag;
+	}
 
 	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
 	std::string dep = fpd.GetOrigin();
@@ -1083,10 +1147,10 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 		}
 
 		char subGroup;
-		if (status == "DEPA")        subGroup = '1';
-		else if (status == "LINEUP") subGroup = '2';
-		else if (status == "TAXI")   subGroup = '3';
-		else                         subGroup = '4';
+		if (status == "DEPA")        { subGroup = '1'; }
+		else if (status == "LINEUP") { subGroup = '2'; }
+		else if (status == "TAXI")   { subGroup = '3'; }
+		else                         { subGroup = '4'; }
 
 		char distBuf[16];
 		(void)snprintf(distBuf, sizeof(distBuf), "%05.2f", dist);
@@ -1129,7 +1193,9 @@ tagInfo CDelHelX_Tags::GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp)
 
 	auto twtIt = this->twrSameSID_flightPlans.find(callSign);
 	if (twtIt != this->twrSameSID_flightPlans.end() && twtIt->second != 0)
+	{
 		status = "--DEP--";
+	}
 
 	if (status == "DEPA")
 	{
@@ -1141,7 +1207,7 @@ tagInfo CDelHelX_Tags::GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp)
 		status = "LINE UP";
 		tag.color = TAG_COLOR_TURQ;
 	}
-	if (status == "ST-UP") status = "START-UP";
+	if (status == "ST-UP") { status = "START-UP"; }
 
 	tag.tag = status;
 	return tag;

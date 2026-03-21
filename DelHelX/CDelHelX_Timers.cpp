@@ -153,9 +153,13 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 		for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end(); )
 		{
 			if ((now - it->second) / 1000 > 60)
+			{
 				it = this->ttt_recentlyRemoved.erase(it);
+			}
 			else
+			{
 				++it;
+			}
 		}
 	}
 
@@ -166,7 +170,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 		std::string callSign = fp.GetCallsign();
 
 		if (!pos.IsValid())
+		{
 			continue;
+		}
 
 		for (auto airport = this->airports.begin(); airport != this->airports.end(); ++airport)
 		{
@@ -177,7 +183,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
 
 				if (!isGoAround && !isRecentlyRemoved)
+				{
 					continue;
+				}
 
 				const std::string& opp = rwy->second.opposite;
 				auto position = pos.GetPosition();
@@ -223,7 +231,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 	{
 		auto planIt = this->ttt_flightPlans.find(key);
 		if (planIt != this->ttt_flightPlans.end())
+		{
 			this->ttt_sortedByRunway[planIt->second.designator].push_back(key);
+		}
 	}
 	for (auto& [designator, keys] : this->ttt_sortedByRunway)
 	{
@@ -365,14 +375,18 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 						this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
 						auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
 						if (prevFp.IsValid())
+						{
 							this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+						}
 						if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
 							this->flightStripAnnotation[callSign].length() > 2 && this->flightStripAnnotation[prevCallSign].length() > 2)
 						{
 							std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(2);
 							std::string hp = this->flightStripAnnotation[callSign].substr(2);
 							if (!IsSameHoldingPoint(prevHP, hp, airport->second.runways))
+							{
 								timeRequired += 60;
+							}
 						}
 						this->dep_timeRequired[callSign] = timeRequired;
 					}
@@ -428,7 +442,9 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 {
 	if (this->radarScreen == nullptr)
+	{
 		return;
+	}
 
 	if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
 	{
@@ -553,7 +569,9 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 void CDelHelX_Timers::CheckReconnects()
 {
 	if (!this->autoRestore || this->reconnect_pending.empty())
+	{
 		return;
+	}
 
 	constexpr ULONGLONG timeoutMs = 90000ULL;
 	ULONGLONG now = GetTickCount64();
@@ -567,22 +585,30 @@ void CDelHelX_Timers::CheckReconnects()
 			it = this->reconnect_pending.erase(it);
 		}
 		else
+		{
 			++it;
+		}
 	}
 
 	if (this->reconnect_pending.empty())
+	{
 		return;
+	}
 
 	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
 	{
 		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
 		if (!fp.IsValid())
+		{
 			continue;
+		}
 
 		std::string callSign = fp.GetCallsign();
 		auto pendingIt = this->reconnect_pending.find(callSign);
 		if (pendingIt == this->reconnect_pending.end())
+		{
 			continue;
+		}
 
 		const reconnectSnapshot& snap = pendingIt->second;
 		EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
@@ -642,8 +668,11 @@ void CDelHelX_Timers::CheckReconnects()
 			fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
 		}
 
-		this->LogMessage("Auto-restored state for " + callSign + " (clearance=" +
-			(snap.clearanceFlag ? "yes" : "no") + ", gnd=" + snap.savedGroundStatus + ")", "AutoRestore");
+		if (snap.clearanceFlag || !snap.savedGroundStatus.empty())
+		{
+			this->LogMessage("Auto-restored state for " + callSign + " (clearance=" +
+				(snap.clearanceFlag ? "yes" : "no") + ", gnd=" + snap.savedGroundStatus + ")", "AutoRestore");
+		}
 
 		this->reconnect_pending.erase(pendingIt);
 	}

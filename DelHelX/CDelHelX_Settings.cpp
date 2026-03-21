@@ -37,7 +37,9 @@ void CDelHelX_Settings::LoadSettings()
 		std::istringstream(splitSettings[1]) >> this->flashOnMessage;
 		std::istringstream(splitSettings[2]) >> this->debug;
 		if (splitSettings.size() >= 4)
+		{
 			std::istringstream(splitSettings[3]) >> this->autoRestore;
+		}
 
 		this->LogMessage("Successfully loaded settings.", "Settings");
 	}

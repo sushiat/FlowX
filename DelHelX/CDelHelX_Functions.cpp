@@ -10,7 +10,9 @@ void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScope
 {
 	auto tag = this->GetPushStartHelperTag(fp, rt);
 	if (tag.color == TAG_COLOR_RED)
+	{
 		return;
+	}
 
 	std::string dep = fp.GetFlightPlanData().GetOrigin();
 	to_upper(dep);
