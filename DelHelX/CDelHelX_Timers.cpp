@@ -32,7 +32,7 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
 							airport.second.nap_reminder.triggered = true;
 
 							Beep(1568, 300);
-							MessageBox(nullptr, ("What's the NAP procedure for " + airport.first + " tonight?").c_str(), "DelHelX Plugin", MB_OK | MB_ICONQUESTION | MB_TOPMOST);
+							MessageBoxA(nullptr, ("What's the NAP procedure for " + airport.first + " tonight?").c_str(), "DelHelX Plugin", MB_OK | MB_ICONQUESTION | MB_TOPMOST);
 						}
 					}
 				}
@@ -638,7 +638,14 @@ void CDelHelX_Timers::CheckReconnects()
 		if (std::string(fpd.GetAircraftFPType()) != snap.aircraftType) { logMismatch("aircraftType", fpd.GetAircraftFPType(),  snap.aircraftType); match = false; }
 		if (fpd.GetAircraftWtc()                     != snap.wtc)		   { logMismatch("wtc",          std::string(1, fpd.GetAircraftWtc()), std::string(1, snap.wtc)); match = false; }
 		if (std::string(fpd.GetPlanType())       != snap.planType)     { logMismatch("planType",     fpd.GetPlanType(),        snap.planType);     match = false; }
-		if (std::string(fpd.GetRoute())          != snap.route)        { logMismatch("route",        fpd.GetRoute(),           snap.route);        match = false; }
+		{
+			auto trimRoute = [](std::string s) -> std::string {
+				s.erase(0, s.find_first_not_of(" \t\r\n"));
+				s.erase(s.find_last_not_of(" \t\r\n") + 1);
+				return s;
+			};
+			if (trimRoute(std::string(fpd.GetRoute())) != trimRoute(snap.route)) { logMismatch("route", fpd.GetRoute(), snap.route); match = false; }
+		}
 		if (std::string(fpd.GetSidName())        != snap.sidName)      { logMismatch("sidName",      fpd.GetSidName(),         snap.sidName);      match = false; }
 		if (std::string(fpcad.GetSquawk())       != snap.squawk)       { logMismatch("squawk",       fpcad.GetSquawk(),        snap.squawk); match = false; }
 
