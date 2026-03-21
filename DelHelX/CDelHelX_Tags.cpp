@@ -600,6 +600,28 @@ tagInfo CDelHelX_Tags::GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp)
 	return tag;
 }
 
+/// @brief Builds the assigned arrival runway tag showing the flight-plan arrival runway, including a red/yellow warning if it doesn't match current inbound runway.
+/// @param fp Flight plan being evaluated.
+/// @return tagInfo with the runway designator string.
+tagInfo CDelHelX_Tags::GetAssignedArrivalRwyTag(EuroScopePlugIn::CFlightPlan& fp)
+{
+	tagInfo tag;
+	EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+	std::string rwy = fpd.GetArrivalRwy();
+	tag.tag = rwy;
+
+	// If the aircraft is on the TTT inbound list but assigned to a different runway, warn with red/yellow blinking
+	std::string callSign = fp.GetCallsign();
+	auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+		[&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
+	if (it != this->ttt_flightPlans.end() && it->second.designator != rwy)
+	{
+		tag.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
+	}
+
+	return tag;
+}
+
 /// @brief Builds the TTT (time-to-touchdown) tag for an inbound aircraft.
 /// @param fp Flight plan being evaluated.
 /// @param rt Correlated radar target.

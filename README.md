@@ -35,7 +35,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `DelHelX.dll`.
 4. Successful load is confirmed in the **Messages** chat:
    ```
-   [08:34:10] DelHelX: Version 0.5.0 loaded.
+   [08:34:10] DelHelX: Version 0.6.0 loaded.
    ```
 5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
@@ -109,6 +109,7 @@ Required time is computed from holding point configuration (default 120 s).
 |---|---|---|
 | **TTT** | `29_03:42` / `29_-042` | Time to touchdown based on distance and groundspeed, prefixed with the arrival runway designator (e.g. `29_03:42`). Colour-coded green (>2 min) / yellow (>1 min) / red (<1 min). Go-arounds show a negative elapsed counter (e.g. `29_-042`) blinking red/yellow. |
 | **Inbound NM** | `8.4` / `+2.3` | Two display modes. The **leading** inbound on each runway shows its absolute distance to the threshold (e.g. `8.4`). All **following** aircraft show the gap to the aircraft ahead prefixed with `+` (e.g. `+2.3`), colour-coded green (>3 nm) / yellow (>2.5 nm) / red (<2.5 nm). |
+| **Assigned Arrival RWY** | `29` | Arrival runway from the flight plan. Blinks red/yellow if the aircraft is tracked in the TTT list but approaching a different runway than assigned. |
 | **Suggested Vacate** | `A4` | Recommended vacate point based on the aircraft's assigned stand and the gap to the following (trailing) inbound, from `vacatePoints` in config. |
 
 ---
@@ -171,6 +172,7 @@ Tracks aircraft on approach ordered by distance to the runway threshold. Columns
 | ATYP | TopSky | Aircraft type | — | — |
 | Gate | Ground Radar | Assigned stand | Open stand menu | Auto stand assignment |
 | Vacate | DelHelX | Suggested vacate point | — | — |
+| RWY | DelHelX | Assigned arrival runway (Assigned Arrival RWY). Blinks red/yellow if the aircraft is tracked in TTT but approaching a different runway than assigned. | Assign runway | — |
 
 ---
 

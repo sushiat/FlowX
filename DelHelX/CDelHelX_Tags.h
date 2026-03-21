@@ -87,4 +87,9 @@ protected:
 	/// @param fp Flight plan being evaluated.
 	/// @return tagInfo with the expanded state label and colour.
 	tagInfo GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp);
+
+	/// @brief Builds the assigned arrival runway tag showing the flight-plan arrival runway, including a red/yellow warning if it doesn't match current inbound runway.
+	/// @param fp Flight plan being evaluated.
+	/// @return tagInfo with the runway designator string.
+	tagInfo GetAssignedArrivalRwyTag(EuroScopePlugIn::CFlightPlan& fp);
 };

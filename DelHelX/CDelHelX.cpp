@@ -286,6 +286,14 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
 	{
 		tag = this->GetGndStateExpandedTag(FlightPlan);
 	}
+	else if (ItemCode == TAG_ITEM_ASSIGNED_ARR_RUNWAY)
+	{
+		tag = this->GetAssignedArrivalRwyTag(FlightPlan);
+	}
+	else
+	{
+		return;
+	}
 
 	*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 	strcpy_s(sItemString, 16, tag.tag.c_str());

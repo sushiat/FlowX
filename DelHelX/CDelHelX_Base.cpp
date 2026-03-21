@@ -55,6 +55,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->RegisterTagItemType("TWR Next Freq", TAG_ITEM_TWR_NEXT_FREQ);
 	this->RegisterTagItemType("TWR Sort Key", TAG_ITEM_TWR_SORT);
 	this->RegisterTagItemType("GND state expanded", TAG_ITEM_GND_STATE_EXPANDED);
+	this->RegisterTagItemType("Assigned Arrival RWY", TAG_ITEM_ASSIGNED_ARR_RUNWAY);
 
 	this->RegisterDisplayType(PLUGIN_NAME, true, false, false, false);
 
@@ -81,14 +82,15 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 	this->tttInbound = this->RegisterFpList("TWR Inbound");
 	if (this->tttInbound.GetColumnNumber() == 0)
 	{
-		this->tttInbound.AddColumnDefinition("TTT", 12, false, PLUGIN_NAME, TAG_ITEM_TTT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->tttInbound.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->tttInbound.AddColumnDefinition("TTT", 12, false, PLUGIN_NAME, TAG_ITEM_TTT, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_TAKE_HANDOFF, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->tttInbound.AddColumnDefinition("C/S", 12, false, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_CALLSIGN, PLUGIN_NAME, TAG_FUNC_CLRD_TO_LAND, PLUGIN_NAME, TAG_FUNC_MISSED_APP);
 		this->tttInbound.AddColumnDefinition("NM", 8, false, PLUGIN_NAME, TAG_ITEM_INBOUND_NM, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("SPD", 5, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_GROUND_SPEED_WOUT_N, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("WTC", 4, true, NULL, EuroScopePlugIn::TAG_ITEM_TYPE_AIRCRAFT_CATEGORY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 		this->tttInbound.AddColumnDefinition("ATYP", 8, false, TOPSKY_PLUGIN_NAME, TOPSKY_TAG_TYPE_ATYP, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
-		this->tttInbound.AddColumnDefinition("Gate", 5, true, GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_ASSIGNED_STAND, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->tttInbound.AddColumnDefinition("Gate", 5, true, GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, PLUGIN_NAME, TAG_FUNC_STAND_AUTO, GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_FUNC_STAND_MENU);
 		this->tttInbound.AddColumnDefinition("Vacate", 7, true, PLUGIN_NAME, TAG_ITEM_SUGGESTED_VACATE, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
+		this->tttInbound.AddColumnDefinition("RWY", 7, true, PLUGIN_NAME, TAG_ITEM_ASSIGNED_ARR_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, NULL, EuroScopePlugIn::TAG_ITEM_FUNCTION_NO);
 	}
 	this->tttInbound.ShowFpList(true);
 }

@@ -5,7 +5,7 @@
 /// Plugin display name shown in EuroScope
 #define PLUGIN_NAME    "DelHelX"
 /// Current plugin version string (semver)
-#define PLUGIN_VERSION "0.5.0"
+#define PLUGIN_VERSION "0.6.0"
 /// Plugin author name
 #define PLUGIN_AUTHOR  "Markus Korbel"
 /// Plugin license string
@@ -28,7 +28,7 @@ const int TAG_ITEM_HP1                 = 5;  ///< Holding point slot 1
 const int TAG_ITEM_HP2                 = 6;  ///< Holding point slot 2
 const int TAG_ITEM_HP3                 = 7;  ///< Holding point slot 3
 const int TAG_ITEM_HPO                 = 8;  ///< Holding point "other" (free-text) slot
-// 9 unused
+const int TAG_ITEM_ASSIGNED_ARR_RUNWAY = 9;  ///< Assigned arrival runway
 const int TAG_ITEM_TAKEOFF_SPACING     = 10; ///< Takeoff spacing / time-separation indicator
 const int TAG_ITEM_ASSIGNED_RUNWAY     = 11; ///< Assigned departure runway
 const int TAG_ITEM_DEPARTURE_INFO      = 12; ///< Departure information overlay (SID, T-flag)
@@ -83,7 +83,8 @@ const int      TOPSKY_TAG_TYPE_ATYP               = 10028;        ///< TopSky ta
 
 /// @defgroup GroundRadarIntegration Constants for Ground Radar plugin interop
 /// @{
-constexpr auto GROUNDRADAR_PLUGIN_NAME         = "Ground Radar plugin"; ///< EuroScope name of the Ground Radar plugin
-const int      GROUNDRADAR_TAG_TYPE_GROUNDSTATUS = 3;                   ///< Ground Radar tag item type for ground status
-const int      GROUNDRADAR_ASSIGNED_STAND        = 2;                   ///< Ground Radar tag item type for assigned stand
+constexpr auto GROUNDRADAR_PLUGIN_NAME                  = "Ground Radar plugin"; ///< EuroScope name of the Ground Radar plugin
+const int      GROUNDRADAR_TAG_TYPE_GROUNDSTATUS		  = 3;                   ///< Ground Radar tag item type for ground status
+const int      GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND        = 2;                   ///< Ground Radar tag item type for assigned stand
+const int      GROUNDRADAR_TAG_FUNC_STAND_MENU            = 1;                   ///< Ground Radar function ID to open the stand assignment menu
 /// @}
