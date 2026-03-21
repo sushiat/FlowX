@@ -479,6 +479,10 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 	std::string station = sStation;
 	to_upper(station);
 
+	auto& storedMetar = this->lastMetar[station];
+	if (storedMetar == sFullMetar) { return; }
+	storedMetar = sFullMetar;
+
 	this->LogDebugMessage("New METAR for station " + station + ": " + sFullMetar, "Metar");
 
 	auto airport = this->airports.find(station);
