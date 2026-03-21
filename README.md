@@ -310,8 +310,8 @@ Per-runway configuration keyed by runway designator.
 |---|---|---|
 | `opposite` | string | Reciprocal runway designator (used for go-around detection) |
 | `threshold` | object | `{ "lat": ..., "lon": ... }` — runway threshold coordinates |
-| `sidGroups` | object | SID key prefix → group number. Aircraft in the same group share a colour and get 5 nm spacing instead of 3 nm. |
-| `sidColors` | object | SID key prefix → colour name (`green`, `orange`, `turq`, `purple`, `red`, `white`, `yellow`) |
+| `sidGroups` | object | Group number → array of SID prefixes. Aircraft in the same group get 5 nm spacing instead of 3 nm. |
+| `sidColors` | object | Colour name → array of SID prefixes. Valid colours: `green`, `orange`, `turq`, `purple`, `red`, `white`, `yellow`. SIDs omitted here default to white. |
 | `holdingPoints` | object | Named holding point definitions (see below) |
 | `vacatePoints` | object | Named vacate point definitions (see below) |
 
@@ -321,12 +321,12 @@ Per-runway configuration keyed by runway designator.
         "opposite": "29",
         "threshold": { "lat": 48.122766, "lon": 16.533610 },
         "sidGroups": {
-            "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
-            "OSPEN": 2, "RUPET": 2
+            "1": ["LANUX", "BUWUT", "LEDVA"],
+            "2": ["OSPEN", "RUPET"]
         },
         "sidColors": {
-            "LANUX": "green", "BUWUT": "green",
-            "OSPEN": "orange", "RUPET": "orange"
+            "green":  ["LANUX", "BUWUT", "LEDVA"],
+            "orange": ["OSPEN", "RUPET"]
         },
         ...
     }

@@ -62,9 +62,9 @@ struct runway
 
 	std::map<std::string, holdingPoint> holdingPoints = {}; ///< Named holding points on this runway
 
-	std::map<std::string, int> sidGroups = {};              ///< SID key -> group number for same-SID tracking
+	std::map<std::string, int> sidGroups = {};              ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
 
-	std::map<std::string, std::string> sidColors = {};      ///< SID key -> colour name for tag colouring
+	std::map<std::string, std::string> sidColors = {};      ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
 
 	std::map<std::string, vacatePoint> vacatePoints = {};   ///< Named vacate points on this runway
 };

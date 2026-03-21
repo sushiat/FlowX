@@ -213,14 +213,17 @@ void CDelHelX_Settings::LoadConfig()
 				rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
 				rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
 
-				for (auto& [sidKey, group] : json_rwy["sidGroups"].items())
+				for (auto& [groupKey, sids] : json_rwy["sidGroups"].items())
 				{
-					rwy.sidGroups.emplace(sidKey, group.get<int>());
+					int groupNum = std::stoi(groupKey);
+					for (auto& sid : sids)
+						rwy.sidGroups.emplace(sid.get<std::string>(), groupNum);
 				}
 
-				for (auto& [sidKey, color] : json_rwy["sidColors"].items())
+				for (auto& [color, sids] : json_rwy["sidColors"].items())
 				{
-					rwy.sidColors.emplace(sidKey, color.get<std::string>());
+					for (auto& sid : sids)
+						rwy.sidColors.emplace(sid.get<std::string>(), color);
 				}
 
 				for (auto& [hpName, json_hp] : json_rwy["holdingPoints"].items())
