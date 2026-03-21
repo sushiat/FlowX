@@ -90,4 +90,4 @@ All commands prefixed with `.delhelx` in the EuroScope chat:
 - Do not create temporary PowerShell scripts in the project directory for file edits.
 - Precompiled header is `pch.h` — include it first in every `.cpp`.
 - Update documentation
-- Don't auto commit
+- Don't auto commit — wait for explicit "commit" instruction; when committing, also push to remote.
