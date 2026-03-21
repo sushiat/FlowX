@@ -78,8 +78,6 @@ struct airport
 
 	std::string twrFreq; ///< Default tower frequency string
 
-	std::string appFreq; ///< Default approach frequency string
-
 	int fieldElevation = 0;          ///< Field elevation in feet (used to detect airborne state)
 
 	int airborneTransfer = 0;        ///< Altitude (ft) above which the TWR next-freq tag changes colour
@@ -98,7 +96,7 @@ struct airport
 
 	std::string defaultAppFreq;                                ///< Default approach frequency (used when no SID-specific one matches)
 
-	std::map<std::string, std::string> nightTimeSids = {};     ///< Daytime SID key -> night-time SID name substitutions
+	std::map<std::string, std::string> nightTimeSids = {};     ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
 
 	std::map<std::string, std::vector<std::string>> sidAppFreqs = {}; ///< Approach frequency -> list of SIDs that use it
 

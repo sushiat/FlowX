@@ -1,165 +1,412 @@
 # DelHelX
 
-`DelHelX` helps VATSIM controllers by automating delivery related checks and adding a few convenience features in EuroScope.
+DelHelX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure management tooling, same-SID / wake-turbulence separation tracking, inbound time-to-touchdown display, automatic holding point detection, and a range of convenience functions.
+
+The plugin ships with a `config.json` file that defines all airport-specific data. It is currently configured for **LOWW (Vienna International Airport)**. Adding other airports requires only changes to `config.json` — no recompilation is needed.
+
+---
 
 ## Table of Contents
 
--   [Getting started](#getting-started)
-    -   [Prerequisites](#prerequisites)
-    -   [Installation](#installation)
--   [Push+Start indications](#pushstart-indications)
--   [Chat commands](#chat-commands)
--   [Contributing](#contributing)
-    -   [Development setup](#development-setup)
--   [License](#license)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+- [Tag Items](#tag-items)
+- [Tag Functions](#tag-functions)
+- [Flight Plan Lists](#flight-plan-lists)
+- [Chat Commands](#chat-commands)
+- [config.json Reference](#configjson-reference)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Getting started
+---
+
+## Getting Started
 
 ### Prerequisites
 
-Since `DelHelX` was developed as an EuroScope plugin, it requires a working installation [EuroScope](https://euroscope.hu/). The initial development was started using EuroScope version [`v3.2.9`](https://www.euroscope.hu/wp/2020/06/28/v3-2-1-25/), although the plugin should most likely also work fine with previous and later versions. It has been tested and confirmed working with version 3.2.3. As development continues, compatibility to the latest **beta** versions of EuroScope will be maintained as long as possible and feasible.
+- [EuroScope](https://euroscope.hu/) (developed against v3.2.9, confirmed working with v3.2.3 and later beta versions)
+- A sector file / profile that includes the airports you want to configure in `config.json`
 
 ### Installation
 
-1. Download the latest release (`DelHelX.zip`) of `DelHelX` from the [**Releases**](https://github.com/sushiat/DelHelX/releases/latest) section of this repository
-2. Extract `DelHelX.dll` and `config.json` and place both into your plugin directory (most likely somewhere inside your EuroScope sectorfile/profile setup, where other plugins are already set up)
-3. Start EuroScope and open the **Plug-ins** dialog in the settings menu (**OTHER SET**)
-   ![Plug-ins dialog](Screenshots/1plugins.png)
-4. **Load** the plugin by selecting the `DelHelX.dll` you extracted and ensure the proper version is displayed
-   ![Load plugin](Screenshots/2delhelx.png)
-   
-   `DelHelX` will also confirm successful initialisation by logging its version to the **Messages** chat:
-   
-   `[08:34:10] DelHelX: Version 0.1.0 loaded.`
-6. Close the plugin dialog and open the departure list columns setup dialog (small **S** at the left side of your departure list)
-   ![Departure list columns setup dialog](Screenshots/3deplist.png)
-7. (_Optional_) Add the **Push+Start Helper** column to your departure list by clicking **Add Item** and selecting the `DelHelX / Push+Start Helper` **Tag Item type**. Pick a **Header name** and set a **Width** of 13 or greater. This column will display flight plan validations and warnings as well as next frequencies and missing suawk assignments that need to be verified before an aircraft can be released for push and start. Assign the `DelHelX / Set ONFREQ/STUP/PUSH` action as the **Left button** or **Right button** action of desired. Triggering this function will release the aircraft to the next controller or startup state/onfreq state depending of the position of the current controller.
-8. (_Optional_) Add the **Taxi out?** column to your departure list, it's item type is `DelHelX / Taxi out?`. The column will display a normal "P" for aircraft requiring pushback and a green "T" for taxi out stands.
-   ![Taxi out](Screenshots/4taxiout.png)
-9. (_Optional_) Add the **New QNH** column to your departure list, it's item type is `DelHelX / New QNH`. The column will add an orange "X" to aircraft that already have clearances when a METART change contains a new QNH or Altimeter setting. After informing the aircraft and receiving the read-back, click the orange "X" to remove it, confirming this aircraft has the new QNH setting. To enable the clearing action add the `DelHelX / Clear new QNH` action to your **Left button** or **Right button** action.
-   ![New QNH](Screenshots/5newqnh.png)
-11. Close the departure list settings by clicking **OK**
+1. Download the latest `DelHelX.zip` from the [Releases](https://github.com/sushiat/DelHelX/releases/latest) page.
+2. Extract `DelHelX.dll` and `config.json` into your plugin directory.
+3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `DelHelX.dll`.
+4. Successful load is confirmed in the **Messages** chat:
+   ```
+   [08:34:10] DelHelX: Version 0.5.0 loaded.
+   ```
+5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
-## Push+Start indications
+---
 
-If the column is empty the aircraft is either already past the delivery phase (at least STUP clearance) or is departing from an airport not in the config of `DelHelX`.
+## Tag Items
 
-##### `!RWY`
-Error, red  
-The aircraft has no assigned departure runway.
+Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = DelHelX / \<name\>**.
 
-#### `!ASSR`
-Error, red
-The aircraft has no assigned squawk code.
+### Delivery / Ground tags
 
-#### `!CLR`
-Error, red
-The aircraft has no clearance flag set.
+| Tag Item | Typical display | Description |
+|---|---|---|
+| **Push+Start Helper** | `->121.600` / `OK` / `!RWY` / `...` | Validates the flight plan and shows the next frequency or an error code. Left/right click triggers the ONFREQ/ST-UP/PUSH function. See table below for all values. |
+| **Taxi Out?** | `T` / `P` | Green `T` for taxi-out stands, `P` for pushback stands. Determined by point-in-polygon against `taxiOutStands` polygons in config. |
+| **New QNH** | `X` (orange) | Appears when a METAR change contains a new QNH and the aircraft already has a clearance. Click to acknowledge. |
+| **GND State Expanded** | `TAXI` / `LINE UP` / `TAKE OFF` / `...` | Human-readable expansion of the EuroScope ground state. See table below for all states. |
+| **Departure Info** | `OK` / `45s` / `2.3nm` | Departure readiness relative to the previous departure from the same runway. Shows time remaining (seconds) or distance gap (nm) until separation is met. Green = OK or close, yellow = almost, red = not yet. |
 
-#### `1234->OK or Freq`
-Warning, orange
-The aircraft has not set it's assigned squawk code, plus either OK or the next frequency. See next two entry for details.
+#### Push+Start Helper states
 
-#### `OK`
-Info, green
-The aircraft is cleared and ready for push+start or startup AND the current controller is at least GROUND and can issue that clearance. If the current controller is DELIVERY the next frequency will displayed instead.
+The following table details all possible states shown by the **Push+Start Helper** tag above. Each state maps to a display string and colour; the table below describes what each means.
 
-#### `->121.775`
-Info, green
-The aircraft is cleared and ready but the current controller doesn't have the permission to issue the push+start or startup clearance. The frequency of the next controller is displayed (GND if online, then TWR, APP, CTR, etc.). If no controller above is online the UNICOM frequency of 122.8 will be displayed.
+| Display | Colour | Meaning |
+|---|---|---|
+| `!RWY` | Red | No departure runway assigned |
+| `!ASSR` | Red | No squawk code assigned |
+| `!CLR` | Red | No clearance flag set |
+| `1234 !CLR` | Orange | Squawk not set by pilot, plus the clearance error above |
+| `OK` | Green | Cleared and ready; current position is GND or above |
+| `->121.600` | Green | Cleared and ready; shows next frequency (GND, TWR, APP, CTR, or UNICOM) |
+| `->121.600` | Yellow/White blinking | Aircraft is near the holding point or runway threshold |
 
-## Chat commands
+#### GND State Expanded states
 
-Chat commands allow more fine-grained control of `DelHelX`'s behavior and some convinience functions not available via UI elements. Every chat command is prefixed with `.delhelx` and can be entered in every chat channel available. Executing `.delhelx` without any additional commands prints the version loaded and a list of commands available.
+| Display | Colour | Meaning |
+|---|---|---|
+| `ONFREQ` | Default | Aircraft is on frequency |
+| `START-UP` | Default | Startup/pushback clearance given (ST-UP) |
+| `TAXI` | Default | Aircraft taxiing |
+| `LINE UP` | Turquoise | Lined up on runway (LINEUP) |
+| `TAKE OFF` | Green | Departed (DEPA) |
+| `--DEP--` | Default | Aircraft has taken off and is being tracked as a departure |
 
-#### Toggle debug mode
+### Tower departure tags
 
-`.delhelx debug`
+| Tag Item | Typical display | Description |
+|---|---|---|
+| **Departure Info** | `OK` / `45s` / `2.3nm` | Departure readiness relative to the previous departure from the same runway. Also listed under Delivery/Ground tags — applies once the aircraft is in TAXI or DEPA state. |
+| **Assigned Runway** | `11` | Departure runway from the flight plan. |
+| **HP1 / HP2 / HP3** | `A12` / `A12*` | Holding point assigned to slot 1/2/3. Starred (`*`) if it is a request awaiting readback. Orange if the assignment was set but not yet confirmed. |
+| **HP Other** | `A9` | Freely assigned holding point from a popup list. |
+| **Takeoff Spacing** | ` 90  [120]` / `4.2 nm [3]` | Shows time or distance separation from the previous departure. **Time** (lighter follows heavier) or **distance** (equal/heavier follows lighter). Colour-coded green/yellow/red against the required value. |
+| **TWR Sort Key** | *(internal sort string)* | Internal key used to sort the TWR Outbound list — not intended to be human-readable. Only used for list ordering; suggest setting column width to 1. |
+| **TWR Next Freq** | `->123.800` | Next handoff frequency for a departing aircraft (approach, centre, or UNICOM). Turns turquoise at the transfer altitude and blinks orange at the transfer altitude warning threshold. Displays `!MODE-C` (blinking orange/red) when the aircraft is airborne but the transponder isn't in Mode-C. |
 
-Toggles debug mode, which adds many more log messages about the internal operation of the plugin.
+#### Takeoff Spacing format
 
-This setting will be saved to the Euroscope settings upon exit.
+```
+ 90  s  /120    ← time (s) / required (s)   — lighter follows heavier
+4.2 nm /3       ← distance (nm) / required  — equal or heavier follows lighter
+---             ← no preceding departure recorded
+```
 
-#### Toggle update checks
+Required distance is 3 nm by default, 5 nm when both aircraft are in the same SID group.
+Required time is computed from holding point configuration (default 120 s).
 
-`.delhelx update`
+### Inbound tags
 
-Toggles the plugin update check upon EuroScope startup.
+| Tag Item | Typical display | Description |
+|---|---|---|
+| **TTT** | `29_03:42` / `29_-042` | Time to touchdown based on distance and groundspeed, prefixed with the arrival runway designator (e.g. `29_03:42`). Colour-coded green (>2 min) / yellow (>1 min) / red (<1 min). Go-arounds show a negative elapsed counter (e.g. `29_-042`) blinking red/yellow. |
+| **Inbound NM** | `8.4` / `+2.3` | Two display modes. The **leading** inbound on each runway shows its absolute distance to the threshold (e.g. `8.4`). All **following** aircraft show the gap to the aircraft ahead prefixed with `+` (e.g. `+2.3`), colour-coded green (>3 nm) / yellow (>2.5 nm) / red (<2.5 nm). |
+| **Suggested Vacate** | `A4` | Recommended vacate point based on the aircraft's assigned stand and the gap to the following (trailing) inbound, from `vacatePoints` in config. |
 
-If enabled, `DelHelX` will check this repository for newer releases of the plugin, displaying a message should an update be available.
+---
 
-This setting will be saved to the EuroScope settings upon exit.
+## Tag Functions
 
+Tag functions are assigned to the **Left button** or **Right button** action of a tag column.
 
-#### Toggle flashing of DelHelX messages
+| Function | Description |
+|---|---|
+| **Set ONFREQ/ST-UP/PUSH** | Sets the appropriate ground state. DEL position: sets ONFREQ. GND/TWR: detects push vs. taxi-out stand and sets ST-UP or ONFREQ accordingly. |
+| **Clear New QNH** | Removes the new-QNH flag from the flight strip so the orange `X` disappears. |
+| **Assign HP1 / HP2 / HP3** | Writes the runway's default holding point for that slot into flight-strip annotation slot 8 and syncs to other controllers. |
+| **Request HP1 / HP2 / HP3** | Same as Assign, but appends `*` to indicate a readback is pending. |
+| **Assign Other HP** | Opens a popup list of all `assignable` holding points. Selection writes the choice to slot 8. |
+| **Request Other HP** | Same as Assign Other HP, but appends `*`. |
+| **Line Up** | Sets the LINEUP ground state. |
+| **Take Off** | Sets the DEPA ground state and starts departure tracking. |
+| **Transfer Next** | Hands the aircraft off to approach, centre, or drops tracking. Picks the SID-specific approach frequency when configured. |
+| **Cleared to Land** | Drops tracking and triggers the TopSky Strong-Highlight cleared-to-land indicator. |
+| **Missed Approach** | Starts tracking, assigns 5000 ft, and triggers the TopSky missed-approach highlight. |
+| **Auto Stand Assignment** | Triggers automatic stand assignment via the Ground Radar plugin. |
 
-`.delhelx flash`
+---
 
-Toggles flashing of unread message indicator for messages in the DelHelX group. Note that, once disabled, all `DelHelX` messages will continue to flash until you have restarted EuroScope (saving your plugin settings). This unfortunately seems to be a EuroScope limitation we cannot work around.
+## Flight Plan Lists
 
-This setting will be saved to the EuroScope settings upon exit.
+DelHelX registers two built-in flight plan lists that appear automatically on first load.
 
-#### GND override
+### TWR Outbound
 
-`.delhelx gnd`
+Tracks all departing aircraft from takeoff until they leave the controlled area. Columns:
 
-Toggles ground "online" override. This forces DelHelX to display ground frequencies even when it doesn't detect the station online. This is useful when a tower controller has the ground frequencies cross-coupled and is anticipating a ground controller to come online shortly.
+| Column | Source | Description | Left click | Right click |
+|---|---|---|---|---|
+| C/S | EuroScope | Callsign | — | — |
+| STS | DelHelX | Ground state (GND State Expanded) | Line Up | Take Off |
+| DEP? | DelHelX | Departure readiness relative to previous departure (Departure Info) | — | — |
+| RWY | DelHelX | Assigned departure runway | — | — |
+| SID | DelHelX | SID name colour-coded by group (Same SID tracker) | — | — |
+| WTC | EuroScope | Wake turbulence category | — | — |
+| ATYP | TopSky | Aircraft type | — | — |
+| Freq | DelHelX | Next handoff frequency (TWR Next Freq) | Transfer Next | — |
+| HP1–HP3 | DelHelX | Holding point slots | Assign HP | Request HP (pending readback) |
+| HPO | DelHelX | Other holding point | Assign Other HP | Request Other HP |
+| Spacing | DelHelX | Takeoff spacing (time or distance) | — | — |
+| S | DelHelX | TWR sort key (internal, width 1) | — | — |
 
-This setting will not be saved and is for the current session only.
+### TWR Inbound
 
-#### TWR override
+Tracks aircraft on approach ordered by distance to the runway threshold. Columns:
 
-`.delhelx twr`
+| Column | Source | Description | Left click | Right click |
+|---|---|---|---|---|
+| TTT | DelHelX | Time to touchdown, prefixed with runway designator (e.g. `29_03:42`) | — | — |
+| C/S | EuroScope | Callsign | — | — |
+| NM | DelHelX | Distance to threshold or gap to leading inbound | — | — |
+| SPD | EuroScope | Ground speed | — | — |
+| WTC | EuroScope | Wake turbulence category | — | — |
+| ATYP | TopSky | Aircraft type | — | — |
+| Gate | Ground Radar | Assigned stand | — | — |
+| Vacate | DelHelX | Suggested vacate point | — | — |
 
-Toggles tower "online" override. This forces DelHelX to display tower frequencies even when it doesn't detect the station online. This is useful when an approach controller has the tower frequencies cross-coupled and is anticipating a tower controller to come online shortly.
+---
 
-This setting will not be saved and is for the current session only.
+## Chat Commands
 
-#### Redo clearance flags
+All commands are entered in any EuroScope chat channel, prefixed with `.delhelx`.
+Running `.delhelx` alone prints the loaded version and a command list.
 
-`.delhelx redoflags`
+| Command | Saved | Description |
+|---|---|---|
+| `.delhelx debug` | Yes | Toggle verbose debug logging in the Messages window |
+| `.delhelx update` | Yes | Toggle the background update check on startup |
+| `.delhelx flash` | Yes | Toggle flashing of unread message indicator for DelHelX messages |
+| `.delhelx gnd` | No | Force ground station to be treated as online (cross-coupling scenarios) |
+| `.delhelx twr` | No | Force tower station to be treated as online (cross-coupling scenarios) |
+| `.delhelx redoflags` | — | Toggle all existing clearance flags off then back on (useful for newly joined controllers) |
+| `.delhelx reset` | — | Reload `config.json` and reset all settings to defaults |
+| `.delhelx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
 
-Toggles all clearance flags for aircraft with existing clearances OFF then back ON. This allows newly joined controllers to see all aircraft with existing clearances. Use this instead of clicking them all one by one.
+---
 
-#### Plugin reset
+## config.json Reference
 
-`.delhelx reset`
+`config.json` lives alongside the DLL and is loaded at startup. It is a JSON object keyed by ICAO airport code. Multiple airports can be defined.
 
-Resets all the configuration of DelHelX to their defaults, including saved settings.
+```json
+{
+    "LOWW": { ... },
+    "LOWI": { ... }
+}
+```
 
-#### Disable FPLN checks (testing only)
+### Top-level airport fields
 
-`.delhelx nocheck`
+| Field | Type | Description |
+|---|---|---|
+| `fieldElevation` | integer | Airport elevation in feet, used for airborne detection |
+| `airborneTransfer` | integer | Altitude (ft) at which the TWR Next Freq tag turns turquoise |
+| `airborneTransferWarning` | integer | Altitude (ft) at which it starts blinking orange |
+| `gndFreq` | string | Default ground frequency |
+| `twrFreq` | string | Default tower frequency |
+| `defaultAppFreq` | string | Default approach frequency used when no SID-specific match exists |
+| `ctrStations` | array of strings | Callsign prefixes considered as centre stations (e.g. `"LOVV_CTR"`) |
 
-Toggles the flight plan checks, this is a testing feature only and should never be used when actively controlling. Checks skipped are `!RWY`, `!ASSR` and `!CLR`.
+```json
+"fieldElevation": 600,
+"airborneTransfer": 1500,
+"airborneTransferWarning": 3000,
+"gndFreq": "121.6",
+"twrFreq": "123.8",
+"defaultAppFreq": "134.675",
+"ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR"]
+```
 
-#### Test QNH change (testing only)
+### `geoGndFreq`
 
-`.delhelx testqnh`
+Geographic ground frequency zones. When an aircraft's position falls inside a zone's polygon, that zone's frequency is used instead of `gndFreq`.
 
-Creates a dummy METAR for the LOWW station with a QNH of 2000 to force a change from whatever currently active value in order to trigger the NQNH strip annotation for all cleared aircraft. It doesn't change the active METAR in EuroScope but should still not be used when controlling.
+```json
+"geoGndFreq": {
+    "west": {
+        "freq": "121.775",
+        "lat": [48.123917, 48.113056, 48.117222, 48.129167],
+        "lon": [16.533667, 16.567444, 16.570472, 16.536750]
+    }
+}
+```
+
+### `rwyTwrFreq`
+
+Per-runway tower frequency overrides. When the departure runway matches a key here, that frequency is used instead of `twrFreq`.
+
+```json
+"rwyTwrFreq": {
+    "11": { "freq": "119.4" },
+    "29": { "freq": "119.4" }
+}
+```
+
+### `taxiOutStands`
+
+Named polygons that identify taxi-out aprons. Aircraft inside these polygons receive ST-UP instead of ONFREQ when the ONFREQ/ST-UP function is triggered.
+
+```json
+"taxiOutStands": {
+    "bstands": {
+        "lat": [48.120075, 48.119410, 48.121754, 48.122101],
+        "lon": [16.552188, 16.554506, 16.556262, 16.553642]
+    }
+}
+```
+
+### `napReminder`
+
+Configures a once-per-session modal alert at a specific local time (e.g. to remind controllers of the start of noise abatement procedures).
+
+```json
+"napReminder": {
+    "enabled": true,
+    "hour": 20,
+    "minute": 30,
+    "tzone": "Europe/Vienna"
+}
+```
+
+### `sidAppFreqs`
+
+Maps approach frequencies to the list of SIDs that should be handed off to them. When a departing aircraft's SID matches an entry, that frequency is used for the handoff instead of `defaultAppFreq`.
+
+```json
+"sidAppFreqs": {
+    "125.175": ["BUWUT2A", "LANUX4A", "LEDVA4A"],
+    "129.050": ["ARSIN2A", "LUGEM2A", "MEDIX2A"]
+}
+```
+
+### `nightTimeSids`
+
+Night-time SIDs are filed with a truncated name (last character dropped), so `IRGOT2A` appears in the flight plan as `IRGO2A`. This map restores the full name for display: the key is the truncated SID prefix as filed, and the value is the full SID name prefix. The tag appends `*` to mark the SID as a night procedure.
+
+```json
+"nightTimeSids": {
+    "IRGO": "IRGOT",
+    "IMVO": "IMVOB"
+}
+```
+
+For example, a filed SID of `IRGO2A` is displayed as `IRGOT2A*`.
+
+### `runways`
+
+Per-runway configuration keyed by runway designator.
+
+| Field | Type | Description |
+|---|---|---|
+| `opposite` | string | Reciprocal runway designator (used for go-around detection) |
+| `threshold` | object | `{ "lat": ..., "lon": ... }` — runway threshold coordinates |
+| `sidGroups` | object | SID key prefix → group number. Aircraft in the same group share a colour and get 5 nm spacing instead of 3 nm. |
+| `sidColors` | object | SID key prefix → colour name (`green`, `orange`, `turq`, `purple`, `red`, `white`, `yellow`) |
+| `holdingPoints` | object | Named holding point definitions (see below) |
+| `vacatePoints` | object | Named vacate point definitions (see below) |
+
+```json
+"runways": {
+    "11": {
+        "opposite": "29",
+        "threshold": { "lat": 48.122766, "lon": 16.533610 },
+        "sidGroups": {
+            "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
+            "OSPEN": 2, "RUPET": 2
+        },
+        "sidColors": {
+            "LANUX": "green", "BUWUT": "green",
+            "OSPEN": "orange", "RUPET": "orange"
+        },
+        ...
+    }
+}
+```
+
+#### Holding points
+
+Each holding point entry defines the polygon that detects when an aircraft is at that point.
+
+| Field | Type | Description |
+|---|---|---|
+| `index` | integer | Slot index: 1 = HP1, 2 = HP2, 3 = HP3, 4 = HPO |
+| `assignable` | boolean | If `true`, the point appears in the HP Other popup list |
+| `sameAs` | string | Name of another point considered physically equivalent for spacing calculations |
+| `polygon` | object | `{ "lat": [...], "lon": [...] }` — detection polygon vertices |
+
+```json
+"holdingPoints": {
+    "A12": {
+        "index": 1,
+        "sameAs": "A11",
+        "polygon": {
+            "lat": [48.1231, 48.1228, 48.1239, 48.1241],
+            "lon": [16.5335, 16.5344, 16.5347, 16.5342]
+        }
+    },
+    "A9": {
+        "index": 4,
+        "assignable": true,
+        "polygon": { ... }
+    }
+}
+```
+
+#### Vacate points
+
+Vacate points define recommended runway exit points for arriving aircraft based on their assigned stand and the gap to the following (trailing) inbound.
+
+| Field | Type | Description |
+|---|---|---|
+| `minGap` | number | Minimum gap in NM to the following (trailing) inbound required before this vacate is suggested |
+| `stands` | array of strings | Stand names (or glob-style patterns with `*`) associated with this vacate |
+
+```json
+"vacatePoints": {
+    "A3": {
+        "minGap": 5,
+        "stands": ["F04", "F08", "H*", "K*"]
+    },
+    "A4": {
+        "minGap": 3,
+        "stands": ["E*", "F*"]
+    }
+}
+```
+
+---
 
 ## Contributing
 
-If you have a suggestion for the project or encountered an error, please open an [issue](https://github.com/sushiat/DelHelX/issues) on GitHub. Please provide a summary of your idea or problem, optionally with some logs or screenshots and ways to replicate for the latter.  
+If you have a suggestion or encountered a bug, please open an [issue](https://github.com/sushiat/DelHelX/issues) on GitHub. Include a description of the problem, relevant logs, and steps to reproduce.
 
-[Pull requests](https://github.com/sushiat/DelHelX/pulls) are highly welcome, feel free to extend the plugin's functionality as you see fit and submit a request to this repository to make your changes available to everyone. Please keep in mind this plugin attempts to provide features in a relatively generic way so it can be used by vACCs with different needs - try refraining from "hard-coding" any features that might just apply to a specific airport or vACC.
-This is currently a big TODO item in the initial release version of DelHelX, it's currently pretty much hard-coded to be used in LOWW only.
+[Pull requests](https://github.com/sushiat/DelHelX/pulls) are welcome. Please keep features reasonably generic — the plugin is intended to be configurable via `config.json` rather than hard-coded for a specific airport or vACC.
 
 ### Development setup
 
-`DelHelX` currently has no external development dependencies aside [Visual Studio](https://visualstudio.microsoft.com/vs/). Initial development started using Visual Studio 2022, although later versions should most likely remain compatible.
+- **Visual Studio 2022** (no other build system is supported)
+- Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration
+- Avoid breakpoints during live controlling — use `.delhelx debug` instead
+- Target: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`), C++17, Windows SDK 11.0
 
-To allow for debugging, the project has been configured to launch EuroScope as its debug command. Since your installation path of EuroScope will most likely be different, you **must** set an environment variable `EUROSCOPE_ROOT` to the **directory** EuroScope is installed in (**not** the actual `EuroScope.exe` executable), for instance `E:\EuroScope`.  
-Note: triggering a breakpoint seems to cause both EuroScope and Visual Studio to freak out, resulting in high resource usage and slugging mouse movements, thus only being of limited usefulnes. **NEVER** debug your EuroScope plugin using a live connection as halting EuroScope apparently messes with the VATSIM data feed under certain circumstances.
+Dependencies are bundled in `include/` and `lib/`:
 
-`DelHelX` is compiled using Windows SDK Version 11.0 with a platform toolset for Visual Studio 2022 using the ISO C++17 Standard.
+| Library | Version | License | Purpose |
+|---|---|---|---|
+| EuroScope SDK | — | — | Plugin base classes |
+| [nlohmann/json](https://github.com/nlohmann/json/) | v3.9.1 | MIT | JSON config parsing |
+| [semver](https://github.com/Neargye/semver) | v0.2.2 | MIT | Version comparison for update check |
+| [date/tz](https://github.com/HowardHinnant/date) | — | MIT | IANA timezone support for NAP reminder |
 
-This repository contains all external dependencies used by the project in their respective `include` and `lib` folders:
-
--   `EuroScope`: EuroScope plugin library
--   `nlohmann/json`: [JSON for Modern C++](https://github.com/nlohmann/json/) ([v3.9.1](https://github.com/nlohmann/json/releases/tag/v3.9.1), [MIT License](https://github.com/nlohmann/json/blob/develop/LICENSE.MIT)), used for parsing the airport config JSON
--   `semver`: [Semantic Versioning C++](https://github.com/Neargye/semver) ([v0.2.2](https://github.com/Neargye/semver/releases/tag/v0.2.2), [MIT License](https://github.com/Neargye/semver/blob/master/LICENSE)), used for version comparison of update check
+---
 
 ## License
 

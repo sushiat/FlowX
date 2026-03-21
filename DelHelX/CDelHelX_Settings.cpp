@@ -80,8 +80,7 @@ void CDelHelX_Settings::LoadConfig()
 		airport ap{
 			icao,
 			json_airport.value<std::string>("gndFreq", ""),
-			json_airport.value<std::string>("twrFreq", ""),
-			json_airport.value<std::string>("appFreq", "")
+			json_airport.value<std::string>("twrFreq", "")
 		};
 		ap.fieldElevation = json_airport.value<int>("fieldElevation", 0);
 		ap.airborneTransfer = json_airport.value<int>("airborneTransfer", 0);
@@ -265,7 +264,6 @@ void CDelHelX_Settings::LoadConfig()
 		this->LogDebugMessage("Airport: " + airport.first, "Config");
 		this->LogDebugMessage("--> GND: " + airport.second.gndFreq, "Config");
 		this->LogDebugMessage("--> TWR: " + airport.second.twrFreq, "Config");
-		this->LogDebugMessage("--> APP: " + airport.second.appFreq, "Config");
 		int ctrIndex = 0;
 		for (const auto& ctr : airport.second.ctrStations)
 		{

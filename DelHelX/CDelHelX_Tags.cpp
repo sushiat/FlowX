@@ -1094,7 +1094,7 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
 
 /// @brief Builds the expanded ground-state tag with a human-readable label and colour.
 /// @param fp Flight plan being evaluated.
-/// @return tagInfo with a text label (e.g. "PUSH", "TAXI", "T/O", "AIRBORNE") and appropriate colour.
+/// @return tagInfo with a text label (e.g. "PUSH", "TAXI", "LINE UP", "TAKE OFF", "--DEP--") and appropriate colour.
 tagInfo CDelHelX_Tags::GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp)
 {
 	tagInfo tag;

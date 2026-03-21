@@ -20,7 +20,6 @@
                 "freq": "119.4"
             }
         },
-        "appFreq": "134.675",
         "ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR", "LOVV_C_"],
         "taxiOutStands": {
             "bstands": {
