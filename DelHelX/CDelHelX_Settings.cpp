@@ -18,6 +18,7 @@ CDelHelX_Settings::CDelHelX_Settings()
 	}
 }
 
+/// @brief Loads persisted plugin settings from EuroScope's settings store.
 void CDelHelX_Settings::LoadSettings()
 {
 	const char* settings = this->GetDataFromSettings(PLUGIN_NAME);
@@ -43,6 +44,7 @@ void CDelHelX_Settings::LoadSettings()
 	}
 }
 
+/// @brief Serialises current settings and writes them to EuroScope's settings store.
 void CDelHelX_Settings::SaveSettings()
 {
 	std::ostringstream ss;
@@ -53,6 +55,7 @@ void CDelHelX_Settings::SaveSettings()
 	this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
 }
 
+/// @brief Parses config.json from the plugin directory and populates the airports map.
 void CDelHelX_Settings::LoadConfig()
 {
 	json config;
@@ -77,9 +80,11 @@ void CDelHelX_Settings::LoadConfig()
 		airport ap{
 			icao,
 			json_airport.value<std::string>("gndFreq", ""),
-			json_airport.value<std::string>("twrFreq", ""),
-			json_airport.value<std::string>("appFreq", "")
+			json_airport.value<std::string>("twrFreq", "")
 		};
+		ap.fieldElevation = json_airport.value<int>("fieldElevation", 0);
+		ap.airborneTransfer = json_airport.value<int>("airborneTransfer", 0);
+		ap.airborneTransferWarning = json_airport.value<int>("airborneTransferWarning", 0);
 
 		auto ctrStations{ json_airport["ctrStations"].get<std::vector<std::string>>() };
 		ap.ctrStations = ctrStations;
@@ -186,9 +191,10 @@ void CDelHelX_Settings::LoadConfig()
 		// Load SID-specific approach frequencies
 		try
 		{
-			for (auto& [sidName, freq] : json_airport.at("sidAppFreqs").items())
+			ap.defaultAppFreq = json_airport.value<std::string>("defaultAppFreq", "");
+			for (auto& [freq, sids] : json_airport.at("sidAppFreqs").items())
 			{
-				ap.sidAppFreqs.emplace(sidName, freq.get<std::string>());
+				ap.sidAppFreqs.emplace(freq, sids.get<std::vector<std::string>>());
 			}
 		}
 		catch (std::exception& e)
@@ -203,6 +209,7 @@ void CDelHelX_Settings::LoadConfig()
 			{
 				runway rwy{};
 				rwy.designator = rwyDesignator;
+				rwy.opposite = json_rwy.value<std::string>("opposite", "");
 				rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
 				rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
 
@@ -228,6 +235,17 @@ void CDelHelX_Settings::LoadConfig()
 					rwy.holdingPoints.emplace(hpName, hp);
 				}
 
+				if (json_rwy.contains("vacatePoints"))
+				{
+					for (auto& [vpName, json_vp] : json_rwy["vacatePoints"].items())
+					{
+						vacatePoint vp{};
+						vp.minGap = json_vp.value<double>("minGap", 0.0);
+						vp.stands = json_vp["stands"].get<std::vector<std::string>>();
+						rwy.vacatePoints.emplace(vpName, vp);
+					}
+				}
+
 				ap.runways.emplace(rwyDesignator, rwy);
 			}
 		}
@@ -246,7 +264,6 @@ void CDelHelX_Settings::LoadConfig()
 		this->LogDebugMessage("Airport: " + airport.first, "Config");
 		this->LogDebugMessage("--> GND: " + airport.second.gndFreq, "Config");
 		this->LogDebugMessage("--> TWR: " + airport.second.twrFreq, "Config");
-		this->LogDebugMessage("--> APP: " + airport.second.appFreq, "Config");
 		int ctrIndex = 0;
 		for (const auto& ctr : airport.second.ctrStations)
 		{
@@ -295,6 +312,7 @@ void CDelHelX_Settings::LoadConfig()
 
 }
 
+/// @brief Resolves the latestVersion future and logs a message if a newer version is available.
 void CDelHelX_Settings::CheckForUpdate()
 {
 	try
@@ -313,4 +331,4 @@ void CDelHelX_Settings::CheckForUpdate()
 	}
 
 	this->latestVersion = std::future<std::string>();
-}
+}

@@ -1,5 +1,8 @@
 {
     "LOWW": {
+        "fieldElevation": 600,
+        "airborneTransfer": 1500,
+        "airborneTransferWarning": 3000,
         "gndFreq": "121.6",
         "geoGndFreq": {
             "west": {
@@ -17,7 +20,6 @@
                 "freq": "119.4"
             }
         },
-        "appFreq": "134.675",
         "ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR", "LOVV_C_"],
         "taxiOutStands": {
             "bstands": {
@@ -48,7 +50,7 @@
         "napReminder": {
           "enabled": true,
           "hour": 20,
-          "minute": 40,
+          "minute": 30,
           "tzone": "Europe/Vienna"
         },
         "nightTimeSids": {
@@ -56,41 +58,24 @@
             "OTGA": "OTGAR", "UMSU": "UMSUM", "UNGU": "UNGUT", "VABG": "VABGU",
             "EMKO": "EMKOG", "EWUK": "EWUKE", "AGMI": "AGMIM", "ASPI": "ASPIB"
         },
+        "defaultAppFreq": "134.675",
         "sidAppFreqs": {
-            "BUWUT2A": "125.175", "LANUX4A": "125.175", "LEDVA4A": "125.175",
-            "ADAMA2B": "125.175", "BUWUT2B": "125.175", "KOXER2B": "125.175",
-            "LANUX6B": "125.175", "LEDVA3B": "125.175", "ADAMA1A": "125.175",
-            "ADAMA1F": "125.175", "ADAMA1D": "125.175", "BUWUT1E": "125.175",
-            "BUWUT1F": "125.175", "BUWUT1D": "125.175", "KOXER1A": "125.175",
-            "KOXER1D": "125.175", "KOXER1F": "125.175", "LANUX1E": "125.175",
-            "LANUX1F": "125.175", "LANUX6D": "125.175", "LEDVA1E": "125.175",
-            "LEDVA1F": "125.175", "LEDVA4D": "125.175", "LOWW1A": "125.175",
-            "LOWW1B": "125.175", "LOWW1D": "125.175",
-            "ARSIN2A": "129.050", "LUGEM2A": "129.050", "MEDIX2A": "129.050",
-            "OSPEN3A": "129.050", "RUPET2A": "129.050", "SOVIL2A": "129.050",
-            "STEIN3A": "129.050", "ARSIN1E": "129.050", "LUGEM1E": "129.050",
-            "MEDIX1E": "129.050", "OSPEN1E": "129.050", "RUPET1E": "129.050",
-            "SOVIL1E": "129.050", "STEIN1E": "129.050", "IMVO3A": "129.050",
-            "IRGO1A": "129.050", "ODSU1A": "129.050", "OSMO1A": "129.050",
-            "ADAMA2C": "134.675", "ARSIN1B": "134.675", "ARSIN1C": "134.675",
-            "ARSIN1D": "134.675", "BUWUT1C": "134.675", "KOXER1C": "134.675",
-            "LANUX2C": "134.675", "LEDVA3C": "134.675", "LUGEM2B": "134.675",
-            "LUGEM1C": "134.675", "LUGEM1D": "134.675", "MEDIX2B": "134.675",
-            "MEDIX1C": "134.675", "MEDIX1D": "134.675", "OSPEN5B": "134.675",
-            "OSPEN4C": "134.675", "OSPEN3D": "134.675", "RUPET2B": "134.675",
-            "RUPET2C": "134.675", "RUPET2D": "134.675", "SOVIL2B": "134.675",
-            "SOVIL1C": "134.675", "SOVIL1D": "134.675", "STEIN4B": "134.675",
-            "STEIN3C": "134.675", "STEIN3D": "134.675", "AGMI2C": "134.675",
-            "ASPI2C": "134.675", "EMKO3C": "134.675", "EWUK1C": "134.675",
-            "IMVO3C": "134.675", "IRGO2C": "134.675", "ODSU2C": "134.675",
-            "OSMO2C": "134.675", "OTGA2C": "134.675", "UMSU3C": "134.675",
-            "UNGU2C": "134.675", "VABG2C": "134.675", "EMKO3D": "134.675",
-            "EWUK1D": "134.675", "IMVO3D": "134.675", "IRGO2D": "134.675",
-            "ODSU2D": "134.675", "OSMO2D": "134.675", "OTGA2D": "134.675",
-            "LOWW1C": "134.675"
+            "125.175": [
+                "BUWUT2A", "LANUX4A", "LEDVA4A",
+                "ADAMA2B", "BUWUT2B", "KOXER2B", "LANUX6B", "LEDVA3B",
+                "ADAMA1A", "ADAMA1F", "ADAMA1D", "BUWUT1E", "BUWUT1F", "BUWUT1D",
+                "KOXER1A", "KOXER1D", "KOXER1F", "LANUX1E", "LANUX1F", "LANUX6D",
+                "LEDVA1E", "LEDVA1F", "LEDVA4D", "LOWW1A", "LOWW1B", "LOWW1D"
+            ],
+            "129.050": [
+                "ARSIN2A", "LUGEM2A", "MEDIX2A", "OSPEN3A", "RUPET2A", "SOVIL2A", "STEIN3A",
+                "ARSIN1E", "LUGEM1E", "MEDIX1E", "OSPEN1E", "RUPET1E", "SOVIL1E", "STEIN1E",
+                "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A"
+            ]
         },
         "runways": {
             "11": {
+                "opposite": "29",
                 "threshold": { "lat": 48.122766803767036, "lon": 16.53361062366087 },
                 "sidGroups": {
                     "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
@@ -144,9 +129,20 @@
                             "lat": [48.11764919470844, 48.116524680359404, 48.11764919470844, 48.118613044560995]
                         }
                     }
+                },
+                "vacatePoints": {
+                    "A3": {
+                        "minGap": 5,
+                        "stands": ["F04","F08","F12","F16","F22","F26","F32","F36","F42","F44","F46","F48","F50","G16","G26","G36","H*","K*"]
+                    },
+                    "A4": {
+                        "minGap": 3,
+                        "stands": ["E*","F*","H*","K*"]
+                    }
                 }
             },
             "16": {
+                "opposite": "34",
                 "threshold": { "lat": 48.119602230239316, "lon": 16.57825221198715 },
                 "sidGroups": {
                     "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
@@ -202,6 +198,7 @@
                 }
             },
             "29": {
+                "opposite": "11",
                 "threshold": { "lat": 48.109137371047005, "lon": 16.57538568208911 },
                 "sidGroups": {
                     "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
@@ -261,9 +258,16 @@
                             "lat": [48.11817746343429, 48.11736122447819, 48.118429279218226, 48.11895027347323]
                         }
                     }
+                },
+                "vacatePoints": {
+                    "A11": {
+                        "minGap": 5,
+                        "stands": ["GAC","A3*","A4*","A5*","A6*"]
+                    }
                 }
             },
             "34": {
+                "opposite": "16",
                 "threshold": { "lat": 48.088822783854226, "lon": 16.5912652809662 },
                 "sidGroups": {
                     "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
@@ -315,6 +319,16 @@
                             "lon": [16.58241774624248, 16.58376395495242, 16.58296403383492, 16.581286150515286],
                             "lat": [48.10515800240615, 48.1053143416084, 48.107042726654754, 48.10670834513769]
                         }
+                    }
+                },
+                "vacatePoints": {
+                    "B2": {
+                        "minGap": 5,
+                        "stands": ["F04","F08","F12","F16","F22","F26","F32","F36","F42","F44","F46","F48","F50","G16","G26","G36","H*","K*"]
+                    },
+                    "B4": {
+                        "minGap": 3,
+                        "stands": ["*"]
                     }
                 }
             }

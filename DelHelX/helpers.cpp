@@ -2,6 +2,9 @@
 
 #include "helpers.h"
 
+/// @brief Fetches the latest plugin version string from the remote version file.
+/// @return Version string read from the URL (e.g. "0.6.0").
+/// @note Throws error on connection or HTTP failure.
 std::string FetchLatestVersion()
 {
 	std::ostringstream agent;

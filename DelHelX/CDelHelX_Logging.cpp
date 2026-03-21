@@ -11,11 +11,17 @@ CDelHelX_Logging::CDelHelX_Logging()
 	this->LogMessage(msg.str(), "Init");
 }
 
+/// @brief Displays a message in the EuroScope chat window.
+/// @param message Text to display.
+/// @param type Category label used as the sender name.
 void CDelHelX_Logging::LogMessage(const std::string& message, const std::string& type)
 {
 	this->DisplayUserMessage(PLUGIN_NAME, type.c_str(), message.c_str(), true, true, true, this->flashOnMessage, false);
 }
 
+/// @brief Displays a message only when debug mode is active.
+/// @param message Text to display.
+/// @param type Category label used as the sender name.
 void CDelHelX_Logging::LogDebugMessage(const std::string& message, const std::string& type)
 {
 	if (this->debug) {
