@@ -237,6 +237,7 @@
     <ClInclude Include="CDelHelX_Settings.h" />
     <ClInclude Include="CDelHelX_Tags.h" />
     <ClInclude Include="CDelHelX_Timers.h" />
+    <ClInclude Include="reconnectSnapshot.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="CDelHelX.h" />
     <ClInclude Include="constants.h" />

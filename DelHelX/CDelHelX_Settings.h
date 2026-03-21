@@ -19,6 +19,8 @@ public:
 protected:
 	bool updateCheck;                        ///< Whether the background update check is enabled
 
+	bool autoRestore = false;               ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+
 	std::future<std::string> latestVersion;  ///< Async future holding the fetched latest version string
 
 	std::map<std::string, airport> airports; ///< Airport configurations keyed by ICAO code

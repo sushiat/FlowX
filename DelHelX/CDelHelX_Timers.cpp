@@ -549,6 +549,106 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 	}
 }
 
+/// @brief Restores clearance flag and ground state for pilots who reconnect within 90 seconds with a matching flight plan.
+void CDelHelX_Timers::CheckReconnects()
+{
+	if (!this->autoRestore || this->reconnect_pending.empty())
+		return;
+
+	constexpr ULONGLONG timeoutMs = 90000ULL;
+	ULONGLONG now = GetTickCount64();
+
+	// Expire snapshots older than 90 s and clean up their groundStatus entries
+	for (auto it = this->reconnect_pending.begin(); it != this->reconnect_pending.end(); )
+	{
+		if ((now - it->second.disconnectTime) >= timeoutMs)
+		{
+			this->groundStatus.erase(it->first);
+			it = this->reconnect_pending.erase(it);
+		}
+		else
+			++it;
+	}
+
+	if (this->reconnect_pending.empty())
+		return;
+
+	for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+	{
+		EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+		if (!fp.IsValid())
+			continue;
+
+		std::string callSign = fp.GetCallsign();
+		auto pendingIt = this->reconnect_pending.find(callSign);
+		if (pendingIt == this->reconnect_pending.end())
+			continue;
+
+		const reconnectSnapshot& snap = pendingIt->second;
+		EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+		EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
+
+		std::string depAirport = fpd.GetOrigin();
+		to_upper(depAirport);
+		std::string destAirport = fpd.GetDestination();
+		to_upper(destAirport);
+
+		auto logMismatch = [&](const std::string& field, const std::string& got, const std::string& expected) {
+			this->LogDebugMessage(callSign + " reconnect mismatch [" + field + "]: got=\"" + got + "\" expected=\"" + expected + "\"", "AutoRestore");
+		};
+
+		bool match = true;
+		if (std::string(fp.GetPilotName())       != snap.pilotName)    { logMismatch("pilotName",    fp.GetPilotName(),        snap.pilotName);    match = false; }
+		if (depAirport                               != snap.depAirport)   { logMismatch("depAirport",   depAirport,               snap.depAirport);   match = false; }
+		if (destAirport                              != snap.destAirport)  { logMismatch("destAirport",  destAirport,              snap.destAirport);  match = false; }
+		if (std::string(fpd.GetAircraftFPType()) != snap.aircraftType) { logMismatch("aircraftType", fpd.GetAircraftFPType(),  snap.aircraftType); match = false; }
+		if (fpd.GetAircraftWtc()                     != snap.wtc)		   { logMismatch("wtc",          std::string(1, fpd.GetAircraftWtc()), std::string(1, snap.wtc)); match = false; }
+		if (std::string(fpd.GetPlanType())       != snap.planType)     { logMismatch("planType",     fpd.GetPlanType(),        snap.planType);     match = false; }
+		if (std::string(fpd.GetRoute())          != snap.route)        { logMismatch("route",        fpd.GetRoute(),           snap.route);        match = false; }
+		if (std::string(fpd.GetSidName())        != snap.sidName)      { logMismatch("sidName",      fpd.GetSidName(),         snap.sidName);      match = false; }
+		if (std::string(fpcad.GetSquawk())       != snap.squawk)       { logMismatch("squawk",       fpcad.GetSquawk(),        snap.squawk); match = false; }
+
+		if (match && snap.hasPosition)
+		{
+			EuroScopePlugIn::CPosition storedPos;
+			storedPos.m_Latitude  = snap.lat;
+			storedPos.m_Longitude = snap.lon;
+			double dist = rt.GetPosition().GetPosition().DistanceTo(storedPos);
+			if (dist > 1.0)
+			{
+				logMismatch("position", std::to_string(dist) + "nm", "<1nm");
+				match = false;
+			}
+		}
+
+		if (!match)
+		{
+			this->reconnect_pending.erase(pendingIt);
+			continue;
+		}
+
+		// Restore clearance flag
+		if (snap.clearanceFlag && !fp.GetClearenceFlag() && this->radarScreen != nullptr)
+		{
+			this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, callSign.c_str(), nullptr,
+				EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+		}
+
+		// Restore ground state via momentary scratch-pad toggle (same pattern as other state setters)
+		if (!snap.savedGroundStatus.empty())
+		{
+			std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+			fp.GetControllerAssignedData().SetScratchPadString(snap.savedGroundStatus.c_str());
+			fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+		}
+
+		this->LogMessage("Auto-restored state for " + callSign + " (clearance=" +
+			(snap.clearanceFlag ? "yes" : "no") + ", gnd=" + snap.savedGroundStatus + ")", "AutoRestore");
+
+		this->reconnect_pending.erase(pendingIt);
+	}
+}
+
 /// @brief Detects which holding-point polygon a taxiing aircraft occupies and writes it to flight-strip slot 8.
 void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
 {

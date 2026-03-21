@@ -36,6 +36,8 @@ void CDelHelX_Settings::LoadSettings()
 		std::istringstream(splitSettings[0]) >> this->updateCheck;
 		std::istringstream(splitSettings[1]) >> this->flashOnMessage;
 		std::istringstream(splitSettings[2]) >> this->debug;
+		if (splitSettings.size() >= 4)
+			std::istringstream(splitSettings[3]) >> this->autoRestore;
 
 		this->LogMessage("Successfully loaded settings.", "Settings");
 	}
@@ -50,7 +52,8 @@ void CDelHelX_Settings::SaveSettings()
 	std::ostringstream ss;
 	ss << this->updateCheck << SETTINGS_DELIMITER
 		<< this->flashOnMessage << SETTINGS_DELIMITER
-		<< this->debug;
+		<< this->debug << SETTINGS_DELIMITER
+		<< this->autoRestore;
 
 	this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
 }

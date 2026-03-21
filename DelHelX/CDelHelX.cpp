@@ -26,7 +26,7 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 		if (args.size() == 1)
 		{
 			std::ostringstream msg;
-			msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: gnd, twr, nocheck, reset, update, flash, redoflags, testqnh";
+			msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: gnd, twr, nocheck, reset, update, flash, redoflags, autorestore";
 
 			this->LogMessage(msg.str(), "Init");
 
@@ -133,6 +133,7 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 			this->groundOverride = false;
 			this->towerOverride = false;
 			this->noChecks = false;
+			this->autoRestore = false;
 
 			this->SaveSettings();
 
@@ -142,6 +143,14 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
 		{
 			this->LogMessage("Redoing clearance flags...", "Flags");
 			this->RedoFlags();
+
+			return true;
+		}
+		else if (args[1] == "autorestore")
+		{
+			this->autoRestore = !this->autoRestore;
+			this->LogMessage(std::string("Auto-restore on reconnect: ") + (this->autoRestore ? "ON" : "OFF"), "AutoRestore");
+			this->SaveSettings();
 
 			return true;
 		}
@@ -361,6 +370,7 @@ void CDelHelX::OnTimer(int Counter)
 		this->AutoUpdateDepartureHoldingPoints();
 		this->UpdateRadarTargetDepartureInfo();
 		this->UpdateTTTInbounds();
+		this->CheckReconnects();
 	}
 }
 
@@ -369,6 +379,40 @@ void CDelHelX::OnTimer(int Counter)
 void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 {
 	std::string callSign = FlightPlan.GetCallsign();
+
+	// Capture a snapshot for auto-restore if the pilot reconnects within 90 seconds
+	if (this->autoRestore)
+	{
+		reconnectSnapshot snap;
+		EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+		snap.pilotName    = FlightPlan.GetPilotName();
+		snap.depAirport   = fpd.GetOrigin();   to_upper(snap.depAirport);
+		snap.destAirport  = fpd.GetDestination(); to_upper(snap.destAirport);
+		snap.aircraftType = fpd.GetAircraftFPType();
+		snap.wtc          = fpd.GetAircraftWtc();
+		snap.planType     = fpd.GetPlanType();
+		snap.route        = fpd.GetRoute();
+		snap.sidName      = fpd.GetSidName();
+		snap.squawk       = FlightPlan.GetControllerAssignedData().GetSquawk();
+		snap.clearanceFlag = FlightPlan.GetClearenceFlag();
+		snap.disconnectTime = GetTickCount64();
+
+		auto gsIt = this->groundStatus.find(callSign);
+		if (gsIt != this->groundStatus.end())
+			snap.savedGroundStatus = gsIt->second;
+
+		EuroScopePlugIn::CRadarTarget rt = FlightPlan.GetCorrelatedRadarTarget();
+		if (rt.IsValid() && rt.GetPosition().IsValid())
+		{
+			auto pos = rt.GetPosition().GetPosition();
+			snap.lat = pos.m_Latitude;
+			snap.lon = pos.m_Longitude;
+			snap.hasPosition = true;
+		}
+
+		this->reconnect_pending[callSign] = snap;
+		// groundStatus is kept alive and cleaned up by CheckReconnects after 90 s or on successful match
+	}
 	if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
 	{
 		this->twrSameSID.RemoveFpFromTheList(FlightPlan);

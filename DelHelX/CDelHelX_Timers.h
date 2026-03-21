@@ -1,5 +1,6 @@
 #pragma once
 #include "CDelHelX_LookupsTools.h"
+#include "reconnectSnapshot.h"
 
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
 ///
@@ -59,6 +60,9 @@ protected:
 	/// @brief Callsign -> last known ground status string.
 	std::map<std::string, std::string> groundStatus;
 
+	/// @brief Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.
+	std::map<std::string, reconnectSnapshot> reconnect_pending;
+
 	/// @brief Toggles each timer tick; drives blinking tag colours.
 	bool blinking = false;
 
@@ -79,4 +83,8 @@ protected:
 
 	/// @brief Automatically detects which holding-point polygon a taxiing aircraft is in and writes it to slot 8.
 	void AutoUpdateDepartureHoldingPoints();
+
+	/// @brief Scans for reconnected pilots and restores their clearance flag and ground state if flight plan attributes match.
+	/// @note Also expires snapshots that have been pending longer than 90 seconds.
+	void CheckReconnects();
 };

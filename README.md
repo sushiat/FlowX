@@ -189,6 +189,7 @@ Running `.delhelx` alone prints the loaded version and a command list.
 | `.delhelx gnd` | No | Force ground station to be treated as online (cross-coupling scenarios) |
 | `.delhelx twr` | No | Force tower station to be treated as online (cross-coupling scenarios) |
 | `.delhelx redoflags` | — | Toggle all existing clearance flags off then back on (useful for newly joined controllers) |
+| `.delhelx autorestore` | Yes | Toggle auto-restore on quick reconnect. When enabled, if a pilot disconnects and reconnects within 90 seconds with a matching flight plan (same callsign, pilot name, airports, aircraft type, route, squawk, and position within 1 nm), their clearance flag and ground state are automatically restored. |
 | `.delhelx reset` | — | Reload `config.json` and reset all settings to defaults |
 | `.delhelx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
 
