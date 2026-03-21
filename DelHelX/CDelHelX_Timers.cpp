@@ -179,8 +179,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 			for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
 			{
 				std::string rwyCallsign = callSign + rwy->second.designator;
-				bool isGoAround = this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end();
-				bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
+				bool isVfrTrackedByMe = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
+				bool isGoAround = !isVfrTrackedByMe && this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end();
+				bool isRecentlyRemoved = !isGoAround && !isVfrTrackedByMe && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
 
 				if (!isGoAround && !isRecentlyRemoved)
 				{
@@ -192,11 +193,18 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 				auto pressAlt = pos.GetPressureAltitude();
 				int depElevation = airport->second.fieldElevation;
 				double distance = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+				auto heading = pos.GetReportedHeading();
+				std::string rwyDigits = rwy->second.designator;
+				rwyDigits.erase(std::remove_if(rwyDigits.begin(), rwyDigits.end(),
+					[](char c) { return !std::isdigit(c); }), rwyDigits.end());
+				int arrRwyHdg = rwyDigits.empty() ? -1 : std::stoi(rwyDigits);
+				int hdgDiff = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
+				if (hdgDiff > 180) { hdgDiff = 360 - hdgDiff; }
 
 				if (isGoAround)
 				{
 					// Active go-around: check removal conditions, otherwise keep distance updated
-					if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100)
+					if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100 || hdgDiff > 30)
 					{
 						this->tttInbound.RemoveFpFromTheList(fp);
 						this->ttt_flightPlans.erase(rwyCallsign);
