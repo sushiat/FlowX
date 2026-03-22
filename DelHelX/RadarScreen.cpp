@@ -68,7 +68,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
                 this->approachStations.emplace(cs, rounded);
                 if (this->debug)
                 {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " online").c_str(), true, true, true, false, false);
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " online (" + rounded + ")").c_str(), true, true, true, false, false);
                 }
             }
         }
@@ -84,7 +84,7 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
                 this->centerStations.emplace(cs, rounded);
                 if (this->debug)
                 {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " online").c_str(), true, true, true, false, false);
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " online (" + rounded + ")").c_str(), true, true, true, false, false);
                 }
             }
         }

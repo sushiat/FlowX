@@ -262,6 +262,8 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             }
         }
 
+        this->LogDebugMessage(callSign + " TransferNext: target=" + targetFreq, "Transfer");
+
         // Try approach frequencies in config-defined fallback order; sort online stations ASC, pick first
         {
             auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
@@ -281,6 +283,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
                 if (!matches.empty())
                 {
                     std::sort(matches.begin(), matches.end());
+                    this->LogDebugMessage(callSign + " TransferNext: " + targetFreq + " -> " + freq + " (" + matches.front() + ")", "Transfer");
                     return matches.front();
                 }
             }
@@ -300,10 +303,12 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             if (!matches.empty())
             {
                 std::sort(matches.begin(), matches.end());
+                this->LogDebugMessage(callSign + " TransferNext: " + targetFreq + " -> CTR " + ctrFreq + " (" + matches.front() + ")", "Transfer");
                 return matches.front();
             }
         }
 
+        this->LogDebugMessage(callSign + " TransferNext: no station found for target=" + targetFreq, "Transfer");
         return "";
     };
 
