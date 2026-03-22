@@ -203,12 +203,13 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     to_upper(dep);
 
     // Determine the best station to hand off to, in priority order:
-    //   1. Approach station for the SID/go-around frequency (config-defined priority order)
-    //   2. Centre station (config-defined priority order)
+    //   1. Approach station: iterate appFreqFallbacks for the target frequency in order;
+    //      for each frequency collect all online stations, sort callsigns ASC, pick first.
+    //   2. Centre station: iterate ctrStations frequencies in order, same pick logic.
     //   3. EuroScope's coordinated next controller (fallback)
     //   4. End tracking
-    // Returns the full EuroScope callsign of the target station (e.g. "LOWW_M_APP"),
-    // or an empty string if no station was found (cases 3 and 4 are handled by the caller).
+    // Returns the full EuroScope callsign of the winning station (selected by frequency lookup,
+    // e.g. "LOWW_M_APP"), or an empty string if no station was found (cases 3 and 4 are handled by the caller).
     auto findStation = [&]() -> std::string
     {
         if (this->radarScreen == nullptr)

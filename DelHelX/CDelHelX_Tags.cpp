@@ -126,22 +126,13 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
                 }
             }
 
-            // Try approach frequencies in config-defined fallback order
+            // If any online approach station is on one of this airport's approach frequencies, show the SID-determined frequency
+            for (const auto& station : this->radarScreen->approachStations)
             {
-                auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
-                const auto& freqsToTry = (fallbackIt != airport->second.appFreqFallbacks.end())
-                    ? fallbackIt->second
-                    : std::vector<std::string>{ targetFreq };
-                for (const auto& freq : freqsToTry)
+                if (airport->second.appFreqFallbacks.count(station.second))
                 {
-                    for (const auto& station : this->radarScreen->approachStations)
-                    {
-                        if (station.second == freq)
-                        {
-                            tag.tag = "->" + freq;
-                            return tag;
-                        }
-                    }
+                    tag.tag = "->" + targetFreq;
+                    return tag;
                 }
             }
 
@@ -314,22 +305,13 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
         }
     }
 
-    // Try approach frequencies in config-defined fallback order
+    // If any online approach station is on one of this airport's approach frequencies, show the SID-determined frequency
+    for (const auto& station : this->radarScreen->approachStations)
     {
-        auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
-        const auto& freqsToTry = (fallbackIt != airport->second.appFreqFallbacks.end())
-            ? fallbackIt->second
-            : std::vector<std::string>{ targetFreq };
-        for (const auto& freq : freqsToTry)
+        if (airport->second.appFreqFallbacks.count(station.second))
         {
-            for (const auto& station : this->radarScreen->approachStations)
-            {
-                if (station.second == freq)
-                {
-                    tag.tag += "->" + freq;
-                    return tag;
-                }
-            }
+            tag.tag += "->" + targetFreq;
+            return tag;
         }
     }
 
