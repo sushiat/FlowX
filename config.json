@@ -11,16 +11,7 @@
                 "lon": [16.533667, 16.567444, 16.570472, 16.536750]
             }
         },
-        "twrFreq": "123.8",
-        "rwyTwrFreq": {
-            "11": {
-                "freq": "119.4"
-            },
-            "29": {
-                "freq": "119.4"
-            }
-        },
-        "ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR", "LOVV_C_"],
+        "ctrStations": ["LOVV_L", "LOVV_E_", "LOVV_N_", "LOVV_CTR", "LOVV_C_", "LOVV_EU", "LOVV_NU"],
         "taxiOutStands": {
             "bstands": {
                 "lat": [48.120075, 48.119410, 48.121754, 48.122101],
@@ -76,6 +67,8 @@
         "runways": {
             "11": {
                 "opposite": "29",
+                "twrFreq": "119.4",
+                "goAroundFreq": "125.175",
                 "threshold": { "lat": 48.122766803767036, "lon": 16.53361062366087 },
                 "sidGroups": {
                     "1": ["LANUX", "BUWUT", "LEDVA"],
@@ -142,6 +135,8 @@
             },
             "16": {
                 "opposite": "34",
+                "twrFreq": "123.8",
+                "goAroundFreq": "129.050",
                 "threshold": { "lat": 48.119602230239316, "lon": 16.57825221198715 },
                 "sidGroups": {
                     "1": ["LANUX", "BUWUT", "LEDVA"],
@@ -198,6 +193,8 @@
             },
             "29": {
                 "opposite": "11",
+                "twrFreq": "119.4",
+                "goAroundFreq": "118.775",
                 "threshold": { "lat": 48.109137371047005, "lon": 16.57538568208911 },
                 "sidGroups": {
                     "1": ["LANUX", "BUWUT", "LEDVA", "IRGO", "IMVO", "ODSU", "OSMO", "OTGA"],
@@ -265,6 +262,8 @@
             },
             "34": {
                 "opposite": "16",
+                "twrFreq": "123.8",
+                "goAroundFreq": "125.175",
                 "threshold": { "lat": 48.088822783854226, "lon": 16.5912652809662 },
                 "sidGroups": {
                     "1": ["LANUX", "BUWUT", "LEDVA"],

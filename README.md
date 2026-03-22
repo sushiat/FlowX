@@ -214,7 +214,6 @@ Running `.delhelx` alone prints the loaded version and a command list.
 | `airborneTransfer` | integer | Altitude (ft) at which the TWR Next Freq tag turns turquoise |
 | `airborneTransferWarning` | integer | Altitude (ft) at which it starts blinking orange |
 | `gndFreq` | string | Default ground frequency |
-| `twrFreq` | string | Default tower frequency |
 | `defaultAppFreq` | string | Default approach frequency used when no SID-specific match exists |
 | `ctrStations` | array of strings | Callsign prefixes considered as centre stations (e.g. `"LOVV_CTR"`) |
 
@@ -223,7 +222,6 @@ Running `.delhelx` alone prints the loaded version and a command list.
 "airborneTransfer": 1500,
 "airborneTransferWarning": 3000,
 "gndFreq": "121.6",
-"twrFreq": "123.8",
 "defaultAppFreq": "134.675",
 "ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR"]
 ```
@@ -239,17 +237,6 @@ Geographic ground frequency zones. When an aircraft's position falls inside a zo
         "lat": [48.123917, 48.113056, 48.117222, 48.129167],
         "lon": [16.533667, 16.567444, 16.570472, 16.536750]
     }
-}
-```
-
-### `rwyTwrFreq`
-
-Per-runway tower frequency overrides. When the departure runway matches a key here, that frequency is used instead of `twrFreq`.
-
-```json
-"rwyTwrFreq": {
-    "11": { "freq": "119.4" },
-    "29": { "freq": "119.4" }
 }
 ```
 
@@ -310,6 +297,8 @@ Per-runway configuration keyed by runway designator.
 | Field | Type | Description |
 |---|---|---|
 | `opposite` | string | Reciprocal runway designator (used for go-around detection) |
+| `twrFreq` | string | Tower frequency for this runway |
+| `goAroundFreq` | string | Go-around (approach) frequency for this runway |
 | `threshold` | object | `{ "lat": ..., "lon": ... }` — runway threshold coordinates |
 | `sidGroups` | object | Group number → array of SID prefixes. Aircraft in the same group get 5 nm spacing instead of 3 nm. |
 | `sidColors` | object | Colour name → array of SID prefixes. Valid colours: `green`, `orange`, `turq`, `purple`, `red`, `white`, `yellow`. SIDs omitted here default to white. |
@@ -320,6 +309,8 @@ Per-runway configuration keyed by runway designator.
 "runways": {
     "11": {
         "opposite": "29",
+        "twrFreq": "119.4",
+        "goAroundFreq": "125.175",
         "threshold": { "lat": 48.122766, "lon": 16.533610 },
         "sidGroups": {
             "1": ["LANUX", "BUWUT", "LEDVA"],
