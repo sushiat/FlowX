@@ -261,31 +261,45 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             }
         }
 
-        // Search approach stations in config-defined priority order for the target frequency
-        auto stationsIt = airport->second.appFreqStations.find(targetFreq);
-        if (stationsIt != airport->second.appFreqStations.end())
+        // Try approach frequencies in config-defined fallback order; sort online stations ASC, pick first
         {
-            for (const auto& prefix : stationsIt->second)
+            auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
+            const auto& freqsToTry = (fallbackIt != airport->second.appFreqFallbacks.end())
+                ? fallbackIt->second
+                : std::vector<std::string>{ targetFreq };
+            for (const auto& freq : freqsToTry)
             {
+                std::vector<std::string> matches;
                 for (const auto& online : this->radarScreen->approachStations)
                 {
-                    if (online.first.rfind(prefix, 0) == 0 && online.second == targetFreq)
+                    if (online.second == freq)
                     {
-                        return online.first;
+                        matches.push_back(online.first);
                     }
+                }
+                if (!matches.empty())
+                {
+                    std::sort(matches.begin(), matches.end());
+                    return matches.front();
                 }
             }
         }
 
-        // No approach station found: try centre stations in config-defined priority order
-        for (const auto& prefix : airport->second.ctrStations)
+        // No approach station found: try centre frequencies in config-defined priority order
+        for (const auto& ctrFreq : airport->second.ctrStations)
         {
+            std::vector<std::string> matches;
             for (const auto& online : this->radarScreen->centerStations)
             {
-                if (online.first.rfind(prefix, 0) == 0)
+                if (online.second == ctrFreq)
                 {
-                    return online.first;
+                    matches.push_back(online.first);
                 }
+            }
+            if (!matches.empty())
+            {
+                std::sort(matches.begin(), matches.end());
+                return matches.front();
             }
         }
 

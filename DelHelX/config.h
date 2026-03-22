@@ -88,7 +88,7 @@ struct airport
 
     std::map<std::string, geoGndFreq> geoGndFreq = {};         ///< Geographic ground frequency zones
 
-    std::vector<std::string> ctrStations = {};                 ///< Expected centre station callsign prefixes
+    std::vector<std::string> ctrStations = {};                 ///< Centre frequencies in priority order (first online station on each freq wins)
 
     std::map<std::string, taxiOutStands> taxiOutStands = {};   ///< Taxi-out stand polygons
 
@@ -100,7 +100,7 @@ struct airport
 
     std::map<std::string, std::vector<std::string>> sidAppFreqs = {}; ///< Approach frequency -> list of SIDs that use it
 
-    std::map<std::string, std::vector<std::string>> appFreqStations = {}; ///< Approach frequency -> ordered list of station callsign prefixes to try (first online wins)
+    std::map<std::string, std::vector<std::string>> appFreqFallbacks = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
 
     std::map<std::string, runway> runways = {};                ///< Runway configurations keyed by designator
 };

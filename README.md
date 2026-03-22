@@ -107,7 +107,7 @@ Required time is computed from holding point configuration (default 120 s).
 
 | Tag Item | Typical display | Description |
 |---|---|---|
-| **TTT** | `29_03:42` / `29_-042` | Time to touchdown based on distance and groundspeed, prefixed with the arrival runway designator (e.g. `29_03:42`). Colour-coded green (>2 min) / yellow (>1 min) / red (<1 min). Go-arounds show a negative elapsed counter (e.g. `29_-042`) blinking red/yellow. |
+| **TTT** | `29_03:42` / `29_->118.775` | Time to touchdown based on distance and groundspeed, prefixed with the arrival runway designator (e.g. `29_03:42`). Colour-coded green (>2 min) / yellow (>1 min) / red (<1 min). Go-arounds show the runway's go-around frequency instead of a timer (e.g. `29_->118.775`), blinking red/yellow. |
 | **Inbound NM** | `8.4` / `+2.3` | Two display modes. The **leading** inbound on each runway shows its absolute distance to the threshold (e.g. `8.4`). All **following** aircraft show the gap to the aircraft ahead prefixed with `+` (e.g. `+2.3`), colour-coded green (>3 nm) / yellow (>2.5 nm) / red (<2.5 nm). |
 | **Assigned Arrival RWY** | `29` | Arrival runway from the flight plan. Blinks red/yellow if the aircraft is tracked in the TTT list but approaching a different runway than assigned. |
 | **Suggested Vacate** | `A4` | Recommended vacate point based on the aircraft's assigned stand and the gap to the following (trailing) inbound, from `vacatePoints` in config. |
@@ -128,7 +128,7 @@ Tag functions are assigned to the **Left button** or **Right button** action of 
 | **Request Other HP** | Same as Assign Other HP, but appends `*`. |
 | **Line Up** | Sets the LINEUP ground state. |
 | **Take Off** | Sets the DEPA ground state and starts departure tracking. |
-| **Transfer Next** | Hands the aircraft off to approach, centre, or drops tracking. Picks the SID-specific approach frequency when configured. |
+| **Transfer Next** | Hands the aircraft off to the best available station. For departures, uses the SID-specific approach frequency (or default) and iterates `appFreqFallbacks` to find the first online station. For go-arounds, uses the runway's `goAroundFreq`. Falls back to centre stations via `ctrStations`, then EuroScope's coordinated next controller, then drops tracking. |
 | **Cleared to Land** | Drops tracking and triggers the TopSky Strong-Highlight cleared-to-land indicator. |
 | **Missed Approach** | Starts tracking, assigns 5000 ft, and triggers the TopSky missed-approach highlight. |
 | **Auto Stand Assignment** | Triggers automatic stand assignment via the Ground Radar plugin. |
@@ -215,7 +215,7 @@ Running `.delhelx` alone prints the loaded version and a command list.
 | `airborneTransferWarning` | integer | Altitude (ft) at which it starts blinking orange |
 | `gndFreq` | string | Default ground frequency |
 | `defaultAppFreq` | string | Default approach frequency used when no SID-specific match exists |
-| `ctrStations` | array of strings | Callsign prefixes considered as centre stations (e.g. `"LOVV_CTR"`) |
+| `ctrStations` | array of strings | Centre primary frequencies in priority order. The first frequency that has at least one online centre station wins. |
 
 ```json
 "fieldElevation": 600,
@@ -223,7 +223,7 @@ Running `.delhelx` alone prints the loaded version and a command list.
 "airborneTransferWarning": 3000,
 "gndFreq": "121.6",
 "defaultAppFreq": "134.675",
-"ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR"]
+"ctrStations": ["129.200", "134.440", "134.350", "132.600"]
 ```
 
 ### `geoGndFreq`
@@ -277,14 +277,16 @@ Maps approach frequencies to the list of SIDs that should be handed off to them.
 }
 ```
 
-### `appFreqStations`
+### `appFreqFallbacks`
 
-Maps each approach frequency to a priority-ordered list of station callsign prefixes. When transferring a departure, the plugin iterates this list for the target frequency and hands off to the first online station. If no approach station is found, centre stations are tried in the order defined by `ctrStations`.
+Maps each target approach frequency to a priority-ordered list of approach frequencies to try. When transferring a departure or displaying the next frequency, the plugin uses this list to find the best available station: for each frequency in the list it finds all online approach stations on that frequency, sorts their callsigns alphabetically, and picks the first. If no approach station is found across all fallbacks, centre stations are tried via `ctrStations`.
+
+The target frequency itself should always be listed first.
 
 ```json
-"appFreqStations": {
-    "134.675": ["LOWW_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_M_APP"],
-    "125.175": ["LOWW_M_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_APP"]
+"appFreqFallbacks": {
+    "134.675": ["134.675", "129.050", "118.775", "125.175"],
+    "125.175": ["125.175", "129.050", "118.775", "134.675"]
 }
 ```
 

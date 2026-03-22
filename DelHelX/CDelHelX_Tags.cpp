@@ -112,49 +112,47 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
                 }
             }
 
-            std::string sid = fpd.GetSidName();
-            for (auto station : this->radarScreen->approachStations)
+            // Determine target approach frequency from SID or use the default
+            std::string targetFreq = airport->second.defaultAppFreq;
             {
-                if (station.first.find(dep) != std::string::npos)
+                std::string sid = fpd.GetSidName();
+                for (auto& [f, sids] : airport->second.sidAppFreqs)
                 {
-                    // Search for SID-specific freq
-                    std::string freq = airport->second.defaultAppFreq;
-                    for (auto& [f, sids] : airport->second.sidAppFreqs)
+                    if (std::find(sids.begin(), sids.end(), sid) != sids.end())
                     {
-                        if (std::find(sids.begin(), sids.end(), sid) != sids.end())
-                        {
-                            freq = f;
-                            break;
-                        }
+                        targetFreq = f;
+                        break;
                     }
-                    tag.tag = "->" + freq;
-
-                    // Check if EuroScope has figured out the next coordinated controller yet
-                    std::string targetController = fp.GetCoordinatedNextController();
-                    if (targetController.empty())
-                    {
-                        tag.tag += " (?)";
-                    }
-
-                    return tag;
                 }
             }
 
-            for (auto center : airport->second.ctrStations)
+            // Try approach frequencies in config-defined fallback order
             {
-                for (auto station : this->radarScreen->centerStations)
+                auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
+                const auto& freqsToTry = (fallbackIt != airport->second.appFreqFallbacks.end())
+                    ? fallbackIt->second
+                    : std::vector<std::string>{ targetFreq };
+                for (const auto& freq : freqsToTry)
                 {
-                    if (station.first.find(center) != std::string::npos)
+                    for (const auto& station : this->radarScreen->approachStations)
                     {
-                        tag.tag = "->" + station.second;
-
-                        // Check if EuroScope has figured out the next coordinated controller yet
-                        std::string targetController = fp.GetCoordinatedNextController();
-                        if (targetController.empty())
+                        if (station.second == freq)
                         {
-                            tag.tag += " (?)";
+                            tag.tag = "->" + freq;
+                            return tag;
                         }
+                    }
+                }
+            }
 
+            // No approach station: try centre frequencies in config-defined priority order
+            for (const auto& ctrFreq : airport->second.ctrStations)
+            {
+                for (const auto& station : this->radarScreen->centerStations)
+                {
+                    if (station.second == ctrFreq)
+                    {
+                        tag.tag = "->" + ctrFreq;
                         return tag;
                     }
                 }
@@ -302,35 +300,47 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
         return tag;
     }
 
-    std::string sid = fpd.GetSidName();
-    for (auto station : this->radarScreen->approachStations)
+    // Determine target approach frequency from SID or use the default
+    std::string targetFreq = airport->second.defaultAppFreq;
     {
-        if (station.first.find(dep) != std::string::npos)
+        std::string sid = fpd.GetSidName();
+        for (auto& [f, sids] : airport->second.sidAppFreqs)
         {
-            // Search for SID-specific freq
+            if (std::find(sids.begin(), sids.end(), sid) != sids.end())
             {
-                std::string freq = airport->second.defaultAppFreq;
-                for (auto& [f, sids] : airport->second.sidAppFreqs)
-                {
-                    if (std::find(sids.begin(), sids.end(), sid) != sids.end())
-                    {
-                        freq = f;
-                        break;
-                    }
-                }
-                tag.tag += "->" + freq;
-                return tag;
+                targetFreq = f;
+                break;
             }
         }
     }
 
-    for (auto center : airport->second.ctrStations)
+    // Try approach frequencies in config-defined fallback order
     {
-        for (auto station : this->radarScreen->centerStations)
+        auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
+        const auto& freqsToTry = (fallbackIt != airport->second.appFreqFallbacks.end())
+            ? fallbackIt->second
+            : std::vector<std::string>{ targetFreq };
+        for (const auto& freq : freqsToTry)
         {
-            if (station.first.find(center) != std::string::npos)
+            for (const auto& station : this->radarScreen->approachStations)
             {
-                tag.tag += "->" + station.second;
+                if (station.second == freq)
+                {
+                    tag.tag += "->" + freq;
+                    return tag;
+                }
+            }
+        }
+    }
+
+    // No approach station: try centre frequencies in config-defined priority order
+    for (const auto& ctrFreq : airport->second.ctrStations)
+    {
+        for (const auto& station : this->radarScreen->centerStations)
+        {
+            if (station.second == ctrFreq)
+            {
+                tag.tag += "->" + ctrFreq;
                 return tag;
             }
         }

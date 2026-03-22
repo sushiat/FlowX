@@ -11,7 +11,7 @@
                 "lon": [16.533667, 16.567444, 16.570472, 16.536750]
             }
         },
-        "ctrStations": ["LOVV_L", "LOVV_E_", "LOVV_N_", "LOVV_CTR", "LOVV_C_", "LOVV_EU", "LOVV_NU"],
+        "ctrStations": ["129.200", "134.440", "134.350", "132.600", "132.160", "135.635", "119.880"],
         "taxiOutStands": {
             "bstands": {
                 "lat": [48.120075, 48.119410, 48.121754, 48.122101],
@@ -64,11 +64,11 @@
                 "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A"
             ]
         },
-        "appFreqStations": {
-            "134.675": ["LOWW_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_M_APP"],
-            "118.775": ["LOWW_N_APP", "LOWW_M_APP", "LOWW_APP", "LOWW_P_APP"],
-            "129.050": ["LOWW_P_APP", "LOWW_M_APP", "LOWW_APP", "LOWW_N_APP"],
-            "125.175": ["LOWW_M_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_APP"]
+        "appFreqFallbacks": {
+            "134.675": ["134.675", "129.050", "118.775", "125.175"],
+            "118.775": ["118.775", "125.175", "134.675", "129.050"],
+            "129.050": ["129.050", "125.175", "134.675", "118.775"],
+            "125.175": ["125.175", "129.050", "118.775", "134.675"]
         },
         "runways": {
             "11": {
