@@ -84,7 +84,7 @@ const int      TOPSKY_TAG_TYPE_ATYP               = 10028;        ///< TopSky ta
 /// @defgroup GroundRadarIntegration Constants for Ground Radar plugin interop
 /// @{
 constexpr auto GROUNDRADAR_PLUGIN_NAME                  = "Ground Radar plugin"; ///< EuroScope name of the Ground Radar plugin
-const int      GROUNDRADAR_TAG_TYPE_GROUNDSTATUS		  = 3;                   ///< Ground Radar tag item type for ground status
+const int      GROUNDRADAR_TAG_TYPE_GROUNDSTATUS          = 3;                   ///< Ground Radar tag item type for ground status
 const int      GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND        = 2;                   ///< Ground Radar tag item type for assigned stand
 const int      GROUNDRADAR_TAG_FUNC_STAND_MENU            = 1;                   ///< Ground Radar function ID to open the stand assignment menu
 /// @}

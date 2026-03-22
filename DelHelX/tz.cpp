@@ -269,12 +269,12 @@ get_known_folder(const GUID& folderid)
         const wchar_t* fptr = folder_ptr.get();
         auto state = std::mbstate_t();
 #pragma warning(suppress : 4996)
-    	const auto required = std::wcsrtombs(nullptr, &fptr, 0, &state);
+        const auto required = std::wcsrtombs(nullptr, &fptr, 0, &state);
         if (required != 0 && required != std::size_t(-1))
         {
             folder.resize(required);
 #pragma warning(suppress : 4996)
-        	std::wcsrtombs(&folder[0], &fptr, folder.size(), &state);
+            std::wcsrtombs(&folder[0], &fptr, folder.size(), &state);
         }
     }
     return folder;

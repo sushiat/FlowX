@@ -19,79 +19,79 @@ std::string FetchLatestVersion();
 class delhelexception : public std::exception
 {
 public:
-	/// @brief Constructs the exception with the given message string.
-	/// @param what Human-readable error description.
-	explicit delhelexception(std::string& what) : std::exception{ what.c_str() } {}
+    /// @brief Constructs the exception with the given message string.
+    /// @param what Human-readable error description.
+    explicit delhelexception(std::string& what) : std::exception{ what.c_str() } {}
 
-	/// @brief Returns the Win32 MB_ICON* constant appropriate for this exception type.
-	/// @return Win32 message-box icon flag (e.g. MB_ICONERROR).
-	virtual inline const long icon() const = 0;
+    /// @brief Returns the Win32 MB_ICON* constant appropriate for this exception type.
+    /// @return Win32 message-box icon flag (e.g. MB_ICONERROR).
+    virtual inline const long icon() const = 0;
 
-	/// @brief Shows a Win32 MessageBox with the exception message and appropriate icon.
-	inline void whatMessageBox()
-	{
-		MessageBox(NULL, this->what(), PLUGIN_NAME, MB_OK | icon());
-	}
+    /// @brief Shows a Win32 MessageBox with the exception message and appropriate icon.
+    inline void whatMessageBox()
+    {
+        MessageBox(NULL, this->what(), PLUGIN_NAME, MB_OK | icon());
+    }
 };
 
 /// @brief Exception type for fatal errors, shown with an error icon.
 class error : public delhelexception
 {
 public:
-	/// @brief Constructs an error exception.
-	/// @param what Human-readable error description.
-	explicit error(std::string& what) : delhelexception{ what } {}
+    /// @brief Constructs an error exception.
+    /// @param what Human-readable error description.
+    explicit error(std::string& what) : delhelexception{ what } {}
 
-	/// @brief Returns MB_ICONERROR.
-	/// @return Win32 MB_ICONERROR flag.
-	inline const long icon() const
-	{
-		return MB_ICONERROR;
-	}
+    /// @brief Returns MB_ICONERROR.
+    /// @return Win32 MB_ICONERROR flag.
+    inline const long icon() const
+    {
+        return MB_ICONERROR;
+    }
 };
 
 /// @brief Exception type for non-fatal warnings, shown with a warning icon.
 class warning : public delhelexception
 {
 public:
-	/// @brief Constructs a warning exception.
-	/// @param what Human-readable warning description.
-	explicit warning(std::string& what) : delhelexception{ what } {}
+    /// @brief Constructs a warning exception.
+    /// @param what Human-readable warning description.
+    explicit warning(std::string& what) : delhelexception{ what } {}
 
-	/// @brief Returns MB_ICONWARNING.
-	/// @return Win32 MB_ICONWARNING flag.
-	inline const long icon() const
-	{
-		return MB_ICONWARNING;
-	}
+    /// @brief Returns MB_ICONWARNING.
+    /// @return Win32 MB_ICONWARNING flag.
+    inline const long icon() const
+    {
+        return MB_ICONWARNING;
+    }
 };
 
 /// @brief Exception type for informational messages, shown with an information icon.
 class information : public delhelexception
 {
 public:
-	/// @brief Constructs an information exception.
-	/// @param what Human-readable information message.
-	explicit information(std::string& what) : delhelexception{ what } {}
+    /// @brief Constructs an information exception.
+    /// @param what Human-readable information message.
+    explicit information(std::string& what) : delhelexception{ what } {}
 
-	/// @brief Returns MB_ICONINFORMATION.
-	/// @return Win32 MB_ICONINFORMATION flag.
-	inline const long icon() const
-	{
-		return MB_ICONINFORMATION;
-	}
+    /// @brief Returns MB_ICONINFORMATION.
+    /// @return Win32 MB_ICONINFORMATION flag.
+    inline const long icon() const
+    {
+        return MB_ICONINFORMATION;
+    }
 };
 
 /// @brief Returns the directory containing the loaded plugin DLL.
 /// @return Absolute path string of the plugin's directory, without trailing separator.
 inline std::string GetPluginDirectory()
 {
-	char buf[MAX_PATH] = { 0 };
-	GetModuleFileName(HINSTANCE(&__ImageBase), buf, MAX_PATH);
+    char buf[MAX_PATH] = { 0 };
+    GetModuleFileName(HINSTANCE(&__ImageBase), buf, MAX_PATH);
 
-	std::string::size_type pos = std::string(buf).find_last_of("\\/");
+    std::string::size_type pos = std::string(buf).find_last_of("\\/");
 
-	return std::string(buf).substr(0, pos);
+    return std::string(buf).substr(0, pos);
 }
 
 /// @brief Splits a string into tokens using the given delimiter character.
@@ -100,15 +100,15 @@ inline std::string GetPluginDirectory()
 /// @return Vector of token strings in order of appearance.
 inline std::vector<std::string> split(const std::string& s, char delim = ' ')
 {
-	std::istringstream ss(s);
-	std::string item;
-	std::vector<std::string> res;
+    std::istringstream ss(s);
+    std::string item;
+    std::vector<std::string> res;
 
-	while (std::getline(ss, item, delim)) {
-		res.push_back(item);
-	}
+    while (std::getline(ss, item, delim)) {
+        res.push_back(item);
+    }
 
-	return res;
+    return res;
 }
 
 /// @brief Joins a vector of strings into a single string separated by the given delimiter.
@@ -117,9 +117,9 @@ inline std::vector<std::string> split(const std::string& s, char delim = ' ')
 /// @return Concatenated string with delimiter appended after every element including the last.
 inline std::string join(const std::vector<std::string>& s, const char delim = ' ')
 {
-	std::ostringstream ss;
-	std::copy(s.begin(), s.end(), std::ostream_iterator<std::string>(ss, &delim));
-	return ss.str();
+    std::ostringstream ss;
+    std::copy(s.begin(), s.end(), std::ostream_iterator<std::string>(ss, &delim));
+    return ss.str();
 }
 
 /// @brief Checks whether a string begins with a given prefix.
@@ -128,15 +128,15 @@ inline std::string join(const std::vector<std::string>& s, const char delim = ' 
 /// @return True if @p str starts with @p pre.
 inline bool starts_with(const std::string& str, const std::string& pre)
 {
-	return str.rfind(pre, 0) == 0;
+    return str.rfind(pre, 0) == 0;
 }
 
 /// @brief Converts all characters of a string to upper-case in place.
 /// @param str String to convert; modified in place.
 inline void to_upper(std::string& str)
 {
-	std::transform(str.begin(), str.end(), str.begin(),
-		[](unsigned char c) -> unsigned char { return std::toupper(c); });
+    std::transform(str.begin(), str.end(), str.begin(),
+        [](unsigned char c) -> unsigned char { return std::toupper(c); });
 }
 
 /// @brief Rounds an integer to the nearest multiple of @p closest.
@@ -145,7 +145,7 @@ inline void to_upper(std::string& str)
 /// @return @p num rounded to the nearest multiple of @p closest.
 inline int round_to_closest(int num, int closest)
 {
-	return ((num + closest / 2) / closest) * closest;
+    return ((num + closest / 2) / closest) * closest;
 }
 
 /// @brief Removes leading and trailing characters from a character set.
@@ -154,13 +154,13 @@ inline int round_to_closest(int num, int closest)
 /// @return Trimmed copy of @p str, or an empty string if @p str consists only of charset characters.
 inline std::string trim(const std::string& str, const std::string& charset = " \t")
 {
-	size_t begin = str.find_first_not_of(charset);
-	if (begin == std::string::npos) {
-		// Empty string or only characters from charset provided
-		return "";
-	}
+    size_t begin = str.find_first_not_of(charset);
+    if (begin == std::string::npos) {
+        // Empty string or only characters from charset provided
+        return "";
+    }
 
-	size_t end = str.find_last_not_of(charset);
+    size_t end = str.find_last_not_of(charset);
 
-	return str.substr(begin, end - begin + 1);
+    return str.substr(begin, end - begin + 1);
 }
