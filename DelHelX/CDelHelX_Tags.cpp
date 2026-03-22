@@ -644,14 +644,11 @@ tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlug
         [&callSign](const auto& entry) { return entry.first.rfind(callSign, 0) == 0; });
     if (it != this->ttt_flightPlans.end())
     {
-        // Go-around: show negative elapsed seconds, blink red/yellow
+        // Go-around: show runway go-around frequency, blink red/yellow
         auto goAroundIt = this->ttt_goAround.find(it->first);
         if (goAroundIt != this->ttt_goAround.end())
         {
-            ULONGLONG elapsed = (GetTickCount64() - goAroundIt->second) / 1000;
-            char buf[16];
-            (void)sprintf_s(buf, "%s_-%03llu", it->second.designator.c_str(), elapsed);
-            tag.tag = std::string(buf);
+            tag.tag = it->second.designator + "_->" + it->second.goAroundFreq;
             tag.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
             return tag;
         }
