@@ -277,6 +277,17 @@ Maps approach frequencies to the list of SIDs that should be handed off to them.
 }
 ```
 
+### `appFreqStations`
+
+Maps each approach frequency to a priority-ordered list of station callsign prefixes. When transferring a departure, the plugin iterates this list for the target frequency and hands off to the first online station. If no approach station is found, centre stations are tried in the order defined by `ctrStations`.
+
+```json
+"appFreqStations": {
+    "134.675": ["LOWW_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_M_APP"],
+    "125.175": ["LOWW_M_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_APP"]
+}
+```
+
 ### `nightTimeSids`
 
 Night-time SIDs are filed with a truncated name (last character dropped), so `IRGOT2A` appears in the flight plan as `IRGO2A`. This map restores the full name for display: the key is the truncated SID prefix as filed, and the value is the full SID name prefix. The tag appends `*` to mark the SID as a night procedure.

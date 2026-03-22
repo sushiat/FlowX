@@ -64,6 +64,12 @@
                 "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A"
             ]
         },
+        "appFreqStations": {
+            "134.675": ["LOWW_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_M_APP"],
+            "118.775": ["LOWW_N_APP", "LOWW_M_APP", "LOWW_APP", "LOWW_P_APP"],
+            "129.050": ["LOWW_P_APP", "LOWW_M_APP", "LOWW_APP", "LOWW_N_APP"],
+            "125.175": ["LOWW_M_APP", "LOWW_P_APP", "LOWW_N_APP", "LOWW_APP"]
+        },
         "runways": {
             "11": {
                 "opposite": "29",

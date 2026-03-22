@@ -189,6 +189,19 @@ void CDelHelX_Settings::LoadConfig()
             this->LogMessage("Failed to load SID-specific frequencies for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
         }
 
+        // Load approach frequency station priority lists
+        try
+        {
+            for (auto& [freq, stations] : json_airport.at("appFreqStations").items())
+            {
+                ap.appFreqStations.emplace(freq, stations.get<std::vector<std::string>>());
+            }
+        }
+        catch (std::exception& e)
+        {
+            this->LogMessage("Failed to load approach frequency stations for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
+        }
+
         // Load runway configurations
         try
         {
@@ -318,7 +331,7 @@ void CDelHelX_Settings::CheckForUpdate()
     }
     catch (std::exception& e)
     {
-        MessageBox(NULL, e.what(), PLUGIN_NAME, MB_OK | MB_ICONERROR);
+        MessageBoxA(NULL, e.what(), PLUGIN_NAME, MB_OK | MB_ICONERROR);
     }
 
     this->latestVersion = std::future<std::string>();

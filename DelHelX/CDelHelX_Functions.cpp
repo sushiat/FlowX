@@ -199,72 +199,119 @@ void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
 void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string callSign = fp.GetCallsign();
-    std::string targetController = fp.GetCoordinatedNextController();
     std::string dep = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
-    if (!targetController.empty() && this->ControllerMyself().GetFacility() >= 4)
+
+    // Determine the best station to hand off to, in priority order:
+    //   1. Approach station for the SID/go-around frequency (config-defined priority order)
+    //   2. Centre station (config-defined priority order)
+    //   3. EuroScope's coordinated next controller (fallback)
+    //   4. End tracking
+    // Returns the full EuroScope callsign of the target station (e.g. "LOWW_M_APP"),
+    // or an empty string if no station was found (cases 3 and 4 are handled by the caller).
+    auto findStation = [&]() -> std::string
     {
-        fp.InitiateHandoff(targetController.c_str());
+        if (this->radarScreen == nullptr)
+        {
+            return "";
+        }
+
+        std::string targetFreq;
+        decltype(this->airports)::iterator airport = this->airports.end();
+
+        // Check for go-around first — arrival airport may differ from departure airport
+        auto planIt = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+            [&callSign](const auto& e) { return e.first.rfind(callSign, 0) == 0; });
+        if (planIt != this->ttt_flightPlans.end() &&
+            this->ttt_goAround.find(planIt->first) != this->ttt_goAround.end())
+        {
+            targetFreq = planIt->second.goAroundFreq;
+            // Identify the arrival airport by matching runway designator and go-around frequency
+            for (auto it = this->airports.begin(); it != this->airports.end(); ++it)
+            {
+                auto rwyIt = it->second.runways.find(planIt->second.designator);
+                if (rwyIt != it->second.runways.end() && rwyIt->second.goAroundFreq == targetFreq)
+                {
+                    airport = it;
+                    break;
+                }
+            }
+            if (airport == this->airports.end())
+            {
+                return "";
+            }
+        }
+        else
+        {
+            // Not a go-around: look up the departure airport and determine freq from SID
+            airport = this->airports.find(dep);
+            if (airport == this->airports.end())
+            {
+                return "";
+            }
+            std::string sid = fp.GetFlightPlanData().GetSidName();
+            targetFreq = airport->second.defaultAppFreq;
+            for (auto& [f, sids] : airport->second.sidAppFreqs)
+            {
+                if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+                {
+                    targetFreq = f;
+                    break;
+                }
+            }
+        }
+
+        // Search approach stations in config-defined priority order for the target frequency
+        auto stationsIt = airport->second.appFreqStations.find(targetFreq);
+        if (stationsIt != airport->second.appFreqStations.end())
+        {
+            for (const auto& prefix : stationsIt->second)
+            {
+                for (const auto& online : this->radarScreen->approachStations)
+                {
+                    if (online.first.rfind(prefix, 0) == 0 && online.second == targetFreq)
+                    {
+                        return online.first;
+                    }
+                }
+            }
+        }
+
+        // No approach station found: try centre stations in config-defined priority order
+        for (const auto& prefix : airport->second.ctrStations)
+        {
+            for (const auto& online : this->radarScreen->centerStations)
+            {
+                if (online.first.rfind(prefix, 0) == 0)
+                {
+                    return online.first;
+                }
+            }
+        }
+
+        return "";
+    };
+
+    std::string station = findStation();
+    if (!station.empty() && fp.InitiateHandoff(station.c_str()))
+    {
+        // Custom station handoff succeeded
     }
     else
     {
-        // If we are TWR, check if any APP station is online, and transfer there
-        if (this->ControllerMyself().GetFacility() == 4)
+        // Fall back to EuroScope's coordinated next controller if available
+        std::string targetController = fp.GetCoordinatedNextController();
+        if (!targetController.empty() && fp.InitiateHandoff(targetController.c_str()))
         {
-            if (this->radarScreen != nullptr)
-            {
-                // Check if we can find SID specific freq
-                auto airport = this->airports.find(dep);
-                bool wasAssigned = false;
-                if (airport != this->airports.end()) {
-                    std::string sid = fp.GetFlightPlanData().GetSidName();
-                    std::string freq = airport->second.defaultAppFreq;
-                    for (auto& [f, sids] : airport->second.sidAppFreqs)
-                    {
-                        if (std::find(sids.begin(), sids.end(), sid) != sids.end())
-                        {
-                            freq = f;
-                            break;
-                        }
-                    }
-
-                    for (auto station : this->radarScreen->approachStations)
-                    {
-                        if (station.first.find(dep) != std::string::npos && station.second == freq)
-                        {
-                            fp.InitiateHandoff(station.first.c_str());
-                            wasAssigned = true;
-                            break;
-                        }
-                    }
-                }
-
-                // No SID specific freq, just look for any APP station and pick the first one
-                for (auto station : this->radarScreen->approachStations)
-                {
-                    if (station.first.find(dep) != std::string::npos)
-                    {
-                        fp.InitiateHandoff(station.first.c_str());
-                        wasAssigned = true;
-                        break;
-                    }
-                }
-
-                if (!wasAssigned)
-                {
-                    fp.EndTracking();
-                }
-            } 
-            else
-            {
-                fp.EndTracking();
-            }
+            // EuroScope fallback handoff succeeded
         }
-        else {
+        else
+        {
             fp.EndTracking();
         }
     }
 
+    // Mark FP as transferred
     if (this->flightStripAnnotation[callSign].length() > 1)
     {
         this->flightStripAnnotation[callSign][1] = 'T';

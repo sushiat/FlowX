@@ -100,5 +100,7 @@ struct airport
 
     std::map<std::string, std::vector<std::string>> sidAppFreqs = {}; ///< Approach frequency -> list of SIDs that use it
 
+    std::map<std::string, std::vector<std::string>> appFreqStations = {}; ///< Approach frequency -> ordered list of station callsign prefixes to try (first online wins)
+
     std::map<std::string, runway> runways = {};                ///< Runway configurations keyed by designator
 };
