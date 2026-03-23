@@ -47,7 +47,7 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
                 bool towerOnline = false;
                 for (auto station : this->radarScreen->towerStations)
                 {
-                    if (station.find(dep) != std::string::npos)
+                    if (station.first.find(dep) != std::string::npos)
                     {
                         towerOnline = true;
                         continue;
@@ -242,7 +242,7 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
     bool groundOnline = false;
     for (auto station : this->radarScreen->groundStations)
     {
-        if (station.find(dep) != std::string::npos)
+        if (station.first.find(dep) != std::string::npos)
         {
             groundOnline = true;
             continue;
@@ -274,7 +274,7 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
     bool towerOnline = false;
     for (auto station : this->radarScreen->towerStations)
     {
-        if (station.find(dep) != std::string::npos)
+        if (station.first.find(dep) != std::string::npos)
         {
             towerOnline = true;
             continue;

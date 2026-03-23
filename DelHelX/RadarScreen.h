@@ -33,10 +33,10 @@ public:
 
     bool debug; ///< When true, controller connect/disconnect events are logged to the chat window
 
-    /// @brief Set of callsigns of online GND controllers (facility 3).
-    std::set<std::string> groundStations;
-    /// @brief Set of callsigns of online TWR controllers (facility 4, excluding ATIS).
-    std::set<std::string> towerStations;
+    /// @brief Callsign -> primary frequency string for online GND controllers (facility 3).
+    std::map<std::string, std::string> groundStations;
+    /// @brief Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS).
+    std::map<std::string, std::string> towerStations;
     /// @brief Callsign -> primary frequency string for online APP controllers (facility 5).
     std::map<std::string, std::string> approachStations;
     /// @brief Callsign -> primary frequency string for online CTR controllers (facility 6).

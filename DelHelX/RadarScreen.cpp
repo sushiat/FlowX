@@ -33,60 +33,45 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
     // Not interested in observers, non-controllers and my own call-sign
     if (Controller.IsController() && Controller.GetRating() > 1 && cs != myCS)
     {
+        double freq = Controller.GetPrimaryFrequency();
+        auto freqString = std::to_string(freq);
+        std::string freqFormatted = freqString.substr(0, freqString.find('.') + 4);
+
+        auto updateStation = [&](std::map<std::string, std::string>& stations, const char* label) {
+            auto it = stations.find(cs);
+            if (it == stations.end())
+            {
+                stations.emplace(cs, freqFormatted);
+                if (this->debug)
+                {
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, label, (cs + " online (" + freqFormatted + ")").c_str(), true, true, true, false, false);
+                }
+            }
+            else if (it->second != freqFormatted)
+            {
+                if (this->debug)
+                {
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, label, (cs + " freq changed: " + it->second + " -> " + freqFormatted).c_str(), true, true, true, false, false);
+                }
+                it->second = freqFormatted;
+            }
+        };
+
         if (Controller.GetFacility() == 3)
         {
-            if (this->groundStations.find(cs) == this->groundStations.end())
-            {
-                this->groundStations.insert(cs);
-                if (this->debug)
-                {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Ground", (cs + " online").c_str(), true, true, true, false, false);
-                }
-            }
+            updateStation(this->groundStations, "Ground");
         }
-
         if (Controller.GetFacility() == 4 && cs.find("ATIS") == std::string::npos)
         {
-            if (this->towerStations.find(cs) == this->towerStations.end())
-            {
-                this->towerStations.insert(cs);
-                if (this->debug)
-                {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Tower", (cs + " online").c_str(), true, true, true, false, false);
-                }
-            }
+            updateStation(this->towerStations, "Tower");
         }
-
         if (Controller.GetFacility() == 5)
         {
-            if (this->approachStations.find(cs) == this->approachStations.end())
-            {
-                double freq = Controller.GetPrimaryFrequency();
-                auto freqString = std::to_string(freq);
-                std::string rounded = freqString.substr(0, freqString.find('.') + 4);
-
-                this->approachStations.emplace(cs, rounded);
-                if (this->debug)
-                {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " online (" + rounded + ")").c_str(), true, true, true, false, false);
-                }
-            }
+            updateStation(this->approachStations, "Approach");
         }
-
         if (Controller.GetFacility() == 6)
         {
-            if (this->centerStations.find(cs) == this->centerStations.end())
-            {
-                double freq = Controller.GetPrimaryFrequency();
-                auto freqString = std::to_string(freq);
-                std::string rounded = freqString.substr(0, freqString.find('.') + 4);
-
-                this->centerStations.emplace(cs, rounded);
-                if (this->debug)
-                {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " online (" + rounded + ")").c_str(), true, true, true, false, false);
-                }
-            }
+            updateStation(this->centerStations, "Center");
         }
     }
 }
