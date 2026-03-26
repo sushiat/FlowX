@@ -87,6 +87,13 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
                         tag.tag = "->" + rwyIt->second.twrFreq;
                         return tag;
                     }
+
+                    // No runway assigned and VFR? Use default TWR freq
+                    if (rwy=="" && fp.GetFlightPlanData().GetPlanType() == "V")
+                    {
+                        tag.tag = "->" + airport->second.runways.begin()->second.twrFreq;
+                        return tag;
+                    }
                 }
             }
 

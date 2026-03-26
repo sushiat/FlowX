@@ -202,6 +202,12 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     std::string dep = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
 
+    if(!fp.GetTrackingControllerIsMe())
+    {
+        // Not tracking, so no transfer needed
+        return;
+    }
+
     // Determine the best station to hand off to, in priority order:
     //   1. Approach station: iterate appFreqFallbacks for the target frequency in order;
     //      for each frequency collect all online stations, sort callsigns ASC, pick first.
