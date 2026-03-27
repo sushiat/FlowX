@@ -176,23 +176,15 @@ int CDelHelX_LookupsTools::IsSameHoldingPoint(std::string hp1, std::string hp2, 
     return false;
 }
 
-/// @brief Inserts a holding-point name into flight-strip annotation slot 8 after the two flag characters.
-/// @param annotation Current annotation string (characters 0–1 are reserved flags).
+/// @brief Inserts a holding-point name into flight-strip annotation slot 8 after the seven header characters.
+/// @param annotation Current annotation string ([0] = QNH flag, [1..6] = 6-char transfer frequency with dot removed).
 /// @param hp Holding-point name to insert.
-/// @return Updated annotation string with the HP encoded from position 2 onward.
+/// @return Updated annotation string with the HP encoded from position 7 onward.
 std::string CDelHelX_LookupsTools::AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp)
 {
-    if (annotation.length() >= 2)
-    {
-        return annotation.substr(0, 2).append(hp);
-    }
-
-    if (!annotation.empty())
-    {
-        return annotation.substr(0, 1).append(" " + hp);
-    }
-
-    return "  " + hp;
+    std::string prefix = annotation.substr(0, 7);
+    prefix.resize(7, ' ');
+    return prefix + hp;
 }
 
 /// @brief Converts a colour name string to the corresponding COLORREF constant.

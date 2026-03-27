@@ -202,12 +202,6 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     std::string dep = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
 
-    if(!fp.GetTrackingControllerIsMe())
-    {
-        // Not tracking, so no transfer needed
-        return;
-    }
-
     // Determine the best station to hand off to, in priority order:
     //   1. Approach station: iterate appFreqFallbacks for the target frequency in order;
     //      for each frequency collect all online stations, sort callsigns ASC, pick first.
@@ -216,11 +210,12 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     //   4. End tracking
     // Returns the full EuroScope callsign of the winning station (selected by frequency lookup,
     // e.g. "LOWW_M_APP"), or an empty string if no station was found (cases 3 and 4 are handled by the caller).
-    auto findStation = [&]() -> std::string
+    // Returns {callsign, frequency} of the winning station, or {"", ""} if none found.
+    auto findStation = [&]() -> std::pair<std::string, std::string>
     {
         if (this->radarScreen == nullptr)
         {
-            return "";
+            return {"", ""};
         }
 
         std::string targetFreq;
@@ -245,7 +240,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             }
             if (airport == this->airports.end())
             {
-                return "";
+                return {"", ""};
             }
         }
         else
@@ -254,7 +249,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             airport = this->airports.find(dep);
             if (airport == this->airports.end())
             {
-                return "";
+                return {"", ""};
             }
             std::string sid = fp.GetFlightPlanData().GetSidName();
             targetFreq = airport->second.defaultAppFreq;
@@ -290,7 +285,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
                 {
                     std::sort(matches.begin(), matches.end());
                     this->LogDebugMessage(callSign + " TransferNext: " + targetFreq + " -> " + freq + " (" + matches.front() + ")", "Transfer");
-                    return matches.front();
+                    return {matches.front(), freq};
                 }
             }
         }
@@ -310,15 +305,36 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             {
                 std::sort(matches.begin(), matches.end());
                 this->LogDebugMessage(callSign + " TransferNext: " + targetFreq + " -> CTR " + ctrFreq + " (" + matches.front() + ")", "Transfer");
-                return matches.front();
+                return {matches.front(), ctrFreq};
             }
         }
 
         this->LogDebugMessage(callSign + " TransferNext: no station found for target=" + targetFreq, "Transfer");
-        return "";
+        return {"", ""};
     };
 
-    std::string station = findStation();
+    auto [station, stationFreq] = findStation();
+
+    // Mark FP as transferred — store target frequency (dot removed, 6 chars) at [1..6]
+    std::string transferFreq = stationFreq;
+    transferFreq.erase(std::remove(transferFreq.begin(), transferFreq.end(), '.'), transferFreq.end());
+    transferFreq.resize(6, ' ');
+    auto& anno = this->flightStripAnnotation[callSign];
+    anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
+    for (int i = 0; i < 6; i++)
+    {
+        anno[1 + i] = transferFreq[i];
+    }
+    fp.GetControllerAssignedData().SetFlightStripAnnotation(8, anno.c_str());
+    this->PushToOtherControllers(fp);
+
+    // Transfer is marked, to we also need to transfer the tag?
+    if(!fp.GetTrackingControllerIsMe())
+    {
+        // Not tracking, so no transfer needed
+        return;
+    }
+
     if (!station.empty() && fp.InitiateHandoff(station.c_str()))
     {
         // Custom station handoff succeeded
@@ -336,18 +352,6 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             fp.EndTracking();
         }
     }
-
-    // Mark FP as transferred
-    if (this->flightStripAnnotation[callSign].length() > 1)
-    {
-        this->flightStripAnnotation[callSign][1] = 'T';
-    }
-    else
-    {
-        this->flightStripAnnotation[callSign] = " T";
-    }
-    fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-    this->PushToOtherControllers(fp);
 }
 
 /// @brief Ends tracking of the inbound and triggers TopSky's highlight function.

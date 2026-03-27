@@ -61,8 +61,8 @@ protected:
     /// @brief Encodes a holding-point name into the flight-strip annotation string in slot 8.
     /// @param annotation Current annotation string from slot 8.
     /// @param hp Holding-point name to append.
-    /// @return Updated annotation string with the HP placed after the first two flag characters.
-    /// @note The first two characters of annotation slot 8 are reserved for flags (Q = new QNH, T = transferred).
+    /// @return Updated annotation string with the HP placed from position 7 onward.
+    /// @note Slot 8 layout: [0] QNH flag ('Q' = new QNH), [1..6] transfer frequency with dot removed (6 chars, spaces = not transferred), [7..] holding point name.
     static std::string AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp);
 
     /// @brief Converts a colour name string to the corresponding COLORREF constant.

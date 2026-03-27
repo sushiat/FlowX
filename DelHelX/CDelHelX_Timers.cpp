@@ -387,10 +387,10 @@ void CDelHelX_Timers::UpdateTowerSameSID()
                             this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
                         }
                         if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
-                            this->flightStripAnnotation[callSign].length() > 2 && this->flightStripAnnotation[prevCallSign].length() > 2)
+                            this->flightStripAnnotation[callSign].length() > 7 && this->flightStripAnnotation[prevCallSign].length() > 7)
                         {
-                            std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(2);
-                            std::string hp = this->flightStripAnnotation[callSign].substr(2);
+                            std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(7);
+                            std::string hp = this->flightStripAnnotation[callSign].substr(7);
                             if (!IsSameHoldingPoint(prevHP, hp, airport->second.runways))
                             {
                                 timeRequired += 60;
@@ -517,10 +517,10 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
                 auto hp_color = TAG_COLOR_GREEN;
                 std::string hp;
                 this->flightStripAnnotation[cs] = fpcad.GetFlightStripAnnotation(8);
-                if (this->flightStripAnnotation[cs].length() > 2)
+                if (this->flightStripAnnotation[cs].length() > 7)
                 {
-                    hp = this->flightStripAnnotation[cs].substr(2);
-                    if (this->flightStripAnnotation[cs].substr(2).find('*') != std::string::npos)
+                    hp = this->flightStripAnnotation[cs].substr(7);
+                    if (this->flightStripAnnotation[cs].substr(7).find('*') != std::string::npos)
                     {
                         hp_color = TAG_COLOR_ORANGE;
                     }
@@ -528,7 +528,20 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 
                 auto me = this->ControllerMyself();
                 if (me.IsController() && me.GetRating() > 1 && me.GetFacility() <= 3) {
-                    if (this->flightStripAnnotation[cs].length() < 2 || this->flightStripAnnotation[cs][1] != 'T')
+                    bool transferred = false;
+                    if (this->flightStripAnnotation[cs].length() >= 7)
+                    {
+                        std::string storedFreq = this->flightStripAnnotation[cs].substr(1, 6);
+                        if (storedFreq.find_first_not_of(' ') != std::string::npos)
+                        {
+                            double myFreqDouble = me.GetPrimaryFrequency();
+                            auto s = std::to_string(myFreqDouble);
+                            std::string myFreq = s.substr(0, s.find('.') + 4);
+                            myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
+                            transferred = (storedFreq != myFreq);
+                        }
+                    }
+                    if (!transferred)
                     {
                         dep_info += ",T";
                     }

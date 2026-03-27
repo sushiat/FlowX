@@ -29,9 +29,17 @@ tagInfo CDelHelX_Tags::GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroS
         // Check if we passed the aircraft to the next frequency, clear the tag if we did
         std::string callSign = fp.GetCallsign();
         this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-        if (this->flightStripAnnotation[callSign].length() > 1 && this->flightStripAnnotation[callSign][1] == 'T')
+        if (this->flightStripAnnotation[callSign].length() >= 7)
         {
-            transferred = true;
+            std::string storedFreq = this->flightStripAnnotation[callSign].substr(1, 6);
+            if (storedFreq.find_first_not_of(' ') != std::string::npos)
+            {
+                double myFreqDouble = this->ControllerMyself().GetPrimaryFrequency();
+                auto s = std::to_string(myFreqDouble);
+                std::string myFreq = s.substr(0, s.find('.') + 4);
+                myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
+                transferred = (storedFreq != myFreq);
+            }
         }
 
         if (this->radarScreen == nullptr)
@@ -881,12 +889,12 @@ tagInfo CDelHelX_Tags::GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int 
     {
         return tag;
     }
-    if (this->flightStripAnnotation[callSign].length() > 2 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(2), index, airport->second.runways))
+    if (this->flightStripAnnotation[callSign].length() > 7 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(7), index, airport->second.runways))
     {
-        tag.tag = this->flightStripAnnotation[callSign].substr(2);
+        tag.tag = this->flightStripAnnotation[callSign].substr(7);
         tag.color = TAG_COLOR_GREEN;
 
-        if (this->flightStripAnnotation[callSign].substr(2).find('*') != std::string::npos)
+        if (this->flightStripAnnotation[callSign].substr(7).find('*') != std::string::npos)
         {
             tag.color = TAG_COLOR_ORANGE;
         }
@@ -955,10 +963,10 @@ tagInfo CDelHelX_Tags::GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, Eur
 
                             this->flightStripAnnotation[lastDeparted_callSign] = lastDeparted_radarTarget.GetCorrelatedFlightPlan().GetControllerAssignedData().GetFlightStripAnnotation(8);
                             this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                            if (this->flightStripAnnotation[lastDeparted_callSign].length() > 2 && this->flightStripAnnotation[callSign].length() > 2)
+                            if (this->flightStripAnnotation[lastDeparted_callSign].length() > 7 && this->flightStripAnnotation[callSign].length() > 7)
                             {
-                                std::string departedHP = this->flightStripAnnotation[lastDeparted_callSign].substr(2);
-                                std::string hp = this->flightStripAnnotation[callSign].substr(2);
+                                std::string departedHP = this->flightStripAnnotation[lastDeparted_callSign].substr(7);
+                                std::string hp = this->flightStripAnnotation[callSign].substr(7);
                                 if (!IsSameHoldingPoint(departedHP, hp, airport->second.runways))
                                 {
                                     secondsRequired += 60;
