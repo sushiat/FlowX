@@ -869,46 +869,28 @@ tagInfo CDelHelX_Tags::GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp)
     return tag;
 }
 
-/// @brief Builds a holding-point tag for the given slot index.
+/// @brief Builds the holding-point tag from flight-strip annotation slot 8.
 /// @param fp Flight plan being evaluated.
-/// @param index Slot index (1 = HP1, 2 = HP2, 3 = HP3, 4 = HPO).
 /// @return tagInfo with the HP name: green for assigned, orange for requested (*), grey after departure.
-tagInfo CDelHelX_Tags::GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int index)
+tagInfo CDelHelX_Tags::GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp)
 {
     tagInfo tag;
     std::string callSign = fp.GetCallsign();
-
-    EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
-    std::string dep = fpd.GetOrigin();
-    to_upper(dep);
-    std::string rwy = fpd.GetDepartureRwy();
-    EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-    this->flightStripAnnotation[callSign] = fpcad.GetFlightStripAnnotation(8);
-    auto airport = this->airports.find(dep);
-    if (airport == this->airports.end())
+    this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+    if (this->flightStripAnnotation[callSign].length() <= 7)
     {
         return tag;
     }
-    if (this->flightStripAnnotation[callSign].length() > 7 && MatchesRunwayHoldingPoint(rwy, this->flightStripAnnotation[callSign].substr(7), index, airport->second.runways))
+    tag.tag = this->flightStripAnnotation[callSign].substr(7);
+    tag.color = TAG_COLOR_GREEN;
+    if (tag.tag.find('*') != std::string::npos)
     {
-        tag.tag = this->flightStripAnnotation[callSign].substr(7);
-        tag.color = TAG_COLOR_GREEN;
-
-        if (this->flightStripAnnotation[callSign].substr(7).find('*') != std::string::npos)
-        {
-            tag.color = TAG_COLOR_ORANGE;
-        }
-
-        if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
-        {
-            tag.color = TAG_COLOR_DARKGREY;
-        }
+        tag.color = TAG_COLOR_ORANGE;
     }
-    else
+    if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end() && this->twrSameSID_flightPlans.at(callSign) > 0)
     {
-        tag.tag = "";
+        tag.color = TAG_COLOR_DARKGREY;
     }
-
     return tag;
 }
 

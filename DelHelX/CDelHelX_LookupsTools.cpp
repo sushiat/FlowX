@@ -65,55 +65,6 @@ double CDelHelX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rw
     return rwyThreshold.DirectionTo(currentPosition);
 }
 
-/// @brief Checks whether a holding-point name prefix and index match any point on the runway.
-/// @param rwy Runway designator.
-/// @param hp Holding-point name to match (prefix comparison).
-/// @param index Expected slot index.
-/// @param runways Runway map for the airport.
-/// @return True if a matching holding point is found.
-bool CDelHelX_LookupsTools::MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index, const std::map<std::string, runway>& runways)
-{
-    auto rwyIt = runways.find(rwy);
-    if (rwyIt == runways.end())
-    {
-        return false;
-    }
-
-    for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-    {
-        if (hp.rfind(hpName, 0) == 0 && hpData.index == index)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/// @brief Returns the name of the non-assignable holding point for the given slot index on a runway.
-/// @param rwy Runway designator.
-/// @param index Slot index (1–3 for HP1–HP3).
-/// @param runways Runway map for the airport.
-/// @return Holding-point name, or an empty string if none matches.
-std::string CDelHelX_LookupsTools::GetRunwayHoldingPoint(const std::string& rwy, int index, const std::map<std::string, runway>& runways)
-{
-    auto rwyIt = runways.find(rwy);
-    if (rwyIt == runways.end())
-    {
-        return "";
-    }
-
-    for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-    {
-        if (hpData.index == index && !hpData.assignable)
-        {
-            return hpName;
-        }
-    }
-
-    return "";
-}
-
 /// @brief Returns a numeric ranking for a wake-turbulence category character.
 /// @param wtc Wake-turbulence category (J, H, M, L; case-insensitive).
 /// @return 4 for J, 3 for H, 2 for M, 1 for L, 0 for unknown.

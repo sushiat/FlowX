@@ -60,11 +60,10 @@ protected:
     /// @return tagInfo with the suggested vacate point name, or empty if none applies.
     tagInfo GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp);
 
-    /// @brief Builds a holding-point tag for the given slot index.
+    /// @brief Builds the holding-point tag from flight-strip annotation slot 8.
     /// @param fp Flight plan being evaluated.
-    /// @param index Slot index (1 = HP1, 2 = HP2, 3 = HP3, 4 = HPO).
-    /// @return tagInfo with the holding-point name and colour (orange if starred/requested).
-    tagInfo GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp, int index);
+    /// @return tagInfo with the HP name: green for assigned, orange for requested (*), grey after departure.
+    tagInfo GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp);
 
     /// @brief Builds the departure-info tag summarising SID, transfer status, and clearance state.
     /// @param fp Flight plan being evaluated.

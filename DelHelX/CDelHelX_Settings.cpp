@@ -232,7 +232,6 @@ void CDelHelX_Settings::LoadConfig()
                 {
                     holdingPoint hp{};
                     hp.name = hpName;
-                    hp.index = json_hp.value<int>("index", 0);
                     hp.assignable = json_hp.value<bool>("assignable", false);
                     hp.sameAs = json_hp.value<std::string>("sameAs", "");
                     hp.lat = json_hp["polygon"]["lat"].get<std::vector<double>>();

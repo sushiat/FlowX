@@ -14,30 +14,20 @@ protected:
     /// @param fp Currently selected flight plan.
     void Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp);
 
-    /// @brief Assigns the default holding point for the given slot index to the flight-strip annotation.
-    /// @param fp Currently selected flight plan.
-    /// @param index Slot index (1-3 for HP1-HP3).
-    void Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, int index);
-
-    /// @brief Requests the default holding point for the given slot index (appends '*' to indicate a request).
-    /// @param fp Currently selected flight plan.
-    /// @param index Slot index (1-3 for HP1-HP3).
-    void Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, int index);
-
-    /// @brief Opens an "Assign HP" popup list of assignable holding points for the selected flight plan.
+    /// @brief Opens an "Assign HP" popup list of all assignable holding points for the selected flight plan.
     /// @param fp Currently selected flight plan.
     /// @param Pt Screen position at which to display the popup.
-    void Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
+    void Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
 
     /// @brief Opens a "Request HP" popup list of assignable holding points (each entry appended with '*').
     /// @param fp Currently selected flight plan.
     /// @param Pt Screen position at which to display the popup.
-    void Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
+    void Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
 
     /// @brief Callback invoked when the controller selects an item from the HP popup list.
     /// @param fp Currently selected flight plan.
     /// @param sItemString The holding-point name string chosen from the popup.
-    void Func_HpoListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString);
+    void Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString);
 
     /// @brief Sets the LINEUP ground state on the flight plan via a scratch-pad toggle.
     /// @param fp Currently selected flight plan.

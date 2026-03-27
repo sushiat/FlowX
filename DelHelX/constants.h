@@ -24,10 +24,8 @@ const int TAG_ITEM_PS_HELPER           = 1;  ///< Push+Start helper column
 const int TAG_ITEM_TAXIOUT             = 2;  ///< Taxi-out stand indicator (P/T)
 const int TAG_ITEM_NEWQNH              = 3;  ///< New QNH orange "X" marker
 const int TAG_ITEM_SAMESID             = 4;  ///< Same-SID tracker column
-const int TAG_ITEM_HP1                 = 5;  ///< Holding point slot 1
-const int TAG_ITEM_HP2                 = 6;  ///< Holding point slot 2
-const int TAG_ITEM_HP3                 = 7;  ///< Holding point slot 3
-const int TAG_ITEM_HPO                 = 8;  ///< Holding point "other" (free-text) slot
+// 5, 6, 7 unused (were HP1, HP2, HP3 tag item slots)
+const int TAG_ITEM_HP                  = 8;  ///< Holding point (popup-assigned)
 const int TAG_ITEM_ASSIGNED_ARR_RUNWAY = 9;  ///< Assigned arrival runway
 const int TAG_ITEM_TAKEOFF_SPACING     = 10; ///< Takeoff spacing / time-separation indicator
 const int TAG_ITEM_ASSIGNED_RUNWAY     = 11; ///< Assigned departure runway
@@ -44,15 +42,10 @@ const int TAG_ITEM_GND_STATE_EXPANDED  = 18; ///< Expanded ground-state label
 /// @{
 const int TAG_FUNC_ON_FREQ         = 100; ///< Set ONFREQ / ST-UP / PUSH ground state
 const int TAG_FUNC_CLEAR_NEWQNH    = 101; ///< Clear the new-QNH annotation flag
-const int TAG_FUNC_ASSIGN_HP1      = 102; ///< Assign holding point index 1
-const int TAG_FUNC_ASSIGN_HP2      = 103; ///< Assign holding point index 2
-const int TAG_FUNC_ASSIGN_HP3      = 104; ///< Assign holding point index 3
-const int TAG_FUNC_REQUEST_HP1     = 105; ///< Request (starred) holding point index 1
-const int TAG_FUNC_REQUEST_HP2     = 106; ///< Request (starred) holding point index 2
-const int TAG_FUNC_REQUEST_HP3     = 107; ///< Request (starred) holding point index 3
-const int TAG_FUNC_ASSIGN_HPO      = 108; ///< Open popup to assign a free-text holding point
-const int TAG_FUNC_REQUEST_HPO     = 109; ///< Open popup to request a free-text holding point
-const int TAG_FUNC_HPO_LISTSELECT  = 110; ///< Callback when user selects an item from the HP popup list
+// 102–107 unused (were Assign/Request HP1, HP2, HP3 functions)
+const int TAG_FUNC_ASSIGN_HP       = 108; ///< Open popup to assign a holding point
+const int TAG_FUNC_REQUEST_HP      = 109; ///< Open popup to request a holding point (appends '*')
+const int TAG_FUNC_HP_LISTSELECT   = 110; ///< Callback when user selects an item from the HP popup list
 const int TAG_FUNC_LINE_UP         = 111; ///< Set LINEUP ground state
 const int TAG_FUNC_TAKE_OFF        = 112; ///< Set DEPA ground state and start tracking
 const int TAG_FUNC_TRANSFER_NEXT   = 113; ///< Initiate handoff to the next controller

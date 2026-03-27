@@ -31,21 +31,6 @@ protected:
     /// @return Bearing in degrees (0–360), or -1 if the runway is not found.
     static double DirectionFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways);
 
-    /// @brief Checks whether a holding-point name begins with the given HP name and matches the given index.
-    /// @param rwy Runway designator string.
-    /// @param hp Holding-point name to check.
-    /// @param index Expected index value.
-    /// @param runways Map of runways for the airport.
-    /// @return True if a matching holding point exists on the runway.
-    static bool MatchesRunwayHoldingPoint(const std::string& rwy, const std::string& hp, int index, const std::map<std::string, runway>& runways);
-
-    /// @brief Returns the name of the first non-assignable holding point on a runway for a given index.
-    /// @param rwy Runway designator string.
-    /// @param index Slot index to look up.
-    /// @param runways Map of runways for the airport.
-    /// @return Holding-point name, or an empty string if none is found.
-    static std::string GetRunwayHoldingPoint(const std::string& rwy, int index, const std::map<std::string, runway>& runways);
-
     /// @brief Returns a numeric ranking for an aircraft wake-turbulence category character.
     /// @param wtc Wake-turbulence category character (J, H, M, L; case-insensitive).
     /// @return Ranking value: J=4, H=3, M=2, L=1, unknown=0.

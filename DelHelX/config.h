@@ -35,8 +35,7 @@ struct napReminder
 struct holdingPoint
 {
     std::string name;            ///< Holding point name (e.g. "N1")
-    int index = 0;               ///< Logical slot index (1-3 for HP1-HP3, 4 for HPO)
-    bool assignable = false;     ///< Whether the point appears in the free-text HP popup
+    bool assignable = false;     ///< Whether the point appears in the HP popup list
     std::string sameAs;          ///< Name of another holding point considered physically equivalent
     std::vector<double> lat = {}; ///< Polygon vertex latitudes
     std::vector<double> lon = {}; ///< Polygon vertex longitudes

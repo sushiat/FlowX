@@ -263,21 +263,9 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
     {
         tag = this->GetSuggestedVacateTag(FlightPlan);
     }
-    else if (ItemCode == TAG_ITEM_HP1)
+    else if (ItemCode == TAG_ITEM_HP)
     {
-        tag = this->GetHoldingPointTag(FlightPlan, 1);
-    }
-    else if (ItemCode == TAG_ITEM_HP2)
-    {
-        tag = this->GetHoldingPointTag(FlightPlan, 2);
-    }
-    else if (ItemCode == TAG_ITEM_HP3)
-    {
-        tag = this->GetHoldingPointTag(FlightPlan, 3);
-    }
-    else if (ItemCode == TAG_ITEM_HPO)
-    {
-        tag = this->GetHoldingPointTag(FlightPlan, 4);
+        tag = this->GetHoldingPointTag(FlightPlan);
     }
     else if (ItemCode == TAG_ITEM_DEPARTURE_INFO)
     {
@@ -336,15 +324,9 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 
     if (FunctionId == TAG_FUNC_ON_FREQ)             { this->Func_OnFreq(fp, rt); }
     else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)   { this->Func_ClearNewQnh(fp); }
-    else if (FunctionId == TAG_FUNC_ASSIGN_HP1)     { this->Func_AssignHp(fp, 1); }
-    else if (FunctionId == TAG_FUNC_ASSIGN_HP2)     { this->Func_AssignHp(fp, 2); }
-    else if (FunctionId == TAG_FUNC_ASSIGN_HP3)     { this->Func_AssignHp(fp, 3); }
-    else if (FunctionId == TAG_FUNC_REQUEST_HP1)    { this->Func_RequestHp(fp, 1); }
-    else if (FunctionId == TAG_FUNC_REQUEST_HP2)    { this->Func_RequestHp(fp, 2); }
-    else if (FunctionId == TAG_FUNC_REQUEST_HP3)    { this->Func_RequestHp(fp, 3); }
-    else if (FunctionId == TAG_FUNC_ASSIGN_HPO)     { this->Func_AssignHpo(fp, Pt); }
-    else if (FunctionId == TAG_FUNC_REQUEST_HPO)    { this->Func_RequestHpo(fp, Pt); }
-    else if (FunctionId == TAG_FUNC_HPO_LISTSELECT) { this->Func_HpoListselect(fp, sItemString); }
+    else if (FunctionId == TAG_FUNC_ASSIGN_HP)      { this->Func_AssignHp(fp, Pt); }
+    else if (FunctionId == TAG_FUNC_REQUEST_HP)     { this->Func_RequestHp(fp, Pt); }
+    else if (FunctionId == TAG_FUNC_HP_LISTSELECT)  { this->Func_HpListselect(fp, sItemString); }
     else if (FunctionId == TAG_FUNC_LINE_UP)        { Func_LineUp(fp); }
     else if (FunctionId == TAG_FUNC_TAKE_OFF)       { Func_TakeOff(fp); }
     else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  { this->Func_TransferNext(fp); }

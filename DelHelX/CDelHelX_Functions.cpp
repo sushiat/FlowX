@@ -74,40 +74,10 @@ void CDelHelX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
     }
 }
 
-/// @brief Assigns the standard holding point for slot @p index to flight-strip annotation slot 8.
-/// @param fp Currently selected flight plan.
-/// @param index Slot index (1-3 for HP1-HP3).
-void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, int index)
-{
-    std::string callSign = fp.GetCallsign();
-    std::string dep = fp.GetFlightPlanData().GetOrigin();
-    to_upper(dep);
-    std::string rwy = fp.GetFlightPlanData().GetDepartureRwy();
-    auto airport = this->airports.find(dep);
-    this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, index, airport->second.runways));
-    fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-    this->PushToOtherControllers(fp);
-}
-
-/// @brief Requests the holding point for slot @p index by appending '*' to indicate the pilot must confirm.
-/// @param fp Currently selected flight plan.
-/// @param index Slot index (1-3 for HP1-HP3).
-void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, int index)
-{
-    std::string callSign = fp.GetCallsign();
-    std::string dep = fp.GetFlightPlanData().GetOrigin();
-    to_upper(dep);
-    std::string rwy = fp.GetFlightPlanData().GetDepartureRwy();
-    auto airport = this->airports.find(dep);
-    this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], GetRunwayHoldingPoint(rwy, index, airport->second.runways) + "*");
-    fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-    this->PushToOtherControllers(fp);
-}
-
-/// @brief Opens a popup list of assignable holding points so the controller can pick a non-standard HP.
+/// @brief Opens a popup list of assignable holding points so the controller can assign one.
 /// @param fp Currently selected flight plan.
 /// @param Pt Screen position at which to anchor the popup.
-void CDelHelX_Functions::Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
+void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
     RECT area;
     area.left = Pt.x;
@@ -127,7 +97,7 @@ void CDelHelX_Functions::Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT 
         {
             if (hpData.assignable)
             {
-                this->AddPopupListElement(hpName.c_str(), "", TAG_FUNC_HPO_LISTSELECT);
+                this->AddPopupListElement(hpName.c_str(), "", TAG_FUNC_HP_LISTSELECT);
             }
         }
     }
@@ -136,7 +106,7 @@ void CDelHelX_Functions::Func_AssignHpo(EuroScopePlugIn::CFlightPlan& fp, POINT 
 /// @brief Opens a popup list of assignable holding points with each entry starred to denote a request.
 /// @param fp Currently selected flight plan.
 /// @param Pt Screen position at which to anchor the popup.
-void CDelHelX_Functions::Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
+void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
     RECT area;
     area.left = Pt.x;
@@ -156,7 +126,7 @@ void CDelHelX_Functions::Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT
         {
             if (hpData.assignable)
             {
-                this->AddPopupListElement((hpName + "*").c_str(), "", TAG_FUNC_HPO_LISTSELECT);
+                this->AddPopupListElement((hpName + "*").c_str(), "", TAG_FUNC_HP_LISTSELECT);
             }
         }
     }
@@ -165,7 +135,7 @@ void CDelHelX_Functions::Func_RequestHpo(EuroScopePlugIn::CFlightPlan& fp, POINT
 /// @brief Writes the user-selected holding-point name from the popup into flight-strip annotation slot 8.
 /// @param fp Currently selected flight plan.
 /// @param sItemString The holding-point name (possibly starred) chosen from the popup.
-void CDelHelX_Functions::Func_HpoListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
+void CDelHelX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
 {
     std::string callSign = fp.GetCallsign();
     this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], sItemString);
