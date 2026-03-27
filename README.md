@@ -86,8 +86,7 @@ The following table details all possible states shown by the **Push+Start Helper
 |---|---|---|
 | **Departure Info** | `OK` / `45s` / `2.3nm` | Departure readiness relative to the previous departure from the same runway. Also listed under Delivery/Ground tags — applies once the aircraft is in TAXI or DEPA state. |
 | **Assigned Runway** | `11` | Departure runway from the flight plan. |
-| **HP1 / HP2 / HP3** | `A12` / `A12*` | Holding point assigned to slot 1/2/3. Starred (`*`) if it is a request awaiting readback. Orange if the assignment was set but not yet confirmed. |
-| **HP Other** | `A9` | Freely assigned holding point from a popup list. |
+| **HP** | `A9` / `A9*` | Holding point assigned from a popup list. Starred (`*`) if it is a request awaiting readback. Orange if starred, grey after departure. |
 | **Takeoff Spacing** | ` 90  [120]` / `4.2 nm [3]` | Shows time or distance separation from the previous departure. **Time** (lighter follows heavier) or **distance** (equal/heavier follows lighter). Colour-coded green/yellow/red against the required value. |
 | **TWR Sort Key** | *(internal sort string)* | Internal key used to sort the TWR Outbound list — not intended to be human-readable. Only used for list ordering; suggest setting column width to 1. |
 | **TWR Next Freq** | `->123.800` | Next handoff frequency for a departing aircraft (approach, centre, or UNICOM). Turns turquoise at the transfer altitude and blinks orange at the transfer altitude warning threshold. Displays `!MODE-C` (blinking orange/red) when the aircraft is airborne but the transponder isn't in Mode-C. |
@@ -122,10 +121,8 @@ Tag functions are assigned to the **Left button** or **Right button** action of 
 |---|---|
 | **Set ONFREQ/ST-UP/PUSH** | Sets the appropriate ground state. DEL position: sets ONFREQ. GND/TWR: detects push vs. taxi-out stand and sets ST-UP or ONFREQ accordingly. |
 | **Clear New QNH** | Removes the new-QNH flag from the flight strip so the orange `X` disappears. |
-| **Assign HP1 / HP2 / HP3** | Writes the runway's default holding point for that slot into flight-strip annotation slot 8 and syncs to other controllers. |
-| **Request HP1 / HP2 / HP3** | Same as Assign, but appends `*` to indicate a readback is pending. |
-| **Assign Other HP** | Opens a popup list of all `assignable` holding points. Selection writes the choice to slot 8. |
-| **Request Other HP** | Same as Assign Other HP, but appends `*`. |
+| **Assign HP** | Opens a popup list of all `assignable` holding points. Selection writes the choice to flight-strip annotation slot 8 and syncs to other controllers. |
+| **Request HP** | Same as Assign HP, but appends `*` to indicate a readback is pending. |
 | **Line Up** | Sets the LINEUP ground state. |
 | **Take Off** | Sets the DEPA ground state and starts departure tracking. |
 | **Transfer Next** | Hands the aircraft off to the best available station. For departures, uses the SID-specific approach frequency (or default) and iterates `appFreqFallbacks` to find the first online station. For go-arounds, uses the runway's `goAroundFreq`. Falls back to centre stations via `ctrStations`, then EuroScope's coordinated next controller, then drops tracking. |
@@ -153,8 +150,7 @@ Tracks all departing aircraft from takeoff until they leave the controlled area.
 | WTC | EuroScope | Wake turbulence category | — | — |
 | ATYP | TopSky | Aircraft type | — | — |
 | Freq | DelHelX | Next handoff frequency (TWR Next Freq) | Transfer Next | — |
-| HP1–HP3 | DelHelX | Holding point slots | Assign HP | Request HP (pending readback) |
-| HPO | DelHelX | Other holding point | Assign Other HP | Request Other HP |
+| HP | DelHelX | Holding point | Assign HP | Request HP (pending readback) |
 | Spacing | DelHelX | Takeoff spacing (time or distance) | — | — |
 | S | DelHelX | TWR sort key (internal, width 1) | — | — |
 
@@ -344,15 +340,14 @@ Each holding point entry defines the polygon that detects when an aircraft is at
 
 | Field | Type | Description |
 |---|---|---|
-| `index` | integer | Slot index: 1 = HP1, 2 = HP2, 3 = HP3, 4 = HPO |
-| `assignable` | boolean | If `true`, the point appears in the HP Other popup list |
+| `assignable` | boolean | If `true`, the point appears in the HP popup list |
 | `sameAs` | string | Name of another point considered physically equivalent for spacing calculations |
 | `polygon` | object | `{ "lat": [...], "lon": [...] }` — detection polygon vertices |
 
 ```json
 "holdingPoints": {
     "A12": {
-        "index": 1,
+        "assignable": true,
         "sameAs": "A11",
         "polygon": {
             "lat": [48.1231, 48.1228, 48.1239, 48.1241],
@@ -360,7 +355,6 @@ Each holding point entry defines the polygon that detects when an aircraft is at
         }
     },
     "A9": {
-        "index": 4,
         "assignable": true,
         "polygon": { ... }
     }
