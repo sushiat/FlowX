@@ -195,7 +195,72 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
                 DeleteObject(pen);
 
-                AddScreenObject(6681, it->first.c_str(), area, true, "");
+                AddScreenObject(SCREEN_OBJECT_DEP_TAG, it->first.c_str(), area, true, "");
+            }
+        }
+
+        // --- Departure rate window ---
+        if (!this->depRateLog.empty())
+        {
+            const int ROW_H   = 15;
+            const int WIN_PAD = 6;
+            const int COL_RWY = 30;
+            const int COL_CNT = 28;
+            const int WIN_W   = WIN_PAD + COL_RWY + COL_CNT + WIN_PAD;
+            int numRows       = (int)this->depRateLog.size();
+            const int WIN_H   = ROW_H + numRows * ROW_H + WIN_PAD / 2;
+
+            // Auto-position to lower-right on first draw
+            if (this->depRateWindowPos.x == -1)
+            {
+                RECT clip;
+                GetClipBox(hDC, &clip);
+                this->depRateWindowPos.x = clip.right  - WIN_W - 20;
+                this->depRateWindowPos.y = clip.bottom - WIN_H - 20;
+            }
+
+            int wx = this->depRateWindowPos.x;
+            int wy = this->depRateWindowPos.y;
+
+            // Window and header backgrounds
+            RECT winRect = { wx, wy, wx + WIN_W, wy + WIN_H };
+            RECT hdrRect = { wx, wy, wx + WIN_W, wy + ROW_H };
+            auto bgBrush  = CreateSolidBrush(RGB(25, 25, 25));
+            auto hdrBrush = CreateSolidBrush(RGB(55, 55, 55));
+            FillRect(hDC, &winRect, bgBrush);
+            FillRect(hDC, &hdrRect, hdrBrush);
+            DeleteObject(bgBrush);
+            DeleteObject(hdrBrush);
+
+            // Border
+            auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+            FrameRect(hDC, &winRect, borderBrush);
+            DeleteObject(borderBrush);
+
+            // Header text
+            SetBkMode(hDC, TRANSPARENT);
+            SetTextColor(hDC, TAG_COLOR_WHITE);
+            DrawTextA(hDC, "DEP/H", -1, &hdrRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", hdrRect, true, "");
+
+            // Data rows
+            int row = 0;
+            for (auto& kv : this->depRateLog)
+            {
+                int rowY  = wy + ROW_H + row * ROW_H;
+                int count = (int)kv.second.size();
+
+                RECT rwyRect = { wx + WIN_PAD,           rowY, wx + WIN_PAD + COL_RWY, rowY + ROW_H };
+                RECT cntRect = { wx + WIN_PAD + COL_RWY, rowY, wx + WIN_W - WIN_PAD,   rowY + ROW_H };
+
+                SetTextColor(hDC, TAG_COLOR_DEFAULT_GRAY);
+                DrawTextA(hDC, kv.first.c_str(), -1, &rwyRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+                SetTextColor(hDC, count > 0 ? TAG_COLOR_GREEN : TAG_COLOR_DEFAULT_GRAY);
+                std::string countStr = std::to_string(count);
+                DrawTextA(hDC, countStr.c_str(), -1, &cntRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+
+                row++;
             }
         }
     }
@@ -234,6 +299,22 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
 /// @param Released True when the mouse button has been released.
 void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released)
 {
+    if (std::string(sObjectId) == "DEPRATE")
+    {
+        if (this->depRateLastDrag.x == -1 || this->depRateLastDrag.y == -1)
+        {
+            this->depRateLastDrag = Pt;
+        }
+        this->depRateWindowPos.x += Pt.x - this->depRateLastDrag.x;
+        this->depRateWindowPos.y += Pt.y - this->depRateLastDrag.y;
+        this->depRateLastDrag = Pt;
+        if (Released)
+        {
+            this->depRateLastDrag = { -1, -1 };
+        }
+        return;
+    }
+
     auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));
     if (depInfo != this->radarTargetDepartureInfos.end())
     {

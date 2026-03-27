@@ -21,6 +21,9 @@ protected:
 
     bool autoRestore = false;               ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
 
+    int depRateWindowX = -1;                ///< Last-saved X position of the departure rate window; -1 = not yet positioned
+    int depRateWindowY = -1;                ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
+
     std::future<std::string> latestVersion;  ///< Async future holding the fetched latest version string
 
     std::map<std::string, airport> airports; ///< Airport configurations keyed by ICAO code

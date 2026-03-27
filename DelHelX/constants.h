@@ -67,6 +67,12 @@ const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (depa
 const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201,  14); ///< Yellow (blinking urgent alert)
 /// @}
 
+/// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
+/// @{
+const int SCREEN_OBJECT_DEP_TAG      = 6681; ///< Per-aircraft departure info custom tag (drag handle)
+const int SCREEN_OBJECT_DEPRATE_WIN  = 6682; ///< Departure rate window header (drag handle)
+/// @}
+
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop
 /// @{
 constexpr auto TOPSKY_PLUGIN_NAME              = "TopSky plugin"; ///< EuroScope name of the TopSky plugin

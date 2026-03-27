@@ -87,4 +87,7 @@ protected:
     /// @brief Scans for reconnected pilots and restores their clearance flag and ground state if flight plan attributes match.
     /// @note Also expires snapshots that have been pending longer than 90 seconds.
     void CheckReconnects();
+
+    /// @brief Checks whether any window positions have changed and persists them via SaveSettings if so.
+    void SaveAndRestoreWindowLocations();
 };

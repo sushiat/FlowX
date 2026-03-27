@@ -270,6 +270,18 @@ void CDelHelX_Timers::UpdateTowerSameSID()
         return;
     }
 
+    // Prune departure rate log entries older than 1 hour
+    if (this->radarScreen != nullptr && !this->radarScreen->depRateLog.empty())
+    {
+        ULONGLONG now = GetTickCount64();
+        for (auto& kv : this->radarScreen->depRateLog)
+        {
+            auto& ts = kv.second;
+            ts.erase(std::remove_if(ts.begin(), ts.end(),
+                [now](ULONGLONG t) { return (now - t) > 3600000ULL; }), ts.end());
+        }
+    }
+
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
@@ -400,6 +412,11 @@ void CDelHelX_Timers::UpdateTowerSameSID()
                     }
                 }
                 this->twrSameSID_lastDeparted[depRwy] = callSign;
+
+                if (this->radarScreen != nullptr)
+                {
+                    this->radarScreen->depRateLog[depRwy].push_back(this->twrSameSID_flightPlans.at(callSign));
+                }
             }
         }
 
@@ -703,6 +720,36 @@ void CDelHelX_Timers::CheckReconnects()
         }
 
         this->reconnect_pending.erase(pendingIt);
+    }
+}
+
+/// @brief Applies any persisted window position to the radar screen on first run, then saves the position if it has moved.
+void CDelHelX_Timers::SaveAndRestoreWindowLocations()
+{
+    if (this->radarScreen == nullptr)
+    {
+        return;
+    }
+
+    // Apply the saved position to a freshly created screen before the first auto-placement
+    if (this->radarScreen->depRateWindowPos.x == -1 && this->depRateWindowX != -1 && this->depRateWindowY != -1)
+    {
+        this->radarScreen->depRateWindowPos = { this->depRateWindowX, this->depRateWindowY };
+        return;
+    }
+
+    // Nothing to save while the window hasn't been positioned yet
+    if (this->radarScreen->depRateWindowPos.x == -1)
+    {
+        return;
+    }
+
+    if (this->radarScreen->depRateWindowPos.x != this->depRateWindowX ||
+        this->radarScreen->depRateWindowPos.y != this->depRateWindowY)
+    {
+        this->depRateWindowX = this->radarScreen->depRateWindowPos.x;
+        this->depRateWindowY = this->radarScreen->depRateWindowPos.y;
+        this->SaveSettings();
     }
 }
 

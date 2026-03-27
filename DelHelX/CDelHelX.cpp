@@ -336,7 +336,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
 }
 
 /// @brief Drives periodic updates: blinking, update check, NAP reminder, and state-map refreshes.
-/// @param Counter EuroScope tick counter; updates run every 2 ticks, NAP check every 10 ticks.
+/// @param Counter EuroScope second counter; state updates run every 2 s, NAP check every 10 s, window save every 5 s.
 void CDelHelX::OnTimer(int Counter)
 {
     this->blinking = !this->blinking;
@@ -357,6 +357,11 @@ void CDelHelX::OnTimer(int Counter)
         this->UpdateRadarTargetDepartureInfo();
         this->UpdateTTTInbounds();
         this->CheckReconnects();
+    }
+
+    if (Counter > 0 && Counter % 5 == 0)
+    {
+        this->SaveAndRestoreWindowLocations();
     }
 }
 

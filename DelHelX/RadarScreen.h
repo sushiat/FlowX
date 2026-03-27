@@ -45,6 +45,15 @@ public:
     /// @brief Callsign -> departure overlay data for aircraft currently shown on the radar.
     std::map<std::string, depInfo> radarTargetDepartureInfos;
 
+    /// @brief Runway designator -> list of takeoff timestamps (GetTickCount64 ms) used for per-hour departure rate counting.
+    std::map<std::string, std::vector<ULONGLONG>> depRateLog;
+
+    /// @brief Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right).
+    POINT depRateWindowPos = { -1, -1 };
+
+    /// @brief Previous drag cursor position for the departure rate window; (-1,-1) when not dragging.
+    POINT depRateLastDrag = { -1, -1 };
+
     /// @brief Called by EuroScope when the ASR is closed; notifies the plugin and deletes this screen.
     void OnAsrContentToBeClosed() override;
 
