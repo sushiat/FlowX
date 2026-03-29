@@ -284,6 +284,12 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     };
 
     auto [station, stationFreq] = findStation();
+    if (stationFreq.empty())
+    {
+        // No controller online — use UNICOM so the annotation is non-blank and the
+        // tower tag's "transferred" check suppresses further orange/blue blinking.
+        stationFreq = "122.800";
+    }
 
     // Mark FP as transferred — store target frequency (dot removed, 6 chars) at [1..6]
     std::string transferFreq = stationFreq;
