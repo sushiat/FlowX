@@ -42,7 +42,7 @@ protected:
     /// @brief Builds the assigned runway tag showing the flight-plan departure runway.
     /// @param fp Flight plan being evaluated.
     /// @return tagInfo with the runway designator string.
-    static tagInfo GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp);
+    tagInfo GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp);
 
     /// @brief Builds the TTT (time-to-touchdown) tag for an inbound aircraft.
     /// @param fp Flight plan being evaluated.

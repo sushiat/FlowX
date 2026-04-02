@@ -612,6 +612,17 @@ tagInfo CDelHelX_Tags::GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp)
     EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
     std::string rwy = fpd.GetDepartureRwy();
 
+    // Trim whitespace
+    rwy.erase(rwy.begin(), std::find_if(rwy.begin(), rwy.end(), [](unsigned char c) { return !std::isspace(c); }));
+    rwy.erase(std::find_if(rwy.rbegin(), rwy.rend(), [](unsigned char c) { return !std::isspace(c); }).base(), rwy.end());
+
+    if (rwy.empty())
+    {
+        tag.tag   = "??";
+        tag.color = this->blinking ? TAG_COLOR_ORANGE : TAG_COLOR_TURQ;
+        return tag;
+    }
+
     tag.tag = rwy;
     return tag;
 }
