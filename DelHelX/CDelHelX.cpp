@@ -313,6 +313,7 @@ EuroScopePlugIn::CRadarScreen* CDelHelX::OnRadarScreenCreated(const char* sDispl
     if (this->depRateWindowX     != -1) { this->radarScreen->depRateWindowPos     = { this->depRateWindowX,     this->depRateWindowY     }; }
     if (this->twrOutboundWindowX != -1) { this->radarScreen->twrOutboundWindowPos = { this->twrOutboundWindowX, this->twrOutboundWindowY }; }
     if (this->twrInboundWindowX  != -1) { this->radarScreen->twrInboundWindowPos  = { this->twrInboundWindowX,  this->twrInboundWindowY  }; }
+    if (this->napWindowX         != -1) { this->radarScreen->napWindowPos          = { this->napWindowX,         this->napWindowY         }; }
     return this->radarScreen;
 }
 

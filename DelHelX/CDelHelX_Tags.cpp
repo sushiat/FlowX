@@ -1345,16 +1345,25 @@ void CDelHelX_Tags::UpdateTagCache()
                     if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED) return TAG_COLOR_BROWN;
                     if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_TO_ME_INITIATED) return TAG_COLOR_TURQ;
                     if (fp.GetTrackingControllerIsMe()) return TAG_COLOR_WHITE;
-                    return TAG_COLOR_DEFAULT_GRAY;
+                    return TAG_COLOR_LIST_GRAY;
                 };
+
+                // Build display TTT: strip the "designator_" prefix (kept in entry.ttt for OnGetTagItem)
+                tagInfo tttDisplay = entry.ttt;
+                {
+                    auto sep = tttDisplay.tag.find('_');
+                    if (sep != std::string::npos) { tttDisplay.tag = tttDisplay.tag.substr(sep + 1); }
+                }
 
                 TwrInboundRowCache row;
                 row.callsign      = callSign;
                 row.callsignColor = callsignColor();
                 row.wtc           = fp.GetFlightPlanData().GetAircraftWtc();
-                row.groundSpeed = rt.GetGS();
-                row.ttt         = entry.ttt;
-                row.nm          = entry.inboundNm;
+                row.groundSpeed   = rt.GetGS();
+                row.rwyGroup      = designator;
+                row.sortKey       = entry.ttt.tag;
+                row.ttt           = tttDisplay;
+                row.nm            = entry.inboundNm;
                 row.aircraftType = fp.GetFlightPlanData().GetAircraftFPType();
                 {
                     auto standIt = this->standAssignment.find(callSign);
@@ -1454,7 +1463,10 @@ void CDelHelX_Tags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
         {
             if (row.callsign == callSign)
             {
-                row.ttt         = cacheIt->second.ttt;
+                tagInfo tttDisplay = cacheIt->second.ttt;
+                auto sep = tttDisplay.tag.find('_');
+                if (sep != std::string::npos) { tttDisplay.tag = tttDisplay.tag.substr(sep + 1); }
+                row.ttt         = tttDisplay;
                 row.nm          = cacheIt->second.inboundNm;
                 row.groundSpeed = rt.GetGS();
                 break;

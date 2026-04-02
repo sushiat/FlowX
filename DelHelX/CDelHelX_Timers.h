@@ -95,4 +95,9 @@ protected:
 
     /// @brief Checks whether any window positions have changed and persists them via SaveSettings if so.
     void SaveAndRestoreWindowLocations();
+
+public:
+    /// @brief Records today's UTC date as the last NAP dismissal date and saves it to windowLocations.json.
+    /// @note Called by RadarScreen when the user clicks the ACK button on the NAP reminder window.
+    void AckNapReminder();
 };

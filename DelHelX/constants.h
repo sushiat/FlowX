@@ -66,6 +66,7 @@ const COLORREF TAG_COLOR_WHITE        = RGB(255, 255, 255); ///< White (active /
 const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (departed aircraft)
 const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201,  14); ///< Yellow (blinking urgent alert)
 const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (transfer-from-me initiated)
+const COLORREF TAG_COLOR_LIST_GRAY    = RGB(180, 175, 165); ///< Slightly brighter grey for custom list windows
 /// @}
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
@@ -74,6 +75,8 @@ const int SCREEN_OBJECT_DEP_TAG      = 6681; ///< Per-aircraft departure info cu
 const int SCREEN_OBJECT_DEPRATE_WIN  = 6682; ///< Departure rate window header (drag handle)
 const int SCREEN_OBJECT_TWR_OUT_WIN  = 6683; ///< TWR Outbound window header (drag handle)
 const int SCREEN_OBJECT_TWR_IN_WIN   = 6684; ///< TWR Inbound window header (drag handle)
+const int SCREEN_OBJECT_NAP_WIN      = 6685; ///< NAP reminder window header (drag handle)
+const int SCREEN_OBJECT_NAP_ACK      = 6686; ///< NAP reminder ACK button
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

@@ -40,7 +40,7 @@ struct DepRateRowCache {
 /// Rows are pre-sorted by sortKey ascending before being stored.
 struct TwrOutboundRowCache {
     std::string callsign;
-    COLORREF    callsignColor = TAG_COLOR_DEFAULT_GRAY; ///< Callsign colour: gray/white/brown by tracking state
+    COLORREF    callsignColor = TAG_COLOR_LIST_GRAY; ///< Callsign colour: gray/white/brown by tracking state
     char        wtc          = ' '; ///< Aircraft weight turbulence category character (L/M/H/J)
     tagInfo     status;             ///< TAG_ITEM_GND_STATE_EXPANDED
     tagInfo     depInfo;            ///< TAG_ITEM_DEPARTURE_INFO
@@ -57,10 +57,12 @@ struct TwrOutboundRowCache {
 /// Rows are pre-ordered by ttt_sortedByRunway (nearest inbound first per runway).
 struct TwrInboundRowCache {
     std::string callsign;
-    COLORREF    callsignColor = TAG_COLOR_DEFAULT_GRAY; ///< Callsign colour: gray/white/brown by tracking state
+    COLORREF    callsignColor = TAG_COLOR_LIST_GRAY; ///< Callsign colour: gray/white/brown by tracking state
     char        wtc          = ' '; ///< Aircraft weight turbulence category character
     int         groundSpeed  = 0;   ///< Current ground speed in knots
-    tagInfo     ttt;                ///< TAG_ITEM_TTT
+    std::string rwyGroup;           ///< Runway designator this row belongs to (for group separators)
+    std::string sortKey;            ///< Full "rwy_mm:ss" string used for ordering (not displayed)
+    tagInfo     ttt;                ///< TAG_ITEM_TTT — display text has the "rwy_" prefix stripped
     tagInfo     nm;                 ///< TAG_ITEM_INBOUND_NM
     std::string aircraftType;       ///< Aircraft type string (e.g. "B738") from GetAircraftFPType()
     std::string gate;               ///< Assigned stand/gate from standAssignment map

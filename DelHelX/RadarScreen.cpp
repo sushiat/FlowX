@@ -149,9 +149,14 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
     if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
     {
         this->DrawDepartureInfoTag(hDC);
+    }
+
+    if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
+    {
         this->DrawDepRateWindow(hDC);
         this->DrawTwrOutbound(hDC);
         this->DrawTwrInbound(hDC);
+        this->DrawNapReminder(hDC);
     }
 }
 
@@ -289,18 +294,18 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     }
 
     // Data rows
-    auto altBrushDep = CreateSolidBrush(RGB(8, 8, 8));
+    auto altBrushDep = CreateSolidBrush(RGB(32, 32, 32));
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->depRateRowsCache[row];
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
-        if (row % 2 == 1) { RECT alt = { wx, rowY, wx + WIN_W, rowY + ROW_H }; FillRect(hDC, &alt, altBrushDep); }
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushDep); }
 
         RECT rwyRect = { wx + WIN_PAD,                                rowY, wx + WIN_PAD + COL_RWY,                   rowY + ROW_H };
         RECT cntRect = { wx + WIN_PAD + COL_RWY,                      rowY, wx + WIN_PAD + COL_RWY + COL_CNT,         rowY + ROW_H };
         RECT spcRect = { wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP, rowY, wx + WIN_W - WIN_PAD,                     rowY + ROW_H };
 
-        SetTextColor(hDC, TAG_COLOR_DEFAULT_GRAY);
+        SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
         DrawTextA(hDC, r.runway.c_str(),     -1, &rwyRect, DT_LEFT  | DT_VCENTER | DT_SINGLELINE);
         SetTextColor(hDC, r.countColor);
         DrawTextA(hDC, r.countStr.c_str(),   -1, &cntRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
@@ -316,7 +321,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 {
     const int TITLE_H = 13;
     const int HDR_H   = 17;
-    const int ROW_H   = 17;
+    const int ROW_H   = 19;
     const int PAD     = 6;
     // Original list column order and widths in chars:
     // C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, ATYP=8, Freq=15, HP=4, Spacing=17
@@ -376,13 +381,11 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     DeleteObject(titleFont);
     AddScreenObject(SCREEN_OBJECT_TWR_OUT_WIN, "TWROUT", titleRect, true, "");
 
-    // Select slightly-larger data font for column headers and data rows
-    HFONT dataFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prevDataFont = (HFONT)SelectObject(hDC, dataFont);
-
-    // Column headers
+    // Column headers — smaller font
+    HFONT hdrFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevDataFont = (HFONT)SelectObject(hDC, hdrFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     {
         int x = wx + PAD;
@@ -404,30 +407,36 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         colHdr(HP,   "HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(SPC,  "Spacing", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
+    SelectObject(hDC, prevDataFont);
+    DeleteObject(hdrFont);
 
-    // Data rows
+    // Data rows — larger font
+    HFONT dataFont = CreateFontA(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    prevDataFont = (HFONT)SelectObject(hDC, dataFont);
     auto wtcColor = [](char wtc) -> COLORREF {
         switch (wtc) {
             case 'L': return TAG_COLOR_TURQ;
             case 'H': return TAG_COLOR_ORANGE;
             case 'J': return TAG_COLOR_RED;
-            default:  return TAG_COLOR_DEFAULT_GRAY;
+            default:  return TAG_COLOR_LIST_GRAY;
         }
     };
 
-    auto altBrushOut = CreateSolidBrush(RGB(8, 8, 8));
+    auto altBrushOut = CreateSolidBrush(RGB(32, 32, 32));
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrOutboundRowsCache[row];
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
-        if (row % 2 == 1) { RECT alt = { wx, rowY, wx + WIN_W, rowY + ROW_H }; FillRect(hDC, &alt, altBrushOut); }
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushOut); }
         int cx   = wx + PAD;
 
         auto cell = [&](int width, const std::string& text, COLORREF color,
                         UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
             RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
-            SetTextColor(hDC, color);
+            SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             cx += width;
         };
@@ -455,11 +464,12 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 {
     const int TITLE_H = 13;
     const int HDR_H   = 17;
-    const int ROW_H   = 17;
+    const int ROW_H   = 19;
+    const int SEP_H   = 6;    ///< Height of blank separator row between runway groups
     const int PAD     = 6;
-    // Original list column order and widths in chars:
-    // TTT=12, C/S=12, NM=8, SPD=5, WTC=4, ATYP=8, Gate=5, Vacate=7, RWY=7
-    const int TTT     = 84;   // 12 chars
+    // Column order: RWY_GRP (new), TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, RWY
+    const int RWY_GRP = 35;   //  new front column — runway group label
+    const int TTT     = 56;   //  now displays "mm:ss" only (~5 chars)
     const int CS      = 84;   // 12 chars
     const int NM      = 56;   //  8 chars
     const int GS      = 35;   //  5 chars
@@ -468,9 +478,21 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int GATE    = 35;   //  5 chars
     const int VACATE  = 49;   //  7 chars
     const int RWY     = 49;   //  7 chars
-    const int WIN_W   = PAD + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + RWY + PAD;
+    const int WIN_W   = PAD + RWY_GRP + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + RWY + PAD;
     int numRows       = (int)this->twrInboundRowsCache.size();
-    const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + PAD / 2;
+
+    // Count runway group separators (one blank row between each group)
+    int numSeps = 0;
+    {
+        std::string lastGrp;
+        for (const auto& r : this->twrInboundRowsCache)
+        {
+            if (!lastGrp.empty() && r.rwyGroup != lastGrp) { ++numSeps; }
+            lastGrp = r.rwyGroup;
+        }
+    }
+
+    const int WIN_H = TITLE_H + HDR_H + numRows * ROW_H + numSeps * SEP_H + PAD / 2;
 
     if (this->twrInboundWindowPos.x == -1)
     {
@@ -514,13 +536,11 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     DeleteObject(titleFont);
     AddScreenObject(SCREEN_OBJECT_TWR_IN_WIN, "TWRIN", titleRect, true, "");
 
-    // Select slightly-larger data font for column headers and data rows
-    HFONT dataFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prevDataFont = (HFONT)SelectObject(hDC, dataFont);
-
-    // Column headers
+    // Column headers — smaller font
+    HFONT hdrFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevDataFont = (HFONT)SelectObject(hDC, hdrFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     {
         int x = wx + PAD;
@@ -531,49 +551,70 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             DrawTextA(hDC, label, -1, &r, flags);
             x += width;
         };
-        colHdr(TTT,    "TTT");
-        colHdr(CS,     "C/S");
-        colHdr(NM,     "NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        colHdr(GS,     "GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        colHdr(WTC,    "W",      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        colHdr(ATYP,   "ATYP");
-        colHdr(GATE,   "Gate");
-        colHdr(VACATE, "Vacate");
-        colHdr(RWY,    "RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(RWY_GRP, "RWY");
+        colHdr(TTT,     "TTT");
+        colHdr(CS,      "C/S");
+        colHdr(NM,      "NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        colHdr(GS,      "GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        colHdr(WTC,     "W",      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(ATYP,    "ATYP");
+        colHdr(GATE,    "Gate");
+        colHdr(VACATE,  "Vacate");
+        colHdr(RWY,     "RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
+    SelectObject(hDC, prevDataFont);
+    DeleteObject(hdrFont);
 
-    // Data rows
+    // Data rows — larger font
+    HFONT dataFont = CreateFontA(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    prevDataFont = (HFONT)SelectObject(hDC, dataFont);
     auto wtcColor = [](char wtc) -> COLORREF {
         switch (wtc) {
             case 'L': return TAG_COLOR_TURQ;
             case 'H': return TAG_COLOR_ORANGE;
             case 'J': return TAG_COLOR_RED;
-            default:  return TAG_COLOR_DEFAULT_GRAY;
+            default:  return TAG_COLOR_LIST_GRAY;
         }
     };
 
-    auto altBrushIn = CreateSolidBrush(RGB(8, 8, 8));
+    auto altBrushIn = CreateSolidBrush(RGB(32, 32, 32));
+    std::string lastRwyGroup;
+    int yOffset = 0; ///< Accumulated extra pixels from separator rows inserted above this row
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrInboundRowsCache[row];
-        int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
-        if (row % 2 == 1) { RECT alt = { wx, rowY, wx + WIN_W, rowY + ROW_H }; FillRect(hDC, &alt, altBrushIn); }
+
+        // Insert a blank separator row between runway groups
+        if (!lastRwyGroup.empty() && r.rwyGroup != lastRwyGroup)
+        {
+            int sepY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
+            RECT sepRect = { wx + 1, sepY, wx + WIN_W - 1, sepY + SEP_H };
+            FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
+            yOffset += SEP_H;
+        }
+        lastRwyGroup = r.rwyGroup;
+
+        int rowY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushIn); }
         int cx   = wx + PAD;
 
         auto cell = [&](int width, const std::string& text, COLORREF color,
                         UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
             RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
-            SetTextColor(hDC, color);
+            SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             cx += width;
         };
 
+        cell(RWY_GRP, r.rwyGroup,                  r.callsignColor);
         cell(TTT,    r.ttt.tag,                    r.ttt.color);
         cell(CS,     r.callsign,                   r.callsignColor);
         cell(NM,     r.nm.tag,                     r.nm.color,             DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cell(GS,     std::to_string(r.groundSpeed),TAG_COLOR_WHITE,        DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(WTC,    std::string(1, r.wtc),        TAG_COLOR_DEFAULT_GRAY, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(WTC,    std::string(1, r.wtc),        wtcColor(r.wtc),        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cell(ATYP,   r.aircraftType,               r.callsignColor);
         cell(GATE,   r.gate,                       TAG_COLOR_WHITE);
         cell(VACATE, r.vacate.tag,                 r.vacate.color);
@@ -583,6 +624,175 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 
     SelectObject(hDC, prevDataFont);
     DeleteObject(dataFont);
+}
+
+/// @brief Draws the NAP reminder as a custom floating window with a draggable body and an ACK button.
+/// OnOverScreenObject calls RequestRefresh() on every mouse-movement event so this function runs
+/// frequently. GetCursorPos() then reflects the live cursor position accurately at each draw.
+void RadarScreen::DrawNapReminder(HDC hDC)
+{
+    if (!this->napReminderActive) { return; }
+
+    const int TITLE_H = 20;
+    const int MSG_H   = 40;
+    const int BTN_H   = 28;
+    const int PAD     = 10;
+    const int WIN_W   = 360;
+    const int WIN_H   = TITLE_H + MSG_H + BTN_H + PAD;
+
+    if (this->napWindowPos.x == -1)
+    {
+        RECT clip;
+        GetClipBox(hDC, &clip);
+        this->napWindowPos.x = clip.right  / 2 - WIN_W / 2;
+        this->napWindowPos.y = clip.bottom / 2 - WIN_H / 2;
+    }
+
+    int wx = this->napWindowPos.x;
+    int wy = this->napWindowPos.y;
+
+    RECT winRect  = { wx,       wy,                    wx + WIN_W, wy + WIN_H                    };
+    RECT titleRect= { wx,       wy,                    wx + WIN_W, wy + TITLE_H                  };
+    RECT bodyRect = { wx + PAD, wy + TITLE_H,          wx + WIN_W - PAD, wy + TITLE_H + MSG_H    };
+    RECT btnRect  = { wx + PAD, wy + TITLE_H + MSG_H,  wx + WIN_W - PAD, wy + TITLE_H + MSG_H + BTN_H - 4 };
+    // Drag zone covers title+body (does NOT overlap btnRect so ES fires separate OnOverScreenObject per area)
+    RECT dragRect = { wx,       wy,                    wx + WIN_W, wy + TITLE_H + MSG_H          };
+
+    // Reset hover tracking each frame so the next window entry always counts as a transition.
+    this->napLastHoverType = -1;
+
+    // Blink animation: 3 full cycles (6 phases × 80 ms) after click before the window closes.
+    // Even phases show the pressed colour; odd phases show the hover colour.
+    if (this->napAckClickTick != 0)
+    {
+        int phase = (int)((GetTickCount64() - this->napAckClickTick) / 80);
+        if (phase >= 6)
+        {
+            // Animation finished — close window and persist dismissal
+            this->napAckClickTick   = 0;
+            this->napAckPressed     = false;
+            this->napReminderActive = false;
+            static_cast<CDelHelX_Timers*>(this->GetPlugIn())->AckNapReminder();
+            return;
+        }
+        // Set pressed state for this phase and request the next frame immediately
+        this->napAckPressed = (phase % 2 == 0);
+        this->RequestRefresh();
+    }
+
+    // Hover: read live cursor position. RequestRefresh() from OnOverScreenObject (or the blink loop)
+    // ensures this runs at event rate, so the cursor position is always current.
+    HWND hwnd = WindowFromDC(hDC);
+    POINT cursorPt;
+    GetCursorPos(&cursorPt);
+    if (hwnd) { ScreenToClient(hwnd, &cursorPt); }
+    // During blink napAckPressed drives the colour; GetCursorPos hover is irrelevant then
+    bool ackHovered = (this->napAckClickTick == 0) && PtInRect(&btnRect, cursorPt) != 0;
+
+    // Background
+    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
+    auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
+    FillRect(hDC, &winRect,   bgBrush);
+    FillRect(hDC, &titleRect, titleBrush);
+    DeleteObject(bgBrush);
+    DeleteObject(titleBrush);
+
+    auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+    FrameRect(hDC, &winRect, borderBrush);
+    DeleteObject(borderBrush);
+
+    SetBkMode(hDC, TRANSPARENT);
+
+    // Title bar
+    HFONT titleFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prev = (HFONT)SelectObject(hDC, titleFont);
+    SetTextColor(hDC, TAG_COLOR_WHITE);
+    DrawTextA(hDC, "Night SID Reminder", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hDC, prev);
+    DeleteObject(titleFont);
+    AddScreenObject(SCREEN_OBJECT_NAP_WIN, "NAPWIN", dragRect, true, "");
+
+    // Message body
+    HFONT msgFont = CreateFontA(-20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    prev = (HFONT)SelectObject(hDC, msgFont);
+    SetTextColor(hDC, TAG_COLOR_WHITE);
+    std::string msg = "NAP procedure for " + this->napReminderAirport + "?";
+    DrawTextA(hDC, msg.c_str(), -1, &bodyRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hDC, prev);
+    DeleteObject(msgFont);
+
+    // ACK button — three visual states: normal / hover / pressed
+    COLORREF btnBg     = this->napAckPressed ? RGB( 90, 175,  90)
+                       : ackHovered          ? RGB( 60, 130,  60)
+                                             : RGB( 35,  90,  35);
+    COLORREF btnBorder = this->napAckPressed ? RGB(200, 255, 200)
+                       : ackHovered          ? RGB(120, 200, 120)
+                                             : RGB( 80, 150,  80);
+    auto btnBrush  = CreateSolidBrush(btnBg);
+    FillRect(hDC, &btnRect, btnBrush);
+    DeleteObject(btnBrush);
+
+    auto btnBorderBrush = CreateSolidBrush(btnBorder);
+    FrameRect(hDC, &btnRect, btnBorderBrush);
+    DeleteObject(btnBorderBrush);
+
+    HFONT btnFont = CreateFontA(-17, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    prev = (HFONT)SelectObject(hDC, btnFont);
+    SetTextColor(hDC, TAG_COLOR_WHITE);
+    DrawTextA(hDC, "ACK", -1, &btnRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hDC, prev);
+    DeleteObject(btnFont);
+    AddScreenObject(SCREEN_OBJECT_NAP_ACK, "NAPACK", btnRect, false, "Acknowledge NAP reminder");
+}
+
+/// @brief Calls RequestRefresh() only on enter/leave transitions between NAP screen objects so that
+/// DrawNapReminder() redraws exactly when the hover state changes, not on every mouse-move event.
+void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area)
+{
+    if (ObjectType == SCREEN_OBJECT_NAP_WIN || ObjectType == SCREEN_OBJECT_NAP_ACK)
+    {
+        if (ObjectType != this->napLastHoverType)
+        {
+            this->napLastHoverType = ObjectType;
+            this->RequestRefresh();
+        }
+    }
+}
+
+/// @brief Sets the pressed state when the mouse button goes down over the ACK button.
+void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
+{
+    if (ObjectType == SCREEN_OBJECT_NAP_ACK)
+    {
+        this->napAckPressed = true;
+        this->RequestRefresh();
+    }
+}
+
+/// @brief Clears the pressed state when the mouse button is released.
+void RadarScreen::OnButtonUpScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
+{
+    if (ObjectType == SCREEN_OBJECT_NAP_ACK)
+    {
+        this->napAckPressed = false;
+        this->RequestRefresh();
+    }
+}
+
+/// @brief Starts the ACK blink animation on click; the window closes after it completes.
+void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
+{
+    if (ObjectType == SCREEN_OBJECT_NAP_ACK && this->napAckClickTick == 0)
+    {
+        this->napAckClickTick = GetTickCount64();
+        this->RequestRefresh();
+    }
 }
 
 /// @brief Updates the screen-pixel anchor for a departure overlay when the radar target moves.
@@ -650,6 +860,11 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
     if (objId == "TWRIN")
     {
         dragWindow(this->twrInboundWindowPos, this->twrInboundLastDrag);
+        return;
+    }
+    if (objId == "NAPWIN")
+    {
+        dragWindow(this->napWindowPos, this->napLastDrag);
         return;
     }
 

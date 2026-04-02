@@ -77,6 +77,27 @@ public:
     /// @brief Previous drag cursor position for the TWR Inbound window.
     POINT twrInboundLastDrag = { -1, -1 };
 
+    /// @brief Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred).
+    POINT napWindowPos = { -1, -1 };
+
+    /// @brief Previous drag cursor position for the NAP reminder window.
+    POINT napLastDrag = { -1, -1 };
+
+    /// @brief True while the NAP reminder window should be visible.
+    bool napReminderActive = false;
+
+    /// @brief ICAO code of the airport whose NAP reminder is currently active.
+    std::string napReminderAirport;
+
+    /// @brief Last object type reported by OnOverScreenObject for NAP objects; used to detect enter/leave transitions.
+    int napLastHoverType = -1;
+
+    /// @brief True while the left mouse button is held down over the ACK button.
+    bool napAckPressed = false;
+
+    /// @brief Tick (GetTickCount64) at which the ACK button was clicked; 0 when not animating.
+    ULONGLONG napAckClickTick = 0;
+
     /// @brief Called by EuroScope when the ASR is closed; notifies the plugin and deletes this screen.
     void OnAsrContentToBeClosed() override;
 
@@ -122,4 +143,19 @@ private:
 
     /// @brief Draws the TWR Inbound custom window using pre-calculated twrInboundRowsCache.
     void DrawTwrInbound(HDC hDC);
+
+    /// @brief Draws the NAP reminder window when napReminderActive is true.
+    void DrawNapReminder(HDC hDC);
+
+    /// @brief Called when the mouse moves over a registered screen object; tracks ACK button hover state.
+    void OnOverScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area) override;
+
+    /// @brief Called when a mouse button is pressed on a registered screen object; sets the pressed state.
+    void OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
+
+    /// @brief Called when a mouse button is released on a registered screen object; clears the pressed state.
+    void OnButtonUpScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
+
+    /// @brief Called when the mouse button is clicked on a registered screen object; handles ACK button.
+    void OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
 };

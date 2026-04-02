@@ -5,7 +5,21 @@
 #include "helpers.h"
 #include "date/tz.h"
 
-/// @brief Checks each airport's NAP reminder configuration and fires a modal alert when the time is reached.
+/// @brief Returns today's UTC date as a "YYYY-MM-DD" string, used for NAP dismissal tracking.
+static std::string UtcDateString()
+{
+    auto now = std::chrono::system_clock::now();
+    auto ymd = date::year_month_day{ date::floor<date::days>(now) };
+    std::ostringstream ss;
+    int  y = (int)ymd.year();
+    auto m = (unsigned)ymd.month();
+    auto d = (unsigned)ymd.day();
+    ss << y << "-" << (m < 10 ? "0" : "") << m << "-" << (d < 10 ? "0" : "") << d;
+    return ss.str();
+}
+
+/// @brief Checks each airport's NAP reminder configuration and shows the custom reminder window when the time is reached.
+/// The reminder is suppressed if it was already acknowledged today (UTC date comparison).
 void CDelHelX_Timers::CheckAirportNAPReminder()
 {
     for (auto& airport : this->airports)
@@ -25,15 +39,22 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
                     std::vector<std::string> todSplit = split(tod, ':');
                     if (todSplit.size() == 3)
                     {
-                        int hours = atoi(todSplit[0].c_str());
+                        int hours   = atoi(todSplit[0].c_str());
                         int minutes = atoi(todSplit[1].c_str());
 
                         if ((hours == airport.second.nap_reminder.hour && minutes >= airport.second.nap_reminder.minute) || hours > airport.second.nap_reminder.hour)
                         {
                             airport.second.nap_reminder.triggered = true;
 
+                            // Suppress if already acknowledged today
+                            if (this->napLastDismissedDate == UtcDateString()) { continue; }
+
                             Beep(1568, 300);
-                            MessageBoxA(nullptr, ("What's the NAP procedure for " + airport.first + " tonight?").c_str(), "DelHelX Plugin", MB_OK | MB_ICONQUESTION | MB_TOPMOST);
+                            if (this->radarScreen != nullptr)
+                            {
+                                this->radarScreen->napReminderActive  = true;
+                                this->radarScreen->napReminderAirport = airport.first;
+                            }
                         }
                     }
                 }
@@ -44,6 +65,13 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
             }
         }
     }
+}
+
+/// @brief Records today's UTC date as the last NAP acknowledgement date and persists it to windowLocations.json.
+void CDelHelX_Timers::AckNapReminder()
+{
+    this->napLastDismissedDate = UtcDateString();
+    this->SaveWindowLocations();
 }
 
 /// @brief Updates the TTT inbound list: detects new inbounds, removes departed aircraft, and handles go-arounds.
@@ -739,6 +767,7 @@ void CDelHelX_Timers::SaveAndRestoreWindowLocations()
     syncWindow(this->radarScreen->depRateWindowPos,     this->depRateWindowX,     this->depRateWindowY);
     syncWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
     syncWindow(this->radarScreen->twrInboundWindowPos,  this->twrInboundWindowX,  this->twrInboundWindowY);
+    syncWindow(this->radarScreen->napWindowPos,          this->napWindowX,          this->napWindowY);
 
     if (needsSave) { this->SaveWindowLocations(); }
 }
