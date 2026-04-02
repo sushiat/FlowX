@@ -749,7 +749,7 @@ void CDelHelX_Timers::SaveAndRestoreWindowLocations()
     {
         this->depRateWindowX = this->radarScreen->depRateWindowPos.x;
         this->depRateWindowY = this->radarScreen->depRateWindowPos.y;
-        this->SaveSettings();
+        this->SaveWindowLocations();
     }
 }
 

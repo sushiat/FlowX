@@ -11,6 +11,7 @@ CDelHelX_Settings::CDelHelX_Settings()
     this->updateCheck = false;
 
     this->LoadSettings();
+    this->LoadWindowLocations();
     this->LoadConfig();
 
     if (this->updateCheck) {
@@ -40,12 +41,6 @@ void CDelHelX_Settings::LoadSettings()
         {
             std::istringstream(splitSettings[3]) >> this->autoRestore;
         }
-        if (splitSettings.size() >= 6)
-        {
-            std::istringstream(splitSettings[4]) >> this->depRateWindowX;
-            std::istringstream(splitSettings[5]) >> this->depRateWindowY;
-        }
-
         this->LogMessage("Successfully loaded settings.", "Settings");
     }
     else {
@@ -60,11 +55,58 @@ void CDelHelX_Settings::SaveSettings()
     ss << this->updateCheck << SETTINGS_DELIMITER
         << this->flashOnMessage << SETTINGS_DELIMITER
         << this->debug << SETTINGS_DELIMITER
-        << this->autoRestore << SETTINGS_DELIMITER
-        << this->depRateWindowX << SETTINGS_DELIMITER
-        << this->depRateWindowY;
+        << this->autoRestore;
 
     this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
+}
+
+/// @brief Loads window positions from windowLocations.json in the plugin directory.
+void CDelHelX_Settings::LoadWindowLocations()
+{
+    try
+    {
+        std::filesystem::path path(GetPluginDirectory());
+        path.append("windowLocations.json");
+
+        std::ifstream ifs(path);
+        if (!ifs.is_open())
+        {
+            return;
+        }
+
+        json j = json::parse(ifs);
+
+        if (j.contains("depRateWindow"))
+        {
+            this->depRateWindowX = j["depRateWindow"].value("x", -1);
+            this->depRateWindowY = j["depRateWindow"].value("y", -1);
+        }
+    }
+    catch (std::exception&)
+    {
+        // Missing or malformed file — positions stay at -1 (auto-place on first draw)
+    }
+}
+
+/// @brief Writes current window positions to windowLocations.json in the plugin directory.
+void CDelHelX_Settings::SaveWindowLocations()
+{
+    try
+    {
+        json j;
+        j["depRateWindow"]["x"] = this->depRateWindowX;
+        j["depRateWindow"]["y"] = this->depRateWindowY;
+
+        std::filesystem::path path(GetPluginDirectory());
+        path.append("windowLocations.json");
+
+        std::ofstream ofs(path);
+        ofs << j.dump(4);
+    }
+    catch (std::exception& e)
+    {
+        this->LogMessage("Failed to save window locations. Error: " + std::string(e.what()), "Settings");
+    }
 }
 
 /// @brief Parses config.json from the plugin directory and populates the airports map.

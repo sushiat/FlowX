@@ -10,6 +10,7 @@ using json = nlohmann::json;
 ///
 /// Reads and writes plugin preferences via EuroScope's settings storage, parses config.json
 /// into the @c airports map, and optionally checks for a newer plugin version in the background.
+/// Window positions are stored separately in windowLocations.json in the plugin directory.
 class CDelHelX_Settings : public CDelHelX_Logging
 {
 public:
@@ -34,6 +35,13 @@ protected:
 
     /// @brief Serialises current plugin settings and writes them to EuroScope's settings store.
     void SaveSettings();
+
+    /// @brief Loads window positions from windowLocations.json in the plugin directory.
+    /// @note Missing or malformed file is silently ignored; positions stay at -1 (auto-place).
+    void LoadWindowLocations();
+
+    /// @brief Writes current window positions to windowLocations.json in the plugin directory.
+    void SaveWindowLocations();
 
     /// @brief Parses config.json from the plugin directory and populates the @c airports map.
     /// @note Logs a message and returns early if the file cannot be read or parsed.
