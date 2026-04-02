@@ -335,9 +335,14 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int FREQ    = 105;  // 15 chars
     const int HP      = 28;   //  4 chars
     const int SPC     = 119;  // 17 chars
+    const int SEP_H   = 12;    ///< Height of blank separator row between sort groups
     const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + PAD;
     int numRows       = (int)this->twrOutboundRowsCache.size();
-    const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + PAD / 2;
+
+    int numSeps = 0;
+    for (const auto& r : this->twrOutboundRowsCache) { if (r.groupSeparatorAbove) { ++numSeps; } }
+
+    const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + numSeps * SEP_H + PAD / 2;
 
     if (this->twrOutboundWindowPos.x == -1)
     {
@@ -410,8 +415,11 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
 
-    // Data rows — larger font
+    // Data rows — normal font for active aircraft, dimmed for departed+untracked
     HFONT dataFont = CreateFontA(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT dimFont  = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     prevDataFont = (HFONT)SelectObject(hDC, dataFont);
@@ -425,12 +433,24 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     };
 
     auto altBrushOut = CreateSolidBrush(RGB(32, 32, 32));
+    int yOffset = 0; ///< Accumulated extra pixels from separator rows inserted above this row
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrOutboundRowsCache[row];
-        int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
+
+        if (r.groupSeparatorAbove)
+        {
+            int sepY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
+            RECT sepRect = { wx + 1, sepY, wx + WIN_W - 1, sepY + SEP_H };
+            FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
+            yOffset += SEP_H;
+        }
+
+        int rowY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
         if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushOut); }
         int cx   = wx + PAD;
+
+        SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
         auto cell = [&](int width, const std::string& text, COLORREF color,
                         UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
@@ -456,6 +476,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 
     SelectObject(hDC, prevDataFont);
     DeleteObject(dataFont);
+    DeleteObject(dimFont);
 }
 
 /// @brief Draws the TWR Inbound custom window from the pre-sorted twrInboundRowsCache.
@@ -465,7 +486,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int TITLE_H = 13;
     const int HDR_H   = 17;
     const int ROW_H   = 19;
-    const int SEP_H   = 6;    ///< Height of blank separator row between runway groups
+    const int SEP_H   = 12;    ///< Height of blank separator row between runway groups
     const int PAD     = 6;
     // Column order: RWY_GRP (new), TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, RWY
     const int RWY_GRP = 35;   //  new front column — runway group label
@@ -565,8 +586,11 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
 
-    // Data rows — larger font
+    // Data rows — normal font for the closest aircraft per runway, dimmed for the rest
     HFONT dataFont = CreateFontA(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT dimFont  = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     prevDataFont = (HFONT)SelectObject(hDC, dataFont);
@@ -596,6 +620,8 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         }
         lastRwyGroup = r.rwyGroup;
 
+        SelectObject(hDC, r.dimmed ? dimFont : dataFont);
+
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
         if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushIn); }
         int cx   = wx + PAD;
@@ -609,21 +635,22 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             cx += width;
         };
 
-        cell(RWY_GRP, r.rwyGroup,                  r.callsignColor);
-        cell(TTT,    r.ttt.tag,                    r.ttt.color);
-        cell(CS,     r.callsign,                   r.callsignColor);
-        cell(NM,     r.nm.tag,                     r.nm.color,             DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(GS,     std::to_string(r.groundSpeed),TAG_COLOR_WHITE,        DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(WTC,    std::string(1, r.wtc),        wtcColor(r.wtc),        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cell(ATYP,   r.aircraftType,               r.callsignColor);
-        cell(GATE,   r.gate,                       TAG_COLOR_WHITE);
-        cell(VACATE, r.vacate.tag,                 r.vacate.color);
-        cell(RWY,    r.arrRwy.tag,                 r.arrRwy.color,         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(RWY_GRP, r.rwyGroup,                   r.callsignColor);
+        cell(TTT,     r.ttt.tag,                    r.ttt.color);
+        cell(CS,      r.callsign,                   r.callsignColor);
+        cell(NM,      r.nm.tag,                     r.nm.color,             DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cell(GS,      std::to_string(r.groundSpeed),TAG_COLOR_WHITE,        DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cell(WTC,     std::string(1, r.wtc),        wtcColor(r.wtc),        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(ATYP,    r.aircraftType,               r.callsignColor);
+        cell(GATE,    r.gate,                       TAG_COLOR_WHITE);
+        cell(VACATE,  r.vacate.tag,                 r.vacate.color);
+        cell(RWY,     r.arrRwy.tag,                 r.arrRwy.color,         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     DeleteObject(altBrushIn);
 
     SelectObject(hDC, prevDataFont);
     DeleteObject(dataFont);
+    DeleteObject(dimFont);
 }
 
 /// @brief Draws the NAP reminder as a custom floating window with a draggable body and an ACK button.

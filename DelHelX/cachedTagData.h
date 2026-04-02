@@ -51,6 +51,8 @@ struct TwrOutboundRowCache {
     tagInfo     hp;                 ///< TAG_ITEM_HP
     tagInfo     spacing;            ///< TAG_ITEM_TAKEOFF_SPACING
     std::string sortKey;            ///< TAG_ITEM_TWR_SORT text used for row ordering (not displayed)
+    bool        dimmed = false;              ///< True for departed+untracked aircraft — draw at reduced font size
+    bool        groupSeparatorAbove = false; ///< True when a blank separator row should be drawn above this row
 };
 
 /// @brief Cached display data for one row in the TWR Inbound custom window.
@@ -68,4 +70,5 @@ struct TwrInboundRowCache {
     std::string gate;               ///< Assigned stand/gate from standAssignment map
     tagInfo     vacate;             ///< TAG_ITEM_SUGGESTED_VACATE
     tagInfo     arrRwy;             ///< TAG_ITEM_ASSIGNED_ARR_RUNWAY
+    bool        dimmed = false;     ///< True for non-closest aircraft per runway — draw at reduced font size
 };

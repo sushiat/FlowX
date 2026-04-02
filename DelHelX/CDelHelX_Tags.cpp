@@ -674,7 +674,7 @@ tagInfo CDelHelX_Tags::GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlug
         }
 
         auto position = rt.GetPosition().GetPosition();
-        auto speed = rt.GetGS();
+        auto speed = rt.GetPosition().GetReportedGS();
 
         EuroScopePlugIn::CPosition rwyThreshold;
         rwyThreshold.m_Latitude = it->second.thresholdLat;
@@ -1149,12 +1149,16 @@ tagInfo CDelHelX_Tags::GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp)
     }
     else
     {
-        // Departed: group C, then runway, then departure sequence ascending
+        // Departed: group C if still tracked by me (or transfer initiated), group D otherwise.
+        // Within each group sort by departure sequence ascending.
+        bool isStillMine = fp.GetTrackingControllerIsMe()
+                        && fp.GetState() != EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
+        std::string group = isStillMine ? "C" : "D";
         auto seqIt = this->dep_sequenceNumber.find(callSign);
         int seq = seqIt != this->dep_sequenceNumber.end() ? seqIt->second : 0;
         char seqBuf[8];
         (void)snprintf(seqBuf, sizeof(seqBuf), "%04d", seq);
-        tag.tag = "C" + rwyPadded + seqBuf;
+        tag.tag = group + rwyPadded + seqBuf;
     }
 
     return tag;
@@ -1297,6 +1301,9 @@ void CDelHelX_Tags::UpdateTagCache()
             row.hp           = entry.holdingPoint;
             row.spacing      = entry.takeoffSpacing;
             row.sortKey      = entry.twrSort.tag;
+            // Dim group D (departed + not tracking by me, including transfer-from-me-initiated)
+            row.dimmed = row.status.tag.find("DEP") != std::string::npos
+                      && row.callsignColor != TAG_COLOR_WHITE;
             outboundRows.push_back(std::move(row));
         }
 
@@ -1304,6 +1311,15 @@ void CDelHelX_Tags::UpdateTagCache()
             [](const TwrOutboundRowCache& a, const TwrOutboundRowCache& b) {
                 return a.sortKey < b.sortKey;
             });
+
+        // Mark the first row of each sort group (A/B vs C vs D) so the draw function can insert separators
+        char lastGroup = '\0';
+        for (auto& r : outboundRows)
+        {
+            char g = r.sortKey.empty() ? '\0' : r.sortKey[0];
+            r.groupSeparatorAbove = (lastGroup != '\0' && g != lastGroup);
+            lastGroup = g;
+        }
 
         this->radarScreen->twrOutboundRowsCache = std::move(outboundRows);
     }
@@ -1318,8 +1334,18 @@ void CDelHelX_Tags::UpdateTagCache()
     {
         std::vector<TwrInboundRowCache> inboundRows;
 
+        // Parse "mm:ss" display string → total seconds; returns -1 if malformed or empty
+        auto parseTttSec = [](const std::string& s) -> int {
+            auto colon = s.find(':');
+            if (s.empty() || colon == std::string::npos) { return -1; }
+            return atoi(s.c_str()) * 60 + atoi(s.c_str() + colon + 1);
+        };
+
         for (auto& [runway, keys] : this->ttt_sortedByRunway)
         {
+            bool isFirst   = true;
+            int prevTttSec = -1;
+
             for (auto& key : keys)
             {
                 auto planIt = this->ttt_flightPlans.find(key);
@@ -1348,30 +1374,45 @@ void CDelHelX_Tags::UpdateTagCache()
                     return TAG_COLOR_LIST_GRAY;
                 };
 
-                // Build display TTT: strip the "designator_" prefix (kept in entry.ttt for OnGetTagItem)
+                // Strip "designator_" prefix for display (entry.ttt keeps original for OnGetTagItem)
                 tagInfo tttDisplay = entry.ttt;
                 {
                     auto sep = tttDisplay.tag.find('_');
                     if (sep != std::string::npos) { tttDisplay.tag = tttDisplay.tag.substr(sep + 1); }
                 }
 
+                // Non-first aircraft: replace TTT with "+mm:ss" gap to the aircraft ahead
+                int currTttSec = parseTttSec(tttDisplay.tag);
+                if (!isFirst && currTttSec >= 0 && prevTttSec >= 0)
+                {
+                    int gap = currTttSec - prevTttSec;
+                    if (gap < 0) { gap = 0; }
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "+%02d:%02d", gap / 60, gap % 60);
+                    tttDisplay.tag = buf;
+                }
+                if (currTttSec >= 0) { prevTttSec = currTttSec; }
+
                 TwrInboundRowCache row;
                 row.callsign      = callSign;
                 row.callsignColor = callsignColor();
                 row.wtc           = fp.GetFlightPlanData().GetAircraftWtc();
-                row.groundSpeed   = rt.GetGS();
+                row.groundSpeed   = rt.GetPosition().GetReportedGS();
                 row.rwyGroup      = designator;
                 row.sortKey       = entry.ttt.tag;
                 row.ttt           = tttDisplay;
                 row.nm            = entry.inboundNm;
-                row.aircraftType = fp.GetFlightPlanData().GetAircraftFPType();
+                row.aircraftType  = fp.GetFlightPlanData().GetAircraftFPType();
                 {
                     auto standIt = this->standAssignment.find(callSign);
                     row.gate = (standIt != this->standAssignment.end()) ? standIt->second : "";
                 }
-                row.vacate      = entry.suggestedVacate;
-                row.arrRwy      = entry.assignedArrRwy;
+                row.vacate  = entry.suggestedVacate;
+                row.arrRwy  = entry.assignedArrRwy;
+                row.dimmed  = !isFirst;
                 inboundRows.push_back(std::move(row));
+
+                isFirst = false;
             }
         }
 
@@ -1468,7 +1509,7 @@ void CDelHelX_Tags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
                 if (sep != std::string::npos) { tttDisplay.tag = tttDisplay.tag.substr(sep + 1); }
                 row.ttt         = tttDisplay;
                 row.nm          = cacheIt->second.inboundNm;
-                row.groundSpeed = rt.GetGS();
+                row.groundSpeed = rt.GetPosition().GetReportedGS();
                 break;
             }
         }
