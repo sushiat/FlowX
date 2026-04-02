@@ -56,6 +56,9 @@ public:
     /// @param FlightPlan The disconnecting flight plan.
     void OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan) override;
 
+    /// @brief Overrides base screen creation to restore persisted window positions before the first draw.
+    EuroScopePlugIn::CRadarScreen* OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated) override;
+
     /// @brief Called when controller-assigned data changes; tracks ground status and stand assignments.
     /// @param fp Updated flight plan.
     /// @param dataType EuroScope data-type constant indicating which field changed.

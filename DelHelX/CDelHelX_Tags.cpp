@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "CDelHelX_Tags.h"
 
+#include <algorithm>
+#include <set>
 #include "helpers.h"
 
 /// @brief Builds the TWR next-frequency tag for a departing aircraft.
@@ -1191,4 +1193,250 @@ tagInfo CDelHelX_Tags::GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp)
 
     tag.tag = status;
     return tag;
+}
+
+/// @brief Pre-calculates all cached tag items and rebuilds the DEP/H, TWR Outbound, and TWR Inbound
+/// window row caches.  Called every second from OnTimer after blinking has toggled and after all
+/// state-map updates have run.
+void CDelHelX_Tags::UpdateTagCache()
+{
+    if (this->radarScreen == nullptr) { return; }
+
+    if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
+    {
+        this->tagCache.clear();
+        this->radarScreen->depRateRowsCache.clear();
+        this->radarScreen->twrOutboundRowsCache.clear();
+        this->radarScreen->twrInboundRowsCache.clear();
+        return;
+    }
+
+    std::set<std::string> activeDepartures;
+    std::set<std::string> activeInbounds;
+
+    // =========================================================
+    // TWR OUTBOUND — departure aircraft in twrSameSID_flightPlans
+    // =========================================================
+    if (this->ControllerMyself().GetFacility() >= 3)
+    {
+        std::vector<TwrOutboundRowCache> outboundRows;
+
+        for (auto& [callSign, takeoffTick] : this->twrSameSID_flightPlans)
+        {
+            EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(callSign.c_str());
+            EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
+            if (!fp.IsValid()) { continue; }
+
+            activeDepartures.insert(callSign);
+            auto& entry = this->tagCache[callSign];
+
+            // ── Shared computations used by multiple tags ──
+            std::string dep = fp.GetFlightPlanData().GetOrigin();
+            to_upper(dep);
+            std::string rwy = fp.GetFlightPlanData().GetDepartureRwy();
+            auto airportIt = this->airports.find(dep);
+
+            if (airportIt != this->airports.end() && rt.IsValid() && rt.GetPosition().IsValid())
+            {
+                auto pos = rt.GetPosition().GetPosition();
+
+                // Distance to threshold (shared by TWR_NEXT_FREQ blinking and TWR_SORT)
+                entry.distToRunwayThreshold = DistanceFromRunwayThreshold(rwy, pos, airportIt->second.runways);
+
+                // Holding-point check (shared by TWR_NEXT_FREQ blinking and AutoUpdateDepartureHoldingPoints)
+                entry.atHoldingPoint = false;
+                auto rwyIt = airportIt->second.runways.find(rwy);
+                if (rwyIt != airportIt->second.runways.end())
+                {
+                    for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
+                    {
+                        u_int corners = static_cast<u_int>(hpData.lat.size());
+                        double polyX[10], polyY[10];
+                        std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
+                        std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
+                        if (PointInsidePolygon(static_cast<int>(corners), polyX, polyY,
+                                               pos.m_Longitude, pos.m_Latitude))
+                        {
+                            entry.atHoldingPoint = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // ── Per-tag cache updates ──
+            entry.sameSid          = GetSameSidTag(fp);
+            entry.takeoffSpacing   = GetTakeoffSpacingTag(fp);
+            entry.holdingPoint     = GetHoldingPointTag(fp);
+            entry.gndStateExpanded = GetGndStateExpandedTag(fp);
+            entry.assignedRunway   = GetAssignedRunwayTag(fp);
+            entry.twrSort          = GetTwrSortKey(fp);
+            if (rt.IsValid())
+            {
+                entry.twrNextFreq   = GetTwrNextFreqTag(fp, rt);
+                entry.departureInfo = GetDepartureInfoTag(fp, rt);
+            }
+
+            // ── Build outbound window row ──
+            TwrOutboundRowCache row;
+            row.callsign = callSign;
+            row.wtc      = fp.GetFlightPlanData().GetAircraftWtc();
+            row.status   = entry.gndStateExpanded;
+            row.depInfo  = entry.departureInfo;
+            row.rwy      = entry.assignedRunway;
+            row.sameSid  = entry.sameSid;
+            row.nextFreq = entry.twrNextFreq;
+            row.hp       = entry.holdingPoint;
+            row.spacing  = entry.takeoffSpacing;
+            row.sortKey  = entry.twrSort.tag;
+            outboundRows.push_back(std::move(row));
+        }
+
+        std::sort(outboundRows.begin(), outboundRows.end(),
+            [](const TwrOutboundRowCache& a, const TwrOutboundRowCache& b) {
+                return a.sortKey < b.sortKey;
+            });
+
+        this->radarScreen->twrOutboundRowsCache = std::move(outboundRows);
+    }
+    else
+    {
+        this->radarScreen->twrOutboundRowsCache.clear();
+    }
+
+    // =========================================================
+    // TTT INBOUND — inbound aircraft in ttt_sortedByRunway order
+    // =========================================================
+    {
+        std::vector<TwrInboundRowCache> inboundRows;
+
+        for (auto& [runway, keys] : this->ttt_sortedByRunway)
+        {
+            for (auto& key : keys)
+            {
+                auto planIt = this->ttt_flightPlans.find(key);
+                if (planIt == this->ttt_flightPlans.end()) { continue; }
+
+                // Key = callSign + runway designator; strip the designator suffix
+                const std::string& designator = planIt->second.designator;
+                std::string callSign = key.substr(0, key.size() - designator.size());
+
+                EuroScopePlugIn::CFlightPlan  fp = this->FlightPlanSelect(callSign.c_str());
+                EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
+                if (!fp.IsValid() || !rt.IsValid()) { continue; }
+
+                activeInbounds.insert(callSign);
+                auto& entry = this->tagCache[callSign];
+
+                entry.ttt            = GetTttTag(fp, rt);
+                entry.inboundNm      = GetInboundNmTag(fp);
+                entry.suggestedVacate = GetSuggestedVacateTag(fp);
+                entry.assignedArrRwy = GetAssignedArrivalRwyTag(fp);
+
+                TwrInboundRowCache row;
+                row.callsign    = callSign;
+                row.wtc         = fp.GetFlightPlanData().GetAircraftWtc();
+                row.groundSpeed = rt.GetGS();
+                row.ttt         = entry.ttt;
+                row.nm          = entry.inboundNm;
+                row.arrRwy      = entry.assignedArrRwy;
+                inboundRows.push_back(std::move(row));
+            }
+        }
+
+        this->radarScreen->twrInboundRowsCache = std::move(inboundRows);
+    }
+
+    // =========================================================
+    // Prune stale tag cache entries
+    // =========================================================
+    for (auto it = this->tagCache.begin(); it != this->tagCache.end(); )
+    {
+        if (activeDepartures.find(it->first) == activeDepartures.end() &&
+            activeInbounds.find(it->first)   == activeInbounds.end())
+        {
+            it = this->tagCache.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    // =========================================================
+    // DEP/H window — per-runway average departure spacing
+    // =========================================================
+    {
+        this->radarScreen->depRateRowsCache.clear();
+        ULONGLONG nowMs = GetTickCount64();
+
+        for (auto& [rwy, timestamps] : this->radarScreen->depRateLog)
+        {
+            DepRateRowCache row;
+            row.runway = rwy;
+
+            int count    = static_cast<int>(timestamps.size());
+            row.countStr   = std::to_string(count);
+            row.countColor = count > 0 ? TAG_COLOR_GREEN : TAG_COLOR_DEFAULT_GRAY;
+
+            std::vector<ULONGLONG> recent;
+            for (auto t : timestamps)
+            {
+                if ((nowMs - t) <= 900000ULL) { recent.push_back(t); }
+            }
+
+            row.spacingStr   = "--:--";
+            row.spacingColor = TAG_COLOR_DEFAULT_GRAY;
+            if (recent.size() >= 2)
+            {
+                std::sort(recent.begin(), recent.end());
+                ULONGLONG avgGapSec = ((recent.back() - recent.front()) / (recent.size() - 1)) / 1000ULL;
+                char buf[8];
+                snprintf(buf, sizeof(buf), "%02llu:%02llu", avgGapSec / 60, avgGapSec % 60);
+                row.spacingStr   = buf;
+                row.spacingColor = TAG_COLOR_WHITE;
+            }
+
+            this->radarScreen->depRateRowsCache.push_back(std::move(row));
+        }
+    }
+}
+
+/// @brief Refreshes the TTT and InboundNm cached values for an inbound aircraft on each position update.
+/// Also updates the corresponding row in the TWR Inbound window cache so the display stays current
+/// between full-second UpdateTagCache() rebuilds.
+/// @param rt The updated radar target.
+void CDelHelX_Tags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
+{
+    if (!rt.IsValid()) { return; }
+
+    std::string callSign = rt.GetCallsign();
+    auto cacheIt = this->tagCache.find(callSign);
+    if (cacheIt == this->tagCache.end()) { return; }
+
+    EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+    if (!fp.IsValid()) { return; }
+
+    // Only update for inbound aircraft
+    bool isInbound = std::any_of(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+        [&callSign](const auto& e) { return e.first.rfind(callSign, 0) == 0; });
+    if (!isInbound) { return; }
+
+    cacheIt->second.ttt      = GetTttTag(fp, rt);
+    cacheIt->second.inboundNm = GetInboundNmTag(fp);
+
+    // Propagate the updated values to the inbound row cache so OnRefresh draws fresh data
+    if (this->radarScreen != nullptr)
+    {
+        for (auto& row : this->radarScreen->twrInboundRowsCache)
+        {
+            if (row.callsign == callSign)
+            {
+                row.ttt         = cacheIt->second.ttt;
+                row.nm          = cacheIt->second.inboundNm;
+                row.groundSpeed = rt.GetGS();
+                break;
+            }
+        }
+    }
 }

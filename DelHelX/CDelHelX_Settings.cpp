@@ -81,6 +81,16 @@ void CDelHelX_Settings::LoadWindowLocations()
             this->depRateWindowX = j["depRateWindow"].value("x", -1);
             this->depRateWindowY = j["depRateWindow"].value("y", -1);
         }
+        if (j.contains("twrOutboundWindow"))
+        {
+            this->twrOutboundWindowX = j["twrOutboundWindow"].value("x", -1);
+            this->twrOutboundWindowY = j["twrOutboundWindow"].value("y", -1);
+        }
+        if (j.contains("twrInboundWindow"))
+        {
+            this->twrInboundWindowX = j["twrInboundWindow"].value("x", -1);
+            this->twrInboundWindowY = j["twrInboundWindow"].value("y", -1);
+        }
     }
     catch (std::exception&)
     {
@@ -94,8 +104,12 @@ void CDelHelX_Settings::SaveWindowLocations()
     try
     {
         json j;
-        j["depRateWindow"]["x"] = this->depRateWindowX;
-        j["depRateWindow"]["y"] = this->depRateWindowY;
+        j["depRateWindow"]["x"]     = this->depRateWindowX;
+        j["depRateWindow"]["y"]     = this->depRateWindowY;
+        j["twrOutboundWindow"]["x"] = this->twrOutboundWindowX;
+        j["twrOutboundWindow"]["y"] = this->twrOutboundWindowY;
+        j["twrInboundWindow"]["x"]  = this->twrInboundWindowX;
+        j["twrInboundWindow"]["y"]  = this->twrInboundWindowY;
 
         std::filesystem::path path(GetPluginDirectory());
         path.append("windowLocations.json");

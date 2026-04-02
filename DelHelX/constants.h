@@ -71,6 +71,8 @@ const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201,  14); ///< Yellow (blinkin
 /// @{
 const int SCREEN_OBJECT_DEP_TAG      = 6681; ///< Per-aircraft departure info custom tag (drag handle)
 const int SCREEN_OBJECT_DEPRATE_WIN  = 6682; ///< Departure rate window header (drag handle)
+const int SCREEN_OBJECT_TWR_OUT_WIN  = 6683; ///< TWR Outbound window header (drag handle)
+const int SCREEN_OBJECT_TWR_IN_WIN   = 6684; ///< TWR Inbound window header (drag handle)
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

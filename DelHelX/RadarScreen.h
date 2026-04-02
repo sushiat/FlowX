@@ -3,9 +3,11 @@
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "constants.h"
 #include "EuroScope/EuroScopePlugIn.h"
+#include "cachedTagData.h"
 
 /// @brief Per-aircraft departure information rendered as an on-screen overlay near the radar target.
 struct depInfo
@@ -54,6 +56,27 @@ public:
     /// @brief Previous drag cursor position for the departure rate window; (-1,-1) when not dragging.
     POINT depRateLastDrag = { -1, -1 };
 
+    /// @brief Cached per-runway rows for the DEP/H window; rebuilt every second by UpdateTagCache().
+    std::vector<DepRateRowCache> depRateRowsCache;
+
+    /// @brief Cached per-aircraft rows for the TWR Outbound window; rebuilt every second by UpdateTagCache().
+    std::vector<TwrOutboundRowCache> twrOutboundRowsCache;
+
+    /// @brief Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates).
+    std::vector<TwrInboundRowCache> twrInboundRowsCache;
+
+    /// @brief Top-left corner of the TWR Outbound window; (-1,-1) until first draw.
+    POINT twrOutboundWindowPos = { -1, -1 };
+
+    /// @brief Previous drag cursor position for the TWR Outbound window.
+    POINT twrOutboundLastDrag = { -1, -1 };
+
+    /// @brief Top-left corner of the TWR Inbound window; (-1,-1) until first draw.
+    POINT twrInboundWindowPos = { -1, -1 };
+
+    /// @brief Previous drag cursor position for the TWR Inbound window.
+    POINT twrInboundLastDrag = { -1, -1 };
+
     /// @brief Called by EuroScope when the ASR is closed; notifies the plugin and deletes this screen.
     void OnAsrContentToBeClosed() override;
 
@@ -87,4 +110,16 @@ private:
     /// @param Area Bounding rectangle of the object.
     /// @param Released True when the mouse button has been released.
     void OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released) override;
+
+    /// @brief Draws departure info overlays (text, SID dot, HP label, connector line).
+    void DrawDepartureInfoTag(HDC hDC);
+
+    /// @brief Draws the DEP/H departure-rate window using pre-calculated depRateRowsCache.
+    void DrawDepRateWindow(HDC hDC);
+
+    /// @brief Draws the TWR Outbound custom window using pre-calculated twrOutboundRowsCache.
+    void DrawTwrOutbound(HDC hDC);
+
+    /// @brief Draws the TWR Inbound custom window using pre-calculated twrInboundRowsCache.
+    void DrawTwrInbound(HDC hDC);
 };

@@ -220,13 +220,11 @@ void CDelHelX::RedoFlags()
 /// @param pFontSize Output for an optional font size override.
 void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlugIn::CRadarTarget RadarTarget, int ItemCode, int TagData, char sItemString[16], int* pColorCode, COLORREF* pRGB, double* pFontSize)
 {
-    if (!FlightPlan.IsValid())
-    {
-        return;
-    }
+    if (!FlightPlan.IsValid()) { return; }
 
     tagInfo tag;
 
+    // Items not in the tag cache (computed directly — not in the TWR/inbound lists)
     if (ItemCode == TAG_ITEM_PS_HELPER)
     {
         tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget);
@@ -239,57 +237,29 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
     {
         tag = this->GetNewQnhTag(FlightPlan);
     }
-    else if (ItemCode == TAG_ITEM_SAMESID)
-    {
-        tag = this->GetSameSidTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_TAKEOFF_SPACING)
-    {
-        tag = this->GetTakeoffSpacingTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_ASSIGNED_RUNWAY)
-    {
-        tag = this->GetAssignedRunwayTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_TTT)
-    {
-        tag = this->GetTttTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_INBOUND_NM)
-    {
-        tag = this->GetInboundNmTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_SUGGESTED_VACATE)
-    {
-        tag = this->GetSuggestedVacateTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_HP)
-    {
-        tag = this->GetHoldingPointTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_DEPARTURE_INFO)
-    {
-        tag = this->GetDepartureInfoTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_TWR_NEXT_FREQ)
-    {
-        tag = this->GetTwrNextFreqTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_TWR_SORT)
-    {
-        tag = this->GetTwrSortKey(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_GND_STATE_EXPANDED)
-    {
-        tag = this->GetGndStateExpandedTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_ASSIGNED_ARR_RUNWAY)
-    {
-        tag = this->GetAssignedArrivalRwyTag(FlightPlan);
-    }
     else
     {
-        return;
+        // All remaining items are served from the pre-calculated tag cache
+        auto cacheIt = this->tagCache.find(FlightPlan.GetCallsign());
+        if (cacheIt == this->tagCache.end()) { return; }
+
+        const auto& cached = cacheIt->second;
+        switch (ItemCode)
+        {
+            case TAG_ITEM_SAMESID:            tag = cached.sameSid;          break;
+            case TAG_ITEM_HP:                 tag = cached.holdingPoint;     break;
+            case TAG_ITEM_ASSIGNED_ARR_RUNWAY: tag = cached.assignedArrRwy;  break;
+            case TAG_ITEM_TAKEOFF_SPACING:    tag = cached.takeoffSpacing;   break;
+            case TAG_ITEM_ASSIGNED_RUNWAY:    tag = cached.assignedRunway;   break;
+            case TAG_ITEM_DEPARTURE_INFO:     tag = cached.departureInfo;    break;
+            case TAG_ITEM_TTT:                tag = cached.ttt;              break;
+            case TAG_ITEM_INBOUND_NM:         tag = cached.inboundNm;        break;
+            case TAG_ITEM_SUGGESTED_VACATE:   tag = cached.suggestedVacate;  break;
+            case TAG_ITEM_TWR_NEXT_FREQ:      tag = cached.twrNextFreq;      break;
+            case TAG_ITEM_TWR_SORT:           tag = cached.twrSort;          break;
+            case TAG_ITEM_GND_STATE_EXPANDED: tag = cached.gndStateExpanded; break;
+            default: return;
+        }
     }
 
     *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -335,8 +305,21 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
     else if (FunctionId == TAG_FUNC_STAND_AUTO)     { Func_StandAuto(fp, this->radarScreen); }
 }
 
+/// @brief Creates the RadarScreen and immediately applies any persisted window positions so the
+///        first OnRefresh draw sees the correct locations rather than triggering auto-placement.
+EuroScopePlugIn::CRadarScreen* CDelHelX::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
+{
+    CDelHelX_Base::OnRadarScreenCreated(sDisplayName, NeedRadarContent, GeoReferenced, CanBeSaved, CanBeCreated);
+    if (this->depRateWindowX     != -1) { this->radarScreen->depRateWindowPos     = { this->depRateWindowX,     this->depRateWindowY     }; }
+    if (this->twrOutboundWindowX != -1) { this->radarScreen->twrOutboundWindowPos = { this->twrOutboundWindowX, this->twrOutboundWindowY }; }
+    if (this->twrInboundWindowX  != -1) { this->radarScreen->twrInboundWindowPos  = { this->twrInboundWindowX,  this->twrInboundWindowY  }; }
+    return this->radarScreen;
+}
+
 /// @brief Drives periodic updates: blinking, update check, NAP reminder, and state-map refreshes.
-/// @param Counter EuroScope second counter; state updates run every 2 s, NAP check every 10 s, window save every 5 s.
+/// @param Counter EuroScope second counter.
+/// @note State maps update every 2 s; tag cache and departure overlays refresh every second;
+///       NAP check every 10 s; window positions saved every 5 s.
 void CDelHelX::OnTimer(int Counter)
 {
     this->blinking = !this->blinking;
@@ -354,9 +337,15 @@ void CDelHelX::OnTimer(int Counter)
     {
         this->UpdateTowerSameSID();
         this->AutoUpdateDepartureHoldingPoints();
-        this->UpdateRadarTargetDepartureInfo();
         this->UpdateTTTInbounds();
         this->CheckReconnects();
+    }
+
+    // Rebuild tag cache and departure overlays every second (after state maps are current)
+    if (Counter > 0)
+    {
+        this->UpdateTagCache();
+        this->UpdateRadarTargetDepartureInfo();
     }
 
     if (Counter > 0 && Counter % 5 == 0)
@@ -456,6 +445,7 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     this->dep_prevDistanceAtTakeoff.erase(callSign);
     this->dep_timeRequired.erase(callSign);
     this->dep_sequenceNumber.erase(callSign);
+    this->tagCache.erase(callSign);
 }
 
 /// @brief Parses an incoming METAR for QNH changes and flags cleared ground aircraft at that airport.

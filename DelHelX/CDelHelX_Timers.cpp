@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "CDelHelX_Timers.h"
 
+#include <set>
 #include "helpers.h"
 #include "date/tz.h"
 
@@ -464,141 +465,130 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 }
 
 /// @brief Updates or removes departure information overlays on the radar screen for taxiing aircraft.
+/// Reads dep_info text/colour and SID colour from the pre-calculated tag cache instead of calling
+/// OnGetTagItem, then appends the ",T" transfer indicator for GND controllers.
 void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 {
-    if (this->radarScreen == nullptr)
-    {
-        return;
-    }
+    if (this->radarScreen == nullptr) { return; }
 
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {
-        if (!this->radarScreen->radarTargetDepartureInfos.empty())
-        {
-            this->radarScreen->radarTargetDepartureInfos.clear();
-        }
-
+        this->radarScreen->radarTargetDepartureInfos.clear();
         return;
     }
 
-    if (this->ControllerMyself().GetFacility() >= 3)
+    if (this->ControllerMyself().GetFacility() < 3)
     {
-        for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+        this->radarScreen->radarTargetDepartureInfos.clear();
+        return;
+    }
+
+    auto me = this->ControllerMyself();
+    bool isGnd = me.IsController() && me.GetRating() > 1 && me.GetFacility() <= 3;
+
+    // Determine which aircraft qualify for an overlay
+    std::set<std::string> toShow;
+    for (auto& [callSign, takeoffTick] : this->twrSameSID_flightPlans)
+    {
+        EuroScopePlugIn::CFlightPlan  fp = this->FlightPlanSelect(callSign.c_str());
+        EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
+        if (!fp.IsValid() || !rt.IsValid() || !rt.GetPosition().IsValid()) { continue; }
+
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
+        auto airportIt = this->airports.find(dep);
+        if (airportIt == this->airports.end()) { continue; }
+
+        std::string groundState = fp.GetGroundState();
+        auto pressAlt   = rt.GetPosition().GetPressureAltitude();
+        auto groundSpeed = rt.GetPosition().GetReportedGS();
+        int  depElevation = airportIt->second.fieldElevation;
+
+        if ((groundState == "TAXI" || groundState == "DEPA") &&
+            pressAlt < depElevation + 50 && groundSpeed < 40)
         {
-            EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-            EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-            EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
+            toShow.insert(callSign);
+        }
+    }
 
-            if (!pos.IsValid() || !fp.IsValid())
+    // Remove entries that no longer qualify
+    for (auto it = this->radarScreen->radarTargetDepartureInfos.begin();
+         it != this->radarScreen->radarTargetDepartureInfos.end(); )
+    {
+        if (toShow.find(it->first) == toShow.end())
+        {
+            it = this->radarScreen->radarTargetDepartureInfos.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    // Add/update entries from the tag cache
+    for (const auto& callSign : toShow)
+    {
+        auto cacheIt = this->tagCache.find(callSign);
+        if (cacheIt == this->tagCache.end()) { continue; }
+
+        EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(callSign.c_str());
+        if (!fp.IsValid()) { continue; }
+
+        auto& cached = cacheIt->second;
+
+        // Read annotation once; derive HP display and GND transfer indicator from it
+        this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+        const auto& annotation = this->flightStripAnnotation[callSign];
+
+        auto  hp_color = TAG_COLOR_GREEN;
+        std::string hp;
+        if (annotation.length() > 7)
+        {
+            hp = annotation.substr(7);
+            if (hp.find('*') != std::string::npos) { hp_color = TAG_COLOR_ORANGE; }
+        }
+
+        std::string dep_info = cached.departureInfo.tag;
+        if (isGnd)
+        {
+            bool transferred = false;
+            if (annotation.length() >= 7)
             {
-                continue;
-            }
-
-            std::string dep = fp.GetFlightPlanData().GetOrigin();
-            to_upper(dep);
-
-            std::string arr = fp.GetFlightPlanData().GetDestination();
-            to_upper(arr);
-
-            // Skip aircraft without a valid flight plan (no departure/destination airport)
-            if (dep.empty() || arr.empty())
-            {
-                continue;
-            }
-
-            auto airport = this->airports.find(dep);
-            if (airport == this->airports.end())
-            {
-                continue;
-            }
-
-            std::string cs = rt.GetCallsign();
-            std::string groundState = fp.GetGroundState();
-            auto pressAlt = pos.GetPressureAltitude();
-            auto groundSpeed = pos.GetReportedGS();
-            int depElevation = airport->second.fieldElevation;
-            if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 40)
-            {
-                // Add/update departure info
-                char itemString[16];
-                int colorCode;
-                COLORREF colorRef;
-                double fontSize;
-                OnGetTagItem(fp, rt, TAG_ITEM_DEPARTURE_INFO, 0, itemString, &colorCode, &colorRef, &fontSize);
-                std::string dep_info = std::string(itemString);
-
-                COLORREF sideColorRef;
-                OnGetTagItem(fp, rt, TAG_ITEM_SAMESID, 0, itemString, &colorCode, &sideColorRef, &fontSize);
-
-
-                auto hp_color = TAG_COLOR_GREEN;
-                std::string hp;
-                this->flightStripAnnotation[cs] = fpcad.GetFlightStripAnnotation(8);
-                if (this->flightStripAnnotation[cs].length() > 7)
+                std::string storedFreq = annotation.substr(1, 6);
+                if (storedFreq.find_first_not_of(' ') != std::string::npos)
                 {
-                    hp = this->flightStripAnnotation[cs].substr(7);
-                    if (this->flightStripAnnotation[cs].substr(7).find('*') != std::string::npos)
-                    {
-                        hp_color = TAG_COLOR_ORANGE;
-                    }
-                }
-
-                auto me = this->ControllerMyself();
-                if (me.IsController() && me.GetRating() > 1 && me.GetFacility() <= 3) {
-                    bool transferred = false;
-                    if (this->flightStripAnnotation[cs].length() >= 7)
-                    {
-                        std::string storedFreq = this->flightStripAnnotation[cs].substr(1, 6);
-                        if (storedFreq.find_first_not_of(' ') != std::string::npos)
-                        {
-                            double myFreqDouble = me.GetPrimaryFrequency();
-                            auto s = std::to_string(myFreqDouble);
-                            std::string myFreq = s.substr(0, s.find('.') + 4);
-                            myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
-                            transferred = (storedFreq != myFreq);
-                        }
-                    }
-                    if (!transferred)
-                    {
-                        dep_info += ",T";
-                    }
-                }
-
-                auto findDepInfo = this->radarScreen->radarTargetDepartureInfos.find(cs);
-                if (findDepInfo == this->radarScreen->radarTargetDepartureInfos.end())
-                {
-                    depInfo departureInfo;
-                    departureInfo.dep_info = dep_info;
-                    departureInfo.dep_color = colorRef;
-                    departureInfo.pos.x = -1;
-                    departureInfo.pos.y = -1;
-                    departureInfo.dragX = 0;
-                    departureInfo.dragY = 0;
-                    departureInfo.lastDrag.x = -1;
-                    departureInfo.lastDrag.y = -1;
-                    departureInfo.hp_info = hp;
-                    departureInfo.hp_color = hp_color;
-                    departureInfo.sid_color = sideColorRef;
-                    this->radarScreen->radarTargetDepartureInfos.insert_or_assign(cs, departureInfo);
-                }
-                else
-                {
-                    findDepInfo->second.dep_info = dep_info;
-                    findDepInfo->second.dep_color = colorRef;
-                    findDepInfo->second.hp_info = hp;
-                    findDepInfo->second.hp_color = hp_color;
-                    findDepInfo->second.sid_color = sideColorRef;
+                    double myFreqDouble = me.GetPrimaryFrequency();
+                    auto s = std::to_string(myFreqDouble);
+                    std::string myFreq = s.substr(0, s.find('.') + 4);
+                    myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
+                    transferred = (storedFreq != myFreq);
                 }
             }
-            else
-            {
-                // Remove departure info
-                auto findCallSign = this->radarScreen->radarTargetDepartureInfos.find(cs);
-                if (findCallSign != this->radarScreen->radarTargetDepartureInfos.end())
-                {
-                    this->radarScreen->radarTargetDepartureInfos.erase(findCallSign);
-                }
-            }
+            if (!transferred) { dep_info += ",T"; }
+        }
+
+        auto findIt = this->radarScreen->radarTargetDepartureInfos.find(callSign);
+        if (findIt == this->radarScreen->radarTargetDepartureInfos.end())
+        {
+            depInfo di;
+            di.dep_info  = dep_info;
+            di.dep_color = cached.departureInfo.color;
+            di.pos       = { -1, -1 };
+            di.dragX     = 0;
+            di.dragY     = 0;
+            di.lastDrag  = { -1, -1 };
+            di.hp_info   = hp;
+            di.hp_color  = hp_color;
+            di.sid_color = cached.sameSid.color;
+            this->radarScreen->radarTargetDepartureInfos.insert_or_assign(callSign, di);
+        }
+        else
+        {
+            findIt->second.dep_info  = dep_info;
+            findIt->second.dep_color = cached.departureInfo.color;
+            findIt->second.hp_info   = hp;
+            findIt->second.hp_color  = hp_color;
+            findIt->second.sid_color = cached.sameSid.color;
         }
     }
 }
@@ -723,34 +713,34 @@ void CDelHelX_Timers::CheckReconnects()
     }
 }
 
-/// @brief Applies any persisted window position to the radar screen on first run, then saves the position if it has moved.
+/// @brief Applies any persisted window positions to a freshly created radar screen, then saves
+/// positions back to disk whenever any window has been dragged to a new location.
 void CDelHelX_Timers::SaveAndRestoreWindowLocations()
 {
-    if (this->radarScreen == nullptr)
-    {
-        return;
-    }
+    if (this->radarScreen == nullptr) { return; }
 
-    // Apply the saved position to a freshly created screen before the first auto-placement
-    if (this->radarScreen->depRateWindowPos.x == -1 && this->depRateWindowX != -1 && this->depRateWindowY != -1)
-    {
-        this->radarScreen->depRateWindowPos = { this->depRateWindowX, this->depRateWindowY };
-        return;
-    }
+    bool needsSave = false;
 
-    // Nothing to save while the window hasn't been positioned yet
-    if (this->radarScreen->depRateWindowPos.x == -1)
+    auto syncWindow = [&](POINT& screenPos, int& savedX, int& savedY)
     {
-        return;
-    }
+        if (screenPos.x == -1 && savedX != -1 && savedY != -1)
+        {
+            // Restore persisted position before first auto-placement
+            screenPos = { savedX, savedY };
+        }
+        else if (screenPos.x != -1 && (screenPos.x != savedX || screenPos.y != savedY))
+        {
+            savedX = screenPos.x;
+            savedY = screenPos.y;
+            needsSave = true;
+        }
+    };
 
-    if (this->radarScreen->depRateWindowPos.x != this->depRateWindowX ||
-        this->radarScreen->depRateWindowPos.y != this->depRateWindowY)
-    {
-        this->depRateWindowX = this->radarScreen->depRateWindowPos.x;
-        this->depRateWindowY = this->radarScreen->depRateWindowPos.y;
-        this->SaveWindowLocations();
-    }
+    syncWindow(this->radarScreen->depRateWindowPos,     this->depRateWindowX,     this->depRateWindowY);
+    syncWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
+    syncWindow(this->radarScreen->twrInboundWindowPos,  this->twrInboundWindowX,  this->twrInboundWindowY);
+
+    if (needsSave) { this->SaveWindowLocations(); }
 }
 
 /// @brief Detects which holding-point polygon a taxiing aircraft occupies and writes it to flight-strip slot 8.

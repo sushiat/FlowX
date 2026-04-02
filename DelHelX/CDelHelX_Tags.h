@@ -91,4 +91,15 @@ protected:
     /// @param fp Flight plan being evaluated.
     /// @return tagInfo with the runway designator string.
     tagInfo GetAssignedArrivalRwyTag(EuroScopePlugIn::CFlightPlan& fp);
+
+    /// @brief Pre-calculates all cached tag items for every aircraft in the TWR same-SID and
+    /// TTT inbound lists, and rebuilds the DEP/H, TWR Outbound, and TWR Inbound window row
+    /// caches on the radar screen.  Called every second from OnTimer.
+    void UpdateTagCache();
+
+public:
+    /// @brief Refreshes the TTT and InboundNm cached values (and the corresponding Inbound
+    /// window row) for the given radar target.  Called from RadarScreen::OnRadarTargetPositionUpdate.
+    /// @param rt The updated radar target.
+    void UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt);
 };

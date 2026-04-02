@@ -1,6 +1,7 @@
 #pragma once
 #include "CDelHelX_LookupsTools.h"
 #include "reconnectSnapshot.h"
+#include "cachedTagData.h"
 
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
 ///
@@ -65,6 +66,10 @@ protected:
 
     /// @brief Toggles each timer tick; drives blinking tag colours.
     bool blinking = false;
+
+    /// @brief Callsign -> pre-calculated tag text and colour for all cached tag items.
+    /// Populated every second by UpdateTagCache(); refreshed on position change for TTT and NM.
+    std::map<std::string, CachedTagData> tagCache;
 
     /// @brief Checks each configured airport's NAP reminder and fires a modal alert when the time is reached.
     /// @note Uses the airport's configured IANA timezone to evaluate the current local time.
