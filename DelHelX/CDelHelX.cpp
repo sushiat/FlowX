@@ -223,44 +223,11 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
     if (!FlightPlan.IsValid()) { return; }
 
     tagInfo tag;
-
-    // Items not in the tag cache (computed directly — not in the TWR/inbound lists)
-    if (ItemCode == TAG_ITEM_PS_HELPER)
-    {
-        tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_TAXIOUT)
-    {
-        tag = this->GetTaxiOutTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_NEWQNH)
-    {
-        tag = this->GetNewQnhTag(FlightPlan);
-    }
-    else
-    {
-        // All remaining items are served from the pre-calculated tag cache
-        auto cacheIt = this->tagCache.find(FlightPlan.GetCallsign());
-        if (cacheIt == this->tagCache.end()) { return; }
-
-        const auto& cached = cacheIt->second;
-        switch (ItemCode)
-        {
-            case TAG_ITEM_SAMESID:            tag = cached.sameSid;          break;
-            case TAG_ITEM_HP:                 tag = cached.holdingPoint;     break;
-            case TAG_ITEM_ASSIGNED_ARR_RUNWAY: tag = cached.assignedArrRwy;  break;
-            case TAG_ITEM_TAKEOFF_SPACING:    tag = cached.takeoffSpacing;   break;
-            case TAG_ITEM_ASSIGNED_RUNWAY:    tag = cached.assignedRunway;   break;
-            case TAG_ITEM_DEPARTURE_INFO:     tag = cached.departureInfo;    break;
-            case TAG_ITEM_TTT:                tag = cached.ttt;              break;
-            case TAG_ITEM_INBOUND_NM:         tag = cached.inboundNm;        break;
-            case TAG_ITEM_SUGGESTED_VACATE:   tag = cached.suggestedVacate;  break;
-            case TAG_ITEM_TWR_NEXT_FREQ:      tag = cached.twrNextFreq;      break;
-            case TAG_ITEM_TWR_SORT:           tag = cached.twrSort;          break;
-            case TAG_ITEM_GND_STATE_EXPANDED: tag = cached.gndStateExpanded; break;
-            default: return;
-        }
-    }
+    if      (ItemCode == TAG_ITEM_PS_HELPER) { tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget); }
+    else if (ItemCode == TAG_ITEM_TAXIOUT)   { tag = this->GetTaxiOutTag(FlightPlan, RadarTarget); }
+    else if (ItemCode == TAG_ITEM_NEWQNH)    { tag = this->GetNewQnhTag(FlightPlan); }
+    else if (ItemCode == TAG_ITEM_SAMESID)   { tag = this->GetSameSidTag(FlightPlan); }
+    else                                     { return; }  // all others displayed in custom windows only
 
     *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
     strcpy_s(sItemString, 16, tag.tag.c_str());
@@ -446,7 +413,6 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     this->dep_prevDistanceAtTakeoff.erase(callSign);
     this->dep_timeRequired.erase(callSign);
     this->dep_sequenceNumber.erase(callSign);
-    this->tagCache.erase(callSign);
 }
 
 /// @brief Parses an incoming METAR for QNH changes and flags cleared ground aircraft at that airport.

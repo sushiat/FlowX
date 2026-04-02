@@ -5,28 +5,6 @@
 #include "constants.h"
 #include "tagInfo.h"
 
-/// @brief Pre-calculated tag text and colour for all cached tag items of one aircraft.
-/// Updated every second by CDelHelX_Tags::UpdateTagCache() and on each radar position
-/// change (for TTT and NM) by CDelHelX_Tags::UpdatePositionDerivedTags().
-struct CachedTagData {
-    /// Shared computed values — calculated once per update, reused across multiple tag items.
-    double distToRunwayThreshold = -1.0; ///< Distance (NM) to the departure runway threshold; shared by TWR_NEXT_FREQ and TWR_SORT
-    bool   atHoldingPoint        = false; ///< True while the aircraft is inside any holding-point polygon; shared by TWR_NEXT_FREQ
-
-    tagInfo sameSid;           ///< TAG_ITEM_SAMESID
-    tagInfo takeoffSpacing;    ///< TAG_ITEM_TAKEOFF_SPACING
-    tagInfo twrNextFreq;       ///< TAG_ITEM_TWR_NEXT_FREQ
-    tagInfo twrSort;           ///< TAG_ITEM_TWR_SORT
-    tagInfo holdingPoint;      ///< TAG_ITEM_HP
-    tagInfo gndStateExpanded;  ///< TAG_ITEM_GND_STATE_EXPANDED
-    tagInfo departureInfo;     ///< TAG_ITEM_DEPARTURE_INFO — without the overlay-only ",T" transfer suffix
-    tagInfo assignedRunway;    ///< TAG_ITEM_ASSIGNED_RUNWAY
-    tagInfo assignedArrRwy;    ///< TAG_ITEM_ASSIGNED_ARR_RUNWAY
-    tagInfo ttt;               ///< TAG_ITEM_TTT — also refreshed on every position change
-    tagInfo inboundNm;         ///< TAG_ITEM_INBOUND_NM — also refreshed on every position change
-    tagInfo suggestedVacate;   ///< TAG_ITEM_SUGGESTED_VACATE
-};
-
 /// @brief Cached display data for one row in the DEP/H departure-rate window.
 struct DepRateRowCache {
     std::string runway;

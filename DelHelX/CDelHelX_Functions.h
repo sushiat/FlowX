@@ -1,8 +1,8 @@
 #pragma once
-#include "CDelHelX_Tags.h"
+#include "CDelHelX_CustomTags.h"
 
 /// @brief Plugin layer that implements all tag-function callbacks triggered by controller clicks.
-class CDelHelX_Functions : public CDelHelX_Tags
+class CDelHelX_Functions : public CDelHelX_CustomTags
 {
 protected:
     /// @brief Handles the ONFREQ / ST-UP / PUSH function: sets the appropriate ground state based on position.

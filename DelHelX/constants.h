@@ -77,6 +77,7 @@ const int SCREEN_OBJECT_TWR_OUT_WIN  = 6683; ///< TWR Outbound window header (dr
 const int SCREEN_OBJECT_TWR_IN_WIN   = 6684; ///< TWR Inbound window header (drag handle)
 const int SCREEN_OBJECT_NAP_WIN      = 6685; ///< NAP reminder window header (drag handle)
 const int SCREEN_OBJECT_NAP_ACK      = 6686; ///< NAP reminder ACK button
+const int SCREEN_OBJECT_TWR_OUT_CELL = 6687; ///< Clickable cell in the TWR Outbound custom window
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

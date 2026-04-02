@@ -553,30 +553,24 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
         }
     }
 
-    // Add/update entries from the tag cache
+    // Add/update entries from the outbound row cache
     for (const auto& callSign : toShow)
     {
-        auto cacheIt = this->tagCache.find(callSign);
-        if (cacheIt == this->tagCache.end()) { continue; }
+        // Find the row in twrOutboundRowsCache for this callsign
+        auto rowIt = std::find_if(this->radarScreen->twrOutboundRowsCache.begin(),
+                                   this->radarScreen->twrOutboundRowsCache.end(),
+                                   [&callSign](const TwrOutboundRowCache& r) { return r.callsign == callSign; });
+        if (rowIt == this->radarScreen->twrOutboundRowsCache.end()) { continue; }
+        const TwrOutboundRowCache& cachedRow = *rowIt;
 
         EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(callSign.c_str());
         if (!fp.IsValid()) { continue; }
 
-        auto& cached = cacheIt->second;
-
-        // Read annotation once; derive HP display and GND transfer indicator from it
+        // Read annotation once for the GND transfer indicator check
         this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
         const auto& annotation = this->flightStripAnnotation[callSign];
 
-        auto  hp_color = TAG_COLOR_GREEN;
-        std::string hp;
-        if (annotation.length() > 7)
-        {
-            hp = annotation.substr(7);
-            if (hp.find('*') != std::string::npos) { hp_color = TAG_COLOR_ORANGE; }
-        }
-
-        std::string dep_info = cached.departureInfo.tag;
+        std::string dep_info = cachedRow.depInfo.tag;
         if (isGnd)
         {
             bool transferred = false;
@@ -600,23 +594,23 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
         {
             depInfo di;
             di.dep_info  = dep_info;
-            di.dep_color = cached.departureInfo.color;
+            di.dep_color = cachedRow.depInfo.color;
             di.pos       = { -1, -1 };
             di.dragX     = 0;
             di.dragY     = 0;
             di.lastDrag  = { -1, -1 };
-            di.hp_info   = hp;
-            di.hp_color  = hp_color;
-            di.sid_color = cached.sameSid.color;
+            di.hp_info   = cachedRow.hp.tag;
+            di.hp_color  = cachedRow.hp.color;
+            di.sid_color = cachedRow.sameSid.color;
             this->radarScreen->radarTargetDepartureInfos.insert_or_assign(callSign, di);
         }
         else
         {
             findIt->second.dep_info  = dep_info;
-            findIt->second.dep_color = cached.departureInfo.color;
-            findIt->second.hp_info   = hp;
-            findIt->second.hp_color  = hp_color;
-            findIt->second.sid_color = cached.sameSid.color;
+            findIt->second.dep_color = cachedRow.depInfo.color;
+            findIt->second.hp_info   = cachedRow.hp.tag;
+            findIt->second.hp_color  = cachedRow.hp.color;
+            findIt->second.sid_color = cachedRow.sameSid.color;
         }
     }
 }
