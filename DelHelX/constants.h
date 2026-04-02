@@ -52,6 +52,7 @@ const int TAG_FUNC_TRANSFER_NEXT   = 113; ///< Initiate handoff to the next cont
 const int TAG_FUNC_CLRD_TO_LAND    = 114; ///< Clear the inbound for landing and highlight in TopSky
 const int TAG_FUNC_MISSED_APP      = 115; ///< Handle missed approach: assign altitude and highlight
 const int TAG_FUNC_STAND_AUTO      = 116; ///< Trigger automatic stand assignment via Ground Radar
+const int TAG_FUNC_REVERT_TO_TAXI  = 117; ///< Revert ground state from LINEUP back to TAXI
 /// @}
 
 /// @defgroup TagColors COLORREF constants used for tag colouring
@@ -78,6 +79,7 @@ const int SCREEN_OBJECT_TWR_IN_WIN   = 6684; ///< TWR Inbound window header (dra
 const int SCREEN_OBJECT_NAP_WIN      = 6685; ///< NAP reminder window header (drag handle)
 const int SCREEN_OBJECT_NAP_ACK      = 6686; ///< NAP reminder ACK button
 const int SCREEN_OBJECT_TWR_OUT_CELL = 6687; ///< Clickable cell in the TWR Outbound custom window
+const int SCREEN_OBJECT_TWR_IN_CELL  = 6688; ///< Clickable cell in the TWR Inbound custom window
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

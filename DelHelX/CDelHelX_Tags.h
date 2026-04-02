@@ -2,9 +2,7 @@
 #include "CDelHelX_Timers.h"
 #include "tagInfo.h"
 
-/// @brief Plugin layer that computes the text and colour for every tag item column.
-///
-/// Each Get*Tag method produces a tagInfo result that is returned to EuroScope via OnGetTagItem().
+/// @brief Plugin layer providing the 4 tag item columns still served via EuroScope's tag item mechanism.
 class CDelHelX_Tags : public CDelHelX_Timers
 {
 protected:
@@ -33,64 +31,6 @@ protected:
     /// @param fp Flight plan being evaluated.
     /// @return tagInfo with the SID name and its configured colour.
     tagInfo GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the takeoff spacing tag showing time or distance separation from the previous departure.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with spacing text and a colour indicating compliance.
-    tagInfo GetTakeoffSpacingTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the assigned runway tag showing the flight-plan departure runway.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with the runway designator string.
-    tagInfo GetAssignedRunwayTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the TTT (time-to-touchdown) tag for an inbound aircraft.
-    /// @param fp Flight plan being evaluated.
-    /// @param rt Correlated radar target.
-    /// @return tagInfo with time string and colour indicating urgency.
-    tagInfo GetTttTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
-
-    /// @brief Builds the inbound NM tag showing distance to the runway threshold.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with distance string and distance-based colour coding.
-    tagInfo GetInboundNmTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the suggested vacate point tag based on assigned stand and runway configuration.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with the suggested vacate point name, or empty if none applies.
-    tagInfo GetSuggestedVacateTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the holding-point tag from flight-strip annotation slot 8.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with the HP name: green for assigned, orange for requested (*), grey after departure.
-    tagInfo GetHoldingPointTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the departure-info tag summarising SID, transfer status, and clearance state.
-    /// @param fp Flight plan being evaluated.
-    /// @param rt Correlated radar target.
-    /// @return tagInfo with departure information string and colour.
-    tagInfo GetDepartureInfoTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
-
-    /// @brief Builds the TWR next-frequency tag showing the handoff frequency for a departing aircraft.
-    /// @param fp Flight plan being evaluated.
-    /// @param rt Correlated radar target.
-    /// @return tagInfo with "->frequency" string and urgency-coded colour.
-    tagInfo GetTwrNextFreqTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt);
-
-    /// @brief Builds the tower sort key tag used to order the TWR departure list.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with the sort key string.
-    tagInfo GetTwrSortKey(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the expanded ground-state tag with a human-readable label.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with the expanded state label and colour.
-    tagInfo GetGndStateExpandedTag(EuroScopePlugIn::CFlightPlan& fp);
-
-    /// @brief Builds the assigned arrival runway tag showing the flight-plan arrival runway, including a red/yellow warning if it doesn't match current inbound runway.
-    /// @param fp Flight plan being evaluated.
-    /// @return tagInfo with the runway designator string.
-    tagInfo GetAssignedArrivalRwyTag(EuroScopePlugIn::CFlightPlan& fp);
 
 public:
 };

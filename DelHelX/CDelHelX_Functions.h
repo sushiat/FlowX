@@ -33,6 +33,10 @@ protected:
     /// @param fp Currently selected flight plan.
     static void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
 
+    /// @brief Reverts the ground state from LINEUP back to TAXI via a scratch-pad toggle.
+    /// @param fp Currently selected flight plan.
+    static void Func_RevertToTaxi(EuroScopePlugIn::CFlightPlan& fp);
+
     /// @brief Sets the DEPA ground state and starts tracking the flight plan.
     /// @param fp Currently selected flight plan.
     static void Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp);

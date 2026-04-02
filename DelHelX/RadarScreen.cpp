@@ -592,7 +592,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         colHdr(ATYP,    "ATYP");
         colHdr(GATE,    "Gate");
         colHdr(VACATE,  "Vacate");
-        colHdr(RWY,     "RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(RWY,     "ARW",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
@@ -646,16 +646,26 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             cx += width;
         };
 
-        cell(RWY_GRP, r.rwyGroup,                   r.callsignColor);
-        cell(TTT,     r.ttt.tag,                    r.ttt.color);
-        cell(CS,      r.callsign,                   r.callsignColor);
-        cell(NM,      r.nm.tag,                     r.nm.color,             DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(GS,      std::to_string(r.groundSpeed),TAG_COLOR_WHITE,        DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(WTC,     std::string(1, r.wtc),        wtcColor(r.wtc),        DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cell(ATYP,    r.aircraftType,               r.callsignColor);
-        cell(GATE,    r.gate,                       TAG_COLOR_WHITE);
-        cell(VACATE,  r.vacate.tag,                 r.vacate.color);
-        cell(RWY,     r.arrRwy.tag,                 r.arrRwy.color,         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        auto cellClickable = [&](int width, const std::string& text, COLORREF color,
+                                 const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
+        {
+            RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
+            SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
+            DrawTextA(hDC, text.c_str(), -1, &rect, flags);
+            AddScreenObject(SCREEN_OBJECT_TWR_IN_CELL, objId.c_str(), rect, false, "");
+            cx += width;
+        };
+
+        cellClickable(RWY_GRP, r.rwyGroup,                  r.callsignColor, r.callsign + "|RWYGRP");
+        cellClickable(TTT,   r.ttt.tag,                     r.ttt.color,    r.callsign + "|TTT");
+        cellClickable(CS,    r.callsign,                    r.callsignColor, r.callsign + "|CS");
+        cellClickable(NM,    r.nm.tag,                      r.nm.color,      r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(GS,    std::to_string(r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(WTC,   std::string(1, r.wtc),         wtcColor(r.wtc), r.callsign + "|WTC",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
+        cellClickable(GATE,  r.gate,                        TAG_COLOR_WHITE, r.callsign + "|GATE");
+        cellClickable(VACATE,r.vacate.tag,                  r.vacate.color,  r.callsign + "|VACATE");
+        cellClickable(RWY,   r.arrRwy.tag,                  r.arrRwy.color,  r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     DeleteObject(altBrushIn);
 
@@ -875,6 +885,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, r.rwy.tag.c_str(),
                 nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, Pt, Area);
         }
+        else if (col == "SID" && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_SAMESID, r.sameSid.tag.c_str(),
+                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_SID, Pt, Area);
+        }
         else if (col == "HP")
         {
             int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_REQUEST_HP : TAG_FUNC_ASSIGN_HP;
@@ -885,6 +901,94 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
         this->RequestRefresh();
     }
+
+    if (ObjectType == SCREEN_OBJECT_TWR_IN_CELL)
+    {
+        std::string id(sObjectId);
+        auto sep = id.find('|');
+        if (sep == std::string::npos) { return; }
+        std::string callsign = id.substr(0, sep);
+        std::string col      = id.substr(sep + 1);
+
+        // Select the aircraft as ASEL
+        auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+        if (aselFp.IsValid()) { GetPlugIn()->SetASELAircraft(aselFp); }
+
+        // Locate the cached row for item strings
+        const TwrInboundRowCache* rowPtr = nullptr;
+        for (const auto& r : this->twrInboundRowsCache)
+        {
+            if (r.callsign == callsign) { rowPtr = &r; break; }
+        }
+        if (!rowPtr) { return; }
+        const TwrInboundRowCache& r = *rowPtr;
+
+        if ((col == "TTT" || col == "RWYGRP") && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
+                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_TAKE_HANDOFF, Pt, Area);
+        }
+        else if (col == "CS")
+        {
+            int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_MISSED_APP : TAG_FUNC_CLRD_TO_LAND;
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
+                PLUGIN_NAME, funcId, Pt, Area);
+        }
+        else if (col == "GATE")
+        {
+            if (Button == EuroScopePlugIn::BUTTON_LEFT)
+            {
+                this->StartTagFunction(callsign.c_str(),
+                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.c_str(),
+                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_FUNC_STAND_MENU, Pt, Area);
+            }
+            else
+            {
+                this->StartTagFunction(callsign.c_str(),
+                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.c_str(),
+                    PLUGIN_NAME, TAG_FUNC_STAND_AUTO, Pt, Area);
+            }
+        }
+        else if (col == "RWY" && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_ASSIGNED_ARR_RUNWAY, r.arrRwy.tag.c_str(),
+                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_TAKE_HANDOFF, Pt, Area);
+        }
+
+        this->RequestRefresh();
+    }
+}
+
+/// @brief Double-click handler: on the STS column, reverts LINEUP ground state back to TAXI.
+void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
+{
+    if (ObjectType != SCREEN_OBJECT_TWR_OUT_CELL || Button != EuroScopePlugIn::BUTTON_LEFT) { return; }
+
+    std::string id(sObjectId);
+    auto sep = id.find('|');
+    if (sep == std::string::npos) { return; }
+    std::string callsign = id.substr(0, sep);
+    std::string col      = id.substr(sep + 1);
+
+    if (col != "STS") { return; }
+
+    auto fp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+    if (!fp.IsValid()) { return; }
+
+    // Only revert when the aircraft is currently in LINEUP state
+    auto statusIt = std::find_if(this->twrOutboundRowsCache.begin(), this->twrOutboundRowsCache.end(),
+        [&callsign](const TwrOutboundRowCache& r) { return r.callsign == callsign; });
+    if (statusIt == this->twrOutboundRowsCache.end()) { return; }
+    if (statusIt->status.tag != "LINE UP") { return; }
+
+    GetPlugIn()->SetASELAircraft(fp);
+    this->StartTagFunction(callsign.c_str(),
+        PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, statusIt->status.tag.c_str(),
+        PLUGIN_NAME, TAG_FUNC_REVERT_TO_TAXI, Pt, Area);
+    this->RequestRefresh();
 }
 
 /// @brief Updates the screen-pixel anchor for a departure overlay when the radar target moves.

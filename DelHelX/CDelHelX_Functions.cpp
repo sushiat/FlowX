@@ -152,6 +152,15 @@ void CDelHelX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
     fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
 }
 
+/// @brief Reverts the ground state from LINEUP back to TAXI via a momentary scratch-pad toggle.
+/// @param fp Currently selected flight plan.
+void CDelHelX_Functions::Func_RevertToTaxi(EuroScopePlugIn::CFlightPlan& fp)
+{
+    std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+    fp.GetControllerAssignedData().SetScratchPadString("TAXI");
+    fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+}
+
 /// @brief Sets the DEPA ground state and starts tracking the flight plan.
 /// @param fp Currently selected flight plan.
 void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)

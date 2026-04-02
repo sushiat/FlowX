@@ -265,6 +265,7 @@ void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt,
     else if (FunctionId == TAG_FUNC_REQUEST_HP)     { this->Func_RequestHp(fp, Pt); }
     else if (FunctionId == TAG_FUNC_HP_LISTSELECT)  { this->Func_HpListselect(fp, sItemString); }
     else if (FunctionId == TAG_FUNC_LINE_UP)        { Func_LineUp(fp); }
+    else if (FunctionId == TAG_FUNC_REVERT_TO_TAXI) { Func_RevertToTaxi(fp); }
     else if (FunctionId == TAG_FUNC_TAKE_OFF)       { Func_TakeOff(fp); }
     else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  { this->Func_TransferNext(fp); }
     else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   { Func_ClrdToLand(fp, this->radarScreen); }

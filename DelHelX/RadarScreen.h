@@ -158,4 +158,7 @@ private:
 
     /// @brief Called when the mouse button is clicked on a registered screen object; handles ACK button.
     void OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
+
+    /// @brief Called on a double-click on a registered screen object; handles STS column revert-to-taxi.
+    void OnDoubleClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
 };
