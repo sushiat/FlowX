@@ -1278,17 +1278,25 @@ void CDelHelX_Tags::UpdateTagCache()
             }
 
             // ── Build outbound window row ──
+            auto callsignColor = [&]() -> COLORREF {
+                if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED) return TAG_COLOR_BROWN;
+                if (fp.GetTrackingControllerIsMe()) return TAG_COLOR_WHITE;
+                return TAG_COLOR_DEFAULT_GRAY;
+            };
+
             TwrOutboundRowCache row;
-            row.callsign = callSign;
-            row.wtc      = fp.GetFlightPlanData().GetAircraftWtc();
-            row.status   = entry.gndStateExpanded;
-            row.depInfo  = entry.departureInfo;
-            row.rwy      = entry.assignedRunway;
-            row.sameSid  = entry.sameSid;
-            row.nextFreq = entry.twrNextFreq;
-            row.hp       = entry.holdingPoint;
-            row.spacing  = entry.takeoffSpacing;
-            row.sortKey  = entry.twrSort.tag;
+            row.callsign      = callSign;
+            row.callsignColor = callsignColor();
+            row.wtc          = fp.GetFlightPlanData().GetAircraftWtc();
+            row.status       = entry.gndStateExpanded;
+            row.depInfo      = entry.departureInfo;
+            row.rwy          = entry.assignedRunway;
+            row.sameSid      = entry.sameSid;
+            row.aircraftType = fp.GetFlightPlanData().GetAircraftFPType();
+            row.nextFreq     = entry.twrNextFreq;
+            row.hp           = entry.holdingPoint;
+            row.spacing      = entry.takeoffSpacing;
+            row.sortKey      = entry.twrSort.tag;
             outboundRows.push_back(std::move(row));
         }
 
@@ -1333,12 +1341,26 @@ void CDelHelX_Tags::UpdateTagCache()
                 entry.suggestedVacate = GetSuggestedVacateTag(fp);
                 entry.assignedArrRwy = GetAssignedArrivalRwyTag(fp);
 
+                auto callsignColor = [&]() -> COLORREF {
+                    if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED) return TAG_COLOR_BROWN;
+                    if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_TO_ME_INITIATED) return TAG_COLOR_TURQ;
+                    if (fp.GetTrackingControllerIsMe()) return TAG_COLOR_WHITE;
+                    return TAG_COLOR_DEFAULT_GRAY;
+                };
+
                 TwrInboundRowCache row;
-                row.callsign    = callSign;
-                row.wtc         = fp.GetFlightPlanData().GetAircraftWtc();
+                row.callsign      = callSign;
+                row.callsignColor = callsignColor();
+                row.wtc           = fp.GetFlightPlanData().GetAircraftWtc();
                 row.groundSpeed = rt.GetGS();
                 row.ttt         = entry.ttt;
                 row.nm          = entry.inboundNm;
+                row.aircraftType = fp.GetFlightPlanData().GetAircraftFPType();
+                {
+                    auto standIt = this->standAssignment.find(callSign);
+                    row.gate = (standIt != this->standAssignment.end()) ? standIt->second : "";
+                }
+                row.vacate      = entry.suggestedVacate;
                 row.arrRwy      = entry.assignedArrRwy;
                 inboundRows.push_back(std::move(row));
             }

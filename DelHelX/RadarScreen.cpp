@@ -225,7 +225,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     const int HDR_H   = 17;
     const int ROW_H   = 15;
     const int WIN_PAD = 6;
-    const int COL_RWY = 28;
+    const int COL_RWY = 35;
     const int COL_CNT = 20;
     const int COL_GAP = 6;
     const int COL_SPC = 56;
@@ -248,7 +248,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
 
-    auto bgBrush    = CreateSolidBrush(RGB(25, 25, 25));
+    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     auto hdrBrush   = CreateSolidBrush(RGB(40, 40, 40));
     FillRect(hDC, &winRect,   bgBrush);
@@ -267,7 +267,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     // Title row (smaller font, draggable)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Tahoma");
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "Departures", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -289,10 +289,12 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     }
 
     // Data rows
+    auto altBrushDep = CreateSolidBrush(RGB(8, 8, 8));
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->depRateRowsCache[row];
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
+        if (row % 2 == 1) { RECT alt = { wx, rowY, wx + WIN_W, rowY + ROW_H }; FillRect(hDC, &alt, altBrushDep); }
 
         RECT rwyRect = { wx + WIN_PAD,                                rowY, wx + WIN_PAD + COL_RWY,                   rowY + ROW_H };
         RECT cntRect = { wx + WIN_PAD + COL_RWY,                      rowY, wx + WIN_PAD + COL_RWY + COL_CNT,         rowY + ROW_H };
@@ -305,6 +307,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
         SetTextColor(hDC, r.spacingColor);
         DrawTextA(hDC, r.spacingStr.c_str(), -1, &spcRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
+    DeleteObject(altBrushDep);
 }
 
 /// @brief Draws the TWR Outbound custom window from the pre-sorted twrOutboundRowsCache.
@@ -313,19 +316,21 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 {
     const int TITLE_H = 13;
     const int HDR_H   = 17;
-    const int ROW_H   = 15;
+    const int ROW_H   = 17;
     const int PAD     = 6;
-    // Original list widths in chars: C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, Freq=15, HP=4, Spacing=17
+    // Original list column order and widths in chars:
+    // C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, ATYP=8, Freq=15, HP=4, Spacing=17
     const int CS      = 84;   // 12 chars
-    const int WTC     = 28;   //  4 chars
     const int STS     = 84;   // 12 chars
     const int DEP     = 70;   // 10 chars
-    const int RWY     = 28;   //  4 chars
+    const int RWY     = 35;   //  4 chars (widened: "RWY" label needs more than 4×7px)
     const int SID     = 77;   // 11 chars
+    const int WTC     = 28;   //  4 chars
+    const int ATYP    = 56;   //  8 chars
     const int FREQ    = 105;  // 15 chars
     const int HP      = 28;   //  4 chars
     const int SPC     = 119;  // 17 chars
-    const int WIN_W   = PAD + CS + WTC + STS + DEP + RWY + SID + FREQ + HP + SPC + PAD;
+    const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + PAD;
     int numRows       = (int)this->twrOutboundRowsCache.size();
     const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + PAD / 2;
 
@@ -344,7 +349,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
 
-    auto bgBrush    = CreateSolidBrush(RGB(25, 25, 25));
+    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     auto hdrBrush   = CreateSolidBrush(RGB(40, 40, 40));
     FillRect(hDC, &winRect,   bgBrush);
@@ -363,13 +368,19 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     // Title row (smaller font, draggable)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Tahoma");
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Outbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
     AddScreenObject(SCREEN_OBJECT_TWR_OUT_WIN, "TWROUT", titleRect, true, "");
+
+    // Select slightly-larger data font for column headers and data rows
+    HFONT dataFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevDataFont = (HFONT)SelectObject(hDC, dataFont);
 
     // Column headers
     SetTextColor(hDC, TAG_COLOR_WHITE);
@@ -383,21 +394,33 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             x += width;
         };
         colHdr(CS,   "C/S");
-        colHdr(WTC,  "W",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(STS,  "STS");
         colHdr(DEP,  "DEP?");
         colHdr(RWY,  "RWY",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(SID,  "SID");
+        colHdr(WTC,  "W",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(ATYP, "ATYP");
         colHdr(FREQ, "Freq");
         colHdr(HP,   "HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(SPC,  "Spacing", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
 
     // Data rows
+    auto wtcColor = [](char wtc) -> COLORREF {
+        switch (wtc) {
+            case 'L': return TAG_COLOR_TURQ;
+            case 'H': return TAG_COLOR_ORANGE;
+            case 'J': return TAG_COLOR_RED;
+            default:  return TAG_COLOR_DEFAULT_GRAY;
+        }
+    };
+
+    auto altBrushOut = CreateSolidBrush(RGB(8, 8, 8));
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrOutboundRowsCache[row];
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
+        if (row % 2 == 1) { RECT alt = { wx, rowY, wx + WIN_W, rowY + ROW_H }; FillRect(hDC, &alt, altBrushOut); }
         int cx   = wx + PAD;
 
         auto cell = [&](int width, const std::string& text, COLORREF color,
@@ -409,16 +432,21 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             cx += width;
         };
 
-        cell(CS,   r.callsign,            TAG_COLOR_WHITE);
-        cell(WTC,  std::string(1, r.wtc), TAG_COLOR_DEFAULT_GRAY, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cell(STS,  r.status.tag,          r.status.color);
-        cell(DEP,  r.depInfo.tag,         r.depInfo.color);
-        cell(RWY,  r.rwy.tag,             r.rwy.color,             DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cell(SID,  r.sameSid.tag,         r.sameSid.color);
-        cell(FREQ, r.nextFreq.tag,        r.nextFreq.color);
-        cell(HP,   r.hp.tag,              r.hp.color,              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cell(SPC,  r.spacing.tag,         r.spacing.color,         DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cell(CS,   r.callsign,              r.callsignColor);
+        cell(STS,  r.status.tag,            r.status.color);
+        cell(DEP,  r.depInfo.tag,           r.depInfo.color);
+        cell(RWY,  r.rwy.tag,               r.rwy.color,             DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(SID,  r.sameSid.tag,           r.sameSid.color);
+        cell(WTC,  std::string(1, r.wtc),   wtcColor(r.wtc),         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(ATYP, r.aircraftType,          r.callsignColor);
+        cell(FREQ, r.nextFreq.tag,          r.nextFreq.color);
+        cell(HP,   r.hp.tag,                r.hp.color,              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(SPC,  r.spacing.tag,           r.spacing.color,         DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
     }
+    DeleteObject(altBrushOut);
+
+    SelectObject(hDC, prevDataFont);
+    DeleteObject(dataFont);
 }
 
 /// @brief Draws the TWR Inbound custom window from the pre-sorted twrInboundRowsCache.
@@ -427,16 +455,20 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 {
     const int TITLE_H = 13;
     const int HDR_H   = 17;
-    const int ROW_H   = 15;
+    const int ROW_H   = 17;
     const int PAD     = 6;
-    // Original list widths in chars: TTT=12, C/S=12, NM=8, SPD=5, WTC=4, RWY=7
+    // Original list column order and widths in chars:
+    // TTT=12, C/S=12, NM=8, SPD=5, WTC=4, ATYP=8, Gate=5, Vacate=7, RWY=7
     const int TTT     = 84;   // 12 chars
     const int CS      = 84;   // 12 chars
     const int NM      = 56;   //  8 chars
     const int GS      = 35;   //  5 chars
     const int WTC     = 28;   //  4 chars
+    const int ATYP    = 56;   //  8 chars
+    const int GATE    = 35;   //  5 chars
+    const int VACATE  = 49;   //  7 chars
     const int RWY     = 49;   //  7 chars
-    const int WIN_W   = PAD + TTT + CS + NM + GS + WTC + RWY + PAD;
+    const int WIN_W   = PAD + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + RWY + PAD;
     int numRows       = (int)this->twrInboundRowsCache.size();
     const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + PAD / 2;
 
@@ -455,7 +487,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
 
-    auto bgBrush    = CreateSolidBrush(RGB(25, 25, 25));
+    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     auto hdrBrush   = CreateSolidBrush(RGB(40, 40, 40));
     FillRect(hDC, &winRect,   bgBrush);
@@ -474,13 +506,19 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     // Title row (smaller font, draggable)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Tahoma");
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Inbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
     AddScreenObject(SCREEN_OBJECT_TWR_IN_WIN, "TWRIN", titleRect, true, "");
+
+    // Select slightly-larger data font for column headers and data rows
+    HFONT dataFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevDataFont = (HFONT)SelectObject(hDC, dataFont);
 
     // Column headers
     SetTextColor(hDC, TAG_COLOR_WHITE);
@@ -493,19 +531,33 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             DrawTextA(hDC, label, -1, &r, flags);
             x += width;
         };
-        colHdr(TTT, "TTT");
-        colHdr(CS,  "C/S");
-        colHdr(NM,  "NM",  DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-        colHdr(GS,  "GS",  DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-        colHdr(WTC, "W",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        colHdr(RWY, "RWY", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(TTT,    "TTT");
+        colHdr(CS,     "C/S");
+        colHdr(NM,     "NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        colHdr(GS,     "GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        colHdr(WTC,    "W",      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(ATYP,   "ATYP");
+        colHdr(GATE,   "Gate");
+        colHdr(VACATE, "Vacate");
+        colHdr(RWY,    "RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
 
     // Data rows
+    auto wtcColor = [](char wtc) -> COLORREF {
+        switch (wtc) {
+            case 'L': return TAG_COLOR_TURQ;
+            case 'H': return TAG_COLOR_ORANGE;
+            case 'J': return TAG_COLOR_RED;
+            default:  return TAG_COLOR_DEFAULT_GRAY;
+        }
+    };
+
+    auto altBrushIn = CreateSolidBrush(RGB(8, 8, 8));
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrInboundRowsCache[row];
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
+        if (row % 2 == 1) { RECT alt = { wx, rowY, wx + WIN_W, rowY + ROW_H }; FillRect(hDC, &alt, altBrushIn); }
         int cx   = wx + PAD;
 
         auto cell = [&](int width, const std::string& text, COLORREF color,
@@ -517,13 +569,20 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             cx += width;
         };
 
-        cell(TTT, r.ttt.tag,                     r.ttt.color);
-        cell(CS,  r.callsign,                     TAG_COLOR_WHITE);
-        cell(NM,  r.nm.tag,                       r.nm.color,             DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(GS,  std::to_string(r.groundSpeed),  TAG_COLOR_DEFAULT_GRAY, DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(WTC, std::string(1, r.wtc),           TAG_COLOR_DEFAULT_GRAY, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cell(RWY, r.arrRwy.tag,                   r.arrRwy.color,         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(TTT,    r.ttt.tag,                    r.ttt.color);
+        cell(CS,     r.callsign,                   r.callsignColor);
+        cell(NM,     r.nm.tag,                     r.nm.color,             DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cell(GS,     std::to_string(r.groundSpeed),TAG_COLOR_WHITE,        DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cell(WTC,    std::string(1, r.wtc),        TAG_COLOR_DEFAULT_GRAY, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cell(ATYP,   r.aircraftType,               r.callsignColor);
+        cell(GATE,   r.gate,                       TAG_COLOR_WHITE);
+        cell(VACATE, r.vacate.tag,                 r.vacate.color);
+        cell(RWY,    r.arrRwy.tag,                 r.arrRwy.color,         DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
+    DeleteObject(altBrushIn);
+
+    SelectObject(hDC, prevDataFont);
+    DeleteObject(dataFont);
 }
 
 /// @brief Updates the screen-pixel anchor for a departure overlay when the radar target moves.

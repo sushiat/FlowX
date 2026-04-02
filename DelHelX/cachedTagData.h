@@ -40,24 +40,30 @@ struct DepRateRowCache {
 /// Rows are pre-sorted by sortKey ascending before being stored.
 struct TwrOutboundRowCache {
     std::string callsign;
-    char        wtc = ' ';    ///< Aircraft weight turbulence category character (L/M/H/J)
-    tagInfo     status;       ///< TAG_ITEM_GND_STATE_EXPANDED
-    tagInfo     depInfo;      ///< TAG_ITEM_DEPARTURE_INFO
-    tagInfo     rwy;          ///< TAG_ITEM_ASSIGNED_RUNWAY
-    tagInfo     sameSid;      ///< TAG_ITEM_SAMESID
-    tagInfo     nextFreq;     ///< TAG_ITEM_TWR_NEXT_FREQ
-    tagInfo     hp;           ///< TAG_ITEM_HP
-    tagInfo     spacing;      ///< TAG_ITEM_TAKEOFF_SPACING
-    std::string sortKey;      ///< TAG_ITEM_TWR_SORT text used for row ordering (not displayed)
+    COLORREF    callsignColor = TAG_COLOR_DEFAULT_GRAY; ///< Callsign colour: gray/white/brown by tracking state
+    char        wtc          = ' '; ///< Aircraft weight turbulence category character (L/M/H/J)
+    tagInfo     status;             ///< TAG_ITEM_GND_STATE_EXPANDED
+    tagInfo     depInfo;            ///< TAG_ITEM_DEPARTURE_INFO
+    tagInfo     rwy;                ///< TAG_ITEM_ASSIGNED_RUNWAY
+    tagInfo     sameSid;            ///< TAG_ITEM_SAMESID
+    std::string aircraftType;       ///< Aircraft type string (e.g. "B738") from GetAircraftFPType()
+    tagInfo     nextFreq;           ///< TAG_ITEM_TWR_NEXT_FREQ
+    tagInfo     hp;                 ///< TAG_ITEM_HP
+    tagInfo     spacing;            ///< TAG_ITEM_TAKEOFF_SPACING
+    std::string sortKey;            ///< TAG_ITEM_TWR_SORT text used for row ordering (not displayed)
 };
 
 /// @brief Cached display data for one row in the TWR Inbound custom window.
 /// Rows are pre-ordered by ttt_sortedByRunway (nearest inbound first per runway).
 struct TwrInboundRowCache {
     std::string callsign;
-    char        wtc         = ' '; ///< Aircraft weight turbulence category character
-    int         groundSpeed = 0;   ///< Current ground speed in knots
-    tagInfo     ttt;               ///< TAG_ITEM_TTT
-    tagInfo     nm;                ///< TAG_ITEM_INBOUND_NM
-    tagInfo     arrRwy;            ///< TAG_ITEM_ASSIGNED_ARR_RUNWAY
+    COLORREF    callsignColor = TAG_COLOR_DEFAULT_GRAY; ///< Callsign colour: gray/white/brown by tracking state
+    char        wtc          = ' '; ///< Aircraft weight turbulence category character
+    int         groundSpeed  = 0;   ///< Current ground speed in knots
+    tagInfo     ttt;                ///< TAG_ITEM_TTT
+    tagInfo     nm;                 ///< TAG_ITEM_INBOUND_NM
+    std::string aircraftType;       ///< Aircraft type string (e.g. "B738") from GetAircraftFPType()
+    std::string gate;               ///< Assigned stand/gate from standAssignment map
+    tagInfo     vacate;             ///< TAG_ITEM_SUGGESTED_VACATE
+    tagInfo     arrRwy;             ///< TAG_ITEM_ASSIGNED_ARR_RUNWAY
 };

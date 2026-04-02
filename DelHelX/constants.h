@@ -65,6 +65,7 @@ const COLORREF TAG_COLOR_PURPLE       = RGB(219, 163, 250); ///< Purple accent
 const COLORREF TAG_COLOR_WHITE        = RGB(255, 255, 255); ///< White (active / attention)
 const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (departed aircraft)
 const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201,  14); ///< Yellow (blinking urgent alert)
+const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (transfer-from-me initiated)
 /// @}
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
