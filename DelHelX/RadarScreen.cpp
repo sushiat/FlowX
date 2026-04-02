@@ -202,13 +202,16 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         // --- Departure rate window ---
         if (!this->depRateLog.empty())
         {
+            const int HDR_H   = 19;   // taller than data rows to avoid clipping descenders
             const int ROW_H   = 15;
             const int WIN_PAD = 6;
-            const int COL_RWY = 30;
-            const int COL_CNT = 28;
-            const int WIN_W   = WIN_PAD + COL_RWY + COL_CNT + WIN_PAD;
+            const int COL_RWY = 24;
+            const int COL_CNT = 20;
+            const int COL_GAP = 6;    // visual gap between count and spacing columns
+            const int COL_SPC = 50;   // avg spacing mm:ss column
+            const int WIN_W   = WIN_PAD + COL_RWY + COL_CNT + COL_GAP + COL_SPC + WIN_PAD;
             int numRows       = (int)this->depRateLog.size();
-            const int WIN_H   = ROW_H + numRows * ROW_H + WIN_PAD / 2;
+            const int WIN_H   = HDR_H + numRows * ROW_H + WIN_PAD / 2;
 
             // Auto-position to lower-right on first draw
             if (this->depRateWindowPos.x == -1)
@@ -224,7 +227,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
             // Window and header backgrounds
             RECT winRect = { wx, wy, wx + WIN_W, wy + WIN_H };
-            RECT hdrRect = { wx, wy, wx + WIN_W, wy + ROW_H };
+            RECT hdrRect = { wx, wy, wx + WIN_W, wy + HDR_H };
             auto bgBrush  = CreateSolidBrush(RGB(25, 25, 25));
             auto hdrBrush = CreateSolidBrush(RGB(55, 55, 55));
             FillRect(hDC, &winRect, bgBrush);
@@ -237,21 +240,29 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             FrameRect(hDC, &winRect, borderBrush);
             DeleteObject(borderBrush);
 
-            // Header text
+            // Header text — left side: "DEP/H", right side: "avg"
             SetBkMode(hDC, TRANSPARENT);
             SetTextColor(hDC, TAG_COLOR_WHITE);
-            DrawTextA(hDC, "DEP/H", -1, &hdrRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            {
+                int splitX = wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP;
+                RECT hdrLeftRect  = { wx,     wy, splitX,     wy + HDR_H };
+                RECT hdrRightRect = { splitX, wy, wx + WIN_W, wy + HDR_H };
+                DrawTextA(hDC, "DEP/H", -1, &hdrLeftRect,  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                DrawTextA(hDC, "AVG",   -1, &hdrRightRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            }
             AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", hdrRect, true, "");
 
             // Data rows
+            ULONGLONG nowMs = GetTickCount64();
             int row = 0;
             for (auto& kv : this->depRateLog)
             {
-                int rowY  = wy + ROW_H + row * ROW_H;
+                int rowY  = wy + HDR_H + row * ROW_H;
                 int count = (int)kv.second.size();
 
-                RECT rwyRect = { wx + WIN_PAD,           rowY, wx + WIN_PAD + COL_RWY, rowY + ROW_H };
-                RECT cntRect = { wx + WIN_PAD + COL_RWY, rowY, wx + WIN_W - WIN_PAD,   rowY + ROW_H };
+                RECT rwyRect = { wx + WIN_PAD,                                   rowY, wx + WIN_PAD + COL_RWY,                         rowY + ROW_H };
+                RECT cntRect = { wx + WIN_PAD + COL_RWY,                         rowY, wx + WIN_PAD + COL_RWY + COL_CNT,               rowY + ROW_H };
+                RECT spcRect = { wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP,    rowY, wx + WIN_W - WIN_PAD,                           rowY + ROW_H };
 
                 SetTextColor(hDC, TAG_COLOR_DEFAULT_GRAY);
                 DrawTextA(hDC, kv.first.c_str(), -1, &rwyRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -259,6 +270,27 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 SetTextColor(hDC, count > 0 ? TAG_COLOR_GREEN : TAG_COLOR_DEFAULT_GRAY);
                 std::string countStr = std::to_string(count);
                 DrawTextA(hDC, countStr.c_str(), -1, &cntRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+
+                // Average spacing of departures in the last 15 minutes
+                std::vector<ULONGLONG> recent;
+                for (auto t : kv.second)
+                {
+                    if ((nowMs - t) <= 900000ULL)
+                    {
+                        recent.push_back(t);
+                    }
+                }
+                std::string spacingStr = "--:--";
+                if (recent.size() >= 2)
+                {
+                    std::sort(recent.begin(), recent.end());
+                    ULONGLONG avgGapSec = ((recent.back() - recent.front()) / (recent.size() - 1)) / 1000ULL;
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "%02llu:%02llu", avgGapSec / 60, avgGapSec % 60);
+                    spacingStr = buf;
+                }
+                SetTextColor(hDC, recent.size() >= 2 ? TAG_COLOR_WHITE : TAG_COLOR_DEFAULT_GRAY);
+                DrawTextA(hDC, spacingStr.c_str(), -1, &spcRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
 
                 row++;
             }
