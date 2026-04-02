@@ -63,6 +63,8 @@ struct runway
 
     std::string goAroundFreq;   ///< Go-around frequency for this runway
 
+    int widthMeters = 0;        ///< Runway width in metres (from config "width")
+
     std::map<std::string, holdingPoint> holdingPoints = {}; ///< Named holding points on this runway
 
     std::map<std::string, int> sidGroups = {};              ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })

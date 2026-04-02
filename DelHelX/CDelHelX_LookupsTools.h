@@ -50,6 +50,14 @@ protected:
     /// @note Slot 8 layout: [0] QNH flag ('Q' = new QNH), [1..6] transfer frequency with dot removed (6 chars, spaces = not transferred), [7..] holding point name.
     static std::string AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp);
 
+    /// @brief Tests whether a position lies within the physical bounds of a runway.
+    /// @param rwy The runway to test against (provides near threshold, width, and opposite designator).
+    /// @param runways Full runway map for the airport (used to look up the opposite threshold).
+    /// @param pos Position to test.
+    /// @return True if the position is within the runway rectangle (centerline ± half-width, between the two thresholds).
+    /// @note Returns false if @p rwy has no width configured or the opposite runway is not in the map.
+    static bool IsPositionOnRunway(const runway& rwy, const std::map<std::string, runway>& runways, const EuroScopePlugIn::CPosition& pos);
+
     /// @brief Converts a colour name string to the corresponding COLORREF constant.
     /// @param colorName Colour name (e.g. "green", "orange", "turq", "purple", "red", "white", "yellow").
     /// @return Matching COLORREF, or TAG_COLOR_DEFAULT_GRAY if the name is not recognised.

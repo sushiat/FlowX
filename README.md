@@ -308,6 +308,7 @@ Per-runway configuration keyed by runway designator.
 | `opposite` | string | Reciprocal runway designator (used for go-around detection) |
 | `twrFreq` | string | Tower frequency for this runway |
 | `goAroundFreq` | string | Go-around (approach) frequency for this runway |
+| `width` | int | Runway width in metres (e.g. `45`) |
 | `threshold` | object | `{ "lat": ..., "lon": ... }` — runway threshold coordinates |
 | `sidGroups` | object | Group number → array of SID prefixes. Aircraft in the same group get 5 nm spacing instead of 3 nm. |
 | `sidColors` | object | Colour name → array of SID prefixes. Valid colours: `green`, `orange`, `turq`, `purple`, `red`, `white`, `yellow`. SIDs omitted here default to white. |

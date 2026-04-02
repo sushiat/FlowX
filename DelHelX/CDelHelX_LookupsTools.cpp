@@ -138,6 +138,55 @@ std::string CDelHelX_LookupsTools::AppendHoldingPointToFlightStripAnnotation(con
     return prefix + hp;
 }
 
+/// @brief Tests whether a position lies within the physical bounds of a runway.
+/// @param rwy The runway struct providing the near threshold, width, and opposite designator.
+/// @param runways Full runway map used to look up the opposite threshold.
+/// @param pos Position to test.
+/// @return True if the position falls within the runway rectangle.
+bool CDelHelX_LookupsTools::IsPositionOnRunway(const runway& rwy, const std::map<std::string, runway>& runways, const EuroScopePlugIn::CPosition& pos)
+{
+    if (rwy.widthMeters <= 0 || rwy.opposite.empty())
+    {
+        return false;
+    }
+
+    auto oppIt = runways.find(rwy.opposite);
+    if (oppIt == runways.end())
+    {
+        return false;
+    }
+
+    // Flat-earth projection centred on the near threshold.
+    // At typical runway lengths (<5 km) the error is negligible.
+    const double DEG_TO_RAD  = 3.14159265358979323846 / 180.0;
+    const double M_PER_DEG_LAT = 111195.0;
+    double midLat = (rwy.thresholdLat + oppIt->second.thresholdLat) / 2.0;
+    double mPerDegLon = M_PER_DEG_LAT * std::cos(midLat * DEG_TO_RAD);
+
+    // Near threshold is origin; far threshold is B; aircraft position is P — all in metres.
+    double bx = (oppIt->second.thresholdLon - rwy.thresholdLon) * mPerDegLon;
+    double by = (oppIt->second.thresholdLat - rwy.thresholdLat) * M_PER_DEG_LAT;
+    double px = (pos.m_Longitude - rwy.thresholdLon) * mPerDegLon;
+    double py = (pos.m_Latitude  - rwy.thresholdLat) * M_PER_DEG_LAT;
+
+    double runwayLength = std::sqrt(bx * bx + by * by);
+    if (runwayLength < 1.0)
+    {
+        return false;
+    }
+
+    // Unit vector along the centerline.
+    double ux = bx / runwayLength;
+    double uy = by / runwayLength;
+
+    double alongTrack = px * ux + py * uy;
+    double crossTrack = std::abs(px * uy - py * ux);  // perp distance via 2-D cross product
+
+    return alongTrack >= 0.0
+        && alongTrack <= runwayLength
+        && crossTrack <= rwy.widthMeters / 2.0;
+}
+
 /// @brief Converts a colour name string to the corresponding COLORREF constant.
 /// @param colorName Colour name (e.g. "green", "orange").
 /// @return Matching COLORREF, or TAG_COLOR_DEFAULT_GRAY for unrecognised names.
