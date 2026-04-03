@@ -393,62 +393,6 @@ void CDelHelX_Timers::UpdateTowerSameSID()
             this->dep_sequenceNumber.erase(callSign);
         }
 
-        // Check if aircraft started takeoff roll, press Alt > field elevation + 50 feet
-        if (groundState == "DEPA" && pressAlt >= depElevation + 50 && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
-        {
-            if (this->twrSameSID_flightPlans.at(callSign) == 0)
-            {
-                std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
-                this->twrSameSID_flightPlans[callSign] = GetTickCount64();
-                this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
-                auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
-                if (prevDepIt != this->twrSameSID_lastDeparted.end())
-                {
-                    const std::string& prevCallSign = prevDepIt->second;
-                    auto prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
-                    if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
-                    {
-                        this->dep_prevTakeoffOffset[callSign] = (this->twrSameSID_flightPlans.at(callSign) - prevTakeoffIt->second) / 1000;
-
-                        // Snapshot previous aircraft's data at the moment of takeoff
-                        auto prevRtLock = this->RadarTargetSelect(prevCallSign.c_str());
-                        if (prevRtLock.IsValid())
-                        {
-                            this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRtLock.GetPosition().GetPosition());
-                            this->dep_prevWtc[callSign] = prevRtLock.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
-                            this->dep_prevSid[callSign] = prevRtLock.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
-                        }
-
-                        // Compute required time separation from holding points
-                        int timeRequired = 120;
-                        this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                        auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
-                        if (prevFp.IsValid())
-                        {
-                            this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                        }
-                        if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
-                            this->flightStripAnnotation[callSign].length() > 7 && this->flightStripAnnotation[prevCallSign].length() > 7)
-                        {
-                            std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(7);
-                            std::string hp = this->flightStripAnnotation[callSign].substr(7);
-                            if (!IsSameHoldingPoint(prevHP, hp, airport->second.runways))
-                            {
-                                timeRequired += 60;
-                            }
-                        }
-                        this->dep_timeRequired[callSign] = timeRequired;
-                    }
-                }
-                this->twrSameSID_lastDeparted[depRwy] = callSign;
-
-                if (this->radarScreen != nullptr)
-                {
-                    this->radarScreen->depRateLog[depRwy].push_back(this->twrSameSID_flightPlans.at(callSign));
-                }
-            }
-        }
-
         // Check if the aircraft has departed and is further than 15nm away or more than 4 minutes have passed since takeoff
         if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
         {
@@ -465,6 +409,10 @@ void CDelHelX_Timers::UpdateTowerSameSID()
                     this->twrSameSID_flightPlans.erase(callSign);
                     this->dep_prevWtc.erase(callSign);
                     this->dep_prevSid.erase(callSign);
+                    this->dep_prevTakeoffOffset.erase(callSign);
+                    this->dep_prevDistanceAtTakeoff.erase(callSign);
+                    this->dep_timeRequired.erase(callSign);
+                    this->dep_sequenceNumber.erase(callSign);
                     continue;
                 }
             }
@@ -488,6 +436,132 @@ void CDelHelX_Timers::UpdateTowerSameSID()
                 this->dep_timeRequired.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
             }
+        }
+    }
+}
+
+/// @brief Called on every radar position update.
+/// Phase 1 – takeoff roll: sets the roll tick in twrSameSID_flightPlans when the aircraft is on the
+///   departure runway, GS ≥ 40 kt, and heading within 45° of the runway departure direction.
+/// Phase 1b – rejected takeoff: resets the tick to 0 if GS drops below 30 kt before the aircraft
+///   goes airborne, restoring depInfo display and the T+ timer for a subsequent attempt.
+/// Phase 2 – airborne: when DEPA ground state and pressAlt ≥ fieldElev + 50 ft, assigns the departure
+///   sequence number and computes spacing data relative to the previous departure on the same runway.
+///   If Phase 1 never fired (e.g. no runway width configured), the tick is set here as a fallback.
+void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
+{
+    if (!rt.IsValid()) { return; }
+
+    std::string callSign = rt.GetCallsign();
+    auto mapIt = this->twrSameSID_flightPlans.find(callSign);
+    if (mapIt == this->twrSameSID_flightPlans.end()) { return; }
+
+    EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+    if (!fp.IsValid()) { return; }
+
+    std::string dep = fp.GetFlightPlanData().GetOrigin();
+    to_upper(dep);
+    auto airportIt = this->airports.find(dep);
+    if (airportIt == this->airports.end()) { return; }
+
+    std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
+    auto rwyIt = airportIt->second.runways.find(depRwy);
+    if (rwyIt == airportIt->second.runways.end()) { return; }
+
+    const runway& rwy = rwyIt->second;
+    auto pos    = rt.GetPosition();
+    int pressAlt     = pos.GetPressureAltitude();
+    int depElevation = airportIt->second.fieldElevation;
+
+    // ── Phase 1b: Rejected takeoff ──
+    // If the roll tick was set but the aircraft never went airborne and GS has fallen back below 30,
+    // reset the tick so depInfo and T+ are restored for a subsequent attempt.
+    if (mapIt->second != 0 && this->dep_sequenceNumber.count(callSign) == 0
+        && pos.GetReportedGS() < 30)
+    {
+        mapIt->second = 0;
+    }
+
+    // ── Phase 1: Takeoff roll ──
+    if (mapIt->second == 0 && pos.GetReportedGS() >= 40)
+    {
+        auto position = pos.GetPosition();
+        if (IsPositionOnRunway(rwy, airportIt->second.runways, position))
+        {
+            auto oppIt = airportIt->second.runways.find(rwy.opposite);
+            if (oppIt != airportIt->second.runways.end())
+            {
+                EuroScopePlugIn::CPosition oppThresh;
+                oppThresh.m_Latitude  = oppIt->second.thresholdLat;
+                oppThresh.m_Longitude = oppIt->second.thresholdLon;
+                double rwyHdg  = DirectionFromRunwayThreshold(depRwy, oppThresh, airportIt->second.runways);
+                double hdgDiff = std::abs(pos.GetReportedHeading() - rwyHdg);
+                if (hdgDiff > 180.0) { hdgDiff = 360.0 - hdgDiff; }
+                if (hdgDiff <= 45.0)
+                {
+                    mapIt->second = GetTickCount64();
+                }
+            }
+        }
+    }
+
+    // ── Phase 2: Airborne ──
+    // Sequence number assignment is gated here (not at roll) so the aircraft stays in group A/B
+    // on the outbound list until it actually lifts off.
+    if (this->dep_sequenceNumber.count(callSign) == 0
+        && fp.GetGroundState() == std::string("DEPA")
+        && pressAlt >= depElevation + 50)
+    {
+        if (mapIt->second == 0)
+        {
+            mapIt->second = GetTickCount64();  // fallback: roll wasn't detected
+        }
+
+        this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
+
+        auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
+        if (prevDepIt != this->twrSameSID_lastDeparted.end())
+        {
+            const std::string& prevCallSign = prevDepIt->second;
+            auto prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
+            if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
+            {
+                // dep_prevTakeoffOffset uses roll ticks for both aircraft → measures time between roll starts
+                this->dep_prevTakeoffOffset[callSign] = (mapIt->second - prevTakeoffIt->second) / 1000;
+
+                auto prevRt = this->RadarTargetSelect(prevCallSign.c_str());
+                if (prevRt.IsValid())
+                {
+                    this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
+                    this->dep_prevWtc[callSign] = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
+                    this->dep_prevSid[callSign] = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+                }
+
+                int timeRequired = 120;
+                this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+                auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
+                if (prevFp.IsValid())
+                {
+                    this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+                }
+                if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
+                    this->flightStripAnnotation[callSign].length() > 7 && this->flightStripAnnotation[prevCallSign].length() > 7)
+                {
+                    std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(7);
+                    std::string hp     = this->flightStripAnnotation[callSign].substr(7);
+                    if (!IsSameHoldingPoint(prevHP, hp, airportIt->second.runways))
+                    {
+                        timeRequired += 60;
+                    }
+                }
+                this->dep_timeRequired[callSign] = timeRequired;
+            }
+        }
+        this->twrSameSID_lastDeparted[depRwy] = callSign;
+
+        if (this->radarScreen != nullptr)
+        {
+            this->radarScreen->depRateLog[depRwy].push_back(mapIt->second);
         }
     }
 }

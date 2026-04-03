@@ -28,6 +28,7 @@ struct TwrOutboundRowCache {
     tagInfo     nextFreq;           ///< TAG_ITEM_TWR_NEXT_FREQ
     tagInfo     hp;                 ///< TAG_ITEM_HP
     tagInfo     spacing;            ///< TAG_ITEM_TAKEOFF_SPACING
+    tagInfo     timeSinceTakeoff;   ///< Elapsed time since takeoff roll start in "M:SS" format; empty while waiting
     std::string sortKey;            ///< TAG_ITEM_TWR_SORT text used for row ordering (not displayed)
     bool        dimmed = false;              ///< True for departed+untracked or TAXI-state aircraft far from holding point — draw at reduced font size
     bool        groupSeparatorAbove = false; ///< True when a blank separator row should be drawn above this row

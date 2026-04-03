@@ -1,6 +1,7 @@
 #pragma once
 #include "CDelHelX_LookupsTools.h"
 #include "reconnectSnapshot.h"
+#include <set>
 
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
 ///
@@ -76,6 +77,11 @@ protected:
 
     /// @brief Updates the TWR same-SID outbound flight-plan list and records departure timing data.
     void UpdateTowerSameSID();
+
+    /// @brief Called on every radar position update for an aircraft; detects takeoff roll and airborne transition.
+    /// Sets the roll tick in twrSameSID_flightPlans when GS ≥ 40 on the departure runway with matching heading.
+    /// Assigns the departure sequence number and spacing data at the airborne moment (pressAlt ≥ fieldElev + 50 ft).
+    void DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt);
 
     /// @brief Updates the departure information overlays on the radar screen for all taxiing/departing aircraft.
     /// @note Only active when the logged-in controller's facility is GND (3) or above.

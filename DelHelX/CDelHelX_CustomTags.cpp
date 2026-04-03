@@ -50,9 +50,13 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
         }
     }
 
-    // Takeoff tick (0 = still on ground)
+    // Roll tick (0 = not yet rolling; non-zero = roll detected or airborne fallback)
     auto twrIt = this->twrSameSID_flightPlans.find(callSign);
     ULONGLONG takeoffTick = (twrIt != this->twrSameSID_flightPlans.end()) ? twrIt->second : 0;
+
+    // Airborne: sequence number is assigned at liftoff, not at roll start.
+    // Gates --DEP-- status, group C/D, and spacing column.
+    bool isAirborne = (this->dep_sequenceNumber.count(callSign) > 0);
 
     // Ground state with DEPA-override logic
     std::string defGroundState = fp.GetGroundState();
@@ -64,7 +68,7 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
     }
 
     // Taxiing aircraft not yet near the holding point are de-emphasised (same threshold as GND→TWR freq switch)
-    bool nearHp = atHoldingPoint || (distToRunwayThreshold >= 0.0 && distToRunwayThreshold < 0.2);
+    bool nearHp = atHoldingPoint || (distToRunwayThreshold >= 0.0 && distToRunwayThreshold < 0.4);
     row.dimmed = (status == "TAXI") && !nearHp;
 
     // ── row.rwy ──
@@ -88,7 +92,7 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
         tagInfo t;
         t.color = TAG_COLOR_DEFAULT_GRAY;
         std::string s = status;
-        if (takeoffTick != 0)
+        if (isAirborne)
         {
             s = "--DEP--";
         }
@@ -123,7 +127,7 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
         {
             t.color = TAG_COLOR_ORANGE;
         }
-        if (takeoffTick != 0)
+        if (isAirborne)
         {
             t.color = TAG_COLOR_DARKGREY;
         }
@@ -133,7 +137,7 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
     // ── row.spacing (takeoffSpacing) ──
     row.spacing = [&]() -> tagInfo {
         tagInfo t;
-        if (takeoffTick == 0 || !hasAirport)
+        if (!isAirborne || !hasAirport)
         {
             return t;
         }
@@ -247,7 +251,7 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
             rwyPadded += ' ';
         }
 
-        if (takeoffTick == 0)
+        if (!isAirborne)
         {
             double dist = (distToRunwayThreshold >= 0.0) ? distToRunwayThreshold : 0.0;
 
@@ -570,13 +574,30 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
         return t;
     }();
 
+    // ── row.timeSinceTakeoff ──
+    row.timeSinceTakeoff = [&]() -> tagInfo {
+        tagInfo t;
+        if (takeoffTick == 0) { return t; }
+        ULONGLONG elapsed = (GetTickCount64() - takeoffTick) / 1000;
+        int m = static_cast<int>(elapsed / 60);
+        int s = static_cast<int>(elapsed % 60);
+        char buf[8];
+        (void)snprintf(buf, sizeof(buf), "%d:%02d", m, s);
+        t.tag   = buf;
+        t.color = TAG_COLOR_LIST_GRAY;
+        return t;
+    }();
+
     // ── row.sameSid ──
     row.sameSid = this->GetSameSidTag(fp);
 
-    // When acting as TWR, grey the Freq column for aircraft not yet at take-off roll
+    // When acting as TWR, grey the Freq column for aircraft not yet at take-off roll.
+    // Exclude --DEP-- rows: they use TURQ/ORANGE altitude-based handover warnings that must not be suppressed.
     {
         auto me = this->ControllerMyself();
-        if (me.IsController() && me.GetFacility() == 4 && row.status.tag != "TAKE OFF")
+        if (me.IsController() && me.GetFacility() == 4
+            && row.status.tag != "TAKE OFF"
+            && row.status.tag != "--DEP--")
         {
             row.nextFreq.color = TAG_COLOR_LIST_GRAY;
         }
@@ -1019,6 +1040,9 @@ void CDelHelX_CustomTags::UpdateTagCache()
 void CDelHelX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
 {
     if (!rt.IsValid()) { return; }
+
+    // Update takeoff state for outbound aircraft on every position report.
+    this->DetectTakeoffState(rt);
 
     std::string callSign = rt.GetCallsign();
 
