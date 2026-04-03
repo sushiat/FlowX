@@ -531,6 +531,11 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 
         this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
 
+        {
+            std::filesystem::path wavPath = std::filesystem::path(GetPluginDirectory()) / "airbourne.wav";
+            PlaySoundA(wavPath.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+        }
+
         auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
         if (prevDepIt != this->twrSameSID_lastDeparted.end())
         {
