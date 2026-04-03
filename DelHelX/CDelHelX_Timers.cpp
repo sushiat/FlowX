@@ -508,9 +508,17 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
     // ── Phase 2: Airborne ──
     // Sequence number assignment is gated here (not at roll) so the aircraft stays in group A/B
     // on the outbound list until it actually lifts off.
-    if (this->dep_sequenceNumber.count(callSign) == 0
-        && fp.GetGroundState() == std::string("DEPA")
-        && pressAlt >= depElevation + 50)
+    // Tier 1 (50 ft): altitude close to liftoff — accurate for spacing — combined with a ground
+    //   state check so a parked aircraft with a spurious reading cannot trigger it.
+    //   Any of TAXI / LINEUP / DEPA confirms the controller gave the aircraft a clearance.
+    // Tier 2 (200 ft): no ground state required — catches helicopters or aircraft where no
+    //   TopSky state was ever set; spacing precision is slightly lower but still useful.
+    std::string groundStatePh2 = fp.GetGroundState();
+    bool airborneCondition = (pressAlt >= depElevation + 200)
+                          || (pressAlt >= depElevation + 50
+                              && (groundStatePh2 == "TAXI" || groundStatePh2 == "LINEUP"
+                                  || groundStatePh2 == "DEPA"));
+    if (this->dep_sequenceNumber.count(callSign) == 0 && airborneCondition)
     {
         if (mapIt->second == 0)
         {
