@@ -227,11 +227,19 @@ void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePl
     else if (ItemCode == TAG_ITEM_TAXIOUT)   { tag = this->GetTaxiOutTag(FlightPlan, RadarTarget); }
     else if (ItemCode == TAG_ITEM_NEWQNH)    { tag = this->GetNewQnhTag(FlightPlan); }
     else if (ItemCode == TAG_ITEM_SAMESID)   { tag = this->GetSameSidTag(FlightPlan); }
+    else if (ItemCode == TAG_ITEM_ADES)      { tag = this->GetAdesTag(FlightPlan); }
     else                                     { return; }  // all others displayed in custom windows only
 
-    *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
     strcpy_s(sItemString, 16, tag.tag.c_str());
-    *pRGB = tag.color;
+    if (tag.color == TAG_COLOR_DEFAULT_NONE)
+    {
+        *pColorCode = EuroScopePlugIn::TAG_COLOR_DEFAULT;
+    }
+    else
+    {
+        *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+        *pRGB = tag.color;
+    }
 }
 
 /// @brief Dispatches tag function callbacks to the appropriate Func_* method.
@@ -321,6 +329,7 @@ void CDelHelX::OnTimer(int Counter)
     if (Counter > 0 && Counter % 5 == 0)
     {
         this->SaveAndRestoreWindowLocations();
+        this->UpdateAdesCache();
     }
 
     this->PollAtisLetters(Counter);

@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <set>
+#include <sstream>
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
 #include "helpers.h"
@@ -1018,4 +1019,73 @@ void CDelHelX_Timers::AckWeather(const std::string& icao)
     this->qnhUnacked.erase(icao);
     this->atisUnacked.erase(icao);
     this->rvrUnacked.erase(icao);
+}
+
+/// @brief Rebuilds adesCache for all correlated flight plans departing from a configured airport.
+/// For type-Y plans the tag shows the last IFR waypoint in turquoise;
+/// all other plan types show the destination ICAO using the EuroScope default colour.
+void CDelHelX_Timers::UpdateAdesCache()
+{
+    // Returns the last waypoint-like token before the first "VFR" token in the route string.
+    // Returns empty string if no VFR marker is found or no valid waypoint precedes it.
+    auto lastIfrWaypoint = [](const char* route) -> std::string {
+        auto isWaypoint = [](const std::string& s) -> bool {
+            if (s.empty() || s == "DCT" || s == "IFR" || s == "VFR") { return false; }
+            // Strip speed/level suffix (e.g. WAYPOINT/N0450F350)
+            std::string base = s.substr(0, s.find('/'));
+            if (base.empty()) { return false; }
+            if (!std::all_of(base.begin(), base.end(), ::isalnum)) { return false; }
+            // Speed/level change group: N/K/M followed immediately by a digit
+            if ((base[0] == 'N' || base[0] == 'K' || base[0] == 'M') && base.size() >= 2 && std::isdigit((unsigned char)base[1])) { return false; }
+            return true;
+        };
+
+        std::string last;
+        bool vfrFound  = false;
+        bool firstToken = true;
+        std::istringstream ss(route);
+        std::string tok;
+        while (ss >> tok)
+        {
+            if (tok == "VFR")
+            {
+                if (firstToken) { return ""; }  // VFR at front = type V or Z, leave unchanged
+                vfrFound = true;
+                break;
+            }
+            if (isWaypoint(tok)) { last = tok.substr(0, tok.find('/')); }
+            firstToken = false;
+        }
+        return vfrFound ? last : "";  // no VFR token found = normal IFR, leave unchanged
+    };
+
+    std::map<std::string, tagInfo> newCache;
+    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+    {
+        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+        if (!fp.IsValid()) { continue; }
+
+        EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+        std::string dep = fpd.GetOrigin();
+        to_upper(dep);
+        if (this->airports.find(dep) == this->airports.end()) { continue; }
+
+        std::string callSign = fp.GetCallsign();
+        std::string fix = lastIfrWaypoint(fpd.GetRoute());
+
+        tagInfo tag;
+        if (!fix.empty())
+        {
+            tag.tag   = fix;
+            tag.color = TAG_COLOR_TURQ;
+        }
+        else
+        {
+            tag.tag   = fpd.GetDestination();
+            tag.color = TAG_COLOR_DEFAULT_NONE;
+        }
+
+        newCache[callSign] = tag;
+    }
+    this->adesCache = std::move(newCache);
 }

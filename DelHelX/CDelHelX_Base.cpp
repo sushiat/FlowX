@@ -26,6 +26,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
     this->RegisterTagItemType("Taxi out?", TAG_ITEM_TAXIOUT);
     this->RegisterTagItemType("New QNH", TAG_ITEM_NEWQNH);
     this->RegisterTagItemType("Same SID", TAG_ITEM_SAMESID);
+    this->RegisterTagItemType("ADES Type-Y", TAG_ITEM_ADES);
 
     this->RegisterTagItemFunction("Set ONFREQ/STUP/PUSH", TAG_FUNC_ON_FREQ);
     this->RegisterTagItemFunction("Clear new QNH", TAG_FUNC_CLEAR_NEWQNH);

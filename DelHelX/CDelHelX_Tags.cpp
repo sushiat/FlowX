@@ -309,3 +309,16 @@ tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 
     return tag;
 }
+
+/// @brief Returns the cached ADES tag for the given flight plan.
+tagInfo CDelHelX_Tags::GetAdesTag(EuroScopePlugIn::CFlightPlan& fp)
+{
+    auto it = this->adesCache.find(fp.GetCallsign());
+    if (it != this->adesCache.end()) { return it->second; }
+
+    // Cache miss (first 5 s or plan not in a configured airport) — fall back to raw destination
+    tagInfo tag;
+    tag.tag   = fp.GetFlightPlanData().GetDestination();
+    tag.color = TAG_COLOR_DEFAULT_NONE;
+    return tag;
+}

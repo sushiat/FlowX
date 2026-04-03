@@ -32,5 +32,11 @@ protected:
     /// @return tagInfo with the SID name and its configured colour.
     tagInfo GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp);
 
+    /// @brief Builds the ADES tag: destination ICAO for normal plans, last IFR waypoint (turquoise) for type-Y.
+    /// Returns from adesCache; colour TAG_COLOR_DEFAULT_NONE signals that EuroScope's default colour should be used.
+    /// @param fp Flight plan being evaluated.
+    /// @return tagInfo with the destination or last IFR fix and appropriate colour.
+    tagInfo GetAdesTag(EuroScopePlugIn::CFlightPlan& fp);
+
 public:
 };

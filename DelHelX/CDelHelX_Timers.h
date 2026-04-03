@@ -1,6 +1,7 @@
 #pragma once
 #include "CDelHelX_LookupsTools.h"
 #include "reconnectSnapshot.h"
+#include "tagInfo.h"
 #include <future>
 #include <map>
 #include <set>
@@ -97,6 +98,9 @@ protected:
     /// @brief Airports where the RVR changed since the user last acknowledged.
     std::set<std::string> rvrUnacked;
 
+    /// @brief Callsign -> cached ADES tag (destination ICAO, or last IFR fix for type-Y plans).
+    std::map<std::string, tagInfo> adesCache;
+
     /// @brief Checks each configured airport's NAP reminder and fires a modal alert when the time is reached.
     /// @note Uses the airport's configured IANA timezone to evaluate the current local time.
     void CheckAirportNAPReminder();
@@ -130,6 +134,10 @@ protected:
     /// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
     /// @param Counter The EuroScope timer counter passed from OnTimer.
     void PollAtisLetters(int Counter);
+
+    /// @brief Rebuilds adesCache for all correlated flight plans.
+    /// For type-Y plans returns the last IFR waypoint (turquoise); all others return the destination ICAO.
+    void UpdateAdesCache();
 
 public:
     /// @brief Clears all unacknowledged change flags for the given airport ICAO.

@@ -26,7 +26,8 @@ const int TAG_ITEM_PS_HELPER           = 1;  ///< Push+Start helper column
 const int TAG_ITEM_TAXIOUT             = 2;  ///< Taxi-out stand indicator (P/T)
 const int TAG_ITEM_NEWQNH              = 3;  ///< New QNH orange "X" marker
 const int TAG_ITEM_SAMESID             = 4;  ///< Same-SID tracker column
-// 5, 6, 7 unused (were HP1, HP2, HP3 tag item slots)
+const int TAG_ITEM_ADES                = 5;  ///< Destination airport (or last IFR fix for type-Y plans)
+// 6, 7 unused (were HP1, HP2, HP3 tag item slots)
 const int TAG_ITEM_HP                  = 8;  ///< Holding point (popup-assigned)
 const int TAG_ITEM_ASSIGNED_ARR_RUNWAY = 9;  ///< Assigned arrival runway
 const int TAG_ITEM_TAKEOFF_SPACING     = 10; ///< Takeoff spacing / time-separation indicator
@@ -70,6 +71,7 @@ const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (depa
 const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201,  14); ///< Yellow (blinking urgent alert)
 const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (transfer-from-me initiated)
 const COLORREF TAG_COLOR_LIST_GRAY    = RGB(180, 175, 165); ///< Slightly brighter grey for custom list windows
+const COLORREF TAG_COLOR_DEFAULT_NONE = RGB(  1,   2,   3); ///< Sentinel: let EuroScope apply its default tag colour (not rendered)
 /// @}
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
