@@ -91,3 +91,23 @@ All commands prefixed with `.delhelx` in the EuroScope chat:
 - Precompiled header is `pch.h` — include it first in every `.cpp`.
 - Update documentation
 - Don't auto commit — wait for explicit "commit" instruction; when committing, also push to remote.
+
+### Class member ordering and alignment
+
+Within every class, order members: `private` → `protected` → `public`.
+
+Within each access section: variables first (grouped, no blank lines between them), then a blank line, then functions (with doc-comment blocks; blank lines between functions). Both groups sorted alphabetically.
+
+Variable declarations use **3-column alignment** (columns computed per access section):
+- **Col 1 — Definition** (`type name`): right-padded to the length of the longest `type name` in the section.
+- **Col 2 — Assignment** (`= value;` or `;`): starts one column past Col 1. Variables with an initializer get `= value;` here; variables without one get `;` immediately after their name (no pre-padding), then fill with spaces to Col 3.
+- **Col 3 — Documentation** (`///<`): starts 2 columns past the end of the longest full declaration (`type name = value;`) in the section.
+
+```cpp
+// Example — longest definition is `airports` (43 chars), longest assignment is `= false;` (8 chars):
+    std::map<std::string, airport> airports;          ///< Airport configurations keyed by ICAO code
+    bool autoRestore                        = false;  ///< Whether auto-restore is enabled
+    int depRateWindowX                      = -1;     ///< Last-saved X position; -1 = not yet positioned
+    std::future<std::string> latestVersion;           ///< Async future for version fetch
+    bool updateCheck;                                 ///< Whether update check is enabled
+```

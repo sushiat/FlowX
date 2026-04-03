@@ -1,0 +1,35 @@
+---
+BasedOnStyle: Microsoft
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 0
+Standard: Latest
+
+# Include ordering — do not sort; pch.h must remain first
+SortIncludes: false
+
+# Pointers and references attach to the type (e.g. CFlightPlan& fp)
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Allman braces everywhere
+BreakBeforeBraces: Allman
+
+# 3-column variable alignment
+AlignConsecutiveDeclarations:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+
+# Keep functions and if-bodies multi-line
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortBlocksOnASingleLine: Never

@@ -9,9 +9,25 @@
 /// display types, and flight-plan lists used by DelHelX.
 class CDelHelX_Base : public EuroScopePlugIn::CPlugIn
 {
-public:
+  protected:
+    bool                             debug;       ///< True when verbose debug logging is enabled
+    RadarScreen*                     radarScreen; ///< Pointer to the active radar screen instance, or nullptr
+    EuroScopePlugIn::CFlightPlanList tttInbound;  ///< Flight-plan list for the TWR Inbound (TTT) panel
+    EuroScopePlugIn::CFlightPlanList twrSameSID;  ///< Flight-plan list for the TWR Outbound panel
+
+    /// @brief Pushes the given flight plan strip to all online DEL, GND, and TWR controllers.
+    /// @param fp Flight plan whose strip should be distributed.
+    void PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const;
+
+  public:
     /// @brief Constructs the plugin, registering all tag items, functions, and flight-plan lists with EuroScope.
     CDelHelX_Base();
+
+    /// @brief Clears the stored radar screen pointer (called by the screen itself before deletion).
+    void ClearRadarScreen()
+    {
+        radarScreen = nullptr;
+    }
 
     /// @brief Called by EuroScope when a new radar screen is created; instantiates a RadarScreen object.
     /// @param sDisplayName Display name of the new screen configuration.
@@ -21,20 +37,4 @@ public:
     /// @param CanBeCreated Whether the screen can be created by the user.
     /// @return Pointer to the newly created RadarScreen instance.
     EuroScopePlugIn::CRadarScreen* OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated) override;
-
-    /// @brief Clears the stored radar screen pointer (called by the screen itself before deletion).
-    void ClearRadarScreen() { radarScreen = nullptr; }
-
-protected:
-    bool debug;                                  ///< True when verbose debug logging is enabled
-
-    RadarScreen* radarScreen;                    ///< Pointer to the active radar screen instance, or nullptr
-
-    EuroScopePlugIn::CFlightPlanList twrSameSID; ///< Flight-plan list for the TWR Outbound panel
-
-    EuroScopePlugIn::CFlightPlanList tttInbound; ///< Flight-plan list for the TWR Inbound (TTT) panel
-
-    /// @brief Pushes the given flight plan strip to all online DEL, GND, and TWR controllers.
-    /// @param fp Flight plan whose strip should be distributed.
-    void PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const;
 };

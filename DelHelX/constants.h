@@ -3,11 +3,11 @@
 #include <regex>
 
 /// Plugin display name shown in EuroScope
-#define PLUGIN_NAME    "DelHelX"
+#define PLUGIN_NAME "DelHelX"
 /// Current plugin version string (semver)
 #define PLUGIN_VERSION "0.6.0"
 /// Plugin author name
-#define PLUGIN_AUTHOR  "Markus Korbel"
+#define PLUGIN_AUTHOR "Markus Korbel"
 /// Plugin license string
 #define PLUGIN_LICENSE "(c) 2026, MIT License"
 /// URL to the plain-text file containing the latest released version number
@@ -22,56 +22,60 @@ const char SETTINGS_DELIMITER = '|';
 
 /// @defgroup TagItemTypes Tag item type IDs registered with EuroScope
 /// @{
-const int TAG_ITEM_PS_HELPER           = 1;  ///< Push+Start helper column
-const int TAG_ITEM_TAXIOUT             = 2;  ///< Taxi-out stand indicator (P/T)
-const int TAG_ITEM_NEWQNH              = 3;  ///< New QNH orange "X" marker
-const int TAG_ITEM_SAMESID             = 4;  ///< Same-SID tracker column
-const int TAG_ITEM_ADES                = 5;  ///< Destination airport (or last IFR fix for type-Y plans)
-// 6, 7 unused (were HP1, HP2, HP3 tag item slots)
-const int TAG_ITEM_HP                  = 8;  ///< Holding point (popup-assigned)
-const int TAG_ITEM_ASSIGNED_ARR_RUNWAY = 9;  ///< Assigned arrival runway
-const int TAG_ITEM_TAKEOFF_SPACING     = 10; ///< Takeoff spacing / time-separation indicator
-const int TAG_ITEM_ASSIGNED_RUNWAY     = 11; ///< Assigned departure runway
-const int TAG_ITEM_DEPARTURE_INFO      = 12; ///< Departure information overlay (SID, T-flag)
-const int TAG_ITEM_TTT                 = 13; ///< Time-to-touchdown for inbounds
-const int TAG_ITEM_INBOUND_NM          = 14; ///< Distance to runway threshold for inbounds
-const int TAG_ITEM_SUGGESTED_VACATE    = 15; ///< Suggested runway vacate point
-const int TAG_ITEM_TWR_NEXT_FREQ       = 16; ///< Next frequency for tower handoff
-const int TAG_ITEM_TWR_SORT            = 17; ///< Tower departure list sort key
-const int TAG_ITEM_GND_STATE_EXPANDED  = 18; ///< Expanded ground-state label
+const int TAG_ITEM_PS_HELPER = 1; ///< Push+Start helper column
+const int TAG_ITEM_TAXIOUT   = 2; ///< Taxi-out stand indicator (P/T)
+const int TAG_ITEM_NEWQNH    = 3; ///< New QNH orange "X" marker
+const int TAG_ITEM_SAMESID   = 4; ///< Same-SID tracker column
+const int TAG_ITEM_ADES      = 5; ///< Destination airport (or last IFR fix for type-Y plans)
+/// @}
+
+/// @defgroup CustomTagItemTypes Custom tag item type IDs for DelHelX's own tags
+const int TAG_ITEM_HP                  = 20; ///< Holding point (popup-assigned)
+const int TAG_ITEM_ASSIGNED_ARR_RUNWAY = 21; ///< Assigned arrival runway
+const int TAG_ITEM_TAKEOFF_SPACING     = 22; ///< Takeoff spacing / time-separation indicator
+const int TAG_ITEM_ASSIGNED_RUNWAY     = 23; ///< Assigned departure runway
+const int TAG_ITEM_DEPARTURE_INFO      = 24; ///< Departure information overlay (SID, T-flag)
+const int TAG_ITEM_TTT                 = 25; ///< Time-to-touchdown for inbounds
+const int TAG_ITEM_INBOUND_NM          = 26; ///< Distance to runway threshold for inbounds
+const int TAG_ITEM_SUGGESTED_VACATE    = 27; ///< Suggested runway vacate point
+const int TAG_ITEM_TWR_NEXT_FREQ       = 28; ///< Next frequency for tower handoff
+const int TAG_ITEM_TWR_SORT            = 29; ///< Tower departure list sort key
+const int TAG_ITEM_GND_STATE_EXPANDED  = 30; ///< Expanded ground-state label
 /// @}
 
 /// @defgroup TagFunctions Tag function IDs registered with EuroScope
 /// @{
-const int TAG_FUNC_ON_FREQ         = 100; ///< Set ONFREQ / ST-UP / PUSH ground state
-const int TAG_FUNC_CLEAR_NEWQNH    = 101; ///< Clear the new-QNH annotation flag
-// 102–107 unused (were Assign/Request HP1, HP2, HP3 functions)
-const int TAG_FUNC_ASSIGN_HP       = 108; ///< Open popup to assign a holding point
-const int TAG_FUNC_REQUEST_HP      = 109; ///< Open popup to request a holding point (appends '*')
-const int TAG_FUNC_HP_LISTSELECT   = 110; ///< Callback when user selects an item from the HP popup list
-const int TAG_FUNC_LINE_UP         = 111; ///< Set LINEUP ground state
-const int TAG_FUNC_TAKE_OFF        = 112; ///< Set DEPA ground state and start tracking
-const int TAG_FUNC_TRANSFER_NEXT   = 113; ///< Initiate handoff to the next controller
-const int TAG_FUNC_CLRD_TO_LAND    = 114; ///< Clear the inbound for landing and highlight in TopSky
-const int TAG_FUNC_MISSED_APP      = 115; ///< Handle missed approach: assign altitude and highlight
-const int TAG_FUNC_STAND_AUTO      = 116; ///< Trigger automatic stand assignment via Ground Radar
-const int TAG_FUNC_REVERT_TO_TAXI  = 117; ///< Revert ground state from LINEUP back to TAXI
+const int TAG_FUNC_ON_FREQ      = 100; ///< Set ONFREQ / ST-UP / PUSH ground state
+const int TAG_FUNC_CLEAR_NEWQNH = 101; ///< Clear the new-QNH annotation flag
+/// @}
+
+/// @defgroup CustomTagFunctions Custom tag function IDs for DelHelX's own tag actions
+const int TAG_FUNC_ASSIGN_HP      = 200; ///< Open popup to assign a holding point
+const int TAG_FUNC_REQUEST_HP     = 201; ///< Open popup to request a holding point (appends '*')
+const int TAG_FUNC_HP_LISTSELECT  = 202; ///< Callback when user selects an item from the HP popup list
+const int TAG_FUNC_LINE_UP        = 203; ///< Set LINEUP ground state
+const int TAG_FUNC_TAKE_OFF       = 204; ///< Set DEPA ground state and start tracking
+const int TAG_FUNC_TRANSFER_NEXT  = 205; ///< Initiate handoff to the next controller
+const int TAG_FUNC_CLRD_TO_LAND   = 206; ///< Clear the inbound for landing and highlight in TopSky
+const int TAG_FUNC_MISSED_APP     = 207; ///< Handle missed approach: assign altitude and highlight
+const int TAG_FUNC_STAND_AUTO     = 208; ///< Trigger automatic stand assignment via Ground Radar
+const int TAG_FUNC_REVERT_TO_TAXI = 209; ///< Revert ground state from LINEUP back to TAXI
 /// @}
 
 /// @defgroup TagColors COLORREF constants used for tag colouring
 /// @{
 const COLORREF TAG_COLOR_DEFAULT_GRAY = RGB(135, 128, 118); ///< Default neutral grey
-const COLORREF TAG_COLOR_RED          = RGB(255,   9,   9); ///< Error / warning red
-const COLORREF TAG_COLOR_ORANGE       = RGB(255, 165,   0); ///< Caution orange
-const COLORREF TAG_COLOR_GREEN        = RGB(  0, 200,   0); ///< OK / ready green
-const COLORREF TAG_COLOR_TURQ         = RGB( 64, 224, 208); ///< Turquoise (airborne transfer)
+const COLORREF TAG_COLOR_RED          = RGB(255, 9, 9);     ///< Error / warning red
+const COLORREF TAG_COLOR_ORANGE       = RGB(255, 165, 0);   ///< Caution orange
+const COLORREF TAG_COLOR_GREEN        = RGB(0, 200, 0);     ///< OK / ready green
+const COLORREF TAG_COLOR_TURQ         = RGB(64, 224, 208);  ///< Turquoise (airborne transfer)
 const COLORREF TAG_COLOR_PURPLE       = RGB(219, 163, 250); ///< Purple accent
 const COLORREF TAG_COLOR_WHITE        = RGB(255, 255, 255); ///< White (active / attention)
 const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (departed aircraft)
-const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201,  14); ///< Yellow (blinking urgent alert)
+const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201, 14);  ///< Yellow (blinking urgent alert)
 const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (transfer-from-me initiated)
 const COLORREF TAG_COLOR_LIST_GRAY    = RGB(180, 175, 165); ///< Slightly brighter grey for custom list windows
-const COLORREF TAG_COLOR_DEFAULT_NONE = RGB(  1,   2,   3); ///< Sentinel: let EuroScope apply its default tag colour (not rendered)
+const COLORREF TAG_COLOR_DEFAULT_NONE = RGB(1, 2, 3);       ///< Sentinel: let EuroScope apply its default tag colour (not rendered)
 /// @}
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
@@ -90,15 +94,15 @@ const int SCREEN_OBJECT_WEATHER_ROW  = 6690; ///< Clickable airport section in t
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop
 /// @{
-constexpr auto TOPSKY_PLUGIN_NAME              = "TopSky plugin"; ///< EuroScope name of the TopSky plugin
-const int      TOPSKY_TAG_FUNC_SET_CLEARANCE_FLAG = 667;          ///< TopSky function ID to toggle the clearance flag
-const int      TOPSKY_TAG_TYPE_ATYP               = 10028;        ///< TopSky tag item type for aircraft type
+constexpr auto TOPSKY_PLUGIN_NAME                 = "TopSky plugin"; ///< EuroScope name of the TopSky plugin
+const int      TOPSKY_TAG_FUNC_SET_CLEARANCE_FLAG = 667;             ///< TopSky function ID to toggle the clearance flag
+const int      TOPSKY_TAG_TYPE_ATYP               = 10028;           ///< TopSky tag item type for aircraft type
 /// @}
 
 /// @defgroup GroundRadarIntegration Constants for Ground Radar plugin interop
 /// @{
-constexpr auto GROUNDRADAR_PLUGIN_NAME                  = "Ground Radar plugin"; ///< EuroScope name of the Ground Radar plugin
-const int      GROUNDRADAR_TAG_TYPE_GROUNDSTATUS          = 3;                   ///< Ground Radar tag item type for ground status
-const int      GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND        = 2;                   ///< Ground Radar tag item type for assigned stand
-const int      GROUNDRADAR_TAG_FUNC_STAND_MENU            = 1;                   ///< Ground Radar function ID to open the stand assignment menu
+constexpr auto GROUNDRADAR_PLUGIN_NAME             = "Ground Radar plugin"; ///< EuroScope name of the Ground Radar plugin
+const int      GROUNDRADAR_TAG_TYPE_GROUNDSTATUS   = 3;                     ///< Ground Radar tag item type for ground status
+const int      GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND = 2;                     ///< Ground Radar tag item type for assigned stand
+const int      GROUNDRADAR_TAG_FUNC_STAND_MENU     = 1;                     ///< Ground Radar function ID to open the stand assignment menu
 /// @}

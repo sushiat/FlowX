@@ -30,12 +30,12 @@ public:
 
     /// @brief Returns the Win32 MB_ICON* constant appropriate for this exception type.
     /// @return Win32 message-box icon flag (e.g. MB_ICONERROR).
-    virtual inline const long icon() const = 0;
+    virtual const long icon() const = 0;
 
     /// @brief Shows a Win32 MessageBox with the exception message and appropriate icon.
     inline void whatMessageBox()
     {
-        MessageBox(NULL, this->what(), PLUGIN_NAME, MB_OK | icon());
+        MessageBoxA(NULL, this->what(), PLUGIN_NAME, MB_OK | icon());
     }
 };
 
@@ -48,8 +48,7 @@ public:
     explicit error(std::string& what) : delhelexception{ what } {}
 
     /// @brief Returns MB_ICONERROR.
-    /// @return Win32 MB_ICONERROR flag.
-    inline const long icon() const
+    const long icon() const override
     {
         return MB_ICONERROR;
     }
@@ -64,8 +63,7 @@ public:
     explicit warning(std::string& what) : delhelexception{ what } {}
 
     /// @brief Returns MB_ICONWARNING.
-    /// @return Win32 MB_ICONWARNING flag.
-    inline const long icon() const
+    const long icon() const override
     {
         return MB_ICONWARNING;
     }
@@ -80,8 +78,7 @@ public:
     explicit information(std::string& what) : delhelexception{ what } {}
 
     /// @brief Returns MB_ICONINFORMATION.
-    /// @return Win32 MB_ICONINFORMATION flag.
-    inline const long icon() const
+    const long icon() const override
     {
         return MB_ICONINFORMATION;
     }
