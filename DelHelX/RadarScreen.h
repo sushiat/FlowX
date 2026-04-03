@@ -65,6 +65,15 @@ public:
     /// @brief Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates).
     std::vector<TwrInboundRowCache> twrInboundRowsCache;
 
+    /// @brief Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache().
+    std::vector<WeatherRowCache> weatherRowsCache;
+
+    /// @brief Top-left corner of the WX/ATIS window; (-1,-1) until first draw.
+    POINT weatherWindowPos = { -1, -1 };
+
+    /// @brief Previous drag cursor position for the WX/ATIS window.
+    POINT weatherLastDrag = { -1, -1 };
+
     /// @brief Top-left corner of the TWR Outbound window; (-1,-1) until first draw.
     POINT twrOutboundWindowPos = { -1, -1 };
 
@@ -146,6 +155,9 @@ private:
 
     /// @brief Draws the NAP reminder window when napReminderActive is true.
     void DrawNapReminder(HDC hDC);
+
+    /// @brief Draws the WX/ATIS window showing wind, QNH, and ATIS letter per configured airport.
+    void DrawWeatherWindow(HDC hDC);
 
     /// @brief Called when the mouse moves over a registered screen object; tracks ACK button hover state.
     void OnOverScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area) override;

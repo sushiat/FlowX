@@ -96,6 +96,11 @@ void CDelHelX_Settings::LoadWindowLocations()
             this->napWindowX = j["napWindow"].value("x", -1);
             this->napWindowY = j["napWindow"].value("y", -1);
         }
+        if (j.contains("weatherWindow"))
+        {
+            this->weatherWindowX = j["weatherWindow"].value("x", -1);
+            this->weatherWindowY = j["weatherWindow"].value("y", -1);
+        }
         this->napLastDismissedDate = j.value("napLastDismissedDate", "");
     }
     catch (std::exception&)
@@ -118,6 +123,8 @@ void CDelHelX_Settings::SaveWindowLocations()
         j["twrInboundWindow"]["y"]  = this->twrInboundWindowY;
         j["napWindow"]["x"]         = this->napWindowX;
         j["napWindow"]["y"]         = this->napWindowY;
+        j["weatherWindow"]["x"]     = this->weatherWindowX;
+        j["weatherWindow"]["y"]     = this->weatherWindowY;
         j["napLastDismissedDate"]   = this->napLastDismissedDate;
 
         std::filesystem::path path(GetPluginDirectory());

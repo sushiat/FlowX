@@ -882,6 +882,7 @@ void CDelHelX_CustomTags::UpdateTagCache()
         this->radarScreen->depRateRowsCache.clear();
         this->radarScreen->twrOutboundRowsCache.clear();
         this->radarScreen->twrInboundRowsCache.clear();
+        this->radarScreen->weatherRowsCache.clear();
         return;
     }
 
@@ -1074,6 +1075,46 @@ void CDelHelX_CustomTags::UpdateTagCache()
             }
 
             this->radarScreen->depRateRowsCache.push_back(std::move(depRow));
+        }
+    }
+
+    // =========================================================
+    // WX/ATIS WINDOW — current airport only (derived from own callsign prefix)
+    // =========================================================
+    {
+        std::string myCs = this->ControllerMyself().GetCallsign();
+        to_upper(myCs);
+
+        this->radarScreen->weatherRowsCache.clear();
+
+        for (auto& [icao, ap] : this->airports)
+        {
+            if (myCs.rfind(icao, 0) != 0) { continue; } // callsign must start with ICAO
+
+            WeatherRowCache row;
+            row.icao = icao;
+
+            auto windIt = this->airportWind.find(icao);
+            row.wind = (windIt != this->airportWind.end() && !windIt->second.empty()) ? windIt->second : "-";
+            row.windColor = (this->windUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+
+            auto qnhIt = this->airportQNH.find(icao);
+            row.qnh      = (qnhIt != this->airportQNH.end() && !qnhIt->second.empty()) ? qnhIt->second : "-";
+            row.qnhColor = (this->qnhUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+
+            auto atisIt = this->atisLetters.find(icao);
+            bool atisAvail = (atisIt != this->atisLetters.end() && !atisIt->second.empty());
+            row.atis      = atisAvail ? atisIt->second : "?";
+            row.atisColor = atisAvail
+                ? ((this->atisUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE)
+                : TAG_COLOR_DEFAULT_GRAY;
+
+            auto rvrIt  = this->airportRVR.find(icao);
+            row.rvr      = (rvrIt != this->airportRVR.end()) ? rvrIt->second : "";
+            row.rvrColor = (this->rvrUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+
+            this->radarScreen->weatherRowsCache.push_back(std::move(row));
+            break; // only one airport per session
         }
     }
 }

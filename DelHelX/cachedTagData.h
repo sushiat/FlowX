@@ -34,6 +34,19 @@ struct TwrOutboundRowCache {
     bool        groupSeparatorAbove = false; ///< True when a blank separator row should be drawn above this row
 };
 
+/// @brief Cached display data for one airport section in the WX/ATIS window.
+struct WeatherRowCache {
+    std::string icao;
+    std::string wind;
+    COLORREF    windColor = TAG_COLOR_WHITE;
+    std::string qnh;
+    COLORREF    qnhColor  = TAG_COLOR_WHITE;
+    std::string atis;
+    COLORREF    atisColor = TAG_COLOR_DEFAULT_GRAY;
+    std::string rvr;                              ///< Formatted RVR string; empty = not present, don't draw second line
+    COLORREF    rvrColor  = TAG_COLOR_DEFAULT_GRAY;
+};
+
 /// @brief Cached display data for one row in the TWR Inbound custom window.
 /// Rows are pre-ordered by ttt_sortedByRunway (nearest inbound first per runway).
 struct TwrInboundRowCache {

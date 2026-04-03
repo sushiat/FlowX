@@ -282,6 +282,7 @@ EuroScopePlugIn::CRadarScreen* CDelHelX::OnRadarScreenCreated(const char* sDispl
     if (this->twrOutboundWindowX != -1) { this->radarScreen->twrOutboundWindowPos = { this->twrOutboundWindowX, this->twrOutboundWindowY }; }
     if (this->twrInboundWindowX  != -1) { this->radarScreen->twrInboundWindowPos  = { this->twrInboundWindowX,  this->twrInboundWindowY  }; }
     if (this->napWindowX         != -1) { this->radarScreen->napWindowPos          = { this->napWindowX,         this->napWindowY         }; }
+    if (this->weatherWindowX     != -1) { this->radarScreen->weatherWindowPos      = { this->weatherWindowX,     this->weatherWindowY     }; }
     return this->radarScreen;
 }
 
@@ -321,6 +322,8 @@ void CDelHelX::OnTimer(int Counter)
     {
         this->SaveAndRestoreWindowLocations();
     }
+
+    this->PollAtisLetters(Counter);
 }
 
 /// @brief Removes the disconnecting aircraft from all departure and inbound state maps.
@@ -438,10 +441,45 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
     }
 
     std::vector<std::string> metarElements = split(sFullMetar);
+    std::vector<std::string> rvrTokens;
     for (std::string metarElement : metarElements)
     {
+        static const std::regex windRx(R"([0-9]{3}[0-9]{2}(?:G[0-9]{2,3})?(?:KT|MPS))");
         static const std::regex qnh(R"(Q[0-9]{4})");
         static const std::regex alt(R"(A[0-9]{4})");
+        static const std::regex rvrRx(R"(R([0-9]{2}[LCR]?)\/([MP]?)([0-9]{4})(?:V([0-9]{4}))?([UDN])?(?:FT)?)");
+
+        if (std::regex_match(metarElement, windRx))
+        {
+            auto existingWind = this->airportWind.find(station);
+            if (existingWind == this->airportWind.end())
+            {
+                this->LogDebugMessage("First wind value for airport " + station + " is " + metarElement, "Metar");
+                this->airportWind.emplace(station, metarElement);
+            }
+            else if (existingWind->second != metarElement)
+            {
+                this->LogDebugMessage("New wind value for airport " + station + " is " + metarElement, "Metar");
+                this->airportWind[station] = metarElement;
+                this->windUnacked.insert(station);
+            }
+        }
+
+        std::smatch rvrMatch;
+        if (std::regex_match(metarElement, rvrMatch, rvrRx))
+        {
+            std::string rwy      = rvrMatch[1].str();
+            std::string modifier = rvrMatch[2].str();
+            int         value    = std::stoi(rvrMatch[3].str());
+            std::string varUpper = rvrMatch[4].str();
+            std::string trend    = rvrMatch[5].str();
+
+            std::string token = "R" + rwy + "/" + modifier + std::to_string(value);
+            if (!varUpper.empty()) { token += "V" + std::to_string(std::stoi(varUpper)); }
+            if (!trend.empty())    { token += trend; }
+
+            rvrTokens.push_back(token);
+        }
 
         if (std::regex_match(metarElement, qnh) || std::regex_match(metarElement, alt))
         {
@@ -462,6 +500,7 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 
                     // Save new QNH
                     this->airportQNH[station] = metarElement;
+                    this->qnhUnacked.insert(station);
 
                     // Set flight strip annotation on aircraft on the ground at that airport
                     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
@@ -481,6 +520,14 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
                         }
 
                         std::string callSign = fp.GetCallsign();
+
+                        if (this->ControllerMyself().GetFacility() == 4)
+                        {
+                            auto gsIt = this->groundStatus.find(callSign);
+                            std::string gs = (gsIt != this->groundStatus.end()) ? gsIt->second : fp.GetGroundState();
+                            if (gs != "TAXI" && gs != "LINEUP" && gs != "DEPA") { continue; }
+                        }
+
                         std::string dep = fp.GetFlightPlanData().GetOrigin();
                         to_upper(dep);
 
@@ -502,6 +549,29 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
                 }
             }
         }
+    }
+
+    // Sort RVR tokens by runway designator (numeric part), then join
+    std::sort(rvrTokens.begin(), rvrTokens.end(), [](const std::string& a, const std::string& b) {
+        auto rwyNum = [](const std::string& s) -> int {
+            size_t slash = s.find('/');
+            return (slash != std::string::npos && slash > 1) ? std::stoi(s.substr(1, slash - 1)) : 0;
+        };
+        return rwyNum(a) < rwyNum(b);
+    });
+    std::string newRVR;
+    for (const auto& t : rvrTokens) { if (!newRVR.empty()) { newRVR += " "; } newRVR += t; }
+
+    // Update RVR after processing all elements (may be empty if none present)
+    auto existingRVR = this->airportRVR.find(station);
+    if (existingRVR == this->airportRVR.end() || existingRVR->second != newRVR)
+    {
+        if (!newRVR.empty())
+        {
+            this->LogDebugMessage("New RVR for airport " + station + ": " + newRVR, "Metar");
+        }
+        this->airportRVR[station] = newRVR;
+        if (!newRVR.empty()) { this->rvrUnacked.insert(station); }
     }
 }
 

@@ -844,6 +844,7 @@ void CDelHelX_Timers::SaveAndRestoreWindowLocations()
     syncWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
     syncWindow(this->radarScreen->twrInboundWindowPos,  this->twrInboundWindowX,  this->twrInboundWindowY);
     syncWindow(this->radarScreen->napWindowPos,          this->napWindowX,          this->napWindowY);
+    syncWindow(this->radarScreen->weatherWindowPos,      this->weatherWindowX,      this->weatherWindowY);
 
     if (needsSave) { this->SaveWindowLocations(); }
 }
@@ -915,4 +916,97 @@ void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
             }
         }
     }
+}
+
+/// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
+/// Prefers _D_ callsigns when multiple ATIS stations match the same airport ICAO.
+void CDelHelX_Timers::PollAtisLetters(int Counter)
+{
+    // Resolve a completed fetch
+    if (this->atisFuture.valid() && this->atisFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+    {
+        try
+        {
+            auto j = json::parse(this->atisFuture.get());
+            for (auto& [icao, ap] : this->airports)
+            {
+                std::string icaoUpper = icao;
+                to_upper(icaoUpper);
+
+                std::string best;       // atis_code from best-matching station
+                std::string bestCs;     // callsign of best-matching station
+
+                for (auto& entry : j.at("atis"))
+                {
+                    std::string cs = entry.value("callsign", "");
+                    to_upper(cs);
+
+                    if (cs.find(icaoUpper) == std::string::npos)
+                    {
+                        continue;
+                    }
+
+                    std::string code = entry.value("atis_code", "");
+                    if (code.empty())
+                    {
+                        continue;
+                    }
+
+                    // First match wins; a _D_ match overrides any earlier non-_D_ match
+                    if (best.empty() || cs.find("_D_") != std::string::npos)
+                    {
+                        best   = code;
+                        bestCs = cs;
+                    }
+                }
+
+                auto it = this->atisLetters.find(icao);
+                bool hadLetter = (it != this->atisLetters.end() && !it->second.empty());
+                bool firstFetch = (it == this->atisLetters.end());
+
+                if (!best.empty())
+                {
+                    if (!hadLetter || it->second != best)
+                    {
+                        this->LogDebugMessage("ATIS for " + icao + " changed to " + best + " (from " + bestCs + ")", "ATIS");
+                        this->atisUnacked.insert(icao);
+                    }
+                    this->atisLetters[icao] = best;
+                }
+                else
+                {
+                    if (firstFetch)
+                    {
+                        this->LogDebugMessage("ATIS for " + icao + ": not available", "ATIS");
+                    }
+                    else if (hadLetter)
+                    {
+                        this->LogDebugMessage("ATIS for " + icao + ": no longer available", "ATIS");
+                    }
+                    this->atisLetters[icao] = "";
+                }
+            }
+        }
+        catch (std::exception& e)
+        {
+            this->LogMessage("ATIS fetch failed: " + std::string(e.what()), "ATIS");
+        }
+
+        this->atisFuture = std::future<std::string>();
+    }
+
+    // Launch a new fetch every 60 s; also fire at 15 s on first start when map is still empty
+    if (!this->atisFuture.valid() && (Counter % 60 == 0 || (Counter == 15 && this->atisLetters.empty())))
+    {
+        this->atisFuture = std::async(std::launch::async, FetchVatsimData);
+    }
+}
+
+/// @brief Clears all unacknowledged change flags for the given airport.
+void CDelHelX_Timers::AckWeather(const std::string& icao)
+{
+    this->windUnacked.erase(icao);
+    this->qnhUnacked.erase(icao);
+    this->atisUnacked.erase(icao);
+    this->rvrUnacked.erase(icao);
 }

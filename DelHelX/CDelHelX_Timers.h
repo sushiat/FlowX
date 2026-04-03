@@ -1,7 +1,10 @@
 #pragma once
 #include "CDelHelX_LookupsTools.h"
 #include "reconnectSnapshot.h"
+#include <future>
+#include <map>
 #include <set>
+#include <string>
 
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
 ///
@@ -67,6 +70,33 @@ protected:
     /// @brief Toggles each timer tick; drives blinking tag colours.
     bool blinking = false;
 
+    /// @brief ICAO -> current ATIS letter for each configured airport; empty string if not yet received.
+    std::map<std::string, std::string> atisLetters;
+
+    /// @brief Async future carrying the raw VATSIM data JSON; invalid when no fetch is in progress.
+    std::future<std::string> atisFuture;
+
+    /// @brief Last known QNH string per airport ICAO (e.g. "Q1013").
+    std::map<std::string, std::string> airportQNH;
+
+    /// @brief Last known wind string per airport ICAO (e.g. "27015KT").
+    std::map<std::string, std::string> airportWind;
+
+    /// @brief Airports where the wind value changed since the user last acknowledged.
+    std::set<std::string> windUnacked;
+
+    /// @brief Airports where the QNH value changed since the user last acknowledged.
+    std::set<std::string> qnhUnacked;
+
+    /// @brief Airports where the ATIS letter changed since the user last acknowledged.
+    std::set<std::string> atisUnacked;
+
+    /// @brief Formatted RVR display string per airport ICAO; empty if no RVR in the latest METAR.
+    std::map<std::string, std::string> airportRVR;
+
+    /// @brief Airports where the RVR changed since the user last acknowledged.
+    std::set<std::string> rvrUnacked;
+
     /// @brief Checks each configured airport's NAP reminder and fires a modal alert when the time is reached.
     /// @note Uses the airport's configured IANA timezone to evaluate the current local time.
     void CheckAirportNAPReminder();
@@ -96,6 +126,15 @@ protected:
 
     /// @brief Checks whether any window positions have changed and persists them via SaveSettings if so.
     void SaveAndRestoreWindowLocations();
+
+    /// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
+    /// @param Counter The EuroScope timer counter passed from OnTimer.
+    void PollAtisLetters(int Counter);
+
+public:
+    /// @brief Clears all unacknowledged change flags for the given airport ICAO.
+    /// @note Called from RadarScreen when the user clicks the WX/ATIS window row.
+    void AckWeather(const std::string& icao);
 
 public:
     /// @brief Records today's UTC date as the last NAP dismissal date and saves it to windowLocations.json.

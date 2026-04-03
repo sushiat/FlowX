@@ -14,6 +14,8 @@
 #define PLUGIN_LATEST_VERSION_URL "https://raw.githubusercontent.com/sushiat/DelHelX/master/version.txt"
 /// URL to the GitHub releases page for downloading the latest build
 #define PLUGIN_LATEST_DOWNLOAD_URL "https://github.com/sushiat/DelHelX/releases/latest"
+/// URL to the VATSIM v3 data feed (updates every ~15 s)
+#define VATSIM_DATA_URL "https://data.vatsim.net/v3/vatsim-data.json"
 
 /// Delimiter character used when serialising plugin settings to EuroScope storage
 const char SETTINGS_DELIMITER = '|';
@@ -80,6 +82,8 @@ const int SCREEN_OBJECT_NAP_WIN      = 6685; ///< NAP reminder window header (dr
 const int SCREEN_OBJECT_NAP_ACK      = 6686; ///< NAP reminder ACK button
 const int SCREEN_OBJECT_TWR_OUT_CELL = 6687; ///< Clickable cell in the TWR Outbound custom window
 const int SCREEN_OBJECT_TWR_IN_CELL  = 6688; ///< Clickable cell in the TWR Inbound custom window
+const int SCREEN_OBJECT_WEATHER_WIN  = 6689; ///< WX/ATIS window title bar (drag handle)
+const int SCREEN_OBJECT_WEATHER_ROW  = 6690; ///< Clickable airport section in the WX/ATIS window (ack)
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

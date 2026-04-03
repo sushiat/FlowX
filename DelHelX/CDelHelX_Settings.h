@@ -30,6 +30,8 @@ protected:
     int twrInboundWindowY   = -1; ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
     int napWindowX          = -1; ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
     int napWindowY          = -1; ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
+    int weatherWindowX      = -1; ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
+    int weatherWindowY      = -1; ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
     std::string napLastDismissedDate; ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
 
     std::future<std::string> latestVersion;  ///< Async future holding the fetched latest version string

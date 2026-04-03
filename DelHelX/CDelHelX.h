@@ -65,9 +65,6 @@ public:
     void OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType) override;
 
 private:
-    /// @brief Last known QNH string per airport ICAO (e.g. "Q1013").
-    std::map<std::string, std::string> airportQNH;
-
     /// @brief Last full METAR string received per airport ICAO, used to suppress duplicate log output.
     std::map<std::string, std::string> lastMetar;
 

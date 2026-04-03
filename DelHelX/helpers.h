@@ -15,6 +15,11 @@ extern "C" IMAGE_DOS_HEADER __ImageBase;
 /// @note Performs a synchronous WinInet HTTP request; call from a background thread.
 std::string FetchLatestVersion();
 
+/// @brief Fetches the full VATSIM v3 data feed JSON.
+/// @return Raw JSON string from VATSIM_DATA_URL, or throws on failure.
+/// @note Performs a synchronous WinInet HTTP request; call from a background thread.
+std::string FetchVatsimData();
+
 /// @brief Base class for all plugin exceptions that can display a Win32 MessageBox.
 class delhelexception : public std::exception
 {
