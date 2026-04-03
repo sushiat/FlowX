@@ -908,14 +908,13 @@ void RadarScreen::DrawStartButton(HDC hDC)
     const int BTN_H = 20;
 
     // Re-read boundaries every frame so the button floats above whichever overlay is currently visible.
-    // GetRadarArea().bottom matches chat.top exactly when chat is open, giving consistent positioning.
-    // When the chat is closed GetRadarArea().bottom sits ~4 px above the visual edge due to ES's built-in
-    // margin, so add 4 px to compensate and flush the button to the true bottom.
+    // When chat is open, chat.top is the exact pixel where the panel begins — use it directly.
+    // When chat is closed, clip.bottom (the GDI drawable boundary) is the true visual edge.
     RECT clip;
     GetClipBox(hDC, &clip);
     RECT chat     = GetChatArea();
     bool chatOpen = (chat.bottom > chat.top);
-    int  bottom   = chatOpen ? chat.top : GetRadarArea().bottom + 4;
+    int  bottom   = chatOpen ? chat.top : clip.bottom;
     int  bx       = clip.right - BTN_W;
     int  by       = bottom     - BTN_H;
 
@@ -1001,12 +1000,12 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     int MENU_H = OUTER_PAD;
     for (int i = 0; i < NUM_ROWS; i++) { MENU_H += (rows[i].isHeader && i > 0) ? GAP_H + HEADER_H : rows[i].isHeader ? HEADER_H : ITEM_H; }
 
-    // Mirror DrawStartButton's anchor logic exactly (including the +4 px correction for chat-closed).
+    // Mirror DrawStartButton's anchor logic exactly.
     RECT clip;
     GetClipBox(hDC, &clip);
     RECT chat     = GetChatArea();
     bool chatOpen = (chat.bottom > chat.top);
-    int  bottom   = chatOpen ? chat.top : GetRadarArea().bottom + 4;
+    int  bottom   = chatOpen ? chat.top : clip.bottom;
     int  mx       = clip.right - MENU_W;
     int  my       = bottom - BTN_H - MENU_H;
 
