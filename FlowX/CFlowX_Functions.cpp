@@ -385,3 +385,35 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
         }
     }
 }
+
+/// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.
+void CFlowX_Functions::RedoFlags()
+{
+    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+    {
+        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+        if (!pos.IsValid() || pos.GetReportedGS() > 40) { continue; }
+
+        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe())) { continue; }
+
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
+        std::string arr = fp.GetFlightPlanData().GetDestination();
+        to_upper(arr);
+        std::string cs = fp.GetCallsign();
+
+        if (dep.empty() || arr.empty()) { continue; }
+
+        auto airport = this->airports.find(dep);
+        if (airport == this->airports.end()) { continue; }
+
+        if (pos.GetPressureAltitude() >= airport->second.fieldElevation + 50) { continue; }
+
+        if (fp.GetClearenceFlag() && this->radarScreen != nullptr)
+        {
+            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+        }
+    }
+}

@@ -14,61 +14,7 @@
 #include "helpers.h"
 #include "date/tz.h"
 
-/// @brief Re-evaluates the EuroScope clearance flag for all on-ground cleared aircraft.
-void CFlowX::RedoFlags()
-{
-    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
-    {
-        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        // Skip if aircraft is not on the ground (currently using ground speed threshold)
-        if (!pos.IsValid() || pos.GetReportedGS() > 40)
-        {
-            continue;
-        }
-
-        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        // Skip if aircraft is tracked (except for aircraft tracked by current controller)
-        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe()))
-        {
-            continue;
-        }
-
-        std::string dep = fp.GetFlightPlanData().GetOrigin();
-        to_upper(dep);
-
-        std::string arr = fp.GetFlightPlanData().GetDestination();
-        to_upper(arr);
-
-        std::string cs = fp.GetCallsign();
-
-        // Skip aircraft without a valid flight plan (no departure/destination airport)
-        if (dep.empty() || arr.empty())
-        {
-            continue;
-        }
-
-        auto airport = this->airports.find(dep);
-        if (airport == this->airports.end())
-        {
-            // Airport not in config
-            continue;
-        }
-
-        int depElevation = airport->second.fieldElevation;
-        if (pos.GetPressureAltitude() >= depElevation + 50)
-        {
-            continue;
-        }
-
-        if (fp.GetClearenceFlag() && this->radarScreen != nullptr)
-        {
-            // Toggle off and back on
-            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
-            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
-        }
-    }
-}
-
+/// @brief Constructs the main plugin object and initialises override flags to false.
 CFlowX::CFlowX()
 {
     this->groundOverride = false;

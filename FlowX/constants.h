@@ -97,6 +97,8 @@ const int SCREEN_OBJECT_TWR_OUT_CELL = 6687; ///< Clickable cell in the TWR Outb
 const int SCREEN_OBJECT_TWR_IN_CELL  = 6688; ///< Clickable cell in the TWR Inbound custom window
 const int SCREEN_OBJECT_WEATHER_WIN  = 6689; ///< WX/ATIS window title bar (drag handle)
 const int SCREEN_OBJECT_WEATHER_ROW  = 6690; ///< Clickable airport section in the WX/ATIS window (ack)
+const int SCREEN_OBJECT_START_BTN       = 6691; ///< Start button anchored to the lower-right corner of the radar screen
+const int SCREEN_OBJECT_START_MENU_ITEM = 6692; ///< Clickable row inside the Start button popup menu
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

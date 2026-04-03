@@ -88,6 +88,12 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws the NAP reminder window when napReminderActive is true.
     void DrawNapReminder(HDC hDC);
 
+    /// @brief Draws the Start button anchored to the lower-right corner, re-reading the clip box each frame.
+    void DrawStartButton(HDC hDC);
+
+    /// @brief Draws the popup menu that opens above the Start button when startMenuOpen is true.
+    void DrawStartMenu(HDC hDC);
+
     /// @brief Draws the TWR Inbound custom window using pre-calculated twrInboundRowsCache.
     void DrawTwrInbound(HDC hDC);
 
@@ -114,6 +120,10 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::string                                   napReminderAirport;              ///< ICAO code of the airport whose NAP reminder is currently active
     POINT                                         napWindowPos = {-1, -1};         ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
     std::map<std::string, depInfo>                radarTargetDepartureInfos;       ///< Callsign -> departure overlay data for aircraft currently shown on the radar
+    int                                           startBtnLastHoverType  = -1;     ///< Last object type reported by OnOverScreenObject for the Start button; used to detect hover transitions
+    bool                                          startBtnPressed    = false;      ///< True while the left mouse button is held down over the Start button
+    int                                           startMenuLastHoverType = -1;     ///< Last object type reported by OnOverScreenObject for Start menu items; used to detect hover transitions
+    bool                                          startMenuOpen      = false;      ///< True while the Start button popup menu is visible
     std::map<std::string, std::string>            towerStations;                   ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)
     POINT                                         twrInboundLastDrag = {-1, -1};   ///< Previous drag cursor position for the TWR Inbound window
     std::vector<TwrInboundRowCache>               twrInboundRowsCache;             ///< Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates)

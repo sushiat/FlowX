@@ -30,6 +30,9 @@ class CFlowX_Base : public EuroScopePlugIn::CPlugIn
     /// @brief Constructs the plugin, registering all tag items, functions, and flight-plan lists with EuroScope.
     CFlowX_Base();
 
+    /// @brief Returns the current debug-mode state.
+    bool GetDebug() const { return this->debug; }
+
     /// @brief Clears the stored radar screen pointer (called by the screen itself before deletion).
     void ClearRadarScreen()
     {

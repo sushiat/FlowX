@@ -26,10 +26,6 @@ class CFlowX : public CFlowX_Functions
   private:
     std::map<std::string, std::string> lastMetar; ///< Last full METAR string received per airport ICAO, used to suppress duplicate log output.
 
-    /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.
-    /// @note Used to recover from flag corruption; operates on untracked and self-tracked aircraft only.
-    void RedoFlags();
-
   public:
     /// @brief Constructs the main plugin object and initialises override flags to false.
     CFlowX();

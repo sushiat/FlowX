@@ -9,6 +9,8 @@
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
 #include "CFlowX_CustomTags.h"
+#include "CFlowX_Functions.h"
+#include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"
 
 #include <algorithm>
@@ -168,6 +170,8 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         this->DrawTwrInbound(hDC);
         this->DrawNapReminder(hDC);
         this->DrawWeatherWindow(hDC);
+        this->DrawStartButton(hDC);
+        this->DrawStartMenu(hDC);
     }
 }
 
@@ -825,6 +829,223 @@ void RadarScreen::DrawNapReminder(HDC hDC)
     AddScreenObject(SCREEN_OBJECT_NAP_ACK, "NAPACK", btnRect, false, "Acknowledge NAP reminder");
 }
 
+/// @brief Draws the Start button pinned to the lower-right corner of the radar screen.
+/// GetChatArea() is queried every frame: when the chat / flight-strip bay is open the button
+/// floats above it; otherwise it sits above the raw clip-box bottom.
+void RadarScreen::DrawStartButton(HDC hDC)
+{
+    const int BTN_W = 56;
+    const int BTN_H = 20;
+
+    // Re-read boundaries every frame so the button floats above whichever overlay is currently visible.
+    // GetRadarArea().bottom matches chat.top exactly when chat is open, giving consistent positioning.
+    RECT clip;
+    GetClipBox(hDC, &clip);
+    RECT chat     = GetChatArea();
+    bool chatOpen = (chat.bottom > chat.top);
+    int  bottom   = chatOpen ? chat.top : GetRadarArea().bottom;
+    int  bx       = clip.right - BTN_W;
+    int  by       = bottom     - BTN_H;
+
+    RECT btnRect = { bx, by, bx + BTN_W, by + BTN_H };
+
+    // Reset hover tracking each frame so every new mouse-enter counts as a fresh transition.
+    this->startBtnLastHoverType = -1;
+
+    // Read live cursor position for hover detection; RequestRefresh() from OnOverScreenObject keeps this current.
+    HWND  hwnd = WindowFromDC(hDC);
+    POINT cursor;
+    GetCursorPos(&cursor);
+    if (hwnd) { ScreenToClient(hwnd, &cursor); }
+    bool hovered = PtInRect(&btnRect, cursor) != 0;
+
+    // Background — three visual states: normal / hover / pressed
+    COLORREF bgColor     = this->startBtnPressed ? RGB( 70, 110, 170)
+                         : hovered               ? RGB( 50,  85, 135)
+                                                 : RGB( 30,  55,  95);
+    COLORREF borderColor = this->startBtnPressed ? RGB(180, 210, 255)
+                         : hovered               ? RGB(120, 160, 220)
+                                                 : RGB( 80, 120, 180);
+
+    auto bgBrush = CreateSolidBrush(bgColor);
+    FillRect(hDC, &btnRect, bgBrush);
+    DeleteObject(bgBrush);
+
+    auto borderBrush = CreateSolidBrush(borderColor);
+    FrameRect(hDC, &btnRect, borderBrush);
+    DeleteObject(borderBrush);
+
+    SetBkMode(hDC, TRANSPARENT);
+
+    HFONT font = CreateFontA(-11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prev = (HFONT)SelectObject(hDC, font);
+    SetTextColor(hDC, TAG_COLOR_WHITE);
+    DrawTextA(hDC, "FlowX", -1, &btnRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hDC, prev);
+    DeleteObject(font);
+
+    AddScreenObject(SCREEN_OBJECT_START_BTN, "STARTBTN", btnRect, false, "FlowX");
+}
+
+/// @brief Draws the popup menu above the Start button when startMenuOpen is true.
+/// Uses the same clip-box and chat-area logic as DrawStartButton to stay flush above it.
+void RadarScreen::DrawStartMenu(HDC hDC)
+{
+    if (!this->startMenuOpen) { return; }
+
+    const int BTN_H     = 20;  ///< Must match DrawStartButton::BTN_H
+    const int HEADER_H  = 16;  ///< Height of a section header row
+    const int ITEM_H    = 20;  ///< Height of a clickable item row
+    const int GAP_H     = 10;  ///< Spacer height inserted above each section header after the first
+    const int OUTER_PAD = 6;   ///< Margin from the outer border to all content on every side
+    const int CBX_S     = 9;   ///< Checkbox square size in pixels
+    const int CBX_GAP   = 4;   ///< Gap between checkbox right edge and item label
+    const int MENU_W    = 150; ///< Menu width; right-aligned with the button
+
+    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; };
+
+    auto* base     = static_cast<CFlowX_Base*>(this->GetPlugIn());
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
+    MenuRow rows[] = {
+        { true,  "Commands",       false, false,                       -1 },
+        { false, "Redo CLR flags", false, false,                        0 },
+        { true,  "Options",        false, false,                       -1 },
+        { false, "Debug mode",     true,  base->GetDebug(),             1 },
+        { false, "Autostore FPLN", true,  settings->GetAutoRestore(),   2 },
+    };
+    const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
+
+    // Compute total menu height: outer padding at bottom only (top header sits flush with the border), gaps before non-first headers, row heights.
+    int MENU_H = OUTER_PAD;
+    for (int i = 0; i < NUM_ROWS; i++) { MENU_H += (rows[i].isHeader && i > 0) ? GAP_H + HEADER_H : rows[i].isHeader ? HEADER_H : ITEM_H; }
+
+    // Mirror DrawStartButton's anchor logic exactly.
+    RECT clip;
+    GetClipBox(hDC, &clip);
+    RECT chat     = GetChatArea();
+    bool chatOpen = (chat.bottom > chat.top);
+    int  bottom   = chatOpen ? chat.top : GetRadarArea().bottom;
+    int  mx       = clip.right - MENU_W;
+    int  my       = bottom - BTN_H - MENU_H;
+
+    // Hover detection — reset each frame so every enter counts as a fresh transition.
+    this->startMenuLastHoverType = -1;
+    HWND  hwnd = WindowFromDC(hDC);
+    POINT cursor;
+    GetCursorPos(&cursor);
+    if (hwnd) { ScreenToClient(hwnd, &cursor); }
+
+    // Auto-close if the cursor moves more than 100 px away from the menu in any direction.
+    const int CLOSE_DIST = 100;
+    if (cursor.x < mx - CLOSE_DIST || cursor.x > mx + MENU_W + CLOSE_DIST ||
+        cursor.y < my - CLOSE_DIST || cursor.y > my + MENU_H + CLOSE_DIST)
+    {
+        this->startMenuOpen = false;
+        this->RequestRefresh();
+        return;
+    }
+
+    // Overall background and border.
+    RECT menuRect = { mx, my, mx + MENU_W, my + MENU_H };
+    auto bgBrush  = CreateSolidBrush(RGB(15, 15, 15));
+    FillRect(hDC, &menuRect, bgBrush);
+    DeleteObject(bgBrush);
+
+    SetBkMode(hDC, TRANSPARENT);
+
+    HFONT headerFont = CreateFontA(-10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT itemFont   = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT cbxFont    = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prev = (HFONT)SelectObject(hDC, itemFont);
+
+    int iy = my;
+    for (int i = 0; i < NUM_ROWS; i++)
+    {
+        const MenuRow& row = rows[i];
+        int  rh      = row.isHeader ? HEADER_H : ITEM_H;
+        RECT rowRect = { mx, iy, mx + MENU_W, iy + rh }; // rowRect for headers is updated after gap advance below
+
+        if (row.isHeader)
+        {
+            // Gap spacer above every section header except the first.
+            if (i > 0) { iy += GAP_H; }
+
+            // Section header — blue title-bar background, inset by 1 so it doesn't paint over the border.
+            rowRect = { mx + 1, iy, mx + MENU_W - 1, iy + HEADER_H };
+            auto hdrBrush = CreateSolidBrush(RGB(30, 55, 95));
+            FillRect(hDC, &rowRect, hdrBrush);
+            DeleteObject(hdrBrush);
+
+            SelectObject(hDC, headerFont);
+            SetTextColor(hDC, TAG_COLOR_WHITE);
+            RECT textRect = { mx + OUTER_PAD, iy, mx + MENU_W - OUTER_PAD, iy + HEADER_H };
+            DrawTextA(hDC, row.label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        else
+        {
+            // Clickable item row — hover highlight and optional checkbox.
+            bool rowHovered = PtInRect(&rowRect, cursor) != 0;
+            if (rowHovered)
+            {
+                auto hoverBrush = CreateSolidBrush(RGB(45, 70, 115));
+                FillRect(hDC, &rowRect, hoverBrush);
+                DeleteObject(hoverBrush);
+            }
+
+            if (row.hasCheckbox)
+            {
+                int  cy      = iy + (ITEM_H - CBX_S) / 2;
+                int  cx      = mx + OUTER_PAD;
+                RECT boxRect = { cx, cy, cx + CBX_S, cy + CBX_S };
+
+                auto boxBrush  = CreateSolidBrush(row.checked ? RGB(30, 55, 95) : RGB(25, 25, 25));
+                FillRect(hDC, &boxRect, boxBrush);
+                DeleteObject(boxBrush);
+
+                auto boxBorder = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+                FrameRect(hDC, &boxRect, boxBorder);
+                DeleteObject(boxBorder);
+
+                if (row.checked)
+                {
+                    SelectObject(hDC, cbxFont);
+                    SetTextColor(hDC, TAG_COLOR_WHITE);
+                    DrawTextA(hDC, "x", -1, &boxRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                }
+            }
+
+            SelectObject(hDC, itemFont);
+            RECT textRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, mx + MENU_W - OUTER_PAD, iy + ITEM_H };
+            SetTextColor(hDC, rowHovered ? TAG_COLOR_WHITE : TAG_COLOR_LIST_GRAY);
+            DrawTextA(hDC, row.label, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            std::string objId = "MENU|" + std::to_string(row.itemIdx);
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, objId.c_str(), rowRect, false, row.label);
+        }
+
+        iy += rh;
+    }
+
+    // Draw border last so it renders on top of all header/item fills.
+    auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+    FrameRect(hDC, &menuRect, borderBrush);
+    DeleteObject(borderBrush);
+
+    SelectObject(hDC, prev);
+    DeleteObject(headerFont);
+    DeleteObject(itemFont);
+    DeleteObject(cbxFont);
+}
+
 /// @brief Draws the WX/ATIS window: wind, QNH, and ATIS letter in a single horizontal row.
 /// Values are highlighted yellow when changed; clicking the row acknowledges them.
 void RadarScreen::DrawWeatherWindow(HDC hDC)
@@ -943,14 +1164,38 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
             this->RequestRefresh();
         }
     }
+
+    if (ObjectType == SCREEN_OBJECT_START_BTN)
+    {
+        if (ObjectType != this->startBtnLastHoverType)
+        {
+            this->startBtnLastHoverType = ObjectType;
+            this->RequestRefresh();
+        }
+    }
+
+    if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM)
+    {
+        if (ObjectType != this->startMenuLastHoverType)
+        {
+            this->startMenuLastHoverType = ObjectType;
+            this->RequestRefresh();
+        }
+    }
 }
 
-/// @brief Sets the pressed state when the mouse button goes down over the ACK button.
+/// @brief Sets the pressed state when the mouse button goes down over the ACK or Start button.
 void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
     if (ObjectType == SCREEN_OBJECT_NAP_ACK)
     {
         this->napAckPressed = true;
+        this->RequestRefresh();
+    }
+
+    if (ObjectType == SCREEN_OBJECT_START_BTN)
+    {
+        this->startBtnPressed = true;
         this->RequestRefresh();
     }
 }
@@ -963,11 +1208,52 @@ void RadarScreen::OnButtonUpScreenObject(int ObjectType, const char* sObjectId, 
         this->napAckPressed = false;
         this->RequestRefresh();
     }
+
+    if (ObjectType == SCREEN_OBJECT_START_BTN)
+    {
+        this->startBtnPressed = false;
+        this->RequestRefresh();
+    }
 }
 
 /// @brief Starts the ACK blink animation on click; the window closes after it completes.
+/// Also handles Start button menu toggle and menu item selection.
 void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
+    if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
+    {
+        this->startMenuOpen = !this->startMenuOpen;
+        this->RequestRefresh();
+        return;
+    }
+
+    if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM && Button == EuroScopePlugIn::BUTTON_LEFT)
+    {
+        std::string id(sObjectId);
+        auto sep = id.find('|');
+        if (sep != std::string::npos)
+        {
+            int idx = std::stoi(id.substr(sep + 1));
+            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+            if (idx == 0) // Redo CLR flags
+            {
+                static_cast<CFlowX_Functions*>(this->GetPlugIn())->RedoFlags();
+            }
+            else if (idx == 1) // Debug mode
+            {
+                settings->ToggleDebug();
+                this->debug = static_cast<CFlowX_Base*>(this->GetPlugIn())->GetDebug();
+            }
+            else if (idx == 2) // Autostore FPLN
+            {
+                settings->ToggleAutoRestore();
+            }
+        }
+        this->startMenuOpen = false;
+        this->RequestRefresh();
+        return;
+    }
+
     if (ObjectType == SCREEN_OBJECT_NAP_ACK && this->napAckClickTick == 0)
     {
         this->napAckClickTick = GetTickCount64();

@@ -62,4 +62,13 @@ class CFlowX_Settings : public CFlowX_Logging
   public:
     /// @brief Constructs the settings layer, loading persisted settings and config.json on startup.
     CFlowX_Settings();
+
+    /// @brief Returns the current auto-restore state.
+    bool GetAutoRestore() const { return this->autoRestore; }
+
+    /// @brief Toggles the auto-restore setting and persists it immediately.
+    void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveSettings(); }
+
+    /// @brief Toggles the debug-mode setting and persists it immediately.
+    void ToggleDebug() { this->debug = !this->debug; SaveSettings(); }
 };

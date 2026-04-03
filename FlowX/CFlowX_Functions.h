@@ -67,4 +67,9 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @param fp Currently selected flight plan.
     /// @note Picks the SID-specific approach frequency when available; falls back to UNICOM if no station is online.
     void Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp);
+
+  public:
+    /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.
+    /// @note Used to recover from flag corruption; operates on untracked and self-tracked aircraft only.
+    void RedoFlags();
 };
