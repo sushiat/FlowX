@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Timers.h
+ * @brief Declaration of CDelHelX_Timers, the timer-driven aircraft state management layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include "CDelHelX_LookupsTools.h"
 #include "reconnectSnapshot.h"

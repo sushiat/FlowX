@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_LookupsTools.cpp
+ * @brief Geometry and lookup utilities; point-in-polygon and holding-point annotation helpers.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_LookupsTools.h"
 

@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Functions.cpp
+ * @brief Tag function callbacks; handles controller click actions for HP, lineup, transfer, and more.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_Functions.h"
 

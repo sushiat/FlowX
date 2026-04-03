@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_CustomTags.h
+ * @brief Declaration of CDelHelX_CustomTags, the custom GDI window cache builder layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include "CDelHelX_Tags.h"
 #include "cachedTagData.h"

@@ -1,3 +1,10 @@
+/**
+ * @file reconnectSnapshot.h
+ * @brief Declaration of reconnectSnapshot, used to restore flight plan state on quick reconnect.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include <string>
 

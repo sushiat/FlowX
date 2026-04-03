@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX.cpp
+ * @brief Top-level plugin implementation; dispatches EuroScope events and handles chat commands.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX.h"
 

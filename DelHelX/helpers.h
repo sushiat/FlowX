@@ -1,3 +1,10 @@
+/**
+ * @file helpers.h
+ * @brief HTTP fetch helpers, exception classes, and general string/math utility functions.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <string>

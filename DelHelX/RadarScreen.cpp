@@ -1,3 +1,10 @@
+/**
+ * @file RadarScreen.cpp
+ * @brief Radar screen implementation; GDI rendering, drag interaction, and controller station tracking.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CDelHelX_Base.h"

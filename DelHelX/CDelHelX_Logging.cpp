@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Logging.cpp
+ * @brief Logging layer; writes messages and debug output to the EuroScope chat area.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_Logging.h"
 #include "constants.h"

@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Base.h
+ * @brief Declaration of CDelHelX_Base, the plugin registration and radar screen creation layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include <EuroScope/EuroScopePlugIn.h>
 

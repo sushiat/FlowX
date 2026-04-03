@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Settings.h
+ * @brief Declaration of CDelHelX_Settings, the configuration and persistence layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include "CDelHelX_Logging.h"
 #include "config.h"

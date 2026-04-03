@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Tags.cpp
+ * @brief EuroScope tag item implementations for the five registered tag columns.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_Tags.h"
 

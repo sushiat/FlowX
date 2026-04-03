@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Timers.cpp
+ * @brief Timer-driven state management; TTT tracking, same-SID detection, and reconnect restore.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_Timers.h"
 

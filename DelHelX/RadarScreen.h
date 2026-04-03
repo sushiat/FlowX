@@ -1,3 +1,10 @@
+/**
+ * @file RadarScreen.h
+ * @brief Declaration of RadarScreen and the depInfo overlay struct.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <map>

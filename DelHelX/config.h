@@ -1,3 +1,10 @@
+/**
+ * @file config.h
+ * @brief Airport configuration structures loaded from config.json at startup.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <string>

@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Logging.h
+ * @brief Declaration of CDelHelX_Logging, the chat message logging layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include "CDelHelX_Base.h"
 

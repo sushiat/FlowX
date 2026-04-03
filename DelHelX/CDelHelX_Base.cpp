@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Base.cpp
+ * @brief Plugin base layer; registers tag items, tag functions, and instantiates the radar screen.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_Base.h"
 

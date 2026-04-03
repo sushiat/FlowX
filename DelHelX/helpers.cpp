@@ -1,3 +1,10 @@
+/**
+ * @file helpers.cpp
+ * @brief WinInet HTTP helpers; implements FetchLatestVersion and FetchVatsimData.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 
 #include "helpers.h"

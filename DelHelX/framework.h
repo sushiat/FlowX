@@ -1,3 +1,10 @@
+/**
+ * @file framework.h
+ * @brief Windows and MFC precompiled header prerequisites.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #ifndef VC_EXTRALEAN

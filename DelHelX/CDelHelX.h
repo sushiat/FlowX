@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX.h
+ * @brief Declaration of CDelHelX, the top-level plugin class.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <string>

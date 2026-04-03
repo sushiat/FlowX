@@ -1,3 +1,10 @@
+/**
+ * @file cachedTagData.h
+ * @brief Cache row structs for custom GDI windows (TWR Outbound, TWR Inbound, DEP/H, WX/ATIS).
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <string>

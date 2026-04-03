@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Functions.h
+ * @brief Declaration of CDelHelX_Functions, the tag function callback layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include "CDelHelX_CustomTags.h"
 

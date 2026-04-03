@@ -1,3 +1,10 @@
+/**
+ * @file tagInfo.h
+ * @brief Declaration of tagInfo, carrying tag display text and color for EuroScope tag rendering.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <string>

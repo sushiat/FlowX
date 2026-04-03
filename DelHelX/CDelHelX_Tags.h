@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Tags.h
+ * @brief Declaration of CDelHelX_Tags, the EuroScope tag item rendering layer.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #include "CDelHelX_Timers.h"
 #include "tagInfo.h"

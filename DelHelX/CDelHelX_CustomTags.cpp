@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_CustomTags.cpp
+ * @brief Custom GDI window cache builder; computes outbound and inbound row data in single-pass functions.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_CustomTags.h"
 #include "helpers.h"

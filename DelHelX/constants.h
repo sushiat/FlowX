@@ -1,3 +1,10 @@
+/**
+ * @file constants.h
+ * @brief Plugin-wide constants: tag item IDs, function IDs, colors, screen object IDs, and interop constants.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 
 #include <regex>

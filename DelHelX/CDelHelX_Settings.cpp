@@ -1,3 +1,10 @@
+/**
+ * @file CDelHelX_Settings.cpp
+ * @brief Settings layer; loads and saves config.json, EuroScope settings, and window positions.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #include "pch.h"
 #include "CDelHelX_Settings.h"
 #include "helpers.h"
