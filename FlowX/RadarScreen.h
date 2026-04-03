@@ -131,6 +131,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     POINT                                         twrOutboundLastDrag = {-1, -1};  ///< Previous drag cursor position for the TWR Outbound window
     std::vector<TwrOutboundRowCache>              twrOutboundRowsCache;            ///< Cached per-aircraft rows for the TWR Outbound window; rebuilt every second by UpdateTagCache()
     POINT                                         twrOutboundWindowPos = {-1, -1}; ///< Top-left corner of the TWR Outbound window; (-1,-1) until first draw
+    int                                           winCloseLastHoverType = -1;       ///< Last object type reported by OnOverScreenObject for window close buttons; used to detect enter/leave transitions
     POINT                                         weatherLastDrag      = {-1, -1}; ///< Previous drag cursor position for the WX/ATIS window
     std::vector<WeatherRowCache>                  weatherRowsCache;                ///< Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache()
     POINT                                         weatherWindowPos = {-1, -1};     ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw

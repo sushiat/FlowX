@@ -241,6 +241,8 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
 /// @brief Draws the DEP/H departure-rate window from the pre-calculated depRateRowsCache.
 void RadarScreen::DrawDepRateWindow(HDC hDC)
 {
+    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetDepRateVisible()) { return; }
+
     const int TITLE_H = 13;
     const int HDR_H   = 17;
     const int ROW_H   = 15;
@@ -250,6 +252,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     const int COL_GAP = 6;
     const int COL_SPC = 56;
     const int WIN_W   = WIN_PAD + COL_RWY + COL_CNT + COL_GAP + COL_SPC + WIN_PAD;
+    const int X_BTN   = 11;  ///< Width and height of the title-bar close button
     int numRows       = (int)this->depRateRowsCache.size();
     const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + WIN_PAD / 2;
 
@@ -263,6 +266,15 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
 
     int wx = this->depRateWindowPos.x;
     int wy = this->depRateWindowPos.y;
+
+    // Close button rect (inside title bar, inset 1 px from border)
+    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    this->winCloseLastHoverType = -1;
+    HWND  hwndDep = WindowFromDC(hDC);
+    POINT cursorDep;
+    GetCursorPos(&cursorDep);
+    if (hwndDep) { ScreenToClient(hwndDep, &cursorDep); }
+    bool xHovered = PtInRect(&xRect, cursorDep) != 0;
 
     RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H            };
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
@@ -278,22 +290,34 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     DeleteObject(titleBrush);
     DeleteObject(hdrBrush);
 
+    if (xHovered)
+    {
+        auto xBrush = CreateSolidBrush(RGB(180, 40, 40));
+        FillRect(hDC, &xRect, xBrush);
+        DeleteObject(xBrush);
+    }
+
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
     DeleteObject(borderBrush);
 
     SetBkMode(hDC, TRANSPARENT);
 
-    // Title row (smaller font, draggable)
+    // Title row (smaller font, draggable — excludes close button area)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "Departures", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // Close button text
+    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", titleRect, true, "");
+    RECT dragRect = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", dragRect, true, "");
+    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "depRate", xRect, false, "");
 
     // Column headers
     SetTextColor(hDC, TAG_COLOR_WHITE);
@@ -334,6 +358,8 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
 /// Column widths derived from the original EuroScope list definition char widths × 7px.
 void RadarScreen::DrawTwrOutbound(HDC hDC)
 {
+    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetTwrOutboundVisible()) { return; }
+
     const int TITLE_H = 13;
     const int HDR_H   = 17;
     const int ROW_H   = 19;
@@ -377,6 +403,15 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     int wx = this->twrOutboundWindowPos.x;
     int wy = this->twrOutboundWindowPos.y;
 
+    const int X_BTN = 11;
+    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    this->winCloseLastHoverType = -1;
+    HWND  hwndOut = WindowFromDC(hDC);
+    POINT cursorOut;
+    GetCursorPos(&cursorOut);
+    if (hwndOut) { ScreenToClient(hwndOut, &cursorOut); }
+    bool xHovered = PtInRect(&xRect, cursorOut) != 0;
+
     RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H            };
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
@@ -391,22 +426,34 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     DeleteObject(titleBrush);
     DeleteObject(hdrBrush);
 
+    if (xHovered)
+    {
+        auto xBrush = CreateSolidBrush(RGB(180, 40, 40));
+        FillRect(hDC, &xRect, xBrush);
+        DeleteObject(xBrush);
+    }
+
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
     DeleteObject(borderBrush);
 
     SetBkMode(hDC, TRANSPARENT);
 
-    // Title row (smaller font, draggable)
+    // Title row (smaller font, draggable — excludes close button area)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Outbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // Close button text
+    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    AddScreenObject(SCREEN_OBJECT_TWR_OUT_WIN, "TWROUT", titleRect, true, "");
+    RECT dragRectOut = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    AddScreenObject(SCREEN_OBJECT_TWR_OUT_WIN, "TWROUT", dragRectOut, true, "");
+    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrOut", xRect, false, "");
 
     // Column headers — smaller font
     HFONT hdrFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
@@ -519,6 +566,8 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 /// Column widths derived from the original EuroScope list definition char widths × 7px.
 void RadarScreen::DrawTwrInbound(HDC hDC)
 {
+    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetTwrInboundVisible()) { return; }
+
     const int TITLE_H = 13;
     const int HDR_H   = 17;
     const int ROW_H        = 19;
@@ -565,6 +614,15 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     int wx = this->twrInboundWindowPos.x;
     int wy = this->twrInboundWindowPos.y;
 
+    const int X_BTN = 11;
+    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    this->winCloseLastHoverType = -1;
+    HWND  hwndIn = WindowFromDC(hDC);
+    POINT cursorIn;
+    GetCursorPos(&cursorIn);
+    if (hwndIn) { ScreenToClient(hwndIn, &cursorIn); }
+    bool xHovered = PtInRect(&xRect, cursorIn) != 0;
+
     RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H            };
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
@@ -579,22 +637,34 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     DeleteObject(titleBrush);
     DeleteObject(hdrBrush);
 
+    if (xHovered)
+    {
+        auto xBrush = CreateSolidBrush(RGB(180, 40, 40));
+        FillRect(hDC, &xRect, xBrush);
+        DeleteObject(xBrush);
+    }
+
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
     DeleteObject(borderBrush);
 
     SetBkMode(hDC, TRANSPARENT);
 
-    // Title row (smaller font, draggable)
+    // Title row (smaller font, draggable — excludes close button area)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Inbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // Close button text
+    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    AddScreenObject(SCREEN_OBJECT_TWR_IN_WIN, "TWRIN", titleRect, true, "");
+    RECT dragRectIn = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    AddScreenObject(SCREEN_OBJECT_TWR_IN_WIN, "TWRIN", dragRectIn, true, "");
+    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrIn", xRect, false, "");
 
     // Column headers — smaller font
     HFONT hdrFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
@@ -891,6 +961,7 @@ void RadarScreen::DrawStartButton(HDC hDC)
 
 /// @brief Draws the popup menu above the Start button when startMenuOpen is true.
 /// Uses the same clip-box and chat-area logic as DrawStartButton to stay flush above it.
+/// Sections: Windows (window show/hide toggles), Commands (actions), Options (plugin toggles).
 void RadarScreen::DrawStartMenu(HDC hDC)
 {
     if (!this->startMenuOpen) { return; }
@@ -910,11 +981,17 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
 
     MenuRow rows[] = {
-        { true,  "Commands",       false, false,                       -1 },
-        { false, "Redo CLR flags", false, false,                        0 },
-        { true,  "Options",        false, false,                       -1 },
-        { false, "Debug mode",     true,  base->GetDebug(),             1 },
-        { false, "Autostore FPLN", true,  settings->GetAutoRestore(),   2 },
+        { true,  "Windows",        false, false,                              -1 },
+        { false, "DEP/H",          true,  settings->GetDepRateVisible(),       4 },
+        { false, "TWR Outbound",   true,  settings->GetTwrOutboundVisible(),   5 },
+        { false, "TWR Inbound",    true,  settings->GetTwrInboundVisible(),    6 },
+        { false, "WX/ATIS",        true,  settings->GetWeatherVisible(),       7 },
+        { true,  "Commands",       false, false,                              -1 },
+        { false, "Redo CLR flags", false, false,                               0 },
+        { false, "Save positions", false, false,                               1 },
+        { true,  "Options",        false, false,                              -1 },
+        { false, "Debug mode",     true,  base->GetDebug(),                    2 },
+        { false, "Autostore FPLN", true,  settings->GetAutoRestore(),          3 },
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -1050,10 +1127,13 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 /// Values are highlighted yellow when changed; clicking the row acknowledges them.
 void RadarScreen::DrawWeatherWindow(HDC hDC)
 {
+    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetWeatherVisible()) { return; }
+
     const int TITLE_H = 13;
     const int DATA_H  = 36;
     const int RVR_H   = 26;   ///< Tighter row height for the RVR line
     const int WIN_PAD = 8;
+    const int X_BTN   = 11;   ///< Width and height of the title-bar close button
 
     static const WeatherRowCache emptyRow{ "", "-", TAG_COLOR_DEFAULT_GRAY, "-", TAG_COLOR_DEFAULT_GRAY, "?", TAG_COLOR_DEFAULT_GRAY };
     const auto& r = this->weatherRowsCache.empty() ? emptyRow : this->weatherRowsCache[0];
@@ -1098,6 +1178,14 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     int wx = this->weatherWindowPos.x;
     int wy = this->weatherWindowPos.y;
 
+    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    this->winCloseLastHoverType = -1;
+    HWND  hwndWx = WindowFromDC(hDC);
+    POINT cursorWx;
+    GetCursorPos(&cursorWx);
+    if (hwndWx) { ScreenToClient(hwndWx, &cursorWx); }
+    bool xHovered = PtInRect(&xRect, cursorWx) != 0;
+
     RECT winRect   = { wx, wy, wx + WIN_W, wy + WIN_H   };
     RECT titleRect = { wx, wy, wx + WIN_W, wy + TITLE_H };
 
@@ -1108,6 +1196,13 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     DeleteObject(bgBrush);
     DeleteObject(titleBrush);
 
+    if (xHovered)
+    {
+        auto xBrush = CreateSolidBrush(RGB(180, 40, 40));
+        FillRect(hDC, &xRect, xBrush);
+        DeleteObject(xBrush);
+    }
+
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
     DeleteObject(borderBrush);
@@ -1117,7 +1212,12 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "WX/ATIS", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    AddScreenObject(SCREEN_OBJECT_WEATHER_WIN, "WXATIS", titleRect, true, "");
+    // Close button text
+    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    RECT dragRectWx = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    AddScreenObject(SCREEN_OBJECT_WEATHER_WIN, "WXATIS", dragRectWx, true, "");
+    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "weather", xRect, false, "");
 
     SelectObject(hDC, dataFont);
     int textY = wy + TITLE_H + (DATA_H - spaceSize.cy) / 2;
@@ -1182,6 +1282,15 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
             this->RequestRefresh();
         }
     }
+
+    if (ObjectType == SCREEN_OBJECT_WIN_CLOSE)
+    {
+        if (ObjectType != this->winCloseLastHoverType)
+        {
+            this->winCloseLastHoverType = ObjectType;
+            this->RequestRefresh();
+        }
+    }
 }
 
 /// @brief Sets the pressed state when the mouse button goes down over the ACK or Start button.
@@ -1217,9 +1326,21 @@ void RadarScreen::OnButtonUpScreenObject(int ObjectType, const char* sObjectId, 
 }
 
 /// @brief Starts the ACK blink animation on click; the window closes after it completes.
-/// Also handles Start button menu toggle and menu item selection.
+/// Also handles Start button menu toggle, menu item selection, and window close buttons.
 void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
+    if (ObjectType == SCREEN_OBJECT_WIN_CLOSE && Button == EuroScopePlugIn::BUTTON_LEFT)
+    {
+        std::string id(sObjectId);
+        auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+        if      (id == "depRate") { settings->ToggleDepRateVisible(); }
+        else if (id == "twrOut")  { settings->ToggleTwrOutboundVisible(); }
+        else if (id == "twrIn")   { settings->ToggleTwrInboundVisible(); }
+        else if (id == "weather") { settings->ToggleWeatherVisible(); }
+        this->RequestRefresh();
+        return;
+    }
+
     if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
     {
         this->startMenuOpen = !this->startMenuOpen;
@@ -1231,25 +1352,35 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
     {
         std::string id(sObjectId);
         auto sep = id.find('|');
+        int idx  = -1;
         if (sep != std::string::npos)
         {
-            int idx = std::stoi(id.substr(sep + 1));
+            idx = std::stoi(id.substr(sep + 1));
             auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
             if (idx == 0) // Redo CLR flags
             {
                 static_cast<CFlowX_Functions*>(this->GetPlugIn())->RedoFlags();
             }
-            else if (idx == 1) // Debug mode
+            else if (idx == 1) // Save positions
+            {
+                static_cast<CFlowX_Timers*>(this->GetPlugIn())->SaveWindowPositions();
+            }
+            else if (idx == 2) // Debug mode
             {
                 settings->ToggleDebug();
                 this->debug = static_cast<CFlowX_Base*>(this->GetPlugIn())->GetDebug();
             }
-            else if (idx == 2) // Autostore FPLN
+            else if (idx == 3) // Autostore FPLN
             {
                 settings->ToggleAutoRestore();
             }
+            else if (idx == 4) { settings->ToggleDepRateVisible(); }
+            else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
+            else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
+            else if (idx == 7) { settings->ToggleWeatherVisible(); }
         }
-        this->startMenuOpen = false;
+        // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows
+        if (idx < 4) { this->startMenuOpen = false; }
         this->RequestRefresh();
         return;
     }

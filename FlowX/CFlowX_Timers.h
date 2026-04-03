@@ -71,7 +71,8 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @param Counter The EuroScope timer counter passed from OnTimer.
     void PollAtisLetters(int Counter);
 
-    /// @brief Checks whether any window positions have changed and persists them via SaveSettings if so.
+    /// @brief Restores persisted window positions to screens that have not yet been positioned (pos == -1).
+    /// @note Position saving is now triggered explicitly via SaveWindowPositions().
     void SaveAndRestoreWindowLocations();
 
     /// @brief Rebuilds adesCache for all correlated flight plans.
@@ -93,6 +94,10 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @brief Records today's UTC date as the last NAP dismissal date and saves it to windowLocations.json.
     /// @note Called by RadarScreen when the user clicks the ACK button on the NAP reminder window.
     void AckNapReminder();
+
+    /// @brief Syncs current on-screen window positions into the settings layer and writes windowLocations.json.
+    /// @note Called when the user clicks "Save positions" in the FlowX menu.
+    void SaveWindowPositions();
 
     /// @brief Clears all unacknowledged change flags for the given airport ICAO.
     /// @note Called from RadarScreen when the user clicks the WX/ATIS window row.

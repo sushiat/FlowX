@@ -547,8 +547,7 @@ void CFlowX_Timers::PollAtisLetters(int Counter)
     }
 }
 
-/// @brief Applies any persisted window positions to a freshly created radar screen, then saves
-/// positions back to disk whenever any window has been dragged to a new location.
+/// @brief Restores persisted window positions to screens that have not yet been positioned (pos == -1).
 void CFlowX_Timers::SaveAndRestoreWindowLocations()
 {
     if (this->radarScreen == nullptr)
@@ -556,33 +555,19 @@ void CFlowX_Timers::SaveAndRestoreWindowLocations()
         return;
     }
 
-    bool needsSave = false;
-
-    auto syncWindow = [&](POINT& screenPos, int& savedX, int& savedY)
+    auto restoreWindow = [](POINT& screenPos, int savedX, int savedY)
     {
         if (screenPos.x == -1 && savedX != -1 && savedY != -1)
         {
-            // Restore persisted position before first auto-placement
             screenPos = {savedX, savedY};
-        }
-        else if (screenPos.x != -1 && (screenPos.x != savedX || screenPos.y != savedY))
-        {
-            savedX    = screenPos.x;
-            savedY    = screenPos.y;
-            needsSave = true;
         }
     };
 
-    syncWindow(this->radarScreen->depRateWindowPos, this->depRateWindowX, this->depRateWindowY);
-    syncWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
-    syncWindow(this->radarScreen->twrInboundWindowPos, this->twrInboundWindowX, this->twrInboundWindowY);
-    syncWindow(this->radarScreen->napWindowPos, this->napWindowX, this->napWindowY);
-    syncWindow(this->radarScreen->weatherWindowPos, this->weatherWindowX, this->weatherWindowY);
-
-    if (needsSave)
-    {
-        this->SaveWindowLocations();
-    }
+    restoreWindow(this->radarScreen->depRateWindowPos, this->depRateWindowX, this->depRateWindowY);
+    restoreWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
+    restoreWindow(this->radarScreen->twrInboundWindowPos, this->twrInboundWindowX, this->twrInboundWindowY);
+    restoreWindow(this->radarScreen->napWindowPos, this->napWindowX, this->napWindowY);
+    restoreWindow(this->radarScreen->weatherWindowPos, this->weatherWindowX, this->weatherWindowY);
 }
 
 /// @brief Rebuilds adesCache for all correlated flight plans departing from a configured airport.
@@ -1202,6 +1187,25 @@ void CFlowX_Timers::UpdateTTTInbounds()
 void CFlowX_Timers::AckNapReminder()
 {
     this->napLastDismissedDate = UtcDateString();
+    this->SaveWindowLocations();
+}
+
+/// @brief Syncs on-screen window positions into the settings layer and writes windowLocations.json.
+void CFlowX_Timers::SaveWindowPositions()
+{
+    if (this->radarScreen == nullptr) { return; }
+
+    this->depRateWindowX    = this->radarScreen->depRateWindowPos.x;
+    this->depRateWindowY    = this->radarScreen->depRateWindowPos.y;
+    this->twrOutboundWindowX = this->radarScreen->twrOutboundWindowPos.x;
+    this->twrOutboundWindowY = this->radarScreen->twrOutboundWindowPos.y;
+    this->twrInboundWindowX  = this->radarScreen->twrInboundWindowPos.x;
+    this->twrInboundWindowY  = this->radarScreen->twrInboundWindowPos.y;
+    this->napWindowX        = this->radarScreen->napWindowPos.x;
+    this->napWindowY        = this->radarScreen->napWindowPos.y;
+    this->weatherWindowX    = this->radarScreen->weatherWindowPos.x;
+    this->weatherWindowY    = this->radarScreen->weatherWindowPos.y;
+
     this->SaveWindowLocations();
 }
 

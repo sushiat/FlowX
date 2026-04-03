@@ -99,6 +99,7 @@ const int SCREEN_OBJECT_WEATHER_WIN  = 6689; ///< WX/ATIS window title bar (drag
 const int SCREEN_OBJECT_WEATHER_ROW  = 6690; ///< Clickable airport section in the WX/ATIS window (ack)
 const int SCREEN_OBJECT_START_BTN       = 6691; ///< Start button anchored to the lower-right corner of the radar screen
 const int SCREEN_OBJECT_START_MENU_ITEM = 6692; ///< Clickable row inside the Start button popup menu
+const int SCREEN_OBJECT_WIN_CLOSE       = 6693; ///< Close (X) button on a custom window title bar
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

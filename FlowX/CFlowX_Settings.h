@@ -23,17 +23,21 @@ class CFlowX_Settings : public CFlowX_Logging
   protected:
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
     bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from windowLocations.json
     int                            depRateWindowX = -1;     ///< Last-saved X position of the departure rate window; -1 = not yet positioned
     int                            depRateWindowY = -1;     ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
     std::future<std::string>       latestVersion;           ///< Async future holding the fetched latest version string
     std::string                    napLastDismissedDate;    ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
     int                            napWindowX         = -1; ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
     int                            napWindowY         = -1; ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
+    bool                           twrInboundVisible  = true;  ///< Whether the TWR Inbound window is visible; restored from windowLocations.json
     int                            twrInboundWindowX  = -1; ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
     int                            twrInboundWindowY  = -1; ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
+    bool                           twrOutboundVisible = true;  ///< Whether the TWR Outbound window is visible; restored from windowLocations.json
     int                            twrOutboundWindowX = -1; ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
     int                            twrOutboundWindowY = -1; ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
     bool                           updateCheck;             ///< Whether the background update check is enabled
+    bool                           weatherVisible     = true;  ///< Whether the WX/ATIS window is visible; restored from windowLocations.json
     int                            weatherWindowX = -1;     ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
     int                            weatherWindowY = -1;     ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
 
@@ -66,9 +70,33 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Returns the current auto-restore state.
     bool GetAutoRestore() const { return this->autoRestore; }
 
+    /// @brief Returns whether the DEP/H departure rate window is currently visible.
+    bool GetDepRateVisible() const { return this->depRateVisible; }
+
+    /// @brief Returns whether the TWR Inbound window is currently visible.
+    bool GetTwrInboundVisible() const { return this->twrInboundVisible; }
+
+    /// @brief Returns whether the TWR Outbound window is currently visible.
+    bool GetTwrOutboundVisible() const { return this->twrOutboundVisible; }
+
+    /// @brief Returns whether the WX/ATIS window is currently visible.
+    bool GetWeatherVisible() const { return this->weatherVisible; }
+
     /// @brief Toggles the auto-restore setting and persists it immediately.
     void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveSettings(); }
 
     /// @brief Toggles the debug-mode setting and persists it immediately.
     void ToggleDebug() { this->debug = !this->debug; SaveSettings(); }
+
+    /// @brief Toggles the DEP/H departure rate window visibility (does not affect the saved position).
+    void ToggleDepRateVisible() { this->depRateVisible = !this->depRateVisible; }
+
+    /// @brief Toggles the TWR Inbound window visibility (does not affect the saved position).
+    void ToggleTwrInboundVisible() { this->twrInboundVisible = !this->twrInboundVisible; }
+
+    /// @brief Toggles the TWR Outbound window visibility (does not affect the saved position).
+    void ToggleTwrOutboundVisible() { this->twrOutboundVisible = !this->twrOutboundVisible; }
+
+    /// @brief Toggles the WX/ATIS window visibility (does not affect the saved position).
+    void ToggleWeatherVisible() { this->weatherVisible = !this->weatherVisible; }
 };
