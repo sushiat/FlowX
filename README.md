@@ -13,7 +13,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
   - [Installation](#installation)
 - [Tag Items](#tag-items)
 - [Tag Functions](#tag-functions)
-- [Flight Plan Lists](#flight-plan-lists)
+- [Custom Windows](#custom-windows)
 - [Chat Commands](#chat-commands)
 - [config.json Reference](#configjson-reference)
 - [Contributing](#contributing)
@@ -31,7 +31,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 ### Installation
 
 1. Download the latest `DelHelX.zip` from the [Releases](https://github.com/sushiat/DelHelX/releases/latest) page.
-2. Extract `DelHelX.dll` and `config.json` into your plugin directory.
+2. Extract `DelHelX.dll`, `config.json`, `nap.wav`, and `airbourne.wav` into your plugin directory.
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `DelHelX.dll`.
 4. Successful load is confirmed in the **Messages** chat:
    ```
@@ -39,136 +39,114 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
    ```
 5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
+> **Sound files:** `nap.wav` plays when the NAP reminder window appears and stops on acknowledgement. `airbourne.wav` plays once when an aircraft is detected airborne. Both files must be placed alongside `DelHelX.dll`.
+
+> **`windowLocations.json`** is created automatically by the plugin in the same directory as `DelHelX.dll`. It stores the screen positions of all five custom GDI windows and the last NAP reminder dismissal date. Delete it to reset all window positions to their defaults.
+
 ---
 
 ## Tag Items
 
-Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = DelHelX / \<name\>**.
-
-### Delivery / Ground tags
+Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = DelHelX / \<name\>**. Only the following five items are registered with EuroScope. All other columns (HP, spacing, TTT, etc.) are rendered inside the custom GDI windows described below.
 
 | Tag Item | Typical display | Description |
 |---|---|---|
 | **Push+Start Helper** | `->121.600` / `OK` / `!RWY` / `...` | Validates the flight plan and shows the next frequency or an error code. Left/right click triggers the ONFREQ/ST-UP/PUSH function. See table below for all values. |
 | **Taxi Out?** | `T` / `P` | Green `T` for taxi-out stands, `P` for pushback stands. Determined by point-in-polygon against `taxiOutStands` polygons in config. |
-| **New QNH** | `X` (orange) | Appears when a METAR change contains a new QNH and the aircraft already has a clearance. Click to acknowledge. |
-| **GND State Expanded** | `TAXI` / `LINE UP` / `TAKE OFF` / `...` | Human-readable expansion of the EuroScope ground state. See table below for all states. |
-| **Departure Info** | `OK` / `45s` / `2.3nm` | Departure readiness relative to the previous departure from the same runway. Shows time remaining (seconds) or distance gap (nm) until separation is met. Green = OK or close, yellow = almost, red = not yet. |
+| **New QNH** | `X` (orange) | Appears when a METAR change contains a new QNH and the aircraft has a clearance. Click to acknowledge. |
+| **Same SID** | `LANUX2A` | SID name colour-coded by group. Used in standard EuroScope departure lists. |
+| **ADES Type-Y** | `LOWW` / `WW523` (turquoise) | Destination ICAO for standard IFR plans. For type-Y (mixed IFR/VFR) plans, shows the last IFR waypoint in turquoise instead. |
 
-#### Push+Start Helper states
-
-The following table details all possible states shown by the **Push+Start Helper** tag above. Each state maps to a display string and colour; the table below describes what each means.
+#### Push+Start Helper values
 
 | Display | Colour | Meaning |
 |---|---|---|
 | `!RWY` | Red | No departure runway assigned |
 | `!ASSR` | Red | No squawk code assigned |
 | `!CLR` | Red | No clearance flag set |
-| `1234 !CLR` | Orange | Squawk not set by pilot, plus the clearance error above |
-| `OK` | Green | Cleared and ready; current position is GND or above |
+| `1234` | Orange | Squawk not yet set by pilot |
+| `OK` | Green | Cleared and ready; controller is GND or above |
 | `->121.600` | Green | Cleared and ready; shows next frequency (GND, TWR, APP, CTR, or UNICOM) |
-| `->121.600` | Yellow/White blinking | Aircraft is near the holding point or runway threshold |
-
-#### GND State Expanded states
-
-| Display | Colour | Meaning |
-|---|---|---|
-| `ONFREQ` | Default | Aircraft is on frequency |
-| `START-UP` | Default | Startup/pushback clearance given (ST-UP) |
-| `TAXI` | Default | Aircraft taxiing |
-| `LINE UP` | Turquoise | Lined up on runway (LINEUP) |
-| `TAKE OFF` | Green | Departed (DEPA) |
-| `--DEP--` | Default | Aircraft has taken off and is being tracked as a departure |
-
-### Tower departure tags
-
-| Tag Item | Typical display | Description |
-|---|---|---|
-| **Departure Info** | `OK` / `45s` / `2.3nm` | Departure readiness relative to the previous departure from the same runway. Also listed under Delivery/Ground tags — applies once the aircraft is in TAXI or DEPA state. |
-| **Assigned Runway** | `11` | Departure runway from the flight plan. |
-| **HP** | `A9` / `A9*` | Holding point assigned from a popup list. Starred (`*`) if it is a request awaiting readback. Orange if starred, grey after departure. |
-| **Takeoff Spacing** | ` 90  [120]` / `4.2 nm [3]` | Shows time or distance separation from the previous departure. **Time** (lighter follows heavier) or **distance** (equal/heavier follows lighter). Colour-coded green/yellow/red against the required value. |
-| **TWR Sort Key** | *(internal sort string)* | Internal key used to sort the TWR Outbound list — not intended to be human-readable. Only used for list ordering; suggest setting column width to 1. |
-| **TWR Next Freq** | `->123.800` | Next handoff frequency for a departing aircraft (approach, centre, or UNICOM). Turns turquoise at the transfer altitude and blinks orange at the transfer altitude warning threshold. Displays `!MODE-C` (blinking orange/red) when the aircraft is airborne but the transponder isn't in Mode-C. |
-
-#### Takeoff Spacing format
-
-```
- 90  s  /120    ← time (s) / required (s)   — lighter follows heavier
-4.2 nm /3       ← distance (nm) / required  — equal or heavier follows lighter
----             ← no preceding departure recorded
-```
-
-Required distance is 3 nm by default, 5 nm when both aircraft are in the same SID group.
-Required time is computed from holding point configuration (default 120 s).
-
-### Inbound tags
-
-| Tag Item | Typical display | Description |
-|---|---|---|
-| **TTT** | `29_03:42` / `29_->118.775` | Time to touchdown based on distance and groundspeed, prefixed with the arrival runway designator (e.g. `29_03:42`). Colour-coded green (>2 min) / yellow (>1 min) / red (<1 min). Go-arounds show the runway's go-around frequency instead of a timer (e.g. `29_->118.775`), blinking red/yellow. |
-| **Inbound NM** | `8.4` / `+2.3` | Two display modes. The **leading** inbound on each runway shows its absolute distance to the threshold (e.g. `8.4`). All **following** aircraft show the gap to the aircraft ahead prefixed with `+` (e.g. `+2.3`), colour-coded green (>3 nm) / yellow (>2.5 nm) / red (<2.5 nm). |
-| **Assigned Arrival RWY** | `29` | Arrival runway from the flight plan. Blinks red/yellow if the aircraft is tracked in the TTT list but approaching a different runway than assigned. |
-| **Suggested Vacate** | `A4` | Recommended vacate point based on the aircraft's assigned stand and the gap to the following (trailing) inbound, from `vacatePoints` in config. |
 
 ---
 
 ## Tag Functions
 
-Tag functions are assigned to the **Left button** or **Right button** action of a tag column.
+Only two tag functions are registered with EuroScope and can be assigned to tag column buttons. All other controller actions (HP assignment, line-up, takeoff, transfer, etc.) are triggered by left/right click inside the custom GDI windows.
 
 | Function | Description |
 |---|---|
 | **Set ONFREQ/ST-UP/PUSH** | Sets the appropriate ground state. DEL position: sets ONFREQ. GND/TWR: detects push vs. taxi-out stand and sets ST-UP or ONFREQ accordingly. |
 | **Clear New QNH** | Removes the new-QNH flag from the flight strip so the orange `X` disappears. |
-| **Assign HP** | Opens a popup list of all `assignable` holding points. Selection writes the choice to flight-strip annotation slot 8 and syncs to other controllers. |
-| **Request HP** | Same as Assign HP, but appends `*` to indicate a readback is pending. |
-| **Line Up** | Sets the LINEUP ground state. |
-| **Take Off** | Sets the DEPA ground state and starts departure tracking. |
-| **Transfer Next** | Hands the aircraft off to the best available station. For departures, uses the SID-specific approach frequency (or default) and iterates `appFreqFallbacks` to find the first online station. For go-arounds, uses the runway's `goAroundFreq`. Falls back to centre stations via `ctrStations`, then EuroScope's coordinated next controller, then drops tracking. |
-| **Cleared to Land** | Drops tracking and triggers the TopSky Strong-Highlight cleared-to-land indicator. |
-| **Missed Approach** | Starts tracking, assigns 5000 ft, and triggers the TopSky missed-approach highlight. |
-| **Auto Stand Assignment** | Triggers automatic stand assignment via the Ground Radar plugin. |
 
 ---
 
-## Flight Plan Lists
+## Custom Windows
 
-DelHelX registers two built-in flight plan lists that appear automatically on first load.
+DelHelX draws five custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `windowLocations.json` in the plugin directory.
+
+### DEP/H — Departure Rate
+
+Shows the hourly departure count and 15-minute average spacing per runway. Rebuilds every second. No interaction.
+
+### NAP Reminder
+
+A modal overlay that appears at the configured local time (see `napReminder` in config) to alert controllers of the start of noise abatement procedures. `nap.wav` plays on appearance and stops on acknowledgement. Draggable; dismissed via the **ACK** button.
 
 ### TWR Outbound
 
-Tracks all departing aircraft from takeoff until they leave the controlled area. Columns:
+Tracks all departing aircraft. Rows are sorted by a composite key (holding point position, then ground state, then callsign). Aircraft that have departed and are no longer being tracked are shown dimmed at reduced size.
 
 | Column | Source | Description | Left click | Right click |
 |---|---|---|---|---|
 | C/S | EuroScope | Callsign | — | — |
-| STS | DelHelX | Ground state (GND State Expanded) | Line Up | Take Off |
-| DEP? | DelHelX | Departure readiness relative to previous departure (Departure Info) | — | — |
-| RWY | DelHelX | Assigned departure runway | — | — |
-| SID | DelHelX | SID name colour-coded by group (Same SID tracker) | — | — |
+| STS | DelHelX | Ground state (`ONFREQ` / `START-UP` / `TAXI` / `LINE UP` / `TAKE OFF` / `T+M:SS`) | Line Up | Take Off |
+| DEP? | DelHelX | Departure readiness vs. previous departure: time (s) or distance (nm), colour-coded green/yellow/red | — | — |
+| RWY | DelHelX | Assigned departure runway | EuroScope runway selector | — |
+| SID | DelHelX | SID name colour-coded by group | EuroScope SID selector | — |
 | WTC | EuroScope | Wake turbulence category | — | — |
 | ATYP | TopSky | Aircraft type | — | — |
-| Freq | DelHelX | Next handoff frequency (TWR Next Freq) | Transfer Next | — |
-| HP | DelHelX | Holding point | Assign HP | Request HP (pending readback) |
-| Spacing | DelHelX | Takeoff spacing (time or distance) | — | — |
-| S | DelHelX | TWR sort key (internal, width 1) | — | — |
+| Freq | DelHelX | Next handoff frequency; turquoise above transfer altitude, blinking orange at warning threshold, `!MODE-C` if airborne without Mode-C | Transfer Next | — |
+| HP | DelHelX | Holding point; orange with `*` if readback pending, grey after departure | Assign HP | Request HP |
+| Spacing | DelHelX | Takeoff spacing — time (lighter follows heavier) or distance (equal/heavier follows lighter), colour-coded green/yellow/red | — | — |
+
+#### Takeoff Spacing format
+
+```
+ 90s /120    ← time (s) / required (s)   — lighter follows heavier
+4.2nm/3      ← distance (nm) / required  — equal or heavier follows lighter
+---          ← no preceding departure recorded
+```
+
+Required distance is 3 nm by default, 5 nm when both aircraft share a SID group.
+Required time is derived from the holding point configuration (default 120 s).
 
 ### TWR Inbound
 
-Tracks aircraft on approach ordered by distance to the runway threshold. Columns:
+Tracks aircraft on approach, ordered by time to touchdown per runway. Aircraft furthest from the threshold are dimmed. Rows are grouped by runway with a blank separator between groups.
 
 | Column | Source | Description | Left click | Right click |
 |---|---|---|---|---|
-| TTT | DelHelX | Time to touchdown, prefixed with runway designator (e.g. `29_03:42`) | Start tracking | — |
-| C/S | EuroScope | Callsign | Cleared to land | Missed App |
-| NM | DelHelX | Distance to threshold or gap to leading inbound | — | — |
+| TTT | DelHelX | Time to touchdown prefixed with runway (e.g. `29_03:42`); green >2 min, yellow >1 min, red <1 min. Go-arounds show the go-around frequency blinking red/yellow. | Start tracking | — |
+| C/S | EuroScope | Callsign | Cleared to land | Missed approach |
+| NM | DelHelX | Leading inbound: absolute distance to threshold. Following inbounds: gap to aircraft ahead (`+2.3`), green >3 nm, yellow >2.5 nm, red <2.5 nm | — | — |
 | SPD | EuroScope | Ground speed | — | — |
 | WTC | EuroScope | Wake turbulence category | — | — |
 | ATYP | TopSky | Aircraft type | — | — |
 | Gate | Ground Radar | Assigned stand | Open stand menu | Auto stand assignment |
-| Vacate | DelHelX | Suggested vacate point | — | — |
-| RWY | DelHelX | Assigned arrival runway (Assigned Arrival RWY). Blinks red/yellow if the aircraft is tracked in TTT but approaching a different runway than assigned. | Assign runway | — |
+| Vacate | DelHelX | Suggested vacate point based on assigned stand and gap to trailing inbound | — | — |
+| RWY | DelHelX | Assigned arrival runway; blinks red/yellow if tracked on a different runway than assigned | EuroScope runway selector | — |
+
+### WX/ATIS
+
+Shows wind, QNH, ATIS letter, and RVR (when present) for every airport in `config.json`. Wind/QNH/RVR are parsed from METAR; the ATIS letter is polled from the VATSIM v3 data feed every 60 seconds. Clicking an airport row acknowledges any pending QNH change.
+
+| Column | Description |
+|---|---|
+| Wind | Direction/speed (`dddKKkt`); colour reflects conditions |
+| QNH | Current QNH in hPa; turns orange when changed and unacknowledged |
+| ATIS | Current ATIS letter; greyed out when no ATIS is online |
+| RVR | RVR reading(s) from METAR, shown as a second line when present |
 
 ---
 
