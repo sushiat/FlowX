@@ -2,6 +2,234 @@
 #include "CDelHelX_CustomTags.h"
 #include "helpers.h"
 
+void CDelHelX_CustomTags::ComputeInboundCacheEntry(const std::string& tttKey,
+                                                    EuroScopePlugIn::CFlightPlan& fp,
+                                                    EuroScopePlugIn::CRadarTarget& rt,
+                                                    TwrInboundRowCache& row)
+{
+    // ── Shared lookups ──
+    std::string callSign = fp.GetCallsign();
+    auto fpd = fp.GetFlightPlanData();
+
+    // Resolve tttKey: if empty, search by callSign prefix (for UpdatePositionDerivedTags)
+    std::string resolvedKey = tttKey;
+    if (resolvedKey.empty())
+    {
+        auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
+            [&callSign](const auto& e) { return e.first.rfind(callSign, 0) == 0; });
+        if (it != this->ttt_flightPlans.end())
+        {
+            resolvedKey = it->first;
+        }
+    }
+
+    auto planIt = this->ttt_flightPlans.find(resolvedKey);
+    if (planIt == this->ttt_flightPlans.end())
+    {
+        row.sortKey = {};
+        row.nm      = tagInfo{};
+        row.vacate  = tagInfo{};
+        row.arrRwy  = tagInfo{};
+        return;
+    }
+
+    const std::string& designator = planIt->second.designator;
+
+    auto distIt      = this->ttt_distanceToRunway.find(resolvedKey);
+    bool hasDistance = (distIt != this->ttt_distanceToRunway.end());
+    double distToThreshold = hasDistance ? distIt->second : 0.0;
+
+    bool isGoAround = (this->ttt_goAround.count(resolvedKey) > 0);
+
+    auto sortedIt  = this->ttt_sortedByRunway.find(designator);
+    bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());
+
+    // ── row.sortKey — raw "RWY_MM:SS" string for ordering (caller fills row.ttt display value) ──
+    row.sortKey = [&]() -> std::string {
+        if (isGoAround)
+        {
+            return designator + "_->" + planIt->second.goAroundFreq;
+        }
+
+        auto position = rt.GetPosition().GetPosition();
+        int  speed    = rt.GetPosition().GetReportedGS();
+        if (speed > 0)
+        {
+            EuroScopePlugIn::CPosition rwyThreshold;
+            rwyThreshold.m_Latitude  = planIt->second.thresholdLat;
+            rwyThreshold.m_Longitude = planIt->second.thresholdLon;
+
+            double distNm    = position.DistanceTo(rwyThreshold);
+            int totalSeconds = static_cast<int>((distNm / speed) * 3600.0);
+            int mm = totalSeconds / 60;
+            int ss = totalSeconds % 60;
+            char buf[16];
+            (void)sprintf_s(buf, "%s_%02d:%02d", designator.c_str(), mm, ss);
+            return std::string(buf);
+        }
+        return {};
+    }();
+
+    // ── row.nm (inboundNm) ──
+    row.nm = [&]() -> tagInfo {
+        tagInfo t;
+        if (!hasDistance)
+        {
+            return t;
+        }
+        if (isGoAround)
+        {
+            char buf[16] = {};
+            (void)sprintf_s(buf, "%.1f", distToThreshold);
+            t.tag = std::string(buf);
+            return t;
+        }
+        if (!hasSorted)
+        {
+            return t;
+        }
+
+        const auto& keys = sortedIt->second;
+        char buf[16] = {};
+        if (keys.front() == resolvedKey)
+        {
+            (void)sprintf_s(buf, "%.1f", distToThreshold);
+        }
+        else
+        {
+            for (size_t i = 1; i < keys.size(); ++i)
+            {
+                if (keys[i] == resolvedKey)
+                {
+                    auto leaderIt = this->ttt_distanceToRunway.find(keys[i - 1]);
+                    if (leaderIt == this->ttt_distanceToRunway.end())
+                    {
+                        break;
+                    }
+                    double gap = distToThreshold - leaderIt->second;
+                    (void)sprintf_s(buf, "+%.1f", gap);
+                    if (gap > 3.0)
+                    {
+                        t.color = TAG_COLOR_GREEN;
+                    }
+                    else if (gap > 2.5)
+                    {
+                        t.color = TAG_COLOR_YELLOW;
+                    }
+                    else
+                    {
+                        t.color = TAG_COLOR_RED;
+                    }
+                    break;
+                }
+            }
+        }
+        t.tag = std::string(buf);
+        return t;
+    }();
+
+    // ── row.arrRwy (assignedArrRwy) ──
+    row.arrRwy = [&]() -> tagInfo {
+        tagInfo t;
+        t.tag = fpd.GetArrivalRwy();
+        if (t.tag != designator)
+        {
+            t.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
+        }
+        return t;
+    }();
+
+    // ── row.vacate (suggestedVacate) ──
+    row.vacate = [&]() -> tagInfo {
+        tagInfo t;
+
+        auto standIt = this->standAssignment.find(callSign);
+        if (standIt == this->standAssignment.end())
+        {
+            return t;
+        }
+        if (!hasSorted)
+        {
+            return t;
+        }
+
+        std::string stand = standIt->second;
+        const auto& keys  = sortedIt->second;
+        auto myIdx = std::find(keys.begin(), keys.end(), resolvedKey);
+        if (myIdx == keys.end())
+        {
+            return t;
+        }
+
+        bool   hasFollower = (myIdx + 1 != keys.end());
+        double gap         = 0.0;
+        if (hasFollower)
+        {
+            auto followerIt = this->ttt_distanceToRunway.find(*(myIdx + 1));
+            auto selfIt     = this->ttt_distanceToRunway.find(resolvedKey);
+            if (followerIt == this->ttt_distanceToRunway.end() || selfIt == this->ttt_distanceToRunway.end())
+            {
+                return t;
+            }
+            gap = followerIt->second - selfIt->second;
+        }
+
+        std::string arr = fpd.GetDestination();
+        to_upper(arr);
+        auto airportIt = this->airports.find(arr);
+        if (airportIt == this->airports.end())
+        {
+            return t;
+        }
+
+        auto rwyIt = airportIt->second.runways.find(designator);
+        if (rwyIt == airportIt->second.runways.end())
+        {
+            return t;
+        }
+
+        for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
+        {
+            if (hasFollower && gap < vp.minGap)
+            {
+                continue;
+            }
+
+            for (auto& pattern : vp.stands)
+            {
+                bool matched = false;
+                if (pattern == "*")
+                {
+                    matched = true;
+                }
+                else if (pattern.back() == '*')
+                {
+                    std::string prefix = pattern.substr(0, pattern.size() - 1);
+                    to_upper(prefix);
+                    matched = (stand.rfind(prefix, 0) == 0);
+                }
+                else
+                {
+                    std::string p = pattern;
+                    to_upper(p);
+                    matched = (stand == p);
+                }
+
+                if (matched)
+                {
+                    t.tag   = vpName;
+                    t.color = TAG_COLOR_WHITE;
+                    return t;
+                }
+            }
+        }
+        return t;
+    }();
+
+    // row.ttt is intentionally left empty here — the outer UpdateTagCache loop fills it
+    // with the gap-adjusted display value after sorting.
+}
+
 void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& fp,
                                                      EuroScopePlugIn::CRadarTarget& rt,
                                                      TwrOutboundRowCache& row)
@@ -643,234 +871,6 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
             row.nextFreq.color = TAG_COLOR_LIST_GRAY;
         }
     }
-}
-
-void CDelHelX_CustomTags::ComputeInboundCacheEntry(const std::string& tttKey,
-                                                    EuroScopePlugIn::CFlightPlan& fp,
-                                                    EuroScopePlugIn::CRadarTarget& rt,
-                                                    TwrInboundRowCache& row)
-{
-    // ── Shared lookups ──
-    std::string callSign = fp.GetCallsign();
-    auto fpd = fp.GetFlightPlanData();
-
-    // Resolve tttKey: if empty, search by callSign prefix (for UpdatePositionDerivedTags)
-    std::string resolvedKey = tttKey;
-    if (resolvedKey.empty())
-    {
-        auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-            [&callSign](const auto& e) { return e.first.rfind(callSign, 0) == 0; });
-        if (it != this->ttt_flightPlans.end())
-        {
-            resolvedKey = it->first;
-        }
-    }
-
-    auto planIt = this->ttt_flightPlans.find(resolvedKey);
-    if (planIt == this->ttt_flightPlans.end())
-    {
-        row.sortKey = {};
-        row.nm      = tagInfo{};
-        row.vacate  = tagInfo{};
-        row.arrRwy  = tagInfo{};
-        return;
-    }
-
-    const std::string& designator = planIt->second.designator;
-
-    auto distIt      = this->ttt_distanceToRunway.find(resolvedKey);
-    bool hasDistance = (distIt != this->ttt_distanceToRunway.end());
-    double distToThreshold = hasDistance ? distIt->second : 0.0;
-
-    bool isGoAround = (this->ttt_goAround.count(resolvedKey) > 0);
-
-    auto sortedIt  = this->ttt_sortedByRunway.find(designator);
-    bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());
-
-    // ── row.sortKey — raw "RWY_MM:SS" string for ordering (caller fills row.ttt display value) ──
-    row.sortKey = [&]() -> std::string {
-        if (isGoAround)
-        {
-            return designator + "_->" + planIt->second.goAroundFreq;
-        }
-
-        auto position = rt.GetPosition().GetPosition();
-        int  speed    = rt.GetPosition().GetReportedGS();
-        if (speed > 0)
-        {
-            EuroScopePlugIn::CPosition rwyThreshold;
-            rwyThreshold.m_Latitude  = planIt->second.thresholdLat;
-            rwyThreshold.m_Longitude = planIt->second.thresholdLon;
-
-            double distNm    = position.DistanceTo(rwyThreshold);
-            int totalSeconds = static_cast<int>((distNm / speed) * 3600.0);
-            int mm = totalSeconds / 60;
-            int ss = totalSeconds % 60;
-            char buf[16];
-            (void)sprintf_s(buf, "%s_%02d:%02d", designator.c_str(), mm, ss);
-            return std::string(buf);
-        }
-        return {};
-    }();
-
-    // ── row.nm (inboundNm) ──
-    row.nm = [&]() -> tagInfo {
-        tagInfo t;
-        if (!hasDistance)
-        {
-            return t;
-        }
-        if (isGoAround)
-        {
-            char buf[16] = {};
-            (void)sprintf_s(buf, "%.1f", distToThreshold);
-            t.tag = std::string(buf);
-            return t;
-        }
-        if (!hasSorted)
-        {
-            return t;
-        }
-
-        const auto& keys = sortedIt->second;
-        char buf[16] = {};
-        if (keys.front() == resolvedKey)
-        {
-            (void)sprintf_s(buf, "%.1f", distToThreshold);
-        }
-        else
-        {
-            for (size_t i = 1; i < keys.size(); ++i)
-            {
-                if (keys[i] == resolvedKey)
-                {
-                    auto leaderIt = this->ttt_distanceToRunway.find(keys[i - 1]);
-                    if (leaderIt == this->ttt_distanceToRunway.end())
-                    {
-                        break;
-                    }
-                    double gap = distToThreshold - leaderIt->second;
-                    (void)sprintf_s(buf, "+%.1f", gap);
-                    if (gap > 3.0)
-                    {
-                        t.color = TAG_COLOR_GREEN;
-                    }
-                    else if (gap > 2.5)
-                    {
-                        t.color = TAG_COLOR_YELLOW;
-                    }
-                    else
-                    {
-                        t.color = TAG_COLOR_RED;
-                    }
-                    break;
-                }
-            }
-        }
-        t.tag = std::string(buf);
-        return t;
-    }();
-
-    // ── row.arrRwy (assignedArrRwy) ──
-    row.arrRwy = [&]() -> tagInfo {
-        tagInfo t;
-        t.tag = fpd.GetArrivalRwy();
-        if (t.tag != designator)
-        {
-            t.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
-        }
-        return t;
-    }();
-
-    // ── row.vacate (suggestedVacate) ──
-    row.vacate = [&]() -> tagInfo {
-        tagInfo t;
-
-        auto standIt = this->standAssignment.find(callSign);
-        if (standIt == this->standAssignment.end())
-        {
-            return t;
-        }
-        if (!hasSorted)
-        {
-            return t;
-        }
-
-        std::string stand = standIt->second;
-        const auto& keys  = sortedIt->second;
-        auto myIdx = std::find(keys.begin(), keys.end(), resolvedKey);
-        if (myIdx == keys.end())
-        {
-            return t;
-        }
-
-        bool   hasFollower = (myIdx + 1 != keys.end());
-        double gap         = 0.0;
-        if (hasFollower)
-        {
-            auto followerIt = this->ttt_distanceToRunway.find(*(myIdx + 1));
-            auto selfIt     = this->ttt_distanceToRunway.find(resolvedKey);
-            if (followerIt == this->ttt_distanceToRunway.end() || selfIt == this->ttt_distanceToRunway.end())
-            {
-                return t;
-            }
-            gap = followerIt->second - selfIt->second;
-        }
-
-        std::string arr = fpd.GetDestination();
-        to_upper(arr);
-        auto airportIt = this->airports.find(arr);
-        if (airportIt == this->airports.end())
-        {
-            return t;
-        }
-
-        auto rwyIt = airportIt->second.runways.find(designator);
-        if (rwyIt == airportIt->second.runways.end())
-        {
-            return t;
-        }
-
-        for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
-        {
-            if (hasFollower && gap < vp.minGap)
-            {
-                continue;
-            }
-
-            for (auto& pattern : vp.stands)
-            {
-                bool matched = false;
-                if (pattern == "*")
-                {
-                    matched = true;
-                }
-                else if (pattern.back() == '*')
-                {
-                    std::string prefix = pattern.substr(0, pattern.size() - 1);
-                    to_upper(prefix);
-                    matched = (stand.rfind(prefix, 0) == 0);
-                }
-                else
-                {
-                    std::string p = pattern;
-                    to_upper(p);
-                    matched = (stand == p);
-                }
-
-                if (matched)
-                {
-                    t.tag   = vpName;
-                    t.color = TAG_COLOR_WHITE;
-                    return t;
-                }
-            }
-        }
-        return t;
-    }();
-
-    // row.ttt is intentionally left empty here — the outer UpdateTagCache loop fills it
-    // with the gap-adjusted display value after sorting.
 }
 
 void CDelHelX_CustomTags::UpdateTagCache()

@@ -7,6 +7,57 @@
 #include "helpers.h"
 #include "date/tz.h"
 
+
+/// @brief Re-evaluates the EuroScope clearance flag for all on-ground cleared aircraft.
+void CDelHelX::RedoFlags()
+{
+    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
+        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+        // Skip if aircraft is not on the ground (currently using ground speed threshold)
+        if (!pos.IsValid() || pos.GetReportedGS() > 40) {
+            continue;
+        }
+
+        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+        // Skip if aircraft is tracked (except for aircraft tracked by current controller)
+        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe())) {
+            continue;
+        }
+
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
+
+        std::string arr = fp.GetFlightPlanData().GetDestination();
+        to_upper(arr);
+
+        std::string cs = fp.GetCallsign();
+
+        // Skip aircraft without a valid flight plan (no departure/destination airport)
+        if (dep.empty() || arr.empty()) {
+            continue;
+        }
+
+        auto airport = this->airports.find(dep);
+        if (airport == this->airports.end())
+        {
+            // Airport not in config
+            continue;
+        }
+
+        int depElevation = airport->second.fieldElevation;
+        if (pos.GetPressureAltitude() >= depElevation + 50) {
+            continue;
+        }
+
+        if (fp.GetClearenceFlag() && this->radarScreen != nullptr)
+        {
+            // Toggle off and back on
+            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+        }
+    }
+}
+
 CDelHelX::CDelHelX()
 {
     this->groundOverride = false;
@@ -159,181 +210,49 @@ bool CDelHelX::OnCompileCommand(const char* sCommandLine)
     return false;
 }
 
-/// @brief Re-evaluates the EuroScope clearance flag for all on-ground cleared aircraft.
-void CDelHelX::RedoFlags()
+/// @brief Monitors scratch-pad and ground-state changes to keep stand assignment and ground-status maps current.
+/// @param fp Updated flight plan.
+/// @param dataType EuroScope constant indicating which assigned-data field changed.
+void CDelHelX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType)
 {
-    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt)) {
-        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        // Skip if aircraft is not on the ground (currently using ground speed threshold)
-        if (!pos.IsValid() || pos.GetReportedGS() > 40) {
-            continue;
+    if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
+    {
+        std::string callSign = fp.GetCallsign();
+        std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
+
+        //if (!scratch.empty())
+        //{
+        //  OutputDebugStringA(("[DelHelX] " + callSign + " scratch: " + scratch + "\n").c_str());
+        //}
+        
+        // Check for stand assignment
+        size_t pos = scratch.find("GRP/S/");
+        if (pos != std::string::npos) {
+            std::string stand = scratch.substr(pos + 6);
+            
+            this->standAssignment[callSign] = stand;
         }
 
-        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        // Skip if aircraft is tracked (except for aircraft tracked by current controller)
-        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe())) {
-            continue;
-        }
-
-        std::string dep = fp.GetFlightPlanData().GetOrigin();
-        to_upper(dep);
-
-        std::string arr = fp.GetFlightPlanData().GetDestination();
-        to_upper(arr);
-
-        std::string cs = fp.GetCallsign();
-
-        // Skip aircraft without a valid flight plan (no departure/destination airport)
-        if (dep.empty() || arr.empty()) {
-            continue;
-        }
-
-        auto airport = this->airports.find(dep);
-        if (airport == this->airports.end())
+        // Check for ground status
+        static const std::vector<std::string> groundStatuses = { "PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA" };
+        for (const auto& status : groundStatuses)
         {
-            // Airport not in config
-            continue;
-        }
-
-        int depElevation = airport->second.fieldElevation;
-        if (pos.GetPressureAltitude() >= depElevation + 50) {
-            continue;
-        }
-
-        if (fp.GetClearenceFlag() && this->radarScreen != nullptr)
-        {
-            // Toggle off and back on
-            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
-            this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+            if (scratch.find(status) != std::string::npos)
+            {
+                this->groundStatus[callSign] = status;
+                break;
+            }
         }
     }
-}
 
-/// @brief Dispatches tag item rendering to the appropriate Get*Tag method.
-/// @param FlightPlan Flight plan for the tag row.
-/// @param RadarTarget Correlated radar target.
-/// @param ItemCode TAG_ITEM_* constant identifying the column.
-/// @param TagData Additional EuroScope tag data (unused).
-/// @param sItemString Output buffer for the tag text (max 15 chars + NUL).
-/// @param pColorCode Output for the EuroScope colour mode flag.
-/// @param pRGB Output for the RGB colour value.
-/// @param pFontSize Output for an optional font size override.
-void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlugIn::CRadarTarget RadarTarget, int ItemCode, int TagData, char sItemString[16], int* pColorCode, COLORREF* pRGB, double* pFontSize)
-{
-    if (!FlightPlan.IsValid()) { return; }
-
-    tagInfo tag;
-    if      (ItemCode == TAG_ITEM_PS_HELPER) { tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget); }
-    else if (ItemCode == TAG_ITEM_TAXIOUT)   { tag = this->GetTaxiOutTag(FlightPlan, RadarTarget); }
-    else if (ItemCode == TAG_ITEM_NEWQNH)    { tag = this->GetNewQnhTag(FlightPlan); }
-    else if (ItemCode == TAG_ITEM_SAMESID)   { tag = this->GetSameSidTag(FlightPlan); }
-    else if (ItemCode == TAG_ITEM_ADES)      { tag = this->GetAdesTag(FlightPlan); }
-    else                                     { return; }  // all others displayed in custom windows only
-
-    strcpy_s(sItemString, 16, tag.tag.c_str());
-    if (tag.color == TAG_COLOR_DEFAULT_NONE)
+    if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_GROUND_STATE)
     {
-        *pColorCode = EuroScopePlugIn::TAG_COLOR_DEFAULT;
-    }
-    else
-    {
-        *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-        *pRGB = tag.color;
+        std::string callSign = fp.GetCallsign();
+        std::string groundState = fp.GetGroundState();
+        this->groundStatus[callSign] = groundState;
     }
 }
 
-/// @brief Dispatches tag function callbacks to the appropriate Func_* method.
-/// @param FunctionId TAG_FUNC_* constant identifying the action.
-/// @param sItemString Current text of the clicked tag cell.
-/// @param Pt Screen position of the click.
-/// @param Area Bounding rectangle of the tag cell.
-void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, RECT Area)
-{
-    EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectASEL();
-    if (!fp.IsValid())
-    {
-        return;
-    }
-
-    std::string dep = fp.GetFlightPlanData().GetOrigin();
-    to_upper(dep);
-
-    static const std::vector<int> noDepartureAirportCheckRequired = { TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP, TAG_FUNC_STAND_AUTO };
-    if (this->airports.find(dep) == this->airports.end()
-        && std::find(noDepartureAirportCheckRequired.begin(), noDepartureAirportCheckRequired.end(), FunctionId) == noDepartureAirportCheckRequired.end())
-    {
-        return;
-    }
-
-    EuroScopePlugIn::CRadarTarget rt = fp.GetCorrelatedRadarTarget();
-
-    if (FunctionId == TAG_FUNC_ON_FREQ)             { this->Func_OnFreq(fp, rt); }
-    else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)   { this->Func_ClearNewQnh(fp); }
-    else if (FunctionId == TAG_FUNC_ASSIGN_HP)      { this->Func_AssignHp(fp, Pt); }
-    else if (FunctionId == TAG_FUNC_REQUEST_HP)     { this->Func_RequestHp(fp, Pt); }
-    else if (FunctionId == TAG_FUNC_HP_LISTSELECT)  { this->Func_HpListselect(fp, sItemString); }
-    else if (FunctionId == TAG_FUNC_LINE_UP)        { Func_LineUp(fp); }
-    else if (FunctionId == TAG_FUNC_REVERT_TO_TAXI) { Func_RevertToTaxi(fp); }
-    else if (FunctionId == TAG_FUNC_TAKE_OFF)       { Func_TakeOff(fp); }
-    else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  { this->Func_TransferNext(fp); }
-    else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   { Func_ClrdToLand(fp, this->radarScreen); }
-    else if (FunctionId == TAG_FUNC_MISSED_APP)     { Func_MissedApp(fp, this->radarScreen); }
-    else if (FunctionId == TAG_FUNC_STAND_AUTO)     { Func_StandAuto(fp, this->radarScreen); }
-}
-
-/// @brief Creates the RadarScreen and immediately applies any persisted window positions so the
-///        first OnRefresh draw sees the correct locations rather than triggering auto-placement.
-EuroScopePlugIn::CRadarScreen* CDelHelX::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
-{
-    CDelHelX_Base::OnRadarScreenCreated(sDisplayName, NeedRadarContent, GeoReferenced, CanBeSaved, CanBeCreated);
-    if (this->depRateWindowX     != -1) { this->radarScreen->depRateWindowPos     = { this->depRateWindowX,     this->depRateWindowY     }; }
-    if (this->twrOutboundWindowX != -1) { this->radarScreen->twrOutboundWindowPos = { this->twrOutboundWindowX, this->twrOutboundWindowY }; }
-    if (this->twrInboundWindowX  != -1) { this->radarScreen->twrInboundWindowPos  = { this->twrInboundWindowX,  this->twrInboundWindowY  }; }
-    if (this->napWindowX         != -1) { this->radarScreen->napWindowPos          = { this->napWindowX,         this->napWindowY         }; }
-    if (this->weatherWindowX     != -1) { this->radarScreen->weatherWindowPos      = { this->weatherWindowX,     this->weatherWindowY     }; }
-    return this->radarScreen;
-}
-
-/// @brief Drives periodic updates: blinking, update check, NAP reminder, and state-map refreshes.
-/// @param Counter EuroScope second counter.
-/// @note State maps update every 2 s; tag cache and departure overlays refresh every second;
-///       NAP check every 10 s; window positions saved every 5 s.
-void CDelHelX::OnTimer(int Counter)
-{
-    this->blinking = !this->blinking;
-
-    if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready) {
-        this->CheckForUpdate();
-    }
-
-    if (Counter > 0 && Counter % 10 == 0)
-    {
-        this->CheckAirportNAPReminder();
-    }
-
-    if (Counter > 0 && Counter % 2 == 0)
-    {
-        this->UpdateTowerSameSID();
-        this->AutoUpdateDepartureHoldingPoints();
-        this->UpdateTTTInbounds();
-        this->CheckReconnects();
-    }
-
-    // Rebuild tag cache and departure overlays every second (after state maps are current)
-    if (Counter > 0)
-    {
-        this->UpdateTagCache();
-        this->UpdateRadarTargetDepartureInfo();
-    }
-
-    if (Counter > 0 && Counter % 5 == 0)
-    {
-        this->SaveAndRestoreWindowLocations();
-        this->UpdateAdesCache();
-    }
-
-    this->PollAtisLetters(Counter);
-}
 
 /// @brief Removes the disconnecting aircraft from all departure and inbound state maps.
 /// @param FlightPlan The disconnecting flight plan.
@@ -426,6 +345,78 @@ void CDelHelX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     this->dep_prevDistanceAtTakeoff.erase(callSign);
     this->dep_timeRequired.erase(callSign);
     this->dep_sequenceNumber.erase(callSign);
+}
+
+/// @brief Dispatches tag function callbacks to the appropriate Func_* method.
+/// @param FunctionId TAG_FUNC_* constant identifying the action.
+/// @param sItemString Current text of the clicked tag cell.
+/// @param Pt Screen position of the click.
+/// @param Area Bounding rectangle of the tag cell.
+void CDelHelX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, RECT Area)
+{
+    EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectASEL();
+    if (!fp.IsValid())
+    {
+        return;
+    }
+
+    std::string dep = fp.GetFlightPlanData().GetOrigin();
+    to_upper(dep);
+
+    static const std::vector<int> noDepartureAirportCheckRequired = { TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP, TAG_FUNC_STAND_AUTO };
+    if (this->airports.find(dep) == this->airports.end()
+        && std::find(noDepartureAirportCheckRequired.begin(), noDepartureAirportCheckRequired.end(), FunctionId) == noDepartureAirportCheckRequired.end())
+    {
+        return;
+    }
+
+    EuroScopePlugIn::CRadarTarget rt = fp.GetCorrelatedRadarTarget();
+
+    if (FunctionId == TAG_FUNC_ON_FREQ)             { this->Func_OnFreq(fp, rt); }
+    else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)   { this->Func_ClearNewQnh(fp); }
+    else if (FunctionId == TAG_FUNC_ASSIGN_HP)      { this->Func_AssignHp(fp, Pt); }
+    else if (FunctionId == TAG_FUNC_REQUEST_HP)     { this->Func_RequestHp(fp, Pt); }
+    else if (FunctionId == TAG_FUNC_HP_LISTSELECT)  { this->Func_HpListselect(fp, sItemString); }
+    else if (FunctionId == TAG_FUNC_LINE_UP)        { Func_LineUp(fp); }
+    else if (FunctionId == TAG_FUNC_REVERT_TO_TAXI) { Func_RevertToTaxi(fp); }
+    else if (FunctionId == TAG_FUNC_TAKE_OFF)       { Func_TakeOff(fp); }
+    else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)  { this->Func_TransferNext(fp); }
+    else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)   { Func_ClrdToLand(fp, this->radarScreen); }
+    else if (FunctionId == TAG_FUNC_MISSED_APP)     { Func_MissedApp(fp, this->radarScreen); }
+    else if (FunctionId == TAG_FUNC_STAND_AUTO)     { Func_StandAuto(fp, this->radarScreen); }
+}
+
+/// @brief Dispatches tag item rendering to the appropriate Get*Tag method.
+/// @param FlightPlan Flight plan for the tag row.
+/// @param RadarTarget Correlated radar target.
+/// @param ItemCode TAG_ITEM_* constant identifying the column.
+/// @param TagData Additional EuroScope tag data (unused).
+/// @param sItemString Output buffer for the tag text (max 15 chars + NUL).
+/// @param pColorCode Output for the EuroScope colour mode flag.
+/// @param pRGB Output for the RGB colour value.
+/// @param pFontSize Output for an optional font size override.
+void CDelHelX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlugIn::CRadarTarget RadarTarget, int ItemCode, int TagData, char sItemString[16], int* pColorCode, COLORREF* pRGB, double* pFontSize)
+{
+    if (!FlightPlan.IsValid()) { return; }
+
+    tagInfo tag;
+    if      (ItemCode == TAG_ITEM_PS_HELPER) { tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget); }
+    else if (ItemCode == TAG_ITEM_TAXIOUT)   { tag = this->GetTaxiOutTag(FlightPlan, RadarTarget); }
+    else if (ItemCode == TAG_ITEM_NEWQNH)    { tag = this->GetNewQnhTag(FlightPlan); }
+    else if (ItemCode == TAG_ITEM_SAMESID)   { tag = this->GetSameSidTag(FlightPlan); }
+    else if (ItemCode == TAG_ITEM_ADES)      { tag = this->GetAdesTag(FlightPlan); }
+    else                                     { return; }  // all others displayed in custom windows only
+
+    strcpy_s(sItemString, 16, tag.tag.c_str());
+    if (tag.color == TAG_COLOR_DEFAULT_NONE)
+    {
+        *pColorCode = EuroScopePlugIn::TAG_COLOR_DEFAULT;
+    }
+    else
+    {
+        *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+        *pRGB = tag.color;
+    }
 }
 
 /// @brief Parses an incoming METAR for QNH changes and flags cleared ground aircraft at that airport.
@@ -584,47 +575,58 @@ void CDelHelX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
     }
 }
 
-/// @brief Monitors scratch-pad and ground-state changes to keep stand assignment and ground-status maps current.
-/// @param fp Updated flight plan.
-/// @param dataType EuroScope constant indicating which assigned-data field changed.
-void CDelHelX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType)
+/// @brief Creates the RadarScreen and immediately applies any persisted window positions so the
+///        first OnRefresh draw sees the correct locations rather than triggering auto-placement.
+EuroScopePlugIn::CRadarScreen* CDelHelX::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
 {
-    if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
-    {
-        std::string callSign = fp.GetCallsign();
-        std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
+    CDelHelX_Base::OnRadarScreenCreated(sDisplayName, NeedRadarContent, GeoReferenced, CanBeSaved, CanBeCreated);
+    if (this->depRateWindowX     != -1) { this->radarScreen->depRateWindowPos     = { this->depRateWindowX,     this->depRateWindowY     }; }
+    if (this->twrOutboundWindowX != -1) { this->radarScreen->twrOutboundWindowPos = { this->twrOutboundWindowX, this->twrOutboundWindowY }; }
+    if (this->twrInboundWindowX  != -1) { this->radarScreen->twrInboundWindowPos  = { this->twrInboundWindowX,  this->twrInboundWindowY  }; }
+    if (this->napWindowX         != -1) { this->radarScreen->napWindowPos          = { this->napWindowX,         this->napWindowY         }; }
+    if (this->weatherWindowX     != -1) { this->radarScreen->weatherWindowPos      = { this->weatherWindowX,     this->weatherWindowY     }; }
+    return this->radarScreen;
+}
 
-        //if (!scratch.empty())
-        //{
-        //  OutputDebugStringA(("[DelHelX] " + callSign + " scratch: " + scratch + "\n").c_str());
-        //}
-        
-        // Check for stand assignment
-        size_t pos = scratch.find("GRP/S/");
-        if (pos != std::string::npos) {
-            std::string stand = scratch.substr(pos + 6);
-            
-            this->standAssignment[callSign] = stand;
-        }
+/// @brief Drives periodic updates: blinking, update check, NAP reminder, and state-map refreshes.
+/// @param Counter EuroScope second counter.
+/// @note State maps update every 2 s; tag cache and departure overlays refresh every second;
+///       NAP check every 10 s; window positions saved every 5 s.
+void CDelHelX::OnTimer(int Counter)
+{
+    this->blinking = !this->blinking;
 
-        // Check for ground status
-        static const std::vector<std::string> groundStatuses = { "PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA" };
-        for (const auto& status : groundStatuses)
-        {
-            if (scratch.find(status) != std::string::npos)
-            {
-                this->groundStatus[callSign] = status;
-                break;
-            }
-        }
+    if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready) {
+        this->CheckForUpdate();
     }
 
-    if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_GROUND_STATE)
+    if (Counter > 0 && Counter % 10 == 0)
     {
-        std::string callSign = fp.GetCallsign();
-        std::string groundState = fp.GetGroundState();
-        this->groundStatus[callSign] = groundState;
+        this->CheckAirportNAPReminder();
     }
+
+    if (Counter > 0 && Counter % 2 == 0)
+    {
+        this->UpdateTowerSameSID();
+        this->AutoUpdateDepartureHoldingPoints();
+        this->UpdateTTTInbounds();
+        this->CheckReconnects();
+    }
+
+    // Rebuild tag cache and departure overlays every second (after state maps are current)
+    if (Counter > 0)
+    {
+        this->UpdateTagCache();
+        this->UpdateRadarTargetDepartureInfo();
+    }
+
+    if (Counter > 0 && Counter % 5 == 0)
+    {
+        this->SaveAndRestoreWindowLocations();
+        this->UpdateAdesCache();
+    }
+
+    this->PollAtisLetters(Counter);
 }
 
 /// Singleton plugin instance owned by the DLL.
