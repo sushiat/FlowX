@@ -100,7 +100,7 @@ Tracks all departing aircraft. Rows are sorted by a composite key (holding point
 | Column | Source | Description | Left click | Right click |
 |---|---|---|---|---|
 | C/S | EuroScope | Callsign | — | — |
-| STS | FlowX | Ground state (`ONFREQ` / `START-UP` / `TAXI` / `LINE UP` / `TAKE OFF` / `T+M:SS`) | Line Up | Take Off |
+| STS | FlowX | Ground state (`ONFREQ` / `START-UP` / `TAXI` / `LINE UP` / `TAKE OFF` / `--DEP--`) | Line Up | Take Off |
 | DEP? | FlowX | Departure readiness vs. previous departure: time (s) or distance (nm), colour-coded green/yellow/red | — | — |
 | RWY | FlowX | Assigned departure runway | EuroScope runway selector | — |
 | SID | FlowX | SID name colour-coded by group | EuroScope SID selector | — |
@@ -108,14 +108,18 @@ Tracks all departing aircraft. Rows are sorted by a composite key (holding point
 | ATYP | TopSky | Aircraft type | — | — |
 | Freq | FlowX | Next handoff frequency; turquoise above transfer altitude, blinking orange at warning threshold, `!MODE-C` if airborne without Mode-C | Transfer Next | — |
 | HP | FlowX | Holding point; orange with `*` if readback pending, grey after departure | Assign HP | Request HP |
-| Spacing | FlowX | Takeoff spacing — time (lighter follows heavier) or distance (equal/heavier follows lighter), colour-coded green/yellow/red | — | — |
+| Spacing | FlowX | Takeoff spacing snapshot — time (lighter follows heavier) or distance (equal/heavier follows lighter), colour-coded green/yellow/red | — | — |
+| T+ | FlowX | Elapsed time since takeoff roll start (`M:SS`); empty while on the ground | — | — |
+| dNM | FlowX | Live distance to the previous departure (`XX.X nm`), updated on every position report; colour-coded green/yellow/red using the same distance thresholds as Spacing; `---` if no previous departure tracked | — | — |
 
-#### Takeoff Spacing format
+#### Takeoff Spacing / dNM format
 
 ```
- 90s /120    ← time (s) / required (s)   — lighter follows heavier
-4.2nm/3      ← distance (nm) / required  — equal or heavier follows lighter
+ 90s /120    ← Spacing: time (s) / required (s)   — lighter follows heavier
+4.2nm/3      ← Spacing: distance (nm) / required  — equal or heavier follows lighter
 ---          ← no preceding departure recorded
+
+12.3 nm      ← dNM: live current distance to previous departure
 ```
 
 Required distance is 3 nm by default, 5 nm when both aircraft share a SID group.

@@ -426,6 +426,8 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
                 // dep_prevTakeoffOffset uses roll ticks for both aircraft → measures time between roll starts
                 this->dep_prevTakeoffOffset[callSign] = (mapIt->second - prevTakeoffIt->second) / 1000;
 
+                this->dep_prevCallSign[callSign] = prevCallSign;
+
                 auto prevRt = this->RadarTargetSelect(prevCallSign.c_str());
                 if (prevRt.IsValid())
                 {
@@ -870,6 +872,7 @@ void CFlowX_Timers::UpdateTowerSameSID()
             {
                 this->twrSameSID.RemoveFpFromTheList(fp);
                 this->twrSameSID_flightPlans.erase(callSign);
+                this->dep_prevCallSign.erase(callSign);
                 this->dep_prevWtc.erase(callSign);
                 this->dep_prevSid.erase(callSign);
                 this->dep_prevTakeoffOffset.erase(callSign);
@@ -889,6 +892,7 @@ void CFlowX_Timers::UpdateTowerSameSID()
             {
                 this->twrSameSID.RemoveFpFromTheList(fp);
                 this->twrSameSID_flightPlans.erase(callSign);
+                this->dep_prevCallSign.erase(callSign);
                 this->dep_prevWtc.erase(callSign);
                 this->dep_prevSid.erase(callSign);
                 this->dep_prevTakeoffOffset.erase(callSign);
@@ -959,6 +963,7 @@ void CFlowX_Timers::UpdateTowerSameSID()
                 this->PushToOtherControllers(fp);
                 this->twrSameSID.RemoveFpFromTheList(fp);
                 this->twrSameSID_flightPlans.erase(callSign);
+                this->dep_prevCallSign.erase(callSign);
                 this->dep_prevWtc.erase(callSign);
                 this->dep_prevSid.erase(callSign);
                 this->dep_prevTakeoffOffset.erase(callSign);

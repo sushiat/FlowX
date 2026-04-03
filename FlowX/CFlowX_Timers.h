@@ -29,6 +29,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              atisLetters;               ///< ICAO -> current ATIS letter for each configured airport; empty string if not yet received.
     std::set<std::string>                           atisUnacked;               ///< Airports where the ATIS letter changed since the user last acknowledged.
     bool                                            blinking = false;          ///< Toggles each timer tick; drives blinking tag colours.
+    std::map<std::string, std::string>              dep_prevCallSign;          ///< Callsign -> callsign of the previous departure on the same runway (captured at airborne moment).
     std::map<std::string, double>                   dep_prevDistanceAtTakeoff; ///< Callsign -> distance (NM) to the previous aircraft at the moment this aircraft took off.
     std::map<std::string, std::string>              dep_prevSid;               ///< Callsign -> SID of the previous departure on the same runway.
     std::map<std::string, ULONGLONG>                dep_prevTakeoffOffset;     ///< Callsign -> elapsed seconds between the previous departure's takeoff and this aircraft's takeoff.

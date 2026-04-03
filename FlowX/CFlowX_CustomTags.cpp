@@ -488,6 +488,69 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         return t;
     }();
 
+    // ── row.liveSpacing (live current distance to previous departure) ──
+    row.liveSpacing = [&]() -> tagInfo
+    {
+        tagInfo t;
+        if (!isAirborne || !hasAirport || !rtValid)
+        {
+            return t;
+        }
+        auto prevCallIt = this->dep_prevCallSign.find(callSign);
+        if (prevCallIt == this->dep_prevCallSign.end())
+        {
+            t.tag = "---";
+            return t;
+        }
+        auto prevRt = this->RadarTargetSelect(prevCallIt->second.c_str());
+        if (!prevRt.IsValid() || !prevRt.GetPosition().IsValid())
+        {
+            t.tag = "---";
+            return t;
+        }
+        double dist = rt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
+
+        double      distRequired = 3.0;
+        std::string curSid       = fpd.GetSidName();
+        auto        prevSidIt    = this->dep_prevSid.find(callSign);
+        if (prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty() && prevSidIt->second.length() > 2 && curSid.length() > 2)
+        {
+            auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+            auto curSidKey  = curSid.substr(0, curSid.length() - 2);
+            auto rwyIt      = airportIt->second.runways.find(rwy);
+            if (rwyIt != airportIt->second.runways.end())
+            {
+                auto& sidGroupsMap = rwyIt->second.sidGroups;
+                auto  prevGroupIt  = sidGroupsMap.find(prevSidKey);
+                auto  curGroupIt   = sidGroupsMap.find(curSidKey);
+                if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end() && prevGroupIt->second == curGroupIt->second)
+                {
+                    distRequired = 5.0;
+                }
+            }
+        }
+
+        char distBuf[16];
+        (void)snprintf(distBuf, sizeof(distBuf), "%4.1f", dist);
+        t.tag = std::string(distBuf) + " nm";
+
+        double greenAt  = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852);
+        double yellowAt = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852);
+        if (dist >= greenAt)
+        {
+            t.color = TAG_COLOR_GREEN;
+        }
+        else if (dist >= yellowAt)
+        {
+            t.color = TAG_COLOR_YELLOW;
+        }
+        else
+        {
+            t.color = TAG_COLOR_RED;
+        }
+        return t;
+    }();
+
     // ── row.sortKey (twrSort text) ──
     row.sortKey = [&]() -> std::string
     {
@@ -1243,6 +1306,56 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     if (!fp.IsValid())
     {
         return;
+    }
+
+    // Update live spacing for airborne outbound aircraft on every position report.
+    if (this->radarScreen != nullptr && this->dep_prevCallSign.count(callSign) > 0)
+    {
+        auto& prevCs = this->dep_prevCallSign.at(callSign);
+        auto  prevRt = this->RadarTargetSelect(prevCs.c_str());
+        if (prevRt.IsValid() && prevRt.GetPosition().IsValid() && rt.GetPosition().IsValid())
+        {
+            double dist = rt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
+
+            double      distRequired = 3.0;
+            std::string curSid       = fp.GetFlightPlanData().GetSidName();
+            std::string dep          = fp.GetFlightPlanData().GetOrigin();
+            to_upper(dep);
+            std::string rwy       = fp.GetFlightPlanData().GetDepartureRwy();
+            auto        airportIt = this->airports.find(dep);
+            auto        prevSidIt = this->dep_prevSid.find(callSign);
+            if (airportIt != this->airports.end() && prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty() && prevSidIt->second.length() > 2 && curSid.length() > 2)
+            {
+                auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+                auto curSidKey  = curSid.substr(0, curSid.length() - 2);
+                auto rwyIt      = airportIt->second.runways.find(rwy);
+                if (rwyIt != airportIt->second.runways.end())
+                {
+                    auto& sidGroupsMap = rwyIt->second.sidGroups;
+                    auto  prevGroupIt  = sidGroupsMap.find(prevSidKey);
+                    auto  curGroupIt   = sidGroupsMap.find(curSidKey);
+                    if (prevGroupIt != sidGroupsMap.end() && curGroupIt != sidGroupsMap.end() && prevGroupIt->second == curGroupIt->second)
+                    {
+                        distRequired = 5.0;
+                    }
+                }
+            }
+
+            char distBuf[16];
+            (void)snprintf(distBuf, sizeof(distBuf), "%4.1f", dist);
+            tagInfo liveTag;
+            liveTag.tag        = std::string(distBuf) + " nm";
+            double greenAt     = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852);
+            double yellowAt    = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852);
+            liveTag.color      = (dist >= greenAt) ? TAG_COLOR_GREEN : (dist >= yellowAt) ? TAG_COLOR_YELLOW : TAG_COLOR_RED;
+
+            for (auto& row : this->radarScreen->twrOutboundRowsCache)
+            {
+                if (row.callsign != callSign) { continue; }
+                row.liveSpacing = liveTag;
+                break;
+            }
+        }
     }
 
     // Only update for inbound aircraft

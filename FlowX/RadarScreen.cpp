@@ -365,7 +365,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int ROW_H   = 19;
     const int PAD     = 6;
     // Original list column order and widths in chars:
-    // C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, ATYP=8, Freq=15, HP=4, Spacing=17
+    // C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, ATYP=8, Freq=15, HP=4, Spacing=17, dNM=8
     const int CS      = 84;   // 12 chars
     const int STS     = 84;   // 12 chars
     const int DEP     = 70;   // 10 chars
@@ -376,10 +376,11 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int FREQ    = 105;  // 15 chars
     const int HP      = 28;   //  4 chars
     const int SPC     = 119;  // 17 chars
-    const int TMR     = 42;   //  6 chars ("9:59")
+    const int TMR     = 56;   //  8 chars ("9:59"; extra left margin separates from Spacing)
+    const int LDST    = 77;   // 11 chars (live distance to previous departure; extra left margin separates from T+)
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
     const int SEP_H   = 12;    ///< Height of blank separator row between sort groups
-    const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + TMR + PAD;
+    const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + TMR + LDST + PAD;
     int numRows       = (int)this->twrOutboundRowsCache.size();
 
     int numSeps = 0;
@@ -481,6 +482,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         colHdr(HP,   "HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(SPC,  "Spacing", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         colHdr(TMR,  "T+",      DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        colHdr(LDST, "dNM",     DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
@@ -553,6 +555,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         cellClickable(HP,   r.hp.tag,               r.hp.color,       r.callsign + "|HP",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(SPC,  r.spacing.tag,          r.spacing.color,  r.callsign + "|SPC", DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cell(TMR,  r.timeSinceTakeoff.tag,  r.timeSinceTakeoff.color,                      DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cell(LDST, r.liveSpacing.tag,       r.liveSpacing.color,                           DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
     DeleteObject(altBrushOut);

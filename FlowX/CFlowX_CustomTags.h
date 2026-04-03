@@ -25,7 +25,7 @@ class CFlowX_CustomTags : public CFlowX_Tags
 
     /// @brief Computes all timer-updated fields for one outbound row in a single pass,
     /// performing shared lookups (airport, rwy, pos, annotation) only once.
-    /// Fills: status, depInfo, rwy, sameSid, nextFreq, hp, spacing, sortKey, dimmed.
+    /// Fills: status, depInfo, rwy, sameSid, nextFreq, hp, spacing, liveSpacing, sortKey, dimmed.
     void ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
                                    EuroScopePlugIn::CRadarTarget& rt,
                                    TwrOutboundRowCache&           row);

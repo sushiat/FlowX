@@ -306,6 +306,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
         }
     }
 
+    this->dep_prevCallSign.erase(callSign);
     this->dep_prevWtc.erase(callSign);
     this->dep_prevSid.erase(callSign);
     this->dep_prevTakeoffOffset.erase(callSign);
