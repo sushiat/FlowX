@@ -24,7 +24,8 @@ void CDelHelX_Logging::LogMessage(const std::string& message, const std::string&
 /// @param type Category label used as the sender name.
 void CDelHelX_Logging::LogDebugMessage(const std::string& message, const std::string& type)
 {
-    if (this->debug) {
+    if (this->debug)
+    {
         this->LogMessage(message, type);
     }
 }

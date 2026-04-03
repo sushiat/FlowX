@@ -9,13 +9,13 @@
 
 /// @brief Registers all tag item types, tag functions, display type, and flight-plan lists with EuroScope.
 CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
-    EuroScopePlugIn::COMPATIBILITY_CODE,
-    PLUGIN_NAME,
-    PLUGIN_VERSION,
-    PLUGIN_AUTHOR,
-    PLUGIN_LICENSE)
+                                     EuroScopePlugIn::COMPATIBILITY_CODE,
+                                     PLUGIN_NAME,
+                                     PLUGIN_VERSION,
+                                     PLUGIN_AUTHOR,
+                                     PLUGIN_LICENSE)
 {
-    this->debug = false;
+    this->debug       = false;
     this->radarScreen = nullptr;
 
     std::filesystem::path base(GetPluginDirectory());
@@ -43,7 +43,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 /// @return Pointer to the newly created RadarScreen instance.
 EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
 {
-    this->radarScreen = new RadarScreen();
+    this->radarScreen        = new RadarScreen();
     this->radarScreen->debug = this->debug;
     return this->radarScreen;
 }
@@ -52,16 +52,18 @@ EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* s
 /// @param fp Flight plan to distribute.
 void CDelHelX_Base::PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const
 {
-    for (EuroScopePlugIn::CController c = this->ControllerSelectFirst(); c.IsValid(); c = this->ControllerSelectNext(c)) {
+    for (EuroScopePlugIn::CController c = this->ControllerSelectFirst(); c.IsValid(); c = this->ControllerSelectNext(c))
+    {
         if (c.IsController())
         {
             std::string callsign = c.GetCallsign();
-            if (callsign.size() >= 3) {
-                if (callsign.find("DEL") != std::string::npos || callsign.find("GND") != std::string::npos || callsign.find("TWR") != std::string::npos) {
+            if (callsign.size() >= 3)
+            {
+                if (callsign.find("DEL") != std::string::npos || callsign.find("GND") != std::string::npos || callsign.find("TWR") != std::string::npos)
+                {
                     fp.PushFlightStrip(c.GetCallsign());
                 }
             }
         }
     }
 }
-

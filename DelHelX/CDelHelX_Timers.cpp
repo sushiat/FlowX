@@ -12,12 +12,12 @@
 /// @brief Returns today's UTC date as a "YYYY-MM-DD" string, used for NAP dismissal tracking.
 static std::string UtcDateString()
 {
-    auto now = std::chrono::system_clock::now();
-    auto ymd = date::year_month_day{ date::floor<date::days>(now) };
+    auto               now = std::chrono::system_clock::now();
+    auto               ymd = date::year_month_day{date::floor<date::days>(now)};
     std::ostringstream ss;
-    int  y = (int)ymd.year();
-    auto m = (unsigned)ymd.month();
-    auto d = (unsigned)ymd.day();
+    int                y = (int)ymd.year();
+    auto               m = (unsigned)ymd.month();
+    auto               d = (unsigned)ymd.day();
     ss << y << "-" << (m < 10 ? "0" : "") << m << "-" << (d < 10 ? "0" : "") << d;
     return ss.str();
 }
@@ -27,10 +27,10 @@ void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
 {
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
-        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-        std::string callSign = fp.GetCallsign();
+        EuroScopePlugIn::CRadarTargetPositionData          pos      = rt.GetPosition();
+        EuroScopePlugIn::CFlightPlan                       fp       = rt.GetCorrelatedFlightPlan();
+        EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad    = fp.GetControllerAssignedData();
+        std::string                                        callSign = fp.GetCallsign();
 
         if (!pos.IsValid() || !fp.IsValid())
         {
@@ -55,14 +55,14 @@ void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
             continue;
         }
 
-        EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
-        std::string rwy = fpd.GetDepartureRwy();
-        std::string groundState = fp.GetGroundState();
-        auto pressAlt = pos.GetPressureAltitude();
-        auto groundSpeed = pos.GetReportedGS();
+        EuroScopePlugIn::CFlightPlanData fpd         = fp.GetFlightPlanData();
+        std::string                      rwy         = fpd.GetDepartureRwy();
+        std::string                      groundState = fp.GetGroundState();
+        auto                             pressAlt    = pos.GetPressureAltitude();
+        auto                             groundSpeed = pos.GetReportedGS();
 
-        std::string before = this->flightStripAnnotation[callSign];
-        int depElevation = airport->second.fieldElevation;
+        std::string before       = this->flightStripAnnotation[callSign];
+        int         depElevation = airport->second.fieldElevation;
         if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 30)
         {
             auto rwyIt = airport->second.runways.find(rwy);
@@ -70,7 +70,7 @@ void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
             {
                 for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
                 {
-                    u_int corners = static_cast<u_int>(hpData.lat.size());
+                    u_int  corners = static_cast<u_int>(hpData.lat.size());
                     double polyX[10], polyY[10];
                     std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
                     std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
@@ -108,7 +108,7 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
                 std::vector<std::string> timeSplit = split(timeString, ' ');
                 if (timeSplit.size() == 3)
                 {
-                    auto tod = timeSplit[1];
+                    auto                     tod      = timeSplit[1];
                     std::vector<std::string> todSplit = split(tod, ':');
                     if (todSplit.size() == 3)
                     {
@@ -120,7 +120,10 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
                             airport.second.nap_reminder.triggered = true;
 
                             // Suppress if already acknowledged today
-                            if (this->napLastDismissedDate == UtcDateString()) { continue; }
+                            if (this->napLastDismissedDate == UtcDateString())
+                            {
+                                continue;
+                            }
 
                             std::filesystem::path wavPath = std::filesystem::path(GetPluginDirectory()) / "nap.wav";
                             PlaySoundA(wavPath.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
@@ -150,10 +153,10 @@ void CDelHelX_Timers::CheckReconnects()
     }
 
     constexpr ULONGLONG timeoutMs = 90000ULL;
-    ULONGLONG now = GetTickCount64();
+    ULONGLONG           now       = GetTickCount64();
 
     // Expire snapshots older than 90 s and clean up their groundStatus entries
-    for (auto it = this->reconnect_pending.begin(); it != this->reconnect_pending.end(); )
+    for (auto it = this->reconnect_pending.begin(); it != this->reconnect_pending.end();)
     {
         if ((now - it->second.disconnectTime) >= timeoutMs)
         {
@@ -179,15 +182,15 @@ void CDelHelX_Timers::CheckReconnects()
             continue;
         }
 
-        std::string callSign = fp.GetCallsign();
-        auto pendingIt = this->reconnect_pending.find(callSign);
+        std::string callSign  = fp.GetCallsign();
+        auto        pendingIt = this->reconnect_pending.find(callSign);
         if (pendingIt == this->reconnect_pending.end())
         {
             continue;
         }
 
-        const reconnectSnapshot& snap = pendingIt->second;
-        EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
+        const reconnectSnapshot&                           snap  = pendingIt->second;
+        EuroScopePlugIn::CFlightPlanData                   fpd   = fp.GetFlightPlanData();
         EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
 
         std::string depAirport = fpd.GetOrigin();
@@ -195,34 +198,72 @@ void CDelHelX_Timers::CheckReconnects()
         std::string destAirport = fpd.GetDestination();
         to_upper(destAirport);
 
-        auto logMismatch = [&](const std::string& field, const std::string& got, const std::string& expected) {
+        auto logMismatch = [&](const std::string& field, const std::string& got, const std::string& expected)
+        {
             this->LogDebugMessage(callSign + " reconnect mismatch [" + field + "]: got=\"" + got + "\" expected=\"" + expected + "\"", "AutoRestore");
         };
 
         bool match = true;
-        if (std::string(fp.GetPilotName())       != snap.pilotName)    { logMismatch("pilotName",    fp.GetPilotName(),        snap.pilotName);    match = false; }
-        if (depAirport                               != snap.depAirport)   { logMismatch("depAirport",   depAirport,               snap.depAirport);   match = false; }
-        if (destAirport                              != snap.destAirport)  { logMismatch("destAirport",  destAirport,              snap.destAirport);  match = false; }
-        if (std::string(fpd.GetAircraftFPType()) != snap.aircraftType) { logMismatch("aircraftType", fpd.GetAircraftFPType(),  snap.aircraftType); match = false; }
-        if (fpd.GetAircraftWtc()                     != snap.wtc)          { logMismatch("wtc",          std::string(1, fpd.GetAircraftWtc()), std::string(1, snap.wtc)); match = false; }
-        if (std::string(fpd.GetPlanType())       != snap.planType)     { logMismatch("planType",     fpd.GetPlanType(),        snap.planType);     match = false; }
+        if (std::string(fp.GetPilotName()) != snap.pilotName)
         {
-            auto trimRoute = [](std::string s) -> std::string {
+            logMismatch("pilotName", fp.GetPilotName(), snap.pilotName);
+            match = false;
+        }
+        if (depAirport != snap.depAirport)
+        {
+            logMismatch("depAirport", depAirport, snap.depAirport);
+            match = false;
+        }
+        if (destAirport != snap.destAirport)
+        {
+            logMismatch("destAirport", destAirport, snap.destAirport);
+            match = false;
+        }
+        if (std::string(fpd.GetAircraftFPType()) != snap.aircraftType)
+        {
+            logMismatch("aircraftType", fpd.GetAircraftFPType(), snap.aircraftType);
+            match = false;
+        }
+        if (fpd.GetAircraftWtc() != snap.wtc)
+        {
+            logMismatch("wtc", std::string(1, fpd.GetAircraftWtc()), std::string(1, snap.wtc));
+            match = false;
+        }
+        if (std::string(fpd.GetPlanType()) != snap.planType)
+        {
+            logMismatch("planType", fpd.GetPlanType(), snap.planType);
+            match = false;
+        }
+        {
+            auto trimRoute = [](std::string s) -> std::string
+            {
                 s.erase(0, s.find_first_not_of(" \t\r\n"));
                 s.erase(s.find_last_not_of(" \t\r\n") + 1);
                 return s;
             };
-            if (trimRoute(std::string(fpd.GetRoute())) != trimRoute(snap.route)) { logMismatch("route", fpd.GetRoute(), snap.route); match = false; }
+            if (trimRoute(std::string(fpd.GetRoute())) != trimRoute(snap.route))
+            {
+                logMismatch("route", fpd.GetRoute(), snap.route);
+                match = false;
+            }
         }
-        if (std::string(fpd.GetSidName())        != snap.sidName)      { logMismatch("sidName",      fpd.GetSidName(),         snap.sidName);      match = false; }
-        if (std::string(fpcad.GetSquawk())       != snap.squawk)       { logMismatch("squawk",       fpcad.GetSquawk(),        snap.squawk); match = false; }
+        if (std::string(fpd.GetSidName()) != snap.sidName)
+        {
+            logMismatch("sidName", fpd.GetSidName(), snap.sidName);
+            match = false;
+        }
+        if (std::string(fpcad.GetSquawk()) != snap.squawk)
+        {
+            logMismatch("squawk", fpcad.GetSquawk(), snap.squawk);
+            match = false;
+        }
 
         if (match && snap.hasPosition)
         {
             EuroScopePlugIn::CPosition storedPos;
             storedPos.m_Latitude  = snap.lat;
             storedPos.m_Longitude = snap.lon;
-            double dist = rt.GetPosition().GetPosition().DistanceTo(storedPos);
+            double dist           = rt.GetPosition().GetPosition().DistanceTo(storedPos);
             if (dist > 1.0)
             {
                 logMismatch("position", std::to_string(dist) + "nm", "<1nm");
@@ -240,7 +281,7 @@ void CDelHelX_Timers::CheckReconnects()
         if (snap.clearanceFlag && !fp.GetClearenceFlag() && this->radarScreen != nullptr)
         {
             this->radarScreen->StartTagFunction(callSign.c_str(), nullptr, 0, callSign.c_str(), nullptr,
-                EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+                                                EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
         }
 
         // Restore ground state via momentary scratch-pad toggle (same pattern as other state setters)
@@ -254,7 +295,8 @@ void CDelHelX_Timers::CheckReconnects()
         if (snap.clearanceFlag || !snap.savedGroundStatus.empty())
         {
             this->LogMessage("Auto-restored state for " + callSign + " (clearance=" +
-                (snap.clearanceFlag ? "yes" : "no") + ", gnd=" + snap.savedGroundStatus + ")", "AutoRestore");
+                                 (snap.clearanceFlag ? "yes" : "no") + ", gnd=" + snap.savedGroundStatus + ")",
+                             "AutoRestore");
         }
 
         this->reconnect_pending.erase(pendingIt);
@@ -271,34 +313,48 @@ void CDelHelX_Timers::CheckReconnects()
 ///   If Phase 1 never fired (e.g. no runway width configured), the tick is set here as a fallback.
 void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 {
-    if (!rt.IsValid()) { return; }
+    if (!rt.IsValid())
+    {
+        return;
+    }
 
     std::string callSign = rt.GetCallsign();
-    auto mapIt = this->twrSameSID_flightPlans.find(callSign);
-    if (mapIt == this->twrSameSID_flightPlans.end()) { return; }
+    auto        mapIt    = this->twrSameSID_flightPlans.find(callSign);
+    if (mapIt == this->twrSameSID_flightPlans.end())
+    {
+        return;
+    }
 
     EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-    if (!fp.IsValid()) { return; }
+    if (!fp.IsValid())
+    {
+        return;
+    }
 
     std::string dep = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
     auto airportIt = this->airports.find(dep);
-    if (airportIt == this->airports.end()) { return; }
+    if (airportIt == this->airports.end())
+    {
+        return;
+    }
 
     std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
-    auto rwyIt = airportIt->second.runways.find(depRwy);
-    if (rwyIt == airportIt->second.runways.end()) { return; }
+    auto        rwyIt  = airportIt->second.runways.find(depRwy);
+    if (rwyIt == airportIt->second.runways.end())
+    {
+        return;
+    }
 
-    const runway& rwy = rwyIt->second;
-    auto pos    = rt.GetPosition();
-    int pressAlt     = pos.GetPressureAltitude();
-    int depElevation = airportIt->second.fieldElevation;
+    const runway& rwy          = rwyIt->second;
+    auto          pos          = rt.GetPosition();
+    int           pressAlt     = pos.GetPressureAltitude();
+    int           depElevation = airportIt->second.fieldElevation;
 
     // ── Phase 1b: Rejected takeoff ──
     // If the roll tick was set but the aircraft never went airborne and GS has fallen back below 30,
     // reset the tick so depInfo and T+ are restored for a subsequent attempt.
-    if (mapIt->second != 0 && this->dep_sequenceNumber.count(callSign) == 0
-        && pos.GetReportedGS() < 30)
+    if (mapIt->second != 0 && this->dep_sequenceNumber.count(callSign) == 0 && pos.GetReportedGS() < 30)
     {
         mapIt->second = 0;
     }
@@ -315,9 +371,12 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
                 EuroScopePlugIn::CPosition oppThresh;
                 oppThresh.m_Latitude  = oppIt->second.thresholdLat;
                 oppThresh.m_Longitude = oppIt->second.thresholdLon;
-                double rwyHdg  = DirectionFromRunwayThreshold(depRwy, oppThresh, airportIt->second.runways);
-                double hdgDiff = std::abs(pos.GetReportedHeading() - rwyHdg);
-                if (hdgDiff > 180.0) { hdgDiff = 360.0 - hdgDiff; }
+                double rwyHdg         = DirectionFromRunwayThreshold(depRwy, oppThresh, airportIt->second.runways);
+                double hdgDiff        = std::abs(pos.GetReportedHeading() - rwyHdg);
+                if (hdgDiff > 180.0)
+                {
+                    hdgDiff = 360.0 - hdgDiff;
+                }
                 if (hdgDiff <= 45.0)
                 {
                     mapIt->second = GetTickCount64();
@@ -334,16 +393,13 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
     //   Any of TAXI / LINEUP / DEPA confirms the controller gave the aircraft a clearance.
     // Tier 2 (200 ft): no ground state required — catches helicopters or aircraft where no
     //   TopSky state was ever set; spacing precision is slightly lower but still useful.
-    std::string groundStatePh2 = fp.GetGroundState();
-    bool airborneCondition = (pressAlt >= depElevation + 200)
-                          || (pressAlt >= depElevation + 50
-                              && (groundStatePh2 == "TAXI" || groundStatePh2 == "LINEUP"
-                                  || groundStatePh2 == "DEPA"));
+    std::string groundStatePh2    = fp.GetGroundState();
+    bool        airborneCondition = (pressAlt >= depElevation + 200) || (pressAlt >= depElevation + 50 && (groundStatePh2 == "TAXI" || groundStatePh2 == "LINEUP" || groundStatePh2 == "DEPA"));
     if (this->dep_sequenceNumber.count(callSign) == 0 && airborneCondition)
     {
         if (mapIt->second == 0)
         {
-            mapIt->second = GetTickCount64();  // fallback: roll wasn't detected
+            mapIt->second = GetTickCount64(); // fallback: roll wasn't detected
         }
 
         this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
@@ -356,8 +412,8 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
         auto prevDepIt = this->twrSameSID_lastDeparted.find(depRwy);
         if (prevDepIt != this->twrSameSID_lastDeparted.end())
         {
-            const std::string& prevCallSign = prevDepIt->second;
-            auto prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
+            const std::string& prevCallSign  = prevDepIt->second;
+            auto               prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
             if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
             {
                 // dep_prevTakeoffOffset uses roll ticks for both aircraft → measures time between roll starts
@@ -367,13 +423,13 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
                 if (prevRt.IsValid())
                 {
                     this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
-                    this->dep_prevWtc[callSign] = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
-                    this->dep_prevSid[callSign] = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+                    this->dep_prevWtc[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
+                    this->dep_prevSid[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
                 }
 
-                int timeRequired = 120;
+                int timeRequired                      = 120;
                 this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                auto prevFp = this->FlightPlanSelect(prevCallSign.c_str());
+                auto prevFp                           = this->FlightPlanSelect(prevCallSign.c_str());
                 if (prevFp.IsValid())
                 {
                     this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
@@ -415,8 +471,8 @@ void CDelHelX_Timers::PollAtisLetters(int Counter)
                 std::string icaoUpper = icao;
                 to_upper(icaoUpper);
 
-                std::string best;       // atis_code from best-matching station
-                std::string bestCs;     // callsign of best-matching station
+                std::string best;   // atis_code from best-matching station
+                std::string bestCs; // callsign of best-matching station
 
                 for (auto& entry : j.at("atis"))
                 {
@@ -442,8 +498,8 @@ void CDelHelX_Timers::PollAtisLetters(int Counter)
                     }
                 }
 
-                auto it = this->atisLetters.find(icao);
-                bool hadLetter = (it != this->atisLetters.end() && !it->second.empty());
+                auto it         = this->atisLetters.find(icao);
+                bool hadLetter  = (it != this->atisLetters.end() && !it->second.empty());
                 bool firstFetch = (it == this->atisLetters.end());
 
                 if (!best.empty())
@@ -488,7 +544,10 @@ void CDelHelX_Timers::PollAtisLetters(int Counter)
 /// positions back to disk whenever any window has been dragged to a new location.
 void CDelHelX_Timers::SaveAndRestoreWindowLocations()
 {
-    if (this->radarScreen == nullptr) { return; }
+    if (this->radarScreen == nullptr)
+    {
+        return;
+    }
 
     bool needsSave = false;
 
@@ -497,23 +556,26 @@ void CDelHelX_Timers::SaveAndRestoreWindowLocations()
         if (screenPos.x == -1 && savedX != -1 && savedY != -1)
         {
             // Restore persisted position before first auto-placement
-            screenPos = { savedX, savedY };
+            screenPos = {savedX, savedY};
         }
         else if (screenPos.x != -1 && (screenPos.x != savedX || screenPos.y != savedY))
         {
-            savedX = screenPos.x;
-            savedY = screenPos.y;
+            savedX    = screenPos.x;
+            savedY    = screenPos.y;
             needsSave = true;
         }
     };
 
-    syncWindow(this->radarScreen->depRateWindowPos,     this->depRateWindowX,     this->depRateWindowY);
+    syncWindow(this->radarScreen->depRateWindowPos, this->depRateWindowX, this->depRateWindowY);
     syncWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
-    syncWindow(this->radarScreen->twrInboundWindowPos,  this->twrInboundWindowX,  this->twrInboundWindowY);
-    syncWindow(this->radarScreen->napWindowPos,          this->napWindowX,          this->napWindowY);
-    syncWindow(this->radarScreen->weatherWindowPos,      this->weatherWindowX,      this->weatherWindowY);
+    syncWindow(this->radarScreen->twrInboundWindowPos, this->twrInboundWindowX, this->twrInboundWindowY);
+    syncWindow(this->radarScreen->napWindowPos, this->napWindowX, this->napWindowY);
+    syncWindow(this->radarScreen->weatherWindowPos, this->weatherWindowX, this->weatherWindowY);
 
-    if (needsSave) { this->SaveWindowLocations(); }
+    if (needsSave)
+    {
+        this->SaveWindowLocations();
+    }
 }
 
 /// @brief Rebuilds adesCache for all correlated flight plans departing from a configured airport.
@@ -523,50 +585,76 @@ void CDelHelX_Timers::UpdateAdesCache()
 {
     // Returns the last waypoint-like token before the first "VFR" token in the route string.
     // Returns empty string if no VFR marker is found or no valid waypoint precedes it.
-    auto lastIfrWaypoint = [](const char* route) -> std::string {
-        auto isWaypoint = [](const std::string& s) -> bool {
-            if (s.empty() || s == "DCT" || s == "IFR" || s == "VFR") { return false; }
+    auto lastIfrWaypoint = [](const char* route) -> std::string
+    {
+        auto isWaypoint = [](const std::string& s) -> bool
+        {
+            if (s.empty() || s == "DCT" || s == "IFR" || s == "VFR")
+            {
+                return false;
+            }
             // Strip speed/level suffix (e.g. WAYPOINT/N0450F350)
             std::string base = s.substr(0, s.find('/'));
-            if (base.empty()) { return false; }
-            if (!std::all_of(base.begin(), base.end(), ::isalnum)) { return false; }
+            if (base.empty())
+            {
+                return false;
+            }
+            if (!std::all_of(base.begin(), base.end(), ::isalnum))
+            {
+                return false;
+            }
             // Speed/level change group: N/K/M followed immediately by a digit
-            if ((base[0] == 'N' || base[0] == 'K' || base[0] == 'M') && base.size() >= 2 && std::isdigit((unsigned char)base[1])) { return false; }
+            if ((base[0] == 'N' || base[0] == 'K' || base[0] == 'M') && base.size() >= 2 && std::isdigit((unsigned char)base[1]))
+            {
+                return false;
+            }
             return true;
         };
 
-        std::string last;
-        bool vfrFound  = false;
-        bool firstToken = true;
+        std::string        last;
+        bool               vfrFound   = false;
+        bool               firstToken = true;
         std::istringstream ss(route);
-        std::string tok;
+        std::string        tok;
         while (ss >> tok)
         {
             if (tok == "VFR")
             {
-                if (firstToken) { return ""; }  // VFR at front = type V or Z, leave unchanged
+                if (firstToken)
+                {
+                    return "";
+                } // VFR at front = type V or Z, leave unchanged
                 vfrFound = true;
                 break;
             }
-            if (isWaypoint(tok)) { last = tok.substr(0, tok.find('/')); }
+            if (isWaypoint(tok))
+            {
+                last = tok.substr(0, tok.find('/'));
+            }
             firstToken = false;
         }
-        return vfrFound ? last : "";  // no VFR token found = normal IFR, leave unchanged
+        return vfrFound ? last : ""; // no VFR token found = normal IFR, leave unchanged
     };
 
     std::map<std::string, tagInfo> newCache;
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        if (!fp.IsValid()) { continue; }
+        if (!fp.IsValid())
+        {
+            continue;
+        }
 
         EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
-        std::string dep = fpd.GetOrigin();
+        std::string                      dep = fpd.GetOrigin();
         to_upper(dep);
-        if (this->airports.find(dep) == this->airports.end()) { continue; }
+        if (this->airports.find(dep) == this->airports.end())
+        {
+            continue;
+        }
 
         std::string callSign = fp.GetCallsign();
-        std::string fix = lastIfrWaypoint(fpd.GetRoute());
+        std::string fix      = lastIfrWaypoint(fpd.GetRoute());
 
         tagInfo tag;
         if (!fix.empty())
@@ -585,13 +673,15 @@ void CDelHelX_Timers::UpdateAdesCache()
     this->adesCache = std::move(newCache);
 }
 
-
 /// @brief Updates or removes departure information overlays on the radar screen for taxiing aircraft.
 /// Reads dep_info text/colour and SID colour from the pre-calculated tag cache instead of calling
 /// OnGetTagItem, then appends the ",T" transfer indicator for GND controllers.
 void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 {
-    if (this->radarScreen == nullptr) { return; }
+    if (this->radarScreen == nullptr)
+    {
+        return;
+    }
 
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {
@@ -605,7 +695,7 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
         return;
     }
 
-    auto me = this->ControllerMyself();
+    auto me    = this->ControllerMyself();
     bool isGnd = me.IsController() && me.GetRating() > 1 && me.GetFacility() <= 3;
 
     // Determine which aircraft qualify for an overlay
@@ -614,17 +704,23 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
     {
         EuroScopePlugIn::CFlightPlan  fp = this->FlightPlanSelect(callSign.c_str());
         EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
-        if (!fp.IsValid() || !rt.IsValid() || !rt.GetPosition().IsValid()) { continue; }
+        if (!fp.IsValid() || !rt.IsValid() || !rt.GetPosition().IsValid())
+        {
+            continue;
+        }
 
         std::string dep = fp.GetFlightPlanData().GetOrigin();
         to_upper(dep);
         auto airportIt = this->airports.find(dep);
-        if (airportIt == this->airports.end()) { continue; }
+        if (airportIt == this->airports.end())
+        {
+            continue;
+        }
 
-        std::string groundState = fp.GetGroundState();
-        auto pressAlt   = rt.GetPosition().GetPressureAltitude();
-        auto groundSpeed = rt.GetPosition().GetReportedGS();
-        int  depElevation = airportIt->second.fieldElevation;
+        std::string groundState  = fp.GetGroundState();
+        auto        pressAlt     = rt.GetPosition().GetPressureAltitude();
+        auto        groundSpeed  = rt.GetPosition().GetReportedGS();
+        int         depElevation = airportIt->second.fieldElevation;
 
         if ((groundState == "TAXI" || groundState == "DEPA") &&
             pressAlt < depElevation + 50 && groundSpeed < 40)
@@ -635,7 +731,7 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 
     // Remove entries that no longer qualify
     for (auto it = this->radarScreen->radarTargetDepartureInfos.begin();
-         it != this->radarScreen->radarTargetDepartureInfos.end(); )
+         it != this->radarScreen->radarTargetDepartureInfos.end();)
     {
         if (toShow.find(it->first) == toShow.end())
         {
@@ -652,17 +748,24 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
     {
         // Find the row in twrOutboundRowsCache for this callsign
         auto rowIt = std::find_if(this->radarScreen->twrOutboundRowsCache.begin(),
-                                   this->radarScreen->twrOutboundRowsCache.end(),
-                                   [&callSign](const TwrOutboundRowCache& r) { return r.callsign == callSign; });
-        if (rowIt == this->radarScreen->twrOutboundRowsCache.end()) { continue; }
+                                  this->radarScreen->twrOutboundRowsCache.end(),
+                                  [&callSign](const TwrOutboundRowCache& r)
+                                  { return r.callsign == callSign; });
+        if (rowIt == this->radarScreen->twrOutboundRowsCache.end())
+        {
+            continue;
+        }
         const TwrOutboundRowCache& cachedRow = *rowIt;
 
         EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(callSign.c_str());
-        if (!fp.IsValid()) { continue; }
+        if (!fp.IsValid())
+        {
+            continue;
+        }
 
         // Read annotation once for the GND transfer indicator check
         this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-        const auto& annotation = this->flightStripAnnotation[callSign];
+        const auto& annotation                = this->flightStripAnnotation[callSign];
 
         std::string dep_info = cachedRow.depInfo.tag;
         if (isGnd)
@@ -673,14 +776,17 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
                 std::string storedFreq = annotation.substr(1, 6);
                 if (storedFreq.find_first_not_of(' ') != std::string::npos)
                 {
-                    double myFreqDouble = me.GetPrimaryFrequency();
-                    auto s = std::to_string(myFreqDouble);
-                    std::string myFreq = s.substr(0, s.find('.') + 4);
+                    double      myFreqDouble = me.GetPrimaryFrequency();
+                    auto        s            = std::to_string(myFreqDouble);
+                    std::string myFreq       = s.substr(0, s.find('.') + 4);
                     myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
                     transferred = (storedFreq != myFreq);
                 }
             }
-            if (!transferred) { dep_info += ",T"; }
+            if (!transferred)
+            {
+                dep_info += ",T";
+            }
         }
 
         auto findIt = this->radarScreen->radarTargetDepartureInfos.find(callSign);
@@ -689,10 +795,10 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
             depInfo di;
             di.dep_info  = dep_info;
             di.dep_color = cachedRow.depInfo.color;
-            di.pos       = { -1, -1 };
+            di.pos       = {-1, -1};
             di.dragX     = 0;
             di.dragY     = 0;
-            di.lastDrag  = { -1, -1 };
+            di.lastDrag  = {-1, -1};
             di.hp_info   = cachedRow.hp.tag;
             di.hp_color  = cachedRow.hp.color;
             di.sid_color = cachedRow.sameSid.color;
@@ -736,15 +842,17 @@ void CDelHelX_Timers::UpdateTowerSameSID()
         {
             auto& ts = kv.second;
             ts.erase(std::remove_if(ts.begin(), ts.end(),
-                [now](ULONGLONG t) { return (now - t) > 3600000ULL; }), ts.end());
+                                    [now](ULONGLONG t)
+                                    { return (now - t) > 3600000ULL; }),
+                     ts.end());
         }
     }
 
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
-        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        std::string callSign = fp.GetCallsign();
+        EuroScopePlugIn::CRadarTargetPositionData pos      = rt.GetPosition();
+        EuroScopePlugIn::CFlightPlan              fp       = rt.GetCorrelatedFlightPlan();
+        std::string                               callSign = fp.GetCallsign();
 
         if (!pos.IsValid() || !fp.IsValid())
         {
@@ -764,7 +872,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
         to_upper(arr);
 
         // Skip aircraft without a valid flight plan (no departure/destination airport)
-        if (dep.empty() || arr.empty()) {
+        if (dep.empty() || arr.empty())
+        {
             if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
             {
                 this->twrSameSID.RemoveFpFromTheList(fp);
@@ -800,9 +909,9 @@ void CDelHelX_Timers::UpdateTowerSameSID()
         }
 
         // Check if the flight plan needs to be added to the list
-        std::string groundState = fp.GetGroundState();
-        auto pressAlt = pos.GetPressureAltitude();
-        int depElevation = airport->second.fieldElevation;
+        std::string groundState  = fp.GetGroundState();
+        auto        pressAlt     = pos.GetPressureAltitude();
+        int         depElevation = airport->second.fieldElevation;
         if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && this->twrSameSID_flightPlans.find(callSign) == this->twrSameSID_flightPlans.end())
         {
             this->twrSameSID.AddFpToTheList(fp);
@@ -827,8 +936,8 @@ void CDelHelX_Timers::UpdateTowerSameSID()
         {
             if (this->twrSameSID_flightPlans.at(callSign) > 0)
             {
-                ULONGLONG now = GetTickCount64();
-                auto seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
+                ULONGLONG now     = GetTickCount64();
+                auto      seconds = (now - this->twrSameSID_flightPlans.at(callSign)) / 1000;
                 if (seconds > 4 * 60)
                 {
                     this->flightStripAnnotation.erase(callSign);
@@ -846,10 +955,10 @@ void CDelHelX_Timers::UpdateTowerSameSID()
                 }
             }
 
-            EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
-            std::string rwy = fpd.GetDepartureRwy();
-            auto position = pos.GetPosition();
-            auto distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
+            EuroScopePlugIn::CFlightPlanData fpd      = fp.GetFlightPlanData();
+            std::string                      rwy      = fpd.GetDepartureRwy();
+            auto                             position = pos.GetPosition();
+            auto                             distance = DistanceFromRunwayThreshold(rwy, position, airport->second.runways);
 
             if (distance >= 20)
             {
@@ -892,9 +1001,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
-        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        std::string callSign = fp.GetCallsign();
+        EuroScopePlugIn::CRadarTargetPositionData pos      = rt.GetPosition();
+        EuroScopePlugIn::CFlightPlan              fp       = rt.GetCorrelatedFlightPlan();
+        std::string                               callSign = fp.GetCallsign();
 
         if (!pos.IsValid())
         {
@@ -906,10 +1015,12 @@ void CDelHelX_Timers::UpdateTTTInbounds()
         {
             for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
             {
-                std::string rwyCallsign = callSign + rwy->second.designator;
+                std::string rwyCallsign  = callSign + rwy->second.designator;
                 std::string arrRwyDigits = rwy->second.designator;
                 arrRwyDigits.erase(std::remove_if(arrRwyDigits.begin(), arrRwyDigits.end(),
-                    [](char c) { return !std::isdigit(c); }), arrRwyDigits.end());
+                                                  [](char c)
+                                                  { return !std::isdigit(c); }),
+                                   arrRwyDigits.end());
                 int arrRwyHdg = arrRwyDigits.empty() ? -1 : std::stoi(arrRwyDigits);
 
                 // If we can't determine the arrival runway heading, we can't determine if it's an inbound or not, so skip it
@@ -925,22 +1036,24 @@ void CDelHelX_Timers::UpdateTTTInbounds()
                 }
 
                 // Check if the flight plan needs to be added to the list
-                auto position = pos.GetPosition();
-                auto distance = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                auto position  = pos.GetPosition();
+                auto distance  = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
                 auto direction = DirectionFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
-                auto pressAlt = pos.GetPressureAltitude();
-                auto heading = pos.GetReportedHeading();
-                int hdgDiff = std::abs(heading - arrRwyHdg * 10);
-                if (hdgDiff > 180) hdgDiff = 360 - hdgDiff;
+                auto pressAlt  = pos.GetPressureAltitude();
+                auto heading   = pos.GetReportedHeading();
+                int  hdgDiff   = std::abs(heading - arrRwyHdg * 10);
+                if (hdgDiff > 180)
+                    hdgDiff = 360 - hdgDiff;
                 double approachDir = std::fmod(arrRwyHdg * 10 + 180.0, 360.0);
-                double dirDiff = std::abs(direction - approachDir);
-                if (dirDiff > 180.0) dirDiff = 360.0 - dirDiff;
+                double dirDiff     = std::abs(direction - approachDir);
+                if (dirDiff > 180.0)
+                    dirDiff = 360.0 - dirDiff;
 
                 int depElevation = airport->second.fieldElevation;
                 if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 5.0)
                 {
                     this->ttt_distanceToRunway[rwyCallsign] = distance;
-                    std::string trackingControllerId = fp.GetTrackingControllerId();
+                    std::string trackingControllerId        = fp.GetTrackingControllerId();
 
                     if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && this->standAssignment.find(callSign) == this->standAssignment.end())
                     {
@@ -957,8 +1070,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
                 else
                 {
                     // Only remove normal inbounds; go-arounds are handled in the separate pass below
-                    if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end()
-                        && this->ttt_goAround.find(rwyCallsign) == this->ttt_goAround.end())
+                    if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end() && this->ttt_goAround.find(rwyCallsign) == this->ttt_goAround.end())
                     {
                         this->tttInbound.RemoveFpFromTheList(fp);
                         this->ttt_flightPlans.erase(rwyCallsign);
@@ -974,7 +1086,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
     // Prune stale recently-removed entries (>60s with no active go-around)
     {
         ULONGLONG now = GetTickCount64();
-        for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end(); )
+        for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
         {
             if ((now - it->second) / 1000 > 60)
             {
@@ -989,9 +1101,9 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
-        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        std::string callSign = fp.GetCallsign();
+        EuroScopePlugIn::CRadarTargetPositionData pos      = rt.GetPosition();
+        EuroScopePlugIn::CFlightPlan              fp       = rt.GetCorrelatedFlightPlan();
+        std::string                               callSign = fp.GetCallsign();
 
         if (!pos.IsValid())
         {
@@ -1002,28 +1114,33 @@ void CDelHelX_Timers::UpdateTTTInbounds()
         {
             for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
             {
-                std::string rwyCallsign = callSign + rwy->second.designator;
-                bool isVfrTrackedByMe = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
-                bool isGoAround = !isVfrTrackedByMe && this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end();
-                bool isRecentlyRemoved = !isGoAround && !isVfrTrackedByMe && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
+                std::string rwyCallsign       = callSign + rwy->second.designator;
+                bool        isVfrTrackedByMe  = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
+                bool        isGoAround        = !isVfrTrackedByMe && this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end();
+                bool        isRecentlyRemoved = !isGoAround && !isVfrTrackedByMe && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
 
                 if (!isGoAround && !isRecentlyRemoved)
                 {
                     continue;
                 }
 
-                const std::string& opp = rwy->second.opposite;
-                auto position = pos.GetPosition();
-                auto pressAlt = pos.GetPressureAltitude();
-                int depElevation = airport->second.fieldElevation;
-                double distance = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
-                auto heading = pos.GetReportedHeading();
-                std::string rwyDigits = rwy->second.designator;
+                const std::string& opp          = rwy->second.opposite;
+                auto               position     = pos.GetPosition();
+                auto               pressAlt     = pos.GetPressureAltitude();
+                int                depElevation = airport->second.fieldElevation;
+                double             distance     = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                auto               heading      = pos.GetReportedHeading();
+                std::string        rwyDigits    = rwy->second.designator;
                 rwyDigits.erase(std::remove_if(rwyDigits.begin(), rwyDigits.end(),
-                    [](char c) { return !std::isdigit(c); }), rwyDigits.end());
+                                               [](char c)
+                                               { return !std::isdigit(c); }),
+                                rwyDigits.end());
                 int arrRwyHdg = rwyDigits.empty() ? -1 : std::stoi(rwyDigits);
-                int hdgDiff = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
-                if (hdgDiff > 180) { hdgDiff = 360 - hdgDiff; }
+                int hdgDiff   = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
+                if (hdgDiff > 180)
+                {
+                    hdgDiff = 360 - hdgDiff;
+                }
 
                 if (isGoAround)
                 {
@@ -1046,7 +1163,7 @@ void CDelHelX_Timers::UpdateTTTInbounds()
                     double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
                     if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
                     {
-                        this->ttt_goAround[rwyCallsign] = GetTickCount64();
+                        this->ttt_goAround[rwyCallsign]         = GetTickCount64();
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
                         this->tttInbound.AddFpToTheList(fp);
@@ -1069,9 +1186,8 @@ void CDelHelX_Timers::UpdateTTTInbounds()
     }
     for (auto& [designator, keys] : this->ttt_sortedByRunway)
     {
-        std::sort(keys.begin(), keys.end(), [this](const std::string& a, const std::string& b) {
-            return this->ttt_distanceToRunway.at(a) < this->ttt_distanceToRunway.at(b);
-            });
+        std::sort(keys.begin(), keys.end(), [this](const std::string& a, const std::string& b)
+                  { return this->ttt_distanceToRunway.at(a) < this->ttt_distanceToRunway.at(b); });
     }
 }
 

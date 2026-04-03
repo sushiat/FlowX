@@ -14,7 +14,8 @@ CDelHelX_Settings::CDelHelX_Settings()
     this->LoadWindowLocations();
     this->LoadConfig();
 
-    if (this->updateCheck) {
+    if (this->updateCheck)
+    {
         this->latestVersion = std::async(FetchLatestVersion);
     }
 }
@@ -23,10 +24,12 @@ CDelHelX_Settings::CDelHelX_Settings()
 void CDelHelX_Settings::LoadSettings()
 {
     const char* settings = this->GetDataFromSettings(PLUGIN_NAME);
-    if (settings) {
+    if (settings)
+    {
         std::vector<std::string> splitSettings = split(settings, SETTINGS_DELIMITER);
 
-        if (splitSettings.size() < 3) {
+        if (splitSettings.size() < 3)
+        {
             this->LogMessage("Invalid saved settings found, reverting to default.", "Settings");
 
             this->SaveSettings();
@@ -43,7 +46,8 @@ void CDelHelX_Settings::LoadSettings()
         }
         this->LogMessage("Successfully loaded settings.", "Settings");
     }
-    else {
+    else
+    {
         this->LogMessage("No saved settings found, using defaults.", "Settings");
     }
 }
@@ -53,9 +57,9 @@ void CDelHelX_Settings::SaveSettings()
 {
     std::ostringstream ss;
     ss << this->updateCheck << SETTINGS_DELIMITER
-        << this->flashOnMessage << SETTINGS_DELIMITER
-        << this->debug << SETTINGS_DELIMITER
-        << this->autoRestore;
+       << this->flashOnMessage << SETTINGS_DELIMITER
+       << this->debug << SETTINGS_DELIMITER
+       << this->autoRestore;
 
     this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
 }
@@ -115,17 +119,17 @@ void CDelHelX_Settings::SaveWindowLocations()
     try
     {
         json j;
-        j["depRateWindow"]["x"]     = this->depRateWindowX;
-        j["depRateWindow"]["y"]     = this->depRateWindowY;
-        j["twrOutboundWindow"]["x"] = this->twrOutboundWindowX;
-        j["twrOutboundWindow"]["y"] = this->twrOutboundWindowY;
-        j["twrInboundWindow"]["x"]  = this->twrInboundWindowX;
-        j["twrInboundWindow"]["y"]  = this->twrInboundWindowY;
-        j["napWindow"]["x"]                  = this->napWindowX;
-        j["napWindow"]["y"]                  = this->napWindowY;
-        j["napWindow"]["lastDismissedDate"]  = this->napLastDismissedDate;
-        j["weatherWindow"]["x"]              = this->weatherWindowX;
-        j["weatherWindow"]["y"]              = this->weatherWindowY;
+        j["depRateWindow"]["x"]             = this->depRateWindowX;
+        j["depRateWindow"]["y"]             = this->depRateWindowY;
+        j["twrOutboundWindow"]["x"]         = this->twrOutboundWindowX;
+        j["twrOutboundWindow"]["y"]         = this->twrOutboundWindowY;
+        j["twrInboundWindow"]["x"]          = this->twrInboundWindowX;
+        j["twrInboundWindow"]["y"]          = this->twrInboundWindowY;
+        j["napWindow"]["x"]                 = this->napWindowX;
+        j["napWindow"]["y"]                 = this->napWindowY;
+        j["napWindow"]["lastDismissedDate"] = this->napLastDismissedDate;
+        j["weatherWindow"]["x"]             = this->weatherWindowX;
+        j["weatherWindow"]["y"]             = this->weatherWindowY;
 
         std::filesystem::path path(GetPluginDirectory());
         path.append("windowLocations.json");
@@ -163,13 +167,12 @@ void CDelHelX_Settings::LoadConfig()
         // Get basic airport attributes
         airport ap{
             icao,
-            json_airport.value<std::string>("gndFreq", "")
-        };
-        ap.fieldElevation = json_airport.value<int>("fieldElevation", 0);
-        ap.airborneTransfer = json_airport.value<int>("airborneTransfer", 0);
+            json_airport.value<std::string>("gndFreq", "")};
+        ap.fieldElevation          = json_airport.value<int>("fieldElevation", 0);
+        ap.airborneTransfer        = json_airport.value<int>("airborneTransfer", 0);
         ap.airborneTransferWarning = json_airport.value<int>("airborneTransferWarning", 0);
 
-        auto ctrStations{ json_airport["ctrStations"].get<std::vector<std::string>>() };
+        auto ctrStations{json_airport["ctrStations"].get<std::vector<std::string>>()};
         ap.ctrStations = ctrStations;
 
         json json_geoGnds;
@@ -187,11 +190,10 @@ void CDelHelX_Settings::LoadConfig()
         {
             geoGndFreq ggf{
                 name,
-                json_geoGnd.value<std::string>("freq", "")
-            };
+                json_geoGnd.value<std::string>("freq", "")};
 
-            auto lat{ json_geoGnd["lat"].get<std::vector<double>>() };
-            auto lon{ json_geoGnd["lon"].get<std::vector<double>>() };
+            auto lat{json_geoGnd["lat"].get<std::vector<double>>()};
+            auto lon{json_geoGnd["lon"].get<std::vector<double>>()};
             ggf.lat = lat;
             ggf.lon = lon;
 
@@ -211,10 +213,10 @@ void CDelHelX_Settings::LoadConfig()
 
         for (auto& [name, json_taxiout] : json_taxiouts.items())
         {
-            taxiOutStands tos{ name };
+            taxiOutStands tos{name};
 
-            auto lat{ json_taxiout["lat"].get<std::vector<double>>() };
-            auto lon{ json_taxiout["lon"].get<std::vector<double>>() };
+            auto lat{json_taxiout["lat"].get<std::vector<double>>()};
+            auto lon{json_taxiout["lon"].get<std::vector<double>>()};
             tos.lat = lat;
             tos.lon = lon;
 
@@ -237,8 +239,7 @@ void CDelHelX_Settings::LoadConfig()
             json_nap_reminder.value<int>("hour", 0),
             json_nap_reminder.value<int>("minute", 0),
             json_nap_reminder.value<std::string>("tzone", ""),
-            false
-        };
+            false};
         ap.nap_reminder = reminder;
 
         // Load night SIDs
@@ -280,18 +281,17 @@ void CDelHelX_Settings::LoadConfig()
             this->LogMessage("Failed to load approach frequency fallbacks for airport \"" + icao + "\". Error: " + std::string(e.what()), "Config");
         }
 
-
         // Load runway configurations
         try
         {
             for (auto& [rwyDesignator, json_rwy] : json_airport.at("runways").items())
             {
                 runway rwy{};
-                rwy.designator = rwyDesignator;
-                rwy.opposite = json_rwy.value<std::string>("opposite", "");
+                rwy.designator   = rwyDesignator;
+                rwy.opposite     = json_rwy.value<std::string>("opposite", "");
                 rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
                 rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
-                rwy.twrFreq = json_rwy.value<std::string>("twrFreq", "");
+                rwy.twrFreq      = json_rwy.value<std::string>("twrFreq", "");
                 rwy.goAroundFreq = json_rwy.value<std::string>("goAroundFreq", "");
                 rwy.widthMeters  = json_rwy.value<int>("width", 0);
 
@@ -311,11 +311,11 @@ void CDelHelX_Settings::LoadConfig()
                 for (auto& [hpName, json_hp] : json_rwy["holdingPoints"].items())
                 {
                     holdingPoint hp{};
-                    hp.name = hpName;
+                    hp.name       = hpName;
                     hp.assignable = json_hp.value<bool>("assignable", false);
-                    hp.sameAs = json_hp.value<std::string>("sameAs", "");
-                    hp.lat = json_hp["polygon"]["lat"].get<std::vector<double>>();
-                    hp.lon = json_hp["polygon"]["lon"].get<std::vector<double>>();
+                    hp.sameAs     = json_hp.value<std::string>("sameAs", "");
+                    hp.lat        = json_hp["polygon"]["lat"].get<std::vector<double>>();
+                    hp.lon        = json_hp["polygon"]["lon"].get<std::vector<double>>();
                     rwy.holdingPoints.emplace(hpName, hp);
                 }
 
@@ -358,16 +358,16 @@ void CDelHelX_Settings::LoadConfig()
             this->LogDebugMessage("--> GeoGnd " + geoGnd.first, "Config");
             this->LogDebugMessage("----> FRQ: " + geoGnd.second.freq, "Config");
             std::string lat_string = std::accumulate(std::begin(geoGnd.second.lat), std::end(geoGnd.second.lat), std::string(),
-                [](const std::string& ss, const double s)
-                {
-                    return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-                });
+                                                     [](const std::string& ss, const double s)
+                                                     {
+                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                     });
             this->LogDebugMessage("----> LAT: " + lat_string, "Config");
             std::string lon_string = std::accumulate(std::begin(geoGnd.second.lon), std::end(geoGnd.second.lon), std::string(),
-                [](const std::string& ss, const double s)
-                {
-                    return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-                });
+                                                     [](const std::string& ss, const double s)
+                                                     {
+                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                     });
             this->LogDebugMessage("----> LON: " + lon_string, "Config");
         }
         for (auto& rwy : airport.second.runways)
@@ -378,21 +378,20 @@ void CDelHelX_Settings::LoadConfig()
         {
             this->LogDebugMessage("--> TaxiOut " + taxiOut.first, "Config");
             std::string lat_string = std::accumulate(std::begin(taxiOut.second.lat), std::end(taxiOut.second.lat), std::string(),
-                [](const std::string& ss, const double s)
-                {
-                    return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-                });
+                                                     [](const std::string& ss, const double s)
+                                                     {
+                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                     });
             this->LogDebugMessage("----> LAT: " + lat_string, "Config");
             std::string lon_string = std::accumulate(std::begin(taxiOut.second.lon), std::end(taxiOut.second.lon), std::string(),
-                [](const std::string& ss, const double s)
-                {
-                    return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
-                });
+                                                     [](const std::string& ss, const double s)
+                                                     {
+                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                     });
             this->LogDebugMessage("----> LON: " + lon_string, "Config");
         }
         this->LogDebugMessage("---> NAP reminder: Enabled=" + std::to_string(airport.second.nap_reminder.enabled) + ", Hour=" + std::to_string(airport.second.nap_reminder.hour) + ", Minute=" + std::to_string(airport.second.nap_reminder.minute) + ", TZone=" + airport.second.nap_reminder.tzone, "Config");
     }
-
 }
 
 /// @brief Resolves the latestVersion future and logs a message if a newer version is available.
@@ -400,10 +399,11 @@ void CDelHelX_Settings::CheckForUpdate()
 {
     try
     {
-        semver::version latest{ this->latestVersion.get() };
-        semver::version current{ PLUGIN_VERSION };
+        semver::version latest{this->latestVersion.get()};
+        semver::version current{PLUGIN_VERSION};
 
-        if (latest > current) {
+        if (latest > current)
+        {
             std::string info = "A new version (" + latest.to_string() + ") of " + PLUGIN_NAME + " is available, download it at " + PLUGIN_LATEST_DOWNLOAD_URL;
             this->LogMessage(info, "Update");
         }

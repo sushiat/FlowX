@@ -9,17 +9,17 @@
 void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
     RECT area;
-    area.left = Pt.x;
-    area.right = Pt.x + 100;
-    area.top = Pt.y;
+    area.left   = Pt.x;
+    area.right  = Pt.x + 100;
+    area.top    = Pt.y;
     area.bottom = Pt.y + 100;
     this->OpenPopupList(area, "Assign HP", 1);
 
     std::string dep = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
-    std::string rwy = fp.GetFlightPlanData().GetDepartureRwy();
-    auto airport = this->airports.find(dep);
-    auto rwyIt = airport->second.runways.find(rwy);
+    std::string rwy     = fp.GetFlightPlanData().GetDepartureRwy();
+    auto        airport = this->airports.find(dep);
+    auto        rwyIt   = airport->second.runways.find(rwy);
     if (rwyIt != airport->second.runways.end())
     {
         for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
@@ -63,7 +63,7 @@ void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, Radar
 /// @param sItemString The holding-point name (possibly starred) chosen from the popup.
 void CDelHelX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
 {
-    std::string callSign = fp.GetCallsign();
+    std::string callSign                  = fp.GetCallsign();
     this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], sItemString);
     fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
     this->PushToOtherControllers(fp);
@@ -118,7 +118,7 @@ void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScope
         bool isTaxiOut = false;
         for (auto& taxiOut : airport->second.taxiOutStands)
         {
-            u_int corners = taxiOut.second.lat.size();
+            u_int  corners = taxiOut.second.lat.size();
             double lat[10], lon[10];
             std::copy(taxiOut.second.lat.begin(), taxiOut.second.lat.end(), lat);
             std::copy(taxiOut.second.lon.begin(), taxiOut.second.lon.end(), lon);
@@ -159,17 +159,17 @@ void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScope
 void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
     RECT area;
-    area.left = Pt.x;
-    area.right = Pt.x + 100;
-    area.top = Pt.y;
+    area.left   = Pt.x;
+    area.right  = Pt.x + 100;
+    area.top    = Pt.y;
     area.bottom = Pt.y + 100;
     this->OpenPopupList(area, "Request HP", 1);
 
     std::string dep = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
-    std::string rwy = fp.GetFlightPlanData().GetDepartureRwy();
-    auto airport = this->airports.find(dep);
-    auto rwyIt = airport->second.runways.find(rwy);
+    std::string rwy     = fp.GetFlightPlanData().GetDepartureRwy();
+    auto        airport = this->airports.find(dep);
+    auto        rwyIt   = airport->second.runways.find(rwy);
     if (rwyIt != airport->second.runways.end())
     {
         for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
@@ -217,7 +217,7 @@ void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
 void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string callSign = fp.GetCallsign();
-    std::string dep = fp.GetFlightPlanData().GetOrigin();
+    std::string dep      = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
 
     // Determine the best station to hand off to, in priority order:
@@ -236,12 +236,13 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             return {"", ""};
         }
 
-        std::string targetFreq;
+        std::string                        targetFreq;
         decltype(this->airports)::iterator airport = this->airports.end();
 
         // Check for go-around first — arrival airport may differ from departure airport
         auto planIt = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-            [&callSign](const auto& e) { return e.first.rfind(callSign, 0) == 0; });
+                                   [&callSign](const auto& e)
+                                   { return e.first.rfind(callSign, 0) == 0; });
         if (planIt != this->ttt_flightPlans.end() &&
             this->ttt_goAround.find(planIt->first) != this->ttt_goAround.end())
         {
@@ -270,7 +271,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
                 return {"", ""};
             }
             std::string sid = fp.GetFlightPlanData().GetSidName();
-            targetFreq = airport->second.defaultAppFreq;
+            targetFreq      = airport->second.defaultAppFreq;
             for (auto& [f, sids] : airport->second.sidAppFreqs)
             {
                 if (std::find(sids.begin(), sids.end(), sid) != sids.end())
@@ -285,10 +286,10 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 
         // Try approach frequencies in config-defined fallback order; sort online stations ASC, pick first
         {
-            auto fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
+            auto        fallbackIt = airport->second.appFreqFallbacks.find(targetFreq);
             const auto& freqsToTry = (fallbackIt != airport->second.appFreqFallbacks.end())
-                ? fallbackIt->second
-                : std::vector<std::string>{ targetFreq };
+                                         ? fallbackIt->second
+                                         : std::vector<std::string>{targetFreq};
             for (const auto& freq : freqsToTry)
             {
                 std::vector<std::string> matches;
@@ -353,7 +354,7 @@ void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     this->PushToOtherControllers(fp);
 
     // Transfer is marked, to we also need to transfer the tag?
-    if(!fp.GetTrackingControllerIsMe())
+    if (!fp.GetTrackingControllerIsMe())
     {
         // Not tracking, so no transfer needed
         return;
