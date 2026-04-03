@@ -1,15 +1,15 @@
 /**
- * @file CDelHelX_Functions.h
- * @brief Declaration of CDelHelX_Functions, the tag function callback layer.
+ * @file CFlowX_Functions.h
+ * @brief Declaration of CFlowX_Functions, the tag function callback layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #pragma once
-#include "CDelHelX_CustomTags.h"
+#include "CFlowX_CustomTags.h"
 
 /// @brief Plugin layer that implements all tag-function callbacks triggered by controller clicks.
-class CDelHelX_Functions : public CDelHelX_CustomTags
+class CFlowX_Functions : public CFlowX_CustomTags
 {
   protected:
     /// @brief Opens an "Assign HP" popup list of all assignable holding points for the selected flight plan.

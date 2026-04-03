@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30204.135
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DelHel", "DelHelX\DelHelX.vcxproj", "{B66473EF-F312-4E6C-A5F4-64EAC53169AF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FlowX", "FlowX\FlowX.vcxproj", "{B66473EF-F312-4E6C-A5F4-64EAC53169AF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

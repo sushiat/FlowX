@@ -7,9 +7,9 @@
 
 #include "pch.h"
 #include "RadarScreen.h"
-#include "CDelHelX_Base.h"
-#include "CDelHelX_CustomTags.h"
-#include "CDelHelX_Timers.h"
+#include "CFlowX_Base.h"
+#include "CFlowX_CustomTags.h"
+#include "CFlowX_Timers.h"
 
 #include <algorithm>
 #include <mmsystem.h>
@@ -26,7 +26,7 @@ RadarScreen::~RadarScreen() = default;
 /// @brief Notifies the plugin that the screen is closing, then deletes this RadarScreen.
 void RadarScreen::OnAsrContentToBeClosed()
 {
-    static_cast<CDelHelX_Base*>(GetPlugIn())->ClearRadarScreen();
+    static_cast<CFlowX_Base*>(GetPlugIn())->ClearRadarScreen();
     delete this;
 }
 
@@ -746,7 +746,7 @@ void RadarScreen::DrawNapReminder(HDC hDC)
             this->napAckPressed     = false;
             this->napReminderActive = false;
             PlaySoundA(nullptr, nullptr, 0);
-            static_cast<CDelHelX_Timers*>(this->GetPlugIn())->AckNapReminder();
+            static_cast<CFlowX_Timers*>(this->GetPlugIn())->AckNapReminder();
             return;
         }
         // Set pressed state for this phase and request the next frame immediately
@@ -976,7 +976,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
     if (ObjectType == SCREEN_OBJECT_WEATHER_ROW)
     {
-        static_cast<CDelHelX_Timers*>(this->GetPlugIn())->AckWeather(std::string(sObjectId));
+        static_cast<CFlowX_Timers*>(this->GetPlugIn())->AckWeather(std::string(sObjectId));
         this->RequestRefresh();
     }
 
@@ -1143,7 +1143,7 @@ void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget Rada
     }
     if (RadarTarget.IsValid())
     {
-        static_cast<CDelHelX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
+        static_cast<CFlowX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
     }
 }
 

@@ -1,12 +1,12 @@
 /**
- * @file CDelHelX_Base.cpp
+ * @file CFlowX_Base.cpp
  * @brief Plugin base layer; registers tag items, tag functions, and instantiates the radar screen.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_Base.h"
+#include "CFlowX_Base.h"
 
 #include <filesystem>
 
@@ -15,7 +15,7 @@
 #include "date/tz.h"
 
 /// @brief Registers all tag item types, tag functions, display type, and flight-plan lists with EuroScope.
-CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
+CFlowX_Base::CFlowX_Base() : EuroScopePlugIn::CPlugIn(
                                      EuroScopePlugIn::COMPATIBILITY_CODE,
                                      PLUGIN_NAME,
                                      PLUGIN_VERSION,
@@ -48,7 +48,7 @@ CDelHelX_Base::CDelHelX_Base() : EuroScopePlugIn::CPlugIn(
 /// @param CanBeSaved Whether the screen layout can be saved.
 /// @param CanBeCreated Whether the screen can be created by the user.
 /// @return Pointer to the newly created RadarScreen instance.
-EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
+EuroScopePlugIn::CRadarScreen* CFlowX_Base::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
 {
     this->radarScreen        = new RadarScreen();
     this->radarScreen->debug = this->debug;
@@ -57,7 +57,7 @@ EuroScopePlugIn::CRadarScreen* CDelHelX_Base::OnRadarScreenCreated(const char* s
 
 /// @brief Pushes the flight plan strip to all online DEL, GND, and TWR controllers.
 /// @param fp Flight plan to distribute.
-void CDelHelX_Base::PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const
+void CFlowX_Base::PushToOtherControllers(EuroScopePlugIn::CFlightPlan& fp) const
 {
     for (EuroScopePlugIn::CController c = this->ControllerSelectFirst(); c.IsValid(); c = this->ControllerSelectNext(c))
     {

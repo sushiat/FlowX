@@ -1,6 +1,6 @@
 /**
- * @file CDelHelX.h
- * @brief Declaration of CDelHelX, the top-level plugin class.
+ * @file CFlowX.h
+ * @brief Declaration of CFlowX, the top-level plugin class.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
@@ -10,7 +10,7 @@
 #include <string>
 #include <filesystem>
 
-#include "CDelHelX_Functions.h"
+#include "CFlowX_Functions.h"
 #include "EuroScope/EuroScopePlugIn.h"
 
 #include "config.h"
@@ -21,7 +21,7 @@ using namespace std::chrono_literals;
 ///
 /// Handles chat commands, tag item rendering, function callbacks, periodic timer ticks,
 /// METAR processing, and flight plan lifecycle events.
-class CDelHelX : public CDelHelX_Functions
+class CFlowX : public CFlowX_Functions
 {
   private:
     std::map<std::string, std::string> lastMetar; ///< Last full METAR string received per airport ICAO, used to suppress duplicate log output.
@@ -32,9 +32,9 @@ class CDelHelX : public CDelHelX_Functions
 
   public:
     /// @brief Constructs the main plugin object and initialises override flags to false.
-    CDelHelX();
+    CFlowX();
 
-    /// @brief Processes `.delhelx` chat commands entered in the EuroScope message area.
+    /// @brief Processes `.flowx` chat commands entered in the EuroScope message area.
     /// @param sCommandLine Full command line string entered by the user.
     /// @return True if the command was recognised and handled; false otherwise.
     bool OnCompileCommand(const char* sCommandLine) override;

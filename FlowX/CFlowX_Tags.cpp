@@ -1,19 +1,19 @@
 /**
- * @file CDelHelX_Tags.cpp
+ * @file CFlowX_Tags.cpp
  * @brief EuroScope tag item implementations for the five registered tag columns.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_Tags.h"
+#include "CFlowX_Tags.h"
 
 #include <algorithm>
 #include <set>
 #include "helpers.h"
 
 /// @brief Returns the cached ADES tag for the given flight plan.
-tagInfo CDelHelX_Tags::GetAdesTag(EuroScopePlugIn::CFlightPlan& fp)
+tagInfo CFlowX_Tags::GetAdesTag(EuroScopePlugIn::CFlightPlan& fp)
 {
     auto it = this->adesCache.find(fp.GetCallsign());
     if (it != this->adesCache.end())
@@ -31,7 +31,7 @@ tagInfo CDelHelX_Tags::GetAdesTag(EuroScopePlugIn::CFlightPlan& fp)
 /// @brief Builds the new-QNH tag showing orange "X" when annotation slot 8 contains the 'Q' flag.
 /// @param fp Flight plan being evaluated.
 /// @return tagInfo with "X" in orange when a new QNH is pending, or empty.
-tagInfo CDelHelX_Tags::GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp)
+tagInfo CFlowX_Tags::GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp)
 {
     tagInfo     tag;
     std::string callSign = fp.GetCallsign();
@@ -55,7 +55,7 @@ tagInfo CDelHelX_Tags::GetNewQnhTag(EuroScopePlugIn::CFlightPlan& fp)
 /// @param fp Flight plan being evaluated.
 /// @param rt Correlated radar target.
 /// @return tagInfo with frequency string and colour, or an error code in red.
-tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
+tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
     tagInfo tag;
     tag.color = TAG_COLOR_GREEN;
@@ -228,7 +228,7 @@ tagInfo CDelHelX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, E
 /// @brief Builds the same-SID tag showing the SID name colour-coded by its configured group.
 /// @param fp Flight plan being evaluated.
 /// @return tagInfo with the SID name and group colour, greyed out once the aircraft has departed.
-tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
+tagInfo CFlowX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 {
     tagInfo tag;
 
@@ -286,7 +286,7 @@ tagInfo CDelHelX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 /// @param fp Flight plan being evaluated.
 /// @param rt Correlated radar target.
 /// @return tagInfo with "T", "P", or empty text.
-tagInfo CDelHelX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
+tagInfo CFlowX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
     tagInfo tag;
 
@@ -313,7 +313,7 @@ tagInfo CDelHelX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScope
             std::copy(taxiOut.second.lat.begin(), taxiOut.second.lat.end(), lat);
             std::copy(taxiOut.second.lon.begin(), taxiOut.second.lon.end(), lon);
 
-            if (CDelHelX_Tags::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            if (CFlowX_Tags::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
             {
                 isTaxiOut = true;
                 continue;

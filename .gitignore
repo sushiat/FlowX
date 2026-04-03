@@ -4,10 +4,10 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 # EuroScope files generated during debugging
-DelHel/euroscope_sector_providers.txt
-DelHel/ipaddr.txt
-DelHel/SectorFileProviderDescriptor.txt
-DelHel/version.txt
+FlowX/euroscope_sector_providers.txt
+FlowX/ipaddr.txt
+FlowX/SectorFileProviderDescriptor.txt
+FlowX/version.txt
 
 # User-specific files
 *.rsuser

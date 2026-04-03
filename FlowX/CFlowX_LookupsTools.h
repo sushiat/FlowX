@@ -1,17 +1,17 @@
 /**
- * @file CDelHelX_LookupsTools.h
- * @brief Declaration of CDelHelX_LookupsTools, the geometry and lookup utility layer.
+ * @file CFlowX_LookupsTools.h
+ * @brief Declaration of CFlowX_LookupsTools, the geometry and lookup utility layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #pragma once
-#include "CDelHelX_Settings.h"
+#include "CFlowX_Settings.h"
 
 /// @brief Plugin layer providing geometric helper functions and holding-point utilities.
 ///
 /// All methods are static so they can be called without an object instance where needed.
-class CDelHelX_LookupsTools : public CDelHelX_Settings
+class CFlowX_LookupsTools : public CFlowX_Settings
 {
   protected:
     /// @brief Encodes a holding-point name into the flight-strip annotation string in slot 8.

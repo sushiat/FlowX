@@ -1,15 +1,15 @@
 /**
- * @file CDelHelX_CustomTags.cpp
+ * @file CFlowX_CustomTags.cpp
  * @brief Custom GDI window cache builder; computes outbound and inbound row data in single-pass functions.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_CustomTags.h"
+#include "CFlowX_CustomTags.h"
 #include "helpers.h"
 
-void CDelHelX_CustomTags::ComputeInboundCacheEntry(const std::string&             tttKey,
+void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             tttKey,
                                                    EuroScopePlugIn::CFlightPlan&  fp,
                                                    EuroScopePlugIn::CRadarTarget& rt,
                                                    TwrInboundRowCache&            row)
@@ -242,7 +242,7 @@ void CDelHelX_CustomTags::ComputeInboundCacheEntry(const std::string&           
     // with the gap-adjusted display value after sorting.
 }
 
-void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
+void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
                                                     EuroScopePlugIn::CRadarTarget& rt,
                                                     TwrOutboundRowCache&           row)
 {
@@ -927,7 +927,7 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
     }
 }
 
-void CDelHelX_CustomTags::UpdateTagCache()
+void CFlowX_CustomTags::UpdateTagCache()
 {
     if (this->radarScreen == nullptr)
     {
@@ -1227,7 +1227,7 @@ void CDelHelX_CustomTags::UpdateTagCache()
     }
 }
 
-void CDelHelX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
+void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
 {
     if (!rt.IsValid())
     {

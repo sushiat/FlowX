@@ -1,6 +1,6 @@
 /**
- * @file CDelHelX_Base.h
- * @brief Declaration of CDelHelX_Base, the plugin registration and radar screen creation layer.
+ * @file CFlowX_Base.h
+ * @brief Declaration of CFlowX_Base, the plugin registration and radar screen creation layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
@@ -13,8 +13,8 @@
 /// @brief Base plugin layer responsible for EuroScope registration and radar-screen lifecycle.
 ///
 /// Inherits from EuroScopePlugIn::CPlugIn and registers all tag item types, tag functions,
-/// display types, and flight-plan lists used by DelHelX.
-class CDelHelX_Base : public EuroScopePlugIn::CPlugIn
+/// display types, and flight-plan lists used by FlowX.
+class CFlowX_Base : public EuroScopePlugIn::CPlugIn
 {
   protected:
     bool                             debug;       ///< True when verbose debug logging is enabled
@@ -28,7 +28,7 @@ class CDelHelX_Base : public EuroScopePlugIn::CPlugIn
 
   public:
     /// @brief Constructs the plugin, registering all tag items, functions, and flight-plan lists with EuroScope.
-    CDelHelX_Base();
+    CFlowX_Base();
 
     /// @brief Clears the stored radar screen pointer (called by the screen itself before deletion).
     void ClearRadarScreen()

@@ -1,17 +1,17 @@
 /**
- * @file CDelHelX_CustomTags.h
- * @brief Declaration of CDelHelX_CustomTags, the custom GDI window cache builder layer.
+ * @file CFlowX_CustomTags.h
+ * @brief Declaration of CFlowX_CustomTags, the custom GDI window cache builder layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #pragma once
-#include "CDelHelX_Tags.h"
+#include "CFlowX_Tags.h"
 #include "cachedTagData.h"
 
 /// @brief Plugin layer that builds and maintains the custom GDI window row caches
 /// (TWR Outbound, TWR Inbound) by computing all tag data in single-pass combined functions.
-class CDelHelX_CustomTags : public CDelHelX_Tags
+class CFlowX_CustomTags : public CFlowX_Tags
 {
   protected:
     /// @brief Computes all inbound fields for one row in a single pass.

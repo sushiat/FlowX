@@ -1,16 +1,16 @@
 /**
- * @file CDelHelX_Tags.h
- * @brief Declaration of CDelHelX_Tags, the EuroScope tag item rendering layer.
+ * @file CFlowX_Tags.h
+ * @brief Declaration of CFlowX_Tags, the EuroScope tag item rendering layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #pragma once
-#include "CDelHelX_Timers.h"
+#include "CFlowX_Timers.h"
 #include "tagInfo.h"
 
 /// @brief Plugin layer providing the 4 tag item columns still served via EuroScope's tag item mechanism.
-class CDelHelX_Tags : public CDelHelX_Timers
+class CFlowX_Tags : public CFlowX_Timers
 {
   protected:
     bool groundOverride = false; ///< When true, behaves as if a ground station is online (for testing)

@@ -1,19 +1,19 @@
 /**
- * @file CDelHelX_Settings.cpp
+ * @file CFlowX_Settings.cpp
  * @brief Settings layer; loads and saves config.json, EuroScope settings, and window positions.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_Settings.h"
+#include "CFlowX_Settings.h"
 #include "helpers.h"
 #include <filesystem>
 #include <fstream>
 #include <future>
 #include <semver/semver.hpp>
 
-CDelHelX_Settings::CDelHelX_Settings()
+CFlowX_Settings::CFlowX_Settings()
 {
     this->updateCheck = false;
 
@@ -28,7 +28,7 @@ CDelHelX_Settings::CDelHelX_Settings()
 }
 
 /// @brief Loads persisted plugin settings from EuroScope's settings store.
-void CDelHelX_Settings::LoadSettings()
+void CFlowX_Settings::LoadSettings()
 {
     const char* settings = this->GetDataFromSettings(PLUGIN_NAME);
     if (settings)
@@ -60,7 +60,7 @@ void CDelHelX_Settings::LoadSettings()
 }
 
 /// @brief Serialises current settings and writes them to EuroScope's settings store.
-void CDelHelX_Settings::SaveSettings()
+void CFlowX_Settings::SaveSettings()
 {
     std::ostringstream ss;
     ss << this->updateCheck << SETTINGS_DELIMITER
@@ -68,11 +68,11 @@ void CDelHelX_Settings::SaveSettings()
        << this->debug << SETTINGS_DELIMITER
        << this->autoRestore;
 
-    this->SaveDataToSettings(PLUGIN_NAME, "DelHelX settings", ss.str().c_str());
+    this->SaveDataToSettings(PLUGIN_NAME, "FlowX settings", ss.str().c_str());
 }
 
 /// @brief Loads window positions from windowLocations.json in the plugin directory.
-void CDelHelX_Settings::LoadWindowLocations()
+void CFlowX_Settings::LoadWindowLocations()
 {
     try
     {
@@ -121,7 +121,7 @@ void CDelHelX_Settings::LoadWindowLocations()
 }
 
 /// @brief Writes current window positions to windowLocations.json in the plugin directory.
-void CDelHelX_Settings::SaveWindowLocations()
+void CFlowX_Settings::SaveWindowLocations()
 {
     try
     {
@@ -151,7 +151,7 @@ void CDelHelX_Settings::SaveWindowLocations()
 }
 
 /// @brief Parses config.json from the plugin directory and populates the airports map.
-void CDelHelX_Settings::LoadConfig()
+void CFlowX_Settings::LoadConfig()
 {
     json config;
     try
@@ -402,7 +402,7 @@ void CDelHelX_Settings::LoadConfig()
 }
 
 /// @brief Resolves the latestVersion future and logs a message if a newer version is available.
-void CDelHelX_Settings::CheckForUpdate()
+void CFlowX_Settings::CheckForUpdate()
 {
     try
     {

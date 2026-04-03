@@ -1,6 +1,6 @@
-# DelHelX
+# FlowX
 
-DelHelX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure management tooling, same-SID / wake-turbulence separation tracking, inbound time-to-touchdown display, automatic holding point detection, and a range of convenience functions.
+FlowX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure management tooling, same-SID / wake-turbulence separation tracking, inbound time-to-touchdown display, automatic holding point detection, and a range of convenience functions.
 
 The plugin ships with a `config.json` file that defines all airport-specific data. It is currently configured for **LOWW (Vienna International Airport)**. Adding other airports requires only changes to `config.json` — no recompilation is needed.
 
@@ -30,24 +30,24 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 
 ### Installation
 
-1. Download the latest `DelHelX.zip` from the [Releases](https://github.com/sushiat/DelHelX/releases/latest) page.
-2. Extract `DelHelX.dll`, `config.json`, `nap.wav`, and `airbourne.wav` into your plugin directory.
-3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `DelHelX.dll`.
+1. Download the latest `FlowX.zip` from the [Releases](https://github.com/sushiat/FlowX/releases/latest) page.
+2. Extract `FlowX.dll`, `config.json`, `nap.wav`, and `airbourne.wav` into your plugin directory.
+3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `FlowX.dll`.
 4. Successful load is confirmed in the **Messages** chat:
    ```
-   [08:34:10] DelHelX: Version 0.6.0 loaded.
+   [08:34:10] FlowX: Version 0.6.0 loaded.
    ```
 5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
-> **Sound files:** `nap.wav` plays when the NAP reminder window appears and stops on acknowledgement. `airbourne.wav` plays once when an aircraft is detected airborne. Both files must be placed alongside `DelHelX.dll`.
+> **Sound files:** `nap.wav` plays when the NAP reminder window appears and stops on acknowledgement. `airbourne.wav` plays once when an aircraft is detected airborne. Both files must be placed alongside `FlowX.dll`.
 
-> **`windowLocations.json`** is created automatically by the plugin in the same directory as `DelHelX.dll`. It stores the screen positions of all five custom GDI windows and the last NAP reminder dismissal date. Delete it to reset all window positions to their defaults.
+> **`windowLocations.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores the screen positions of all five custom GDI windows and the last NAP reminder dismissal date. Delete it to reset all window positions to their defaults.
 
 ---
 
 ## Tag Items
 
-Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = DelHelX / \<name\>**. Only the following five items are registered with EuroScope. All other columns (HP, spacing, TTT, etc.) are rendered inside the custom GDI windows described below.
+Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = FlowX / \<name\>**. Only the following five items are registered with EuroScope. All other columns (HP, spacing, TTT, etc.) are rendered inside the custom GDI windows described below.
 
 | Tag Item | Typical display | Description |
 |---|---|---|
@@ -83,7 +83,7 @@ Only two tag functions are registered with EuroScope and can be assigned to tag 
 
 ## Custom Windows
 
-DelHelX draws five custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `windowLocations.json` in the plugin directory.
+FlowX draws five custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `windowLocations.json` in the plugin directory.
 
 ### DEP/H — Departure Rate
 
@@ -100,15 +100,15 @@ Tracks all departing aircraft. Rows are sorted by a composite key (holding point
 | Column | Source | Description | Left click | Right click |
 |---|---|---|---|---|
 | C/S | EuroScope | Callsign | — | — |
-| STS | DelHelX | Ground state (`ONFREQ` / `START-UP` / `TAXI` / `LINE UP` / `TAKE OFF` / `T+M:SS`) | Line Up | Take Off |
-| DEP? | DelHelX | Departure readiness vs. previous departure: time (s) or distance (nm), colour-coded green/yellow/red | — | — |
-| RWY | DelHelX | Assigned departure runway | EuroScope runway selector | — |
-| SID | DelHelX | SID name colour-coded by group | EuroScope SID selector | — |
+| STS | FlowX | Ground state (`ONFREQ` / `START-UP` / `TAXI` / `LINE UP` / `TAKE OFF` / `T+M:SS`) | Line Up | Take Off |
+| DEP? | FlowX | Departure readiness vs. previous departure: time (s) or distance (nm), colour-coded green/yellow/red | — | — |
+| RWY | FlowX | Assigned departure runway | EuroScope runway selector | — |
+| SID | FlowX | SID name colour-coded by group | EuroScope SID selector | — |
 | WTC | EuroScope | Wake turbulence category | — | — |
 | ATYP | TopSky | Aircraft type | — | — |
-| Freq | DelHelX | Next handoff frequency; turquoise above transfer altitude, blinking orange at warning threshold, `!MODE-C` if airborne without Mode-C | Transfer Next | — |
-| HP | DelHelX | Holding point; orange with `*` if readback pending, grey after departure | Assign HP | Request HP |
-| Spacing | DelHelX | Takeoff spacing — time (lighter follows heavier) or distance (equal/heavier follows lighter), colour-coded green/yellow/red | — | — |
+| Freq | FlowX | Next handoff frequency; turquoise above transfer altitude, blinking orange at warning threshold, `!MODE-C` if airborne without Mode-C | Transfer Next | — |
+| HP | FlowX | Holding point; orange with `*` if readback pending, grey after departure | Assign HP | Request HP |
+| Spacing | FlowX | Takeoff spacing — time (lighter follows heavier) or distance (equal/heavier follows lighter), colour-coded green/yellow/red | — | — |
 
 #### Takeoff Spacing format
 
@@ -127,15 +127,15 @@ Tracks aircraft on approach, ordered by time to touchdown per runway. Aircraft f
 
 | Column | Source | Description | Left click | Right click |
 |---|---|---|---|---|
-| TTT | DelHelX | Time to touchdown prefixed with runway (e.g. `29_03:42`); green >2 min, yellow >1 min, red <1 min. Go-arounds show the go-around frequency blinking red/yellow. | Start tracking | — |
+| TTT | FlowX | Time to touchdown prefixed with runway (e.g. `29_03:42`); green >2 min, yellow >1 min, red <1 min. Go-arounds show the go-around frequency blinking red/yellow. | Start tracking | — |
 | C/S | EuroScope | Callsign | Cleared to land | Missed approach |
-| NM | DelHelX | Leading inbound: absolute distance to threshold. Following inbounds: gap to aircraft ahead (`+2.3`), green >3 nm, yellow >2.5 nm, red <2.5 nm | — | — |
+| NM | FlowX | Leading inbound: absolute distance to threshold. Following inbounds: gap to aircraft ahead (`+2.3`), green >3 nm, yellow >2.5 nm, red <2.5 nm | — | — |
 | SPD | EuroScope | Ground speed | — | — |
 | WTC | EuroScope | Wake turbulence category | — | — |
 | ATYP | TopSky | Aircraft type | — | — |
 | Gate | Ground Radar | Assigned stand | Open stand menu | Auto stand assignment |
-| Vacate | DelHelX | Suggested vacate point based on assigned stand and gap to trailing inbound | — | — |
-| RWY | DelHelX | Assigned arrival runway; blinks red/yellow if tracked on a different runway than assigned | EuroScope runway selector | — |
+| Vacate | FlowX | Suggested vacate point based on assigned stand and gap to trailing inbound | — | — |
+| RWY | FlowX | Assigned arrival runway; blinks red/yellow if tracked on a different runway than assigned | EuroScope runway selector | — |
 
 ### WX/ATIS
 
@@ -152,20 +152,20 @@ Shows wind, QNH, ATIS letter, and RVR (when present) for every airport in `confi
 
 ## Chat Commands
 
-All commands are entered in any EuroScope chat channel, prefixed with `.delhelx`.
-Running `.delhelx` alone prints the loaded version and a command list.
+All commands are entered in any EuroScope chat channel, prefixed with `.flowx`.
+Running `.flowx` alone prints the loaded version and a command list.
 
 | Command | Saved | Description |
 |---|---|---|
-| `.delhelx debug` | Yes | Toggle verbose debug logging in the Messages window |
-| `.delhelx update` | Yes | Toggle the background update check on startup |
-| `.delhelx flash` | Yes | Toggle flashing of unread message indicator for DelHelX messages |
-| `.delhelx gnd` | No | Force ground station to be treated as online (cross-coupling scenarios) |
-| `.delhelx twr` | No | Force tower station to be treated as online (cross-coupling scenarios) |
-| `.delhelx redoflags` | — | Toggle all existing clearance flags off then back on (useful for newly joined controllers) |
-| `.delhelx autorestore` | Yes | Toggle auto-restore on quick reconnect. When enabled, if a pilot disconnects and reconnects within 90 seconds with a matching flight plan (same callsign, pilot name, airports, aircraft type, route, squawk, and position within 1 nm), their clearance flag and ground state are automatically restored. |
-| `.delhelx reset` | — | Reload `config.json` and reset all settings to defaults |
-| `.delhelx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
+| `.flowx debug` | Yes | Toggle verbose debug logging in the Messages window |
+| `.flowx update` | Yes | Toggle the background update check on startup |
+| `.flowx flash` | Yes | Toggle flashing of unread message indicator for FlowX messages |
+| `.flowx gnd` | No | Force ground station to be treated as online (cross-coupling scenarios) |
+| `.flowx twr` | No | Force tower station to be treated as online (cross-coupling scenarios) |
+| `.flowx redoflags` | — | Toggle all existing clearance flags off then back on (useful for newly joined controllers) |
+| `.flowx autorestore` | Yes | Toggle auto-restore on quick reconnect. When enabled, if a pilot disconnects and reconnects within 90 seconds with a matching flight plan (same callsign, pilot name, airports, aircraft type, route, squawk, and position within 1 nm), their clearance flag and ground state are automatically restored. |
+| `.flowx reset` | — | Reload `config.json` and reset all settings to defaults |
+| `.flowx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
 
 ---
 
@@ -366,15 +366,15 @@ Vacate points define recommended runway exit points for arriving aircraft based 
 
 ## Contributing
 
-If you have a suggestion or encountered a bug, please open an [issue](https://github.com/sushiat/DelHelX/issues) on GitHub. Include a description of the problem, relevant logs, and steps to reproduce.
+If you have a suggestion or encountered a bug, please open an [issue](https://github.com/sushiat/FlowX/issues) on GitHub. Include a description of the problem, relevant logs, and steps to reproduce.
 
-[Pull requests](https://github.com/sushiat/DelHelX/pulls) are welcome. Please keep features reasonably generic — the plugin is intended to be configurable via `config.json` rather than hard-coded for a specific airport or vACC.
+[Pull requests](https://github.com/sushiat/FlowX/pulls) are welcome. Please keep features reasonably generic — the plugin is intended to be configurable via `config.json` rather than hard-coded for a specific airport or vACC.
 
 ### Development setup
 
 - **Visual Studio 2022** (no other build system is supported)
 - Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration
-- Avoid breakpoints during live controlling — use `.delhelx debug` instead
+- Avoid breakpoints during live controlling — use `.flowx debug` instead
 - Target: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`), C++17, Windows SDK 11.0
 
 Dependencies are bundled in `include/` and `lib/`:

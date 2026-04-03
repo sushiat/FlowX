@@ -1,16 +1,16 @@
 /**
- * @file DelHelX.cpp
- * @brief MFC application class implementation; initialises the MFC runtime for the DelHelX DLL.
+ * @file FlowX.cpp
+ * @brief MFC application class implementation; initialises the MFC runtime for the FlowX DLL.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
-// DelHelX.cpp : Defines the initialization routines for the DLL.
+// FlowX.cpp : Defines the initialization routines for the DLL.
 //
 
 #include "pch.h"
 #include "framework.h"
-#include "DelHelX.h"
+#include "FlowX.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -41,29 +41,29 @@
 //      details.
 //
 
-// CDelHelXApp
+// CFlowXApp
 
-BEGIN_MESSAGE_MAP(CDelHelXApp, CWinApp)
+BEGIN_MESSAGE_MAP(CFlowXApp, CWinApp)
 END_MESSAGE_MAP()
 
 
-// CDelHelXApp construction
+// CFlowXApp construction
 
-CDelHelXApp::CDelHelXApp()
+CFlowXApp::CFlowXApp()
 {
     // TODO: add construction code here,
     // Place all significant initialization in InitInstance
 }
 
 
-// The one and only CDelHelXApp object
+// The one and only CFlowXApp object
 
-CDelHelXApp theApp;
+CFlowXApp theApp;
 
 
-// CDelHelXApp initialization
+// CFlowXApp initialization
 
-BOOL CDelHelXApp::InitInstance()
+BOOL CFlowXApp::InitInstance()
 {
     CWinApp::InitInstance();
 

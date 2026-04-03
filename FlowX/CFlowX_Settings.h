@@ -1,12 +1,12 @@
 /**
- * @file CDelHelX_Settings.h
- * @brief Declaration of CDelHelX_Settings, the configuration and persistence layer.
+ * @file CFlowX_Settings.h
+ * @brief Declaration of CFlowX_Settings, the configuration and persistence layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #pragma once
-#include "CDelHelX_Logging.h"
+#include "CFlowX_Logging.h"
 #include "config.h"
 #include "nlohmann/json.hpp"
 #include <future>
@@ -18,7 +18,7 @@ using json = nlohmann::json;
 /// Reads and writes plugin preferences via EuroScope's settings storage, parses config.json
 /// into the @c airports map, and optionally checks for a newer plugin version in the background.
 /// Window positions are stored separately in windowLocations.json in the plugin directory.
-class CDelHelX_Settings : public CDelHelX_Logging
+class CFlowX_Settings : public CFlowX_Logging
 {
   protected:
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
@@ -61,5 +61,5 @@ class CDelHelX_Settings : public CDelHelX_Logging
 
   public:
     /// @brief Constructs the settings layer, loading persisted settings and config.json on startup.
-    CDelHelX_Settings();
+    CFlowX_Settings();
 };

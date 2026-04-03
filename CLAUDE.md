@@ -4,18 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DelHelX is a EuroScope plugin (Windows DLL) for VATSIM air traffic controllers. It assists delivery/ground/tower controllers with departure management, holding point assignments, and same-SID tracking. Currently configured primarily for LOWW (Vienna).
+FlowX is a EuroScope plugin (Windows DLL) for VATSIM air traffic controllers. It assists delivery/ground/tower controllers with departure management, holding point assignments, and same-SID tracking. Currently configured primarily for LOWW (Vienna).
 
 ## Build
 
-Open `DelHelX.sln` in **Visual Studio 2022** and build with MSBuild. No CLI build commands are available.
+Open `FlowX.sln` in **Visual Studio 2022** and build with MSBuild. No CLI build commands are available.
 
 - Output: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`)
 - Language standard: C++17
 - EuroScope lib: `lib\EuroScope\EuroScopePlugInDll.lib`
 - External headers: `include/` (nlohmann/json, semver, date/tz)
 
-**Debug setup:** Set `EUROSCOPE_ROOT` environment variable to the EuroScope install directory. The debugger launches EuroScope.exe automatically. Avoid breakpoints during live sessions — use `.delhelx debug` instead.
+**Debug setup:** Set `EUROSCOPE_ROOT` environment variable to the EuroScope install directory. The debugger launches EuroScope.exe automatically. Avoid breakpoints during live sessions — use `.flowx debug` instead.
 
 ## Architecture
 
@@ -23,24 +23,24 @@ The plugin uses a deep inheritance chain (bottom to top):
 
 ```
 EuroScopePlugIn::CPlugIn
-  └─ CDelHelX_Base       (radar screen creation and plugin registration calls)
-       └─ CDelHelX_Logging    (chat message logging)
-            └─ CDelHelX_Settings  (config.json + EuroScope settings)
-                 └─ CDelHelX_LookupsTools  (geometry: point-in-polygon, distances)
-                      └─ CDelHelX_Timers   (aircraft state maps, TTT tracking)
-                           └─ CDelHelX_Tags      (tag item text + color generation)
-                                └─ CDelHelX_Functions  (UI action handlers)
-                                     └─ CDelHelX       (main plugin, event dispatch)
+  └─ CFlowX_Base       (radar screen creation and plugin registration calls)
+       └─ CFlowX_Logging    (chat message logging)
+            └─ CFlowX_Settings  (config.json + EuroScope settings)
+                 └─ CFlowX_LookupsTools  (geometry: point-in-polygon, distances)
+                      └─ CFlowX_Timers   (aircraft state maps, TTT tracking)
+                           └─ CFlowX_Tags      (tag item text + color generation)
+                                └─ CFlowX_Functions  (UI action handlers)
+                                     └─ CFlowX       (main plugin, event dispatch)
 ```
 
 `RadarScreen` (inherits `EuroScopePlugIn::CRadarScreen`) runs in parallel — handles visual rendering and radar-specific events independently from the main chain.
 
 ### Key data flow
 
-1. EuroScope fires events → `CDelHelX` dispatches to the appropriate layer
-2. `OnGetTagItem()` → `CDelHelX_Tags` methods → `tagInfo` (text + color)
-3. `OnFunctionCall()` → `CDelHelX_Functions` methods (HP assignment, freq transfer, etc.)
-4. `OnTimer()` → `CDelHelX_Timers` updates state maps (TTT, same-SID, QNH flags)
+1. EuroScope fires events → `CFlowX` dispatches to the appropriate layer
+2. `OnGetTagItem()` → `CFlowX_Tags` methods → `tagInfo` (text + color)
+3. `OnFunctionCall()` → `CFlowX_Functions` methods (HP assignment, freq transfer, etc.)
+4. `OnTimer()` → `CFlowX_Timers` updates state maps (TTT, same-SID, QNH flags)
 5. `OnNewMetarReceived()` → QNH change detection and orange "X" flagging
 6. `OnFlightPlanDisconnect()` → cleanup aircraft from all state maps
 
@@ -72,7 +72,7 @@ Point-in-polygon is used extensively for:
 
 ## Testing / Debug commands
 
-All commands prefixed with `.delhelx` in the EuroScope chat:
+All commands prefixed with `.flowx` in the EuroScope chat:
 
 | Command | Effect |
 |---|---|

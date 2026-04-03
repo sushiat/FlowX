@@ -10,7 +10,7 @@
 #include <regex>
 
 /// Plugin display name shown in EuroScope
-#define PLUGIN_NAME "DelHelX"
+#define PLUGIN_NAME "FlowX"
 /// Current plugin version string (semver)
 #define PLUGIN_VERSION "0.6.0"
 /// Plugin author name
@@ -18,9 +18,9 @@
 /// Plugin license string
 #define PLUGIN_LICENSE "(c) 2026, MIT License"
 /// URL to the plain-text file containing the latest released version number
-#define PLUGIN_LATEST_VERSION_URL "https://raw.githubusercontent.com/sushiat/DelHelX/master/version.txt"
+#define PLUGIN_LATEST_VERSION_URL "https://raw.githubusercontent.com/sushiat/FlowX/master/version.txt"
 /// URL to the GitHub releases page for downloading the latest build
-#define PLUGIN_LATEST_DOWNLOAD_URL "https://github.com/sushiat/DelHelX/releases/latest"
+#define PLUGIN_LATEST_DOWNLOAD_URL "https://github.com/sushiat/FlowX/releases/latest"
 /// URL to the VATSIM v3 data feed (updates every ~15 s)
 #define VATSIM_DATA_URL "https://data.vatsim.net/v3/vatsim-data.json"
 
@@ -36,7 +36,7 @@ const int TAG_ITEM_SAMESID   = 4; ///< Same-SID tracker column
 const int TAG_ITEM_ADES      = 5; ///< Destination airport (or last IFR fix for type-Y plans)
 /// @}
 
-/// @defgroup CustomTagItemTypes Custom tag item type IDs for DelHelX's own tags
+/// @defgroup CustomTagItemTypes Custom tag item type IDs for FlowX's own tags
 const int TAG_ITEM_HP                  = 20; ///< Holding point (popup-assigned)
 const int TAG_ITEM_ASSIGNED_ARR_RUNWAY = 21; ///< Assigned arrival runway
 const int TAG_ITEM_TAKEOFF_SPACING     = 22; ///< Takeoff spacing / time-separation indicator
@@ -56,7 +56,7 @@ const int TAG_FUNC_ON_FREQ      = 100; ///< Set ONFREQ / ST-UP / PUSH ground sta
 const int TAG_FUNC_CLEAR_NEWQNH = 101; ///< Clear the new-QNH annotation flag
 /// @}
 
-/// @defgroup CustomTagFunctions Custom tag function IDs for DelHelX's own tag actions
+/// @defgroup CustomTagFunctions Custom tag function IDs for FlowX's own tag actions
 const int TAG_FUNC_ASSIGN_HP      = 200; ///< Open popup to assign a holding point
 const int TAG_FUNC_REQUEST_HP     = 201; ///< Open popup to request a holding point (appends '*')
 const int TAG_FUNC_HP_LISTSELECT  = 202; ///< Callback when user selects an item from the HP popup list

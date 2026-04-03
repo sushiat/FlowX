@@ -1,19 +1,19 @@
 /**
- * @file CDelHelX_Functions.cpp
+ * @file CFlowX_Functions.cpp
  * @brief Tag function callbacks; handles controller click actions for HP, lineup, transfer, and more.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_Functions.h"
+#include "CFlowX_Functions.h"
 
 #include "helpers.h"
 
 /// @brief Opens a popup list of assignable holding points so the controller can assign one.
 /// @param fp Currently selected flight plan.
 /// @param Pt Screen position at which to anchor the popup.
-void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
+void CFlowX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
     RECT area;
     area.left   = Pt.x;
@@ -41,7 +41,7 @@ void CDelHelX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT P
 
 /// @brief Clears the 'Q' flag from flight-strip annotation slot 8 and syncs to other controllers.
 /// @param fp Currently selected flight plan.
-void CDelHelX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
+void CFlowX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string callSign = fp.GetCallsign();
     if (!this->flightStripAnnotation[callSign].empty())
@@ -55,7 +55,7 @@ void CDelHelX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
 /// @brief Ends tracking of the inbound and triggers TopSky's highlight function.
 /// @param fp Currently selected flight plan.
 /// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
-void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
+void CFlowX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
     std::string callSign = fp.GetCallsign();
     if (fp.GetTrackingControllerIsMe())
@@ -68,7 +68,7 @@ void CDelHelX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, Radar
 /// @brief Writes the user-selected holding-point name from the popup into flight-strip annotation slot 8.
 /// @param fp Currently selected flight plan.
 /// @param sItemString The holding-point name (possibly starred) chosen from the popup.
-void CDelHelX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
+void CFlowX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
 {
     std::string callSign                  = fp.GetCallsign();
     this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], sItemString);
@@ -78,7 +78,7 @@ void CDelHelX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, con
 
 /// @brief Sets the LINEUP ground state via a momentary scratch-pad toggle.
 /// @param fp Currently selected flight plan.
-void CDelHelX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
+void CFlowX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
     fp.GetControllerAssignedData().SetScratchPadString("LINEUP");
@@ -88,7 +88,7 @@ void CDelHelX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
 /// @brief Handles a missed approach: takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
 /// @param fp Currently selected flight plan.
 /// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
-void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
+void CFlowX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
     if (!fp.GetTrackingControllerIsMe())
     {
@@ -105,7 +105,7 @@ void CDelHelX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarS
 /// @brief Sets ONFREQ, ST-UP, or PUSH ground state depending on the aircraft's current stand position.
 /// @param fp Currently selected flight plan.
 /// @param rt Correlated radar target.
-void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
+void CFlowX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScopePlugIn::CRadarTarget& rt)
 {
     auto tag = this->GetPushStartHelperTag(fp, rt);
     if (tag.color == TAG_COLOR_RED)
@@ -130,7 +130,7 @@ void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScope
             std::copy(taxiOut.second.lat.begin(), taxiOut.second.lat.end(), lat);
             std::copy(taxiOut.second.lon.begin(), taxiOut.second.lon.end(), lon);
 
-            if (CDelHelX_Functions::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            if (CFlowX_Functions::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
             {
                 isTaxiOut = true;
                 continue;
@@ -163,7 +163,7 @@ void CDelHelX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScope
 /// @brief Opens a popup list of assignable holding points with each entry starred to denote a request.
 /// @param fp Currently selected flight plan.
 /// @param Pt Screen position at which to anchor the popup.
-void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
+void CFlowX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
 {
     RECT area;
     area.left   = Pt.x;
@@ -191,7 +191,7 @@ void CDelHelX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT 
 
 /// @brief Reverts the ground state from LINEUP back to TAXI via a momentary scratch-pad toggle.
 /// @param fp Currently selected flight plan.
-void CDelHelX_Functions::Func_RevertToTaxi(EuroScopePlugIn::CFlightPlan& fp)
+void CFlowX_Functions::Func_RevertToTaxi(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
     fp.GetControllerAssignedData().SetScratchPadString("TAXI");
@@ -201,7 +201,7 @@ void CDelHelX_Functions::Func_RevertToTaxi(EuroScopePlugIn::CFlightPlan& fp)
 /// @brief Triggers the Ground Radar plugin's automatic stand assignment function.
 /// @param fp Currently selected flight plan.
 /// @param radarScreenInstance Active radar screen used to call the Ground Radar tag function.
-void CDelHelX_Functions::Func_StandAuto(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
+void CFlowX_Functions::Func_StandAuto(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
     std::string callSign = fp.GetCallsign();
     radarScreenInstance->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
@@ -209,7 +209,7 @@ void CDelHelX_Functions::Func_StandAuto(EuroScopePlugIn::CFlightPlan& fp, RadarS
 
 /// @brief Sets the DEPA ground state and starts tracking the flight plan.
 /// @param fp Currently selected flight plan.
-void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
+void CFlowX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
     fp.GetControllerAssignedData().SetScratchPadString("DEPA");
@@ -221,7 +221,7 @@ void CDelHelX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
 /// @brief Initiates a handoff to the next controller and marks the flight strip as transferred.
 /// @param fp Currently selected flight plan.
 /// @note Tower controllers search for a SID-specific approach frequency first; falls back to first APP, then drops tracking.
-void CDelHelX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
+void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 {
     std::string callSign = fp.GetCallsign();
     std::string dep      = fp.GetFlightPlanData().GetOrigin();

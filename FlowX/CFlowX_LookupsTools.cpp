@@ -1,12 +1,12 @@
 /**
- * @file CDelHelX_LookupsTools.cpp
+ * @file CFlowX_LookupsTools.cpp
  * @brief Geometry and lookup utilities; point-in-polygon and holding-point annotation helpers.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_LookupsTools.h"
+#include "CFlowX_LookupsTools.h"
 
 /// @brief Tests whether point (x, y) lies inside the given polygon using ray casting.
 /// @param polyCorners Number of polygon vertices.
@@ -15,7 +15,7 @@
 /// @param x X coordinate of the test point.
 /// @param y Y coordinate of the test point.
 /// @return True if the point is inside the polygon.
-bool CDelHelX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y)
+bool CFlowX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y)
 {
     int  i, j = polyCorners - 1;
     bool oddNodes = false;
@@ -40,7 +40,7 @@ bool CDelHelX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], 
 /// @param currentPosition Aircraft or point position.
 /// @param runways Runway map for the airport.
 /// @return Distance in NM, or 0.0 if the runway is not found.
-double CDelHelX_LookupsTools::DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways)
+double CFlowX_LookupsTools::DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways)
 {
     auto rwyIt = runways.find(rwy);
     if (rwyIt == runways.end())
@@ -60,7 +60,7 @@ double CDelHelX_LookupsTools::DistanceFromRunwayThreshold(const std::string& rwy
 /// @param currentPosition Aircraft or point position.
 /// @param runways Runway map for the airport.
 /// @return Bearing in degrees (0–360), or -1 if the runway is not found.
-double CDelHelX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways)
+double CFlowX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways)
 {
     auto rwyIt = runways.find(rwy);
     if (rwyIt == runways.end())
@@ -78,7 +78,7 @@ double CDelHelX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rw
 /// @brief Returns a numeric ranking for a wake-turbulence category character.
 /// @param wtc Wake-turbulence category (J, H, M, L; case-insensitive).
 /// @return 4 for J, 3 for H, 2 for M, 1 for L, 0 for unknown.
-int CDelHelX_LookupsTools::GetAircraftWeightCategoryRanking(char wtc)
+int CFlowX_LookupsTools::GetAircraftWeightCategoryRanking(char wtc)
 {
     switch (wtc)
     {
@@ -104,7 +104,7 @@ int CDelHelX_LookupsTools::GetAircraftWeightCategoryRanking(char wtc)
 /// @param hp2 Second holding-point name.
 /// @param runways Runway map for the airport.
 /// @return Non-zero if the names are equal or linked via a sameAs relationship.
-int CDelHelX_LookupsTools::IsSameHoldingPoint(std::string hp1, std::string hp2, const std::map<std::string, runway>& runways)
+int CFlowX_LookupsTools::IsSameHoldingPoint(std::string hp1, std::string hp2, const std::map<std::string, runway>& runways)
 {
     if (hp1.empty() || hp2.empty())
     {
@@ -141,7 +141,7 @@ int CDelHelX_LookupsTools::IsSameHoldingPoint(std::string hp1, std::string hp2, 
 /// @param annotation Current annotation string ([0] = QNH flag, [1..6] = 6-char transfer frequency with dot removed).
 /// @param hp Holding-point name to insert.
 /// @return Updated annotation string with the HP encoded from position 7 onward.
-std::string CDelHelX_LookupsTools::AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp)
+std::string CFlowX_LookupsTools::AppendHoldingPointToFlightStripAnnotation(const std::string& annotation, const std::string& hp)
 {
     std::string prefix = annotation.substr(0, 7);
     prefix.resize(7, ' ');
@@ -153,7 +153,7 @@ std::string CDelHelX_LookupsTools::AppendHoldingPointToFlightStripAnnotation(con
 /// @param runways Full runway map used to look up the opposite threshold.
 /// @param pos Position to test.
 /// @return True if the position falls within the runway rectangle.
-bool CDelHelX_LookupsTools::IsPositionOnRunway(const runway& rwy, const std::map<std::string, runway>& runways, const EuroScopePlugIn::CPosition& pos)
+bool CFlowX_LookupsTools::IsPositionOnRunway(const runway& rwy, const std::map<std::string, runway>& runways, const EuroScopePlugIn::CPosition& pos)
 {
     if (rwy.widthMeters <= 0 || rwy.opposite.empty())
     {
@@ -198,7 +198,7 @@ bool CDelHelX_LookupsTools::IsPositionOnRunway(const runway& rwy, const std::map
 /// @brief Converts a colour name string to the corresponding COLORREF constant.
 /// @param colorName Colour name (e.g. "green", "orange").
 /// @return Matching COLORREF, or TAG_COLOR_DEFAULT_GRAY for unrecognised names.
-COLORREF CDelHelX_LookupsTools::ColorFromString(const std::string& colorName)
+COLORREF CFlowX_LookupsTools::ColorFromString(const std::string& colorName)
 {
     if (colorName == "green")
     {

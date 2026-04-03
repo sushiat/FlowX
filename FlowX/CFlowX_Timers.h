@@ -1,12 +1,12 @@
 /**
- * @file CDelHelX_Timers.h
- * @brief Declaration of CDelHelX_Timers, the timer-driven aircraft state management layer.
+ * @file CFlowX_Timers.h
+ * @brief Declaration of CFlowX_Timers, the timer-driven aircraft state management layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #pragma once
-#include "CDelHelX_LookupsTools.h"
+#include "CFlowX_LookupsTools.h"
 #include "reconnectSnapshot.h"
 #include "tagInfo.h"
 #include <future>
@@ -17,8 +17,8 @@
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
 ///
 /// All state is stored in maps keyed by callsign (or callsign+runway designator for inbound tracking).
-/// The Update* methods are called on a timer cadence from CDelHelX::OnTimer().
-class CDelHelX_Timers : public CDelHelX_LookupsTools
+/// The Update* methods are called on a timer cadence from CFlowX::OnTimer().
+class CFlowX_Timers : public CFlowX_LookupsTools
 {
   protected:
     std::map<std::string, tagInfo>                  adesCache;                 ///< Callsign -> cached ADES tag (destination ICAO, or last IFR fix for type-Y plans).

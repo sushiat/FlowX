@@ -1,12 +1,12 @@
 /**
- * @file CDelHelX_Timers.cpp
+ * @file CFlowX_Timers.cpp
  * @brief Timer-driven state management; TTT tracking, same-SID detection, and reconnect restore.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CDelHelX_Timers.h"
+#include "CFlowX_Timers.h"
 
 #include <filesystem>
 #include <set>
@@ -30,7 +30,7 @@ static std::string UtcDateString()
 }
 
 /// @brief Detects which holding-point polygon a taxiing aircraft occupies and writes it to flight-strip slot 8.
-void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
+void CFlowX_Timers::AutoUpdateDepartureHoldingPoints()
 {
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
@@ -82,7 +82,7 @@ void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
                     std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
                     std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
 
-                    if (CDelHelX_Timers::PointInsidePolygon(static_cast<int>(corners), polyX, polyY, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
+                    if (CFlowX_Timers::PointInsidePolygon(static_cast<int>(corners), polyX, polyY, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
                     {
                         this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
                     }
@@ -100,7 +100,7 @@ void CDelHelX_Timers::AutoUpdateDepartureHoldingPoints()
 
 /// @brief Checks each airport's NAP reminder configuration and shows the custom reminder window when the time is reached.
 /// The reminder is suppressed if it was already acknowledged today (UTC date comparison).
-void CDelHelX_Timers::CheckAirportNAPReminder()
+void CFlowX_Timers::CheckAirportNAPReminder()
 {
     for (auto& airport : this->airports)
     {
@@ -152,7 +152,7 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
 }
 
 /// @brief Restores clearance flag and ground state for pilots who reconnect within 90 seconds with a matching flight plan.
-void CDelHelX_Timers::CheckReconnects()
+void CFlowX_Timers::CheckReconnects()
 {
     if (!this->autoRestore || this->reconnect_pending.empty())
     {
@@ -318,7 +318,7 @@ void CDelHelX_Timers::CheckReconnects()
 /// Phase 2 – airborne: when DEPA ground state and pressAlt ≥ fieldElev + 50 ft, assigns the departure
 ///   sequence number and computes spacing data relative to the previous departure on the same runway.
 ///   If Phase 1 never fired (e.g. no runway width configured), the tick is set here as a fallback.
-void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
+void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 {
     if (!rt.IsValid())
     {
@@ -465,7 +465,7 @@ void CDelHelX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 
 /// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
 /// Prefers _D_ callsigns when multiple ATIS stations match the same airport ICAO.
-void CDelHelX_Timers::PollAtisLetters(int Counter)
+void CFlowX_Timers::PollAtisLetters(int Counter)
 {
     // Resolve a completed fetch
     if (this->atisFuture.valid() && this->atisFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
@@ -549,7 +549,7 @@ void CDelHelX_Timers::PollAtisLetters(int Counter)
 
 /// @brief Applies any persisted window positions to a freshly created radar screen, then saves
 /// positions back to disk whenever any window has been dragged to a new location.
-void CDelHelX_Timers::SaveAndRestoreWindowLocations()
+void CFlowX_Timers::SaveAndRestoreWindowLocations()
 {
     if (this->radarScreen == nullptr)
     {
@@ -588,7 +588,7 @@ void CDelHelX_Timers::SaveAndRestoreWindowLocations()
 /// @brief Rebuilds adesCache for all correlated flight plans departing from a configured airport.
 /// For type-Y plans the tag shows the last IFR waypoint in turquoise;
 /// all other plan types show the destination ICAO using the EuroScope default colour.
-void CDelHelX_Timers::UpdateAdesCache()
+void CFlowX_Timers::UpdateAdesCache()
 {
     // Returns the last waypoint-like token before the first "VFR" token in the route string.
     // Returns empty string if no VFR marker is found or no valid waypoint precedes it.
@@ -683,7 +683,7 @@ void CDelHelX_Timers::UpdateAdesCache()
 /// @brief Updates or removes departure information overlays on the radar screen for taxiing aircraft.
 /// Reads dep_info text/colour and SID colour from the pre-calculated tag cache instead of calling
 /// OnGetTagItem, then appends the ",T" transfer indicator for GND controllers.
-void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
+void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
 {
     if (this->radarScreen == nullptr)
     {
@@ -823,7 +823,7 @@ void CDelHelX_Timers::UpdateRadarTargetDepartureInfo()
 }
 
 /// @brief Updates the TWR same-SID outbound list and records per-departure timing and sequencing data.
-void CDelHelX_Timers::UpdateTowerSameSID()
+void CFlowX_Timers::UpdateTowerSameSID()
 {
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {
@@ -986,7 +986,7 @@ void CDelHelX_Timers::UpdateTowerSameSID()
 }
 
 /// @brief Updates the TTT inbound list: detects new inbounds, removes departed aircraft, and handles go-arounds.
-void CDelHelX_Timers::UpdateTTTInbounds()
+void CFlowX_Timers::UpdateTTTInbounds()
 {
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {
@@ -1199,14 +1199,14 @@ void CDelHelX_Timers::UpdateTTTInbounds()
 }
 
 /// @brief Records today's UTC date as the last NAP acknowledgement date and persists it to windowLocations.json.
-void CDelHelX_Timers::AckNapReminder()
+void CFlowX_Timers::AckNapReminder()
 {
     this->napLastDismissedDate = UtcDateString();
     this->SaveWindowLocations();
 }
 
 /// @brief Clears all unacknowledged change flags for the given airport.
-void CDelHelX_Timers::AckWeather(const std::string& icao)
+void CFlowX_Timers::AckWeather(const std::string& icao)
 {
     this->windUnacked.erase(icao);
     this->qnhUnacked.erase(icao);
