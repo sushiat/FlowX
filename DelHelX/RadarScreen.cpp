@@ -335,14 +335,20 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int FREQ    = 105;  // 15 chars
     const int HP      = 28;   //  4 chars
     const int SPC     = 119;  // 17 chars
+    const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
     const int SEP_H   = 12;    ///< Height of blank separator row between sort groups
     const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + PAD;
     int numRows       = (int)this->twrOutboundRowsCache.size();
 
     int numSeps = 0;
-    for (const auto& r : this->twrOutboundRowsCache) { if (r.groupSeparatorAbove) { ++numSeps; } }
+    int totalRowH = 0;
+    for (const auto& r : this->twrOutboundRowsCache)
+    {
+        if (r.groupSeparatorAbove) { ++numSeps; }
+        totalRowH += r.dimmed ? DIMMED_ROW_H : ROW_H;
+    }
 
-    const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + numSeps * SEP_H + PAD / 2;
+    const int WIN_H = TITLE_H + HDR_H + totalRowH + numSeps * SEP_H + PAD / 2;
 
     if (this->twrOutboundWindowPos.x == -1)
     {
@@ -433,21 +439,21 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     };
 
     auto altBrushOut = CreateSolidBrush(RGB(32, 32, 32));
-    int yOffset = 0; ///< Accumulated extra pixels from separator rows inserted above this row
+    int rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrOutboundRowsCache[row];
+        int rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
 
         if (r.groupSeparatorAbove)
         {
-            int sepY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
-            RECT sepRect = { wx + 1, sepY, wx + WIN_W - 1, sepY + SEP_H };
+            RECT sepRect = { wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H };
             FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-            yOffset += SEP_H;
+            rowTop += SEP_H;
         }
 
-        int rowY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushOut); }
+        int rowY = rowTop;
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRect(hDC, &alt, altBrushOut); }
         int cx   = wx + PAD;
 
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
@@ -455,7 +461,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         auto cell = [&](int width, const std::string& text, COLORREF color,
                         UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
             SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             cx += width;
@@ -465,7 +471,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         auto cellClickable = [&](int width, const std::string& text, COLORREF color,
                                  const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
             SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             AddScreenObject(SCREEN_OBJECT_TWR_OUT_CELL, objId.c_str(), rect, false, "");
@@ -482,6 +488,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         cellClickable(FREQ, r.nextFreq.tag,         r.nextFreq.color, r.callsign + "|FREQ");
         cellClickable(HP,   r.hp.tag,               r.hp.color,       r.callsign + "|HP",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(SPC,  r.spacing.tag,          r.spacing.color,  r.callsign + "|SPC", DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        rowTop += rowH;
     }
     DeleteObject(altBrushOut);
 
@@ -496,8 +503,9 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 {
     const int TITLE_H = 13;
     const int HDR_H   = 17;
-    const int ROW_H   = 19;
-    const int SEP_H   = 12;    ///< Height of blank separator row between runway groups
+    const int ROW_H        = 19;
+    const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
+    const int SEP_H        = 12;    ///< Height of blank separator row between runway groups
     const int PAD     = 6;
     // Column order: RWY_GRP (new), TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, RWY
     const int RWY_GRP = 35;   //  new front column — runway group label
@@ -513,18 +521,20 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int WIN_W   = PAD + RWY_GRP + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + RWY + PAD;
     int numRows       = (int)this->twrInboundRowsCache.size();
 
-    // Count runway group separators (one blank row between each group)
-    int numSeps = 0;
+    // Count separators and sum actual row heights
+    int numSeps   = 0;
+    int totalRowH = 0;
     {
         std::string lastGrp;
         for (const auto& r : this->twrInboundRowsCache)
         {
             if (!lastGrp.empty() && r.rwyGroup != lastGrp) { ++numSeps; }
             lastGrp = r.rwyGroup;
+            totalRowH += r.dimmed ? DIMMED_ROW_H : ROW_H;
         }
     }
 
-    const int WIN_H = TITLE_H + HDR_H + numRows * ROW_H + numSeps * SEP_H + PAD / 2;
+    const int WIN_H = TITLE_H + HDR_H + totalRowH + numSeps * SEP_H + PAD / 2;
 
     if (this->twrInboundWindowPos.x == -1)
     {
@@ -616,31 +626,31 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 
     auto altBrushIn = CreateSolidBrush(RGB(32, 32, 32));
     std::string lastRwyGroup;
-    int yOffset = 0; ///< Accumulated extra pixels from separator rows inserted above this row
+    int rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->twrInboundRowsCache[row];
+        int rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
 
         // Insert a blank separator row between runway groups
         if (!lastRwyGroup.empty() && r.rwyGroup != lastRwyGroup)
         {
-            int sepY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
-            RECT sepRect = { wx + 1, sepY, wx + WIN_W - 1, sepY + SEP_H };
+            RECT sepRect = { wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H };
             FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-            yOffset += SEP_H;
+            rowTop += SEP_H;
         }
         lastRwyGroup = r.rwyGroup;
 
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
-        int rowY = wy + TITLE_H + HDR_H + row * ROW_H + yOffset;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushIn); }
+        int rowY = rowTop;
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRect(hDC, &alt, altBrushIn); }
         int cx   = wx + PAD;
 
         auto cell = [&](int width, const std::string& text, COLORREF color,
                         UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
             SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             cx += width;
@@ -649,7 +659,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         auto cellClickable = [&](int width, const std::string& text, COLORREF color,
                                  const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + ROW_H };
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
             SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             AddScreenObject(SCREEN_OBJECT_TWR_IN_CELL, objId.c_str(), rect, false, "");
@@ -666,6 +676,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         cellClickable(GATE,  r.gate,                        TAG_COLOR_WHITE, r.callsign + "|GATE");
         cellClickable(VACATE,r.vacate.tag,                  r.vacate.color,  r.callsign + "|VACATE");
         cellClickable(RWY,   r.arrRwy.tag,                  r.arrRwy.color,  r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        rowTop += rowH;
     }
     DeleteObject(altBrushIn);
 

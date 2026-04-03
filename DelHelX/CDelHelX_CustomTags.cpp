@@ -63,6 +63,10 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
         status = "DEPA";
     }
 
+    // Taxiing aircraft not yet near the holding point are de-emphasised (same threshold as GND→TWR freq switch)
+    bool nearHp = atHoldingPoint || (distToRunwayThreshold >= 0.0 && distToRunwayThreshold < 0.2);
+    row.dimmed = (status == "TAXI") && !nearHp;
+
     // ── row.rwy ──
     row.rwy = [&]() -> tagInfo {
         tagInfo t;
@@ -568,6 +572,15 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
 
     // ── row.sameSid ──
     row.sameSid = this->GetSameSidTag(fp);
+
+    // When acting as TWR, grey the Freq column for aircraft not yet at take-off roll
+    {
+        auto me = this->ControllerMyself();
+        if (me.IsController() && me.GetFacility() == 4 && row.status.tag != "TAKE OFF")
+        {
+            row.nextFreq.color = TAG_COLOR_LIST_GRAY;
+        }
+    }
 }
 
 void CDelHelX_CustomTags::ComputeInboundCacheEntry(const std::string& tttKey,
@@ -844,9 +857,9 @@ void CDelHelX_CustomTags::UpdateTagCache()
 
             ComputeOutboundCacheEntry(fp, rt, row);
 
-            // Dim group D (departed + not tracking by me, including transfer-from-me-initiated)
-            row.dimmed = row.status.tag.find("DEP") != std::string::npos
-                      && row.callsignColor != TAG_COLOR_WHITE;
+            // Also dim group D (departed + not tracking by me, including transfer-from-me-initiated)
+            row.dimmed |= row.status.tag.find("DEP") != std::string::npos
+                       && row.callsignColor != TAG_COLOR_WHITE;
 
             outboundRows.push_back(std::move(row));
         }
