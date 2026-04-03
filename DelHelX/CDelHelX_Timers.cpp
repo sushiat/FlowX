@@ -1,7 +1,10 @@
 #include "pch.h"
 #include "CDelHelX_Timers.h"
 
+#include <filesystem>
 #include <set>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 #include "helpers.h"
 #include "date/tz.h"
 
@@ -49,7 +52,8 @@ void CDelHelX_Timers::CheckAirportNAPReminder()
                             // Suppress if already acknowledged today
                             if (this->napLastDismissedDate == UtcDateString()) { continue; }
 
-                            Beep(1568, 300);
+                            std::filesystem::path wavPath = std::filesystem::path(GetPluginDirectory()) / "nap.wav";
+                            PlaySoundA(wavPath.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
                             if (this->radarScreen != nullptr)
                             {
                                 this->radarScreen->napReminderActive  = true;

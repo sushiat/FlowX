@@ -5,6 +5,7 @@
 #include "CDelHelX_Timers.h"
 
 #include <algorithm>
+#include <mmsystem.h>
 #include <string>
 #include "constants.h"
 
@@ -733,10 +734,11 @@ void RadarScreen::DrawNapReminder(HDC hDC)
         int phase = (int)((GetTickCount64() - this->napAckClickTick) / 80);
         if (phase >= 6)
         {
-            // Animation finished — close window and persist dismissal
+            // Animation finished — close window, stop sound, and persist dismissal
             this->napAckClickTick   = 0;
             this->napAckPressed     = false;
             this->napReminderActive = false;
+            PlaySoundA(nullptr, nullptr, 0);
             static_cast<CDelHelX_Timers*>(this->GetPlugIn())->AckNapReminder();
             return;
         }
