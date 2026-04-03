@@ -222,11 +222,15 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
             }
             t.tag = rounded + " nm /" + std::to_string(static_cast<int>(distRequired));
 
-            if (dist >= distRequired)
+            // Thresholds differ by requirement: 3 nm uses early km-based cues (2.4 km / 2.0 km → NM),
+            // 5 nm uses NM-based cues (3.0 nm / 2.8 nm).
+            double greenAt  = (distRequired >= 5.0) ? 3.0  : (2.4 / 1.852);  // 5nm: 3.0nm | 3nm: ~1.30nm
+            double yellowAt = (distRequired >= 5.0) ? 2.8  : (2.0 / 1.852);  // 5nm: 2.8nm | 3nm: ~1.08nm
+            if (dist >= greenAt)
             {
                 t.color = TAG_COLOR_GREEN;
             }
-            else if (dist >= distRequired - 0.3)
+            else if (dist >= yellowAt)
             {
                 t.color = TAG_COLOR_YELLOW;
             }
@@ -435,20 +439,33 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
                 return t;
             }
 
+            // Prefer an aircraft currently on the takeoff roll (tick set, not yet airborne, same runway)
+            // over the previously recorded last departure — the rolling aircraft is the active constraint.
             std::string lastDeparted_callSign;
-            if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end())
+            EuroScopePlugIn::CRadarTarget lastDeparted_rt;
+
+            for (const auto& [cs, tick] : this->twrSameSID_flightPlans)
             {
-                lastDeparted_callSign = this->twrSameSID_lastDeparted.at(rwy);
+                if (tick == 0 || cs == callSign || this->dep_sequenceNumber.count(cs) > 0) { continue; }
+                auto rollingFp = this->FlightPlanSelect(cs.c_str());
+                if (!rollingFp.IsValid() || rollingFp.GetFlightPlanData().GetDepartureRwy() != rwy) { continue; }
+                auto rollingRt = this->RadarTargetSelect(cs.c_str());
+                if (!rollingRt.IsValid()) { continue; }
+                lastDeparted_callSign = cs;
+                lastDeparted_rt       = rollingRt;
+                break;
             }
 
-            if (lastDeparted_callSign.empty())
+            // Fall back to the last recorded departure if no rolling aircraft was found
+            if (!lastDeparted_rt.IsValid())
             {
-                t.color = TAG_COLOR_GREEN;
-                t.tag   = "OK?";
-                return t;
+                if (this->twrSameSID_lastDeparted.find(rwy) != this->twrSameSID_lastDeparted.end())
+                {
+                    lastDeparted_callSign = this->twrSameSID_lastDeparted.at(rwy);
+                }
+                lastDeparted_rt = this->RadarTargetSelect(lastDeparted_callSign.c_str());
             }
 
-            EuroScopePlugIn::CRadarTarget lastDeparted_rt = this->RadarTargetSelect(lastDeparted_callSign.c_str());
             if (!lastDeparted_rt.IsValid())
             {
                 t.color = TAG_COLOR_GREEN;
@@ -482,19 +499,13 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
                     ULONGLONG now                = GetTickCount64();
                     auto secondsSinceDeparted    = (now - this->twrSameSID_flightPlans.at(lastDeparted_callSign)) / 1000;
 
-                    if (secondsSinceDeparted > secondsRequired)
+                    if (secondsSinceDeparted >= secondsRequired)
                     {
                         t.color = TAG_COLOR_GREEN;
                         t.tag   = "OK";
                         return t;
                     }
-                    if (secondsSinceDeparted + 30 > secondsRequired)
-                    {
-                        t.color = TAG_COLOR_GREEN;
-                        t.tag   = std::to_string(secondsRequired - secondsSinceDeparted) + "s";
-                        return t;
-                    }
-                    if (secondsSinceDeparted + 45 > secondsRequired)
+                    if (secondsSinceDeparted + 15 >= secondsRequired)
                     {
                         t.color = TAG_COLOR_YELLOW;
                         t.tag   = std::to_string(secondsRequired - secondsSinceDeparted) + "s";
@@ -534,37 +545,67 @@ void CDelHelX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan
                 }
             }
 
-            auto distanceBetween = rt.GetPosition().GetPosition()
-                                    .DistanceTo(lastDeparted_rt.GetPosition().GetPosition());
+            if (distanceRequired <= 3.1)
+            {
+                // 3 NM case: measure distance from the previous aircraft to this runway's
+                // departure threshold — green once they pass the 2.4 km marker (≈1.30 NM).
+                auto rwyThreshIt = airportIt->second.runways.find(rwy);
+                if (rwyThreshIt == airportIt->second.runways.end()) { return t; }
+                EuroScopePlugIn::CPosition threshPos;
+                threshPos.m_Latitude  = rwyThreshIt->second.thresholdLat;
+                threshPos.m_Longitude = rwyThreshIt->second.thresholdLon;
+                double distToThresh = lastDeparted_rt.GetPosition().GetPosition().DistanceTo(threshPos);
 
-            if (distanceBetween > distanceRequired)
-            {
-                t.color = TAG_COLOR_GREEN;
-                t.tag   = "OK";
-                return t;
-            }
+                const double greenAt  = 2.4 / 1.852;  // 2.4 km ≈ 1.30 NM
+                const double yellowAt = 2.0 / 1.852;  // 2.0 km ≈ 1.08 NM
 
-            auto makeNmTag = [&](COLORREF c) -> tagInfo {
-                tagInfo r;
-                r.color = c;
-                std::string num_text = std::to_string(distanceBetween);
-                r.tag = num_text.substr(0, num_text.find('.') + 3) + "nm";
-                return r;
-            };
+                // Show remaining distance to the green threshold (decreasing to 0 → OK)
+                auto makeThreshTag = [&](COLORREF c) -> tagInfo {
+                    tagInfo r;
+                    r.color = c;
+                    double remaining = greenAt - distToThresh;
+                    if (remaining < 0.0) { remaining = 0.0; }
+                    std::string s = std::to_string(remaining);
+                    r.tag = s.substr(0, s.find('.') + 3) + "nm";
+                    return r;
+                };
 
-            if (distanceRequired <= 3.1 && distanceBetween > 1.3)
-            {
-                return makeNmTag(TAG_COLOR_GREEN);
+                if (distToThresh >= greenAt)
+                {
+                    t.color = TAG_COLOR_GREEN;
+                    t.tag   = "OK";
+                    return t;
+                }
+                if (distToThresh >= yellowAt) { return makeThreshTag(TAG_COLOR_YELLOW); }
+                return makeThreshTag(TAG_COLOR_RED);
             }
-            if (distanceBetween > 3.0)
+            else
             {
-                return makeNmTag(TAG_COLOR_GREEN);
+                // 5 NM case: measure distance between the two aircraft.
+                // Green at 3.0 NM, yellow at 2.8 NM.
+                auto distanceBetween = rt.GetPosition().GetPosition()
+                                        .DistanceTo(lastDeparted_rt.GetPosition().GetPosition());
+
+                // Show remaining distance to the green threshold (decreasing to 0 → OK)
+                auto makeNmTag = [&](COLORREF c) -> tagInfo {
+                    tagInfo r;
+                    r.color = c;
+                    double remaining = 3.0 - distanceBetween;
+                    if (remaining < 0.0) { remaining = 0.0; }
+                    std::string s = std::to_string(remaining);
+                    r.tag = s.substr(0, s.find('.') + 3) + "nm";
+                    return r;
+                };
+
+                if (distanceBetween >= 3.0)
+                {
+                    t.color = TAG_COLOR_GREEN;
+                    t.tag   = "OK";
+                    return t;
+                }
+                if (distanceBetween >= 2.8) { return makeNmTag(TAG_COLOR_YELLOW); }
+                return makeNmTag(TAG_COLOR_RED);
             }
-            if (distanceBetween > 2.5)
-            {
-                return makeNmTag(TAG_COLOR_YELLOW);
-            }
-            return makeNmTag(TAG_COLOR_RED);
         }
         catch ([[maybe_unused]] const std::exception&)
         {
