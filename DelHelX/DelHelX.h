@@ -1,3 +1,10 @@
+/**
+ * @file DelHelX.h
+ * @brief MFC application class declaration for the DelHelX DLL.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 #pragma once
 #ifndef __AFXWIN_H__
 #error "include 'pch.h' before including this file for PCH"

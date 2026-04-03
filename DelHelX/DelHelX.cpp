@@ -1,3 +1,10 @@
+/**
+ * @file DelHelX.cpp
+ * @brief MFC application class implementation; initialises the MFC runtime for the DelHelX DLL.
+ * @author Markus Korbel
+ * @copyright (c) 2026, MIT License
+ */
+
 // DelHelX.cpp : Defines the initialization routines for the DLL.
 //
 
