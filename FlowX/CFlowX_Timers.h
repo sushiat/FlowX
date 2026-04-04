@@ -66,8 +66,13 @@ class CFlowX_Timers : public CFlowX_LookupsTools
 
     /// @brief Called on every radar position update for an aircraft; detects takeoff roll and airborne transition.
     /// Sets the roll tick in twrSameSID_flightPlans when GS ≥ 40 on the departure runway with matching heading.
-    /// Assigns the departure sequence number and spacing data at the airborne moment (pressAlt ≥ fieldElev + 50 ft).
+    /// Assigns the departure sequence number at the airborne moment (pressAlt ≥ fieldElev + 50 ft).
     void DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt);
+
+    /// @brief Snapshots spacing data (distance, WTC, SID, time offset) for the given departing aircraft.
+    /// Intended to be called at transfer-of-communication time rather than at liftoff.
+    /// Idempotent: does nothing if the snapshot has already been recorded.
+    void RecordDepartureSpacingSnapshot(const std::string& callSign);
 
     /// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
     /// @param Counter The EuroScope timer counter passed from OnTimer.
@@ -85,12 +90,12 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @note Only active when the logged-in controller's facility is GND (3) or above.
     void UpdateRadarTargetDepartureInfo();
 
-    /// @brief Updates the TWR same-SID outbound flight-plan list and records departure timing data.
-    void UpdateTowerSameSID();
+    /// @brief Updates the TWR Outbound flight-plan list: adds/removes aircraft, detects takeoff and airborne transitions, and manages departure spacing state.
+    void UpdateTWROutbound();
 
     /// @brief Updates the TTT inbound flight-plan list: adds, updates distance, removes, and detects go-arounds.
     /// @note Also rebuilds the ttt_sortedByRunway index after each full pass.
-    void UpdateTTTInbounds();
+    void UpdateTWRInbound();
 
   public:
     /// @brief Records today's UTC date as the last NAP dismissal date and saves it to windowLocations.json.

@@ -423,37 +423,9 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
             auto               prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
             if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
             {
-                // dep_prevTakeoffOffset uses roll ticks for both aircraft → measures time between roll starts
-                this->dep_prevTakeoffOffset[callSign] = (mapIt->second - prevTakeoffIt->second) / 1000;
-
+                // Store the previous callsign now so the live-spacing column and the
+                // spacing snapshot (recorded later at transfer-of-communication) can use it.
                 this->dep_prevCallSign[callSign] = prevCallSign;
-
-                auto prevRt = this->RadarTargetSelect(prevCallSign.c_str());
-                if (prevRt.IsValid())
-                {
-                    this->dep_prevDistanceAtTakeoff[callSign] = pos.GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
-                    this->dep_prevWtc[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
-                    this->dep_prevSid[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
-                }
-
-                int timeRequired                      = 120;
-                this->flightStripAnnotation[callSign] = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                auto prevFp                           = this->FlightPlanSelect(prevCallSign.c_str());
-                if (prevFp.IsValid())
-                {
-                    this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                }
-                if (this->flightStripAnnotation.find(prevCallSign) != this->flightStripAnnotation.end() &&
-                    this->flightStripAnnotation[callSign].length() > 7 && this->flightStripAnnotation[prevCallSign].length() > 7)
-                {
-                    std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(7);
-                    std::string hp     = this->flightStripAnnotation[callSign].substr(7);
-                    if (!IsSameHoldingPoint(prevHP, hp, airportIt->second.runways))
-                    {
-                        timeRequired += 60;
-                    }
-                }
-                this->dep_timeRequired[callSign] = timeRequired;
             }
         }
         this->twrSameSID_lastDeparted[depRwy] = callSign;
@@ -463,6 +435,71 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
             this->radarScreen->depRateLog[depRwy].push_back(mapIt->second);
         }
     }
+}
+
+/// @brief Snapshots distance, WTC, SID, and time-offset data for the given departing aircraft.
+/// Called at transfer-of-communication time (Func_TransferNext) or by the timer failsafe.
+/// Idempotent: does nothing if the snapshot has already been recorded.
+void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
+{
+    // Already snapshotted — nothing to do
+    if (this->dep_prevDistanceAtTakeoff.count(callSign) > 0)
+    {
+        return;
+    }
+
+    // Previous aircraft must have been identified at airborne time
+    auto prevCallIt = this->dep_prevCallSign.find(callSign);
+    if (prevCallIt == this->dep_prevCallSign.end())
+    {
+        return;
+    }
+    const std::string& prevCallSign = prevCallIt->second;
+
+    // Both roll ticks must be available to compute the time offset
+    auto thisTickIt = this->twrSameSID_flightPlans.find(callSign);
+    auto prevTickIt = this->twrSameSID_flightPlans.find(prevCallSign);
+    if (thisTickIt == this->twrSameSID_flightPlans.end() || thisTickIt->second == 0 ||
+        prevTickIt == this->twrSameSID_flightPlans.end() || prevTickIt->second == 0)
+    {
+        return;
+    }
+
+    this->dep_prevTakeoffOffset[callSign] = (thisTickIt->second - prevTickIt->second) / 1000;
+
+    auto thisRt = this->RadarTargetSelect(callSign.c_str());
+    auto prevRt = this->RadarTargetSelect(prevCallSign.c_str());
+    if (thisRt.IsValid() && prevRt.IsValid())
+    {
+        this->dep_prevDistanceAtTakeoff[callSign] = thisRt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
+        this->dep_prevWtc[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
+        this->dep_prevSid[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+    }
+
+    int timeRequired = 120;
+    auto thisFp      = this->FlightPlanSelect(callSign.c_str());
+    auto prevFp      = this->FlightPlanSelect(prevCallSign.c_str());
+    if (thisFp.IsValid() && prevFp.IsValid())
+    {
+        this->flightStripAnnotation[callSign]     = thisFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+        this->flightStripAnnotation[prevCallSign] = prevFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+
+        std::string depIcao = thisFp.GetFlightPlanData().GetOrigin();
+        to_upper(depIcao);
+        auto airportIt = this->airports.find(depIcao);
+        if (airportIt != this->airports.end() &&
+            this->flightStripAnnotation[callSign].length() > 7 &&
+            this->flightStripAnnotation[prevCallSign].length() > 7)
+        {
+            std::string prevHP = this->flightStripAnnotation[prevCallSign].substr(7);
+            std::string hp     = this->flightStripAnnotation[callSign].substr(7);
+            if (!IsSameHoldingPoint(prevHP, hp, airportIt->second.runways))
+            {
+                timeRequired += 60;
+            }
+        }
+    }
+    this->dep_timeRequired[callSign] = timeRequired;
 }
 
 /// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
@@ -810,7 +847,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
 }
 
 /// @brief Updates the TWR same-SID outbound list and records per-departure timing and sequencing data.
-void CFlowX_Timers::UpdateTowerSameSID()
+void CFlowX_Timers::UpdateTWROutbound()
 {
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {
@@ -949,6 +986,15 @@ void CFlowX_Timers::UpdateTowerSameSID()
                     this->dep_sequenceNumber.erase(callSign);
                     continue;
                 }
+
+                // Failsafe: snapshot not yet taken and tracking has already ended — record now
+                if (this->dep_sequenceNumber.count(callSign) > 0 &&
+                    this->dep_prevDistanceAtTakeoff.count(callSign) == 0 &&
+                    (!fp.GetTrackingControllerIsMe() ||
+                     fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED))
+                {
+                    this->RecordDepartureSpacingSnapshot(callSign);
+                }
             }
 
             EuroScopePlugIn::CFlightPlanData fpd      = fp.GetFlightPlanData();
@@ -976,7 +1022,7 @@ void CFlowX_Timers::UpdateTowerSameSID()
 }
 
 /// @brief Updates the TTT inbound list: detects new inbounds, removes departed aircraft, and handles go-arounds.
-void CFlowX_Timers::UpdateTTTInbounds()
+void CFlowX_Timers::UpdateTWRInbound()
 {
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {

@@ -349,6 +349,9 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
         stationFreq = "122.800";
     }
 
+    // Snapshot spacing data at the moment of transfer-of-communication
+    this->RecordDepartureSpacingSnapshot(callSign);
+
     // Mark FP as transferred — store target frequency (dot removed, 6 chars) at [1..6]
     std::string transferFreq = stationFreq;
     transferFreq.erase(std::remove(transferFreq.begin(), transferFreq.end(), '.'), transferFreq.end());

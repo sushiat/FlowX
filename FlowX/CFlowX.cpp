@@ -673,9 +673,9 @@ void CFlowX::OnTimer(int Counter)
 
     if (Counter > 0 && Counter % 2 == 0)
     {
-        this->UpdateTowerSameSID();
+        this->UpdateTWROutbound();
         this->AutoUpdateDepartureHoldingPoints();
-        this->UpdateTTTInbounds();
+        this->UpdateTWRInbound();
         this->CheckReconnects();
     }
 

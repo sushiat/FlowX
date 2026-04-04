@@ -468,21 +468,30 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             }
             t.tag = rounded + " nm /" + std::to_string(static_cast<int>(distRequired));
 
-            // Thresholds differ by requirement: 3 nm uses early km-based cues (2.4 km / 2.0 km → NM),
-            // 5 nm uses NM-based cues (3.0 nm / 2.8 nm).
-            double greenAt  = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852); // 5nm: 3.0nm | 3nm: ~1.30nm
-            double yellowAt = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852); // 5nm: 2.8nm | 3nm: ~1.08nm
-            if (dist >= greenAt)
+            if (distRequired >= 5.0)
             {
-                t.color = TAG_COLOR_GREEN;
-            }
-            else if (dist >= yellowAt)
-            {
-                t.color = TAG_COLOR_YELLOW;
+                // Same-SID spacing: 4 colour bands
+                if (dist >= 5.0)
+                {
+                    t.color = TAG_COLOR_GREEN;
+                }
+                else if (dist >= 4.0)
+                {
+                    t.color = TAG_COLOR_YELLOW;
+                }
+                else if (dist >= 3.0)
+                {
+                    t.color = TAG_COLOR_ORANGE;
+                }
+                else
+                {
+                    t.color = TAG_COLOR_RED;
+                }
             }
             else
             {
-                t.color = TAG_COLOR_RED;
+                // Wake separation (3 nm): binary — met or not
+                t.color = (dist >= 3.0) ? TAG_COLOR_GREEN : TAG_COLOR_RED;
             }
         }
         return t;
