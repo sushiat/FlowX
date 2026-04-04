@@ -1102,6 +1102,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                 this->tttInbound.RemoveFpFromTheList(fp);
             }
 
+            this->ttt_approachFixTracked.clear();
             this->ttt_callSigns.clear();
             this->ttt_clearedToLand.clear();
             this->ttt_flightPlans.clear();
@@ -1217,22 +1218,86 @@ void CFlowX_Timers::UpdateTWRInbound()
                             this->ttt_flightPlans.emplace(rwyCallsign, rwy);
                             this->ttt_callSigns.insert(callSign);
                         }
+                        // Transition from approach-fix tracking to normal cone tracking
+                        this->ttt_approachFixTracked.erase(rwyCallsign);
                     }
                     else
                     {
-                        // Only remove normal inbounds; go-arounds are handled in (C) below
-                        if (this->ttt_flightPlans.count(rwyCallsign) && !this->ttt_goAround.count(rwyCallsign))
+                        const bool isFixTracked = this->ttt_approachFixTracked.count(rwyCallsign) > 0;
+
+                        if (isFixTracked)
                         {
-                            this->tttInbound.RemoveFpFromTheList(fp);
-                            this->ttt_clearedToLand.erase(callSign);
-                            this->ttt_flightPlans.erase(rwyCallsign);
-                            this->ttt_distanceToRunway.erase(rwyCallsign);
-                            this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
-                            auto lb = this->ttt_flightPlans.lower_bound(callSign);
-                            if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
-                                this->ttt_callSigns.erase(callSign);
-                            if (pressAlt < depElevation + 50)
-                                this->gndTransfer_list.insert(callSign);
+                            // Aircraft is on a non-straight-in approach leg — keep in list
+                            this->ttt_distanceToRunway[rwyCallsign] = distance;
+
+                            // Safety valve: remove if impossibly far or too high
+                            if (distance > 35.0 || pressAlt > depElevation + 8000)
+                            {
+                                this->tttInbound.RemoveFpFromTheList(fp);
+                                this->ttt_clearedToLand.erase(callSign);
+                                this->ttt_flightPlans.erase(rwyCallsign);
+                                this->ttt_distanceToRunway.erase(rwyCallsign);
+                                this->ttt_approachFixTracked.erase(rwyCallsign);
+                                this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                                auto lb = this->ttt_flightPlans.lower_bound(callSign);
+                                if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
+                                    this->ttt_callSigns.erase(callSign);
+                            }
+                        }
+                        else if (!rwy.approachFixes.empty()
+                                 && !this->ttt_flightPlans.count(rwyCallsign)
+                                 && pressAlt > depElevation + 50
+                                 && pressAlt < depElevation + 8000)
+                        {
+                            // Approach-fix proximity detection for non-straight-in RNP approaches
+                            for (const auto& fix : rwy.approachFixes)
+                            {
+                                if (fix.lat == 0.0 && fix.lon == 0.0) continue;
+
+                                EuroScopePlugIn::CPosition fixPos;
+                                fixPos.m_Latitude  = fix.lat;
+                                fixPos.m_Longitude = fix.lon;
+                                double fixDist = position.DistanceTo(fixPos);
+
+                                bool altOk = fix.altFt == 0
+                                             || (pressAlt > fix.altFt - 500 && pressAlt < fix.altFt + 500);
+
+                                if (fixDist < 3.0 && altOk)
+                                {
+                                    this->ttt_distanceToRunway[rwyCallsign] = distance;
+
+                                    std::string trackingControllerId = fp.GetTrackingControllerId();
+                                    if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty())
+                                        && !this->standAssignment.count(callSign))
+                                    {
+                                        this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0,
+                                            "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
+                                    }
+
+                                    this->tttInbound.AddFpToTheList(fp);
+                                    this->ttt_flightPlans.emplace(rwyCallsign, rwy);
+                                    this->ttt_callSigns.insert(callSign);
+                                    this->ttt_approachFixTracked.insert(rwyCallsign);
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Only remove normal inbounds; go-arounds are handled in (C) below
+                            if (this->ttt_flightPlans.count(rwyCallsign) && !this->ttt_goAround.count(rwyCallsign))
+                            {
+                                this->tttInbound.RemoveFpFromTheList(fp);
+                                this->ttt_clearedToLand.erase(callSign);
+                                this->ttt_flightPlans.erase(rwyCallsign);
+                                this->ttt_distanceToRunway.erase(rwyCallsign);
+                                this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                                auto lb = this->ttt_flightPlans.lower_bound(callSign);
+                                if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
+                                    this->ttt_callSigns.erase(callSign);
+                                if (pressAlt < depElevation + 50)
+                                    this->gndTransfer_list.insert(callSign);
+                            }
                         }
                     }
                 }

@@ -72,9 +72,19 @@ struct vacatePoint
     std::vector<std::string> stands = {};  ///< Stand names associated with this vacate point
 };
 
+/// @brief A named approach fix for early TTT detection of non-straight-in RNP approaches.
+struct approachFix
+{
+    std::string name;          ///< Fix identifier for debugging (e.g. "WW008")
+    double      lat   = 0.0;  ///< Fix latitude (decimal degrees)
+    double      lon   = 0.0;  ///< Fix longitude (decimal degrees)
+    int         altFt = 0;    ///< Published altitude constraint (ft MSL); 0 = no per-fix altitude gate
+};
+
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
+    std::vector<approachFix>            approachFixes = {}; ///< Approach fixes for early non-straight-in RNP detection; empty = straight-in only.
     std::string                         designator;         ///< Runway designator (e.g. "11")
     std::string                         opposite;           ///< Designator of the reciprocal runway (used for go-around detection)
     double                              thresholdLat = 0.0; ///< Runway threshold latitude

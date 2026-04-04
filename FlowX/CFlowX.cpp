@@ -293,6 +293,14 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     }
     this->ttt_clearedToLand.erase(callSign);
 
+    for (auto it = this->ttt_approachFixTracked.begin(); it != this->ttt_approachFixTracked.end();)
+    {
+        if (it->substr(0, callSign.size()) == callSign)
+            it = this->ttt_approachFixTracked.erase(it);
+        else
+            ++it;
+    }
+
     for (auto it = this->ttt_distanceToRunway.begin(); it != this->ttt_distanceToRunway.end();)
     {
         if (it->first.substr(0, callSign.size()) == callSign)

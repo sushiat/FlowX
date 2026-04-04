@@ -500,6 +500,19 @@ void CFlowX_Settings::LoadConfig()
                     }
                 }
 
+                if (json_rwy.contains("approachFixes"))
+                {
+                    for (const auto& json_af : json_rwy["approachFixes"])
+                    {
+                        approachFix af{};
+                        af.name  = json_af.value<std::string>("name", "");
+                        af.lat   = json_af.value<double>("lat", 0.0);
+                        af.lon   = json_af.value<double>("lon", 0.0);
+                        af.altFt = json_af.value<int>("altFt", 0);
+                        rwy.approachFixes.push_back(af);
+                    }
+                }
+
                 ap.runways.emplace(rwyDesignator, rwy);
             }
         }
