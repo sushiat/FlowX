@@ -694,6 +694,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             t.tag     = "!MODE-C";
             t.color   = TAG_COLOR_BLACK;
             t.bgColor = TAG_BG_COLOR_YELLOW;
+            t.bold    = true;
             return t;
         }
 
@@ -1230,18 +1231,22 @@ void CFlowX_CustomTags::UpdateTagCache()
                             bool rwyOccupied = this->ttt_runwayOccupied.count(designator) > 0;
                             if (rwyOccupied && totalSeconds < 30)
                             {
-                                tttDisplay.bgColor = TAG_BG_COLOR_RED;
-                                tttDisplay.color   = TAG_COLOR_WHITE;
+                                tttDisplay.bgColor    = TAG_BG_COLOR_RED;
+                                tttDisplay.color      = TAG_COLOR_WHITE;
+                                tttDisplay.bold       = true;
+                                tttDisplay.fontDelta  = 2;
                             }
                             else if (totalSeconds < 15)
                             {
                                 tttDisplay.bgColor = TAG_BG_COLOR_ORANGE;
                                 tttDisplay.color   = TAG_COLOR_WHITE;
+                                tttDisplay.bold    = true;
                             }
                             else if (totalSeconds < 30)
                             {
                                 tttDisplay.bgColor = TAG_BG_COLOR_YELLOW;
                                 tttDisplay.color   = TAG_COLOR_BLACK;
+                                tttDisplay.bold    = true;
                             }
                         }
                     }
