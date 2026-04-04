@@ -40,6 +40,13 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              atisLetters;               ///< ICAO -> current ATIS letter for each configured airport; empty string if not yet received.
     std::set<std::string>                           atisUnacked;               ///< Airports where the ATIS letter changed since the user last acknowledged.
     bool                                            blinking = false;          ///< Toggles each timer tick; drives blinking tag colours.
+    int                                             dbg_positionCalls = 0;     ///< Total OnRadarTargetPositionUpdate calls fired.
+    int                                             dbg_positionInbound = 0;   ///< Subset where the aircraft was a confirmed inbound.
+    int                                             dbg_positionOutbound = 0;  ///< Subset where the aircraft was a tracked outbound (live spacing active).
+    int                                             dbg_standLaunches = 0;     ///< Times UpdateOccupiedStands launched a worker thread.
+    int                                             dbg_standSkips = 0;        ///< Times UpdateOccupiedStands skipped launch (worker still running).
+    int                                             dbg_tagItemCalls = 0;      ///< Total OnGetTagItem calls.
+    int                                             dbg_timerTicks = 0;        ///< Total OnTimer calls.
     std::map<std::string, std::string>              dep_prevCallSign;          ///< Callsign -> callsign of the previous departure on the same runway (captured at airborne moment).
     std::map<std::string, double>                   dep_prevDistanceAtTakeoff; ///< Callsign -> distance (NM) to the previous aircraft at the moment this aircraft took off.
     std::map<std::string, std::string>              dep_prevSid;               ///< Callsign -> SID of the previous departure on the same runway.

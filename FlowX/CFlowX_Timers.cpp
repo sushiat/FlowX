@@ -788,7 +788,10 @@ void CFlowX_Timers::UpdateOccupiedStands()
     // Skip launch if worker is still running.
     if (this->standOccupancyFuture.valid() &&
         this->standOccupancyFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+    {
+        this->dbg_standSkips++;
         return;
+    }
 
     if (this->grStands.empty()) return;
 
@@ -827,6 +830,7 @@ void CFlowX_Timers::UpdateOccupiedStands()
     }
 
     // Launch worker — grStands and airports are read-only after startup; const-ref capture is safe.
+    this->dbg_standLaunches++;
     this->standOccupancyFuture = std::async(
         std::launch::async,
         [targets = std::move(targets), &grStands = this->grStands, &airports = this->airports]()

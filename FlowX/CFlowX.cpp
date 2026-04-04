@@ -170,6 +170,21 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
 
             return true;
         }
+        else if (args[1] == "debugstats")
+        {
+            auto fmt = [](int v) { return std::to_string(v); };
+            this->LogMessage(
+                "posUpd=" + fmt(this->dbg_positionCalls) +
+                " (inbound=" + fmt(this->dbg_positionInbound) +
+                " outbound=" + fmt(this->dbg_positionOutbound) + ")" +
+                " | tagItem=" + fmt(this->dbg_tagItemCalls) +
+                " | timer=" + fmt(this->dbg_timerTicks) +
+                " | standLaunch=" + fmt(this->dbg_standLaunches) +
+                " standSkip=" + fmt(this->dbg_standSkips),
+                "DebugStats");
+
+            return true;
+        }
     }
 
     return false;
@@ -405,6 +420,8 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
 /// @param pFontSize Output for an optional font size override.
 void CFlowX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlugIn::CRadarTarget RadarTarget, int ItemCode, int TagData, char sItemString[16], int* pColorCode, COLORREF* pRGB, double* pFontSize)
 {
+    this->dbg_tagItemCalls++;
+
     if (!FlightPlan.IsValid())
     {
         return;
@@ -663,6 +680,7 @@ EuroScopePlugIn::CRadarScreen* CFlowX::OnRadarScreenCreated(const char* sDisplay
 ///       NAP check every 10 s; window positions saved every 5 s.
 void CFlowX::OnTimer(int Counter)
 {
+    this->dbg_timerTicks++;
     this->blinking = !this->blinking;
 
     if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready)

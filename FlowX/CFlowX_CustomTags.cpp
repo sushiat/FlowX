@@ -1187,8 +1187,8 @@ void CFlowX_CustomTags::UpdateTagCache()
                     {
                         const std::string& stand = standIt->second;
                         row.gate.tag   = stand;
-                        bool occupied  = this->standOccupancy.count(stand) > 0;
-                        if (!occupied)
+                        bool occupied  = stand != "GAC" && (this->standOccupancy.count(stand) > 0);
+                        if (!occupied && stand != "GAC")
                         {
                             for (auto& [cs, s] : this->standAssignment)
                                 if (cs != callSign && s == stand) { occupied = true; break; }
@@ -1373,15 +1373,17 @@ void CFlowX_CustomTags::UpdateTagCache()
 
 void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
 {
+    this->dbg_positionCalls++;
+
     if (!rt.IsValid())
     {
         return;
     }
 
-    // Update takeoff state for outbound aircraft on every position report.
-    this->DetectTakeoffState(rt);
-
     std::string callSign = rt.GetCallsign();
+
+    if (this->twrSameSID_flightPlans.count(callSign))
+        this->DetectTakeoffState(rt);
 
     // GND transfer: first time GS drops below 50 kts after landing, show square and play sound.
     if (this->gndTransfer_list.count(callSign) && !this->gndTransfer_soundPlayed.count(callSign) &&
@@ -1393,6 +1395,10 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
         PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
     }
 
+    // Skip the ES API call for aircraft with no role in either list.
+    if (!this->ttt_callSigns.count(callSign) && !this->dep_prevCallSign.count(callSign))
+        return;
+
     EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
     if (!fp.IsValid())
     {
@@ -1402,6 +1408,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     // Update live spacing for airborne outbound aircraft on every position report.
     if (this->radarScreen != nullptr && this->dep_prevCallSign.count(callSign) > 0)
     {
+        this->dbg_positionOutbound++;
         auto& prevCs = this->dep_prevCallSign.at(callSign);
         auto  prevRt = this->RadarTargetSelect(prevCs.c_str());
         if (prevRt.IsValid() && prevRt.GetPosition().IsValid() && rt.GetPosition().IsValid())
@@ -1454,6 +1461,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     {
         return;
     }
+    this->dbg_positionInbound++;
 
     // Find the full tttKey (callSign + runway designator)
     std::string tttKey;
