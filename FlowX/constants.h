@@ -99,16 +99,16 @@ const COLORREF TAG_BG_COLOR_YELLOW = RGB(255, 210, 0);  ///< Bright yellow backg
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
 /// @{
-const int SCREEN_OBJECT_DEP_TAG      = 6681; ///< Per-aircraft departure info custom tag (drag handle)
-const int SCREEN_OBJECT_DEPRATE_WIN  = 6682; ///< Departure rate window header (drag handle)
-const int SCREEN_OBJECT_TWR_OUT_WIN  = 6683; ///< TWR Outbound window header (drag handle)
-const int SCREEN_OBJECT_TWR_IN_WIN   = 6684; ///< TWR Inbound window header (drag handle)
-const int SCREEN_OBJECT_NAP_WIN      = 6685; ///< NAP reminder window header (drag handle)
-const int SCREEN_OBJECT_NAP_ACK      = 6686; ///< NAP reminder ACK button
-const int SCREEN_OBJECT_TWR_OUT_CELL = 6687; ///< Clickable cell in the TWR Outbound custom window
-const int SCREEN_OBJECT_TWR_IN_CELL  = 6688; ///< Clickable cell in the TWR Inbound custom window
-const int SCREEN_OBJECT_WEATHER_WIN  = 6689; ///< WX/ATIS window title bar (drag handle)
-const int SCREEN_OBJECT_WEATHER_ROW  = 6690; ///< Clickable airport section in the WX/ATIS window (ack)
+const int SCREEN_OBJECT_DEP_TAG         = 6681; ///< Per-aircraft departure info custom tag (drag handle)
+const int SCREEN_OBJECT_DEPRATE_WIN     = 6682; ///< Departure rate window header (drag handle)
+const int SCREEN_OBJECT_TWR_OUT_WIN     = 6683; ///< TWR Outbound window header (drag handle)
+const int SCREEN_OBJECT_TWR_IN_WIN      = 6684; ///< TWR Inbound window header (drag handle)
+const int SCREEN_OBJECT_NAP_WIN         = 6685; ///< NAP reminder window header (drag handle)
+const int SCREEN_OBJECT_NAP_ACK         = 6686; ///< NAP reminder ACK button
+const int SCREEN_OBJECT_TWR_OUT_CELL    = 6687; ///< Clickable cell in the TWR Outbound custom window
+const int SCREEN_OBJECT_TWR_IN_CELL     = 6688; ///< Clickable cell in the TWR Inbound custom window
+const int SCREEN_OBJECT_WEATHER_WIN     = 6689; ///< WX/ATIS window title bar (drag handle)
+const int SCREEN_OBJECT_WEATHER_ROW     = 6690; ///< Clickable airport section in the WX/ATIS window (ack)
 const int SCREEN_OBJECT_START_BTN       = 6691; ///< Start button anchored to the lower-right corner of the radar screen
 const int SCREEN_OBJECT_START_MENU_ITEM = 6692; ///< Clickable row inside the Start button popup menu
 const int SCREEN_OBJECT_WIN_CLOSE       = 6693; ///< Close (X) button on a custom window title bar
