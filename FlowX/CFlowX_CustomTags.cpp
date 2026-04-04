@@ -696,6 +696,17 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             return t;
         }
 
+        // VFR and VFR-to-IFR traffic stays with tower
+        {
+            std::string planType = fpd.GetPlanType();
+            if (planType == "V" || planType == "Z")
+            {
+                t.tag   = "VFR";
+                t.color = TAG_COLOR_DEFAULT_GRAY;
+                return t;
+            }
+        }
+
         // TWR: find APP or CTR freq with altitude colour coding
         if (!transferred)
         {

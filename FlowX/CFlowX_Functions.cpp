@@ -229,6 +229,22 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     std::string dep      = fp.GetFlightPlanData().GetOrigin();
     to_upper(dep);
 
+    // VFR and VFR-to-IFR traffic stays with tower — mark transferred to UNICOM and drop tracking
+    {
+        std::string planType = fp.GetFlightPlanData().GetPlanType();
+        if (planType == "V" || planType == "Z")
+        {
+            auto& anno = this->flightStripAnnotation[callSign];
+            anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
+            constexpr std::string_view unicom = "122800";
+            for (int i = 0; i < 6; i++) { anno[1 + i] = unicom[i]; }
+            fp.GetControllerAssignedData().SetFlightStripAnnotation(8, anno.c_str());
+            this->PushToOtherControllers(fp);
+            if (fp.GetTrackingControllerIsMe()) { fp.EndTracking(); }
+            return;
+        }
+    }
+
     // Determine the best station to hand off to, in priority order:
     //   1. Approach station: iterate appFreqFallbacks for the target frequency in order;
     //      for each frequency collect all online stations, sort callsigns ASC, pick first.
