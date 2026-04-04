@@ -1034,12 +1034,35 @@ void CFlowX_Timers::UpdateTWRInbound()
             this->ttt_flightPlans.clear();
             this->ttt_goAround.clear();
             this->ttt_recentlyRemoved.clear();
+            this->ttt_runwayOccupied.clear();
             this->gndTransfer_list.clear();
             this->gndTransfer_soundPlayed.clear();
             if (this->radarScreen) this->radarScreen->gndTransferSquares.clear();
         }
 
         return;
+    }
+
+    // Refresh runway-occupancy set: a runway is "occupied" when any radar target is on the ground
+    // within its physical bounds. Used by the TTT inbound cell background alert.
+    this->ttt_runwayOccupied.clear();
+    for (auto& [icao, airport] : this->airports)
+    {
+        for (auto& [rwyName, rwy] : airport.runways)
+        {
+            if (rwy.widthMeters <= 0) { continue; }
+            for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+            {
+                EuroScopePlugIn::CRadarTargetPositionData rpos = rt.GetPosition();
+                if (!rpos.IsValid()) { continue; }
+                if (rpos.GetPressureAltitude() > airport.fieldElevation + 80) { continue; }
+                if (IsPositionOnRunway(rwy, airport.runways, rpos.GetPosition()))
+                {
+                    this->ttt_runwayOccupied.insert(rwyName);
+                    break;
+                }
+            }
+        }
     }
 
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))

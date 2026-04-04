@@ -551,16 +551,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
-        auto cell = [&](int width, const std::string& text, COLORREF color,
-                        UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
-        {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
-            SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
-            DrawTextA(hDC, text.c_str(), -1, &rect, flags);
-            cx += width;
-        };
-
-        // Like cell(), but also registers a screen object so the cell is left/right-clickable.
+        // Plain clickable cell for non-tagInfo data (callsign, wtc, aircraft type).
         auto cellClickable = [&](int width, const std::string& text, COLORREF color,
                                  const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
@@ -571,18 +562,99 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             cx += width;
         };
 
+        // tagInfo-aware variants: honour bgColor, bold, and fontDelta in addition to text and colour.
+        // When bgColor is set the fill is measured to the actual text extent and drawn as an overlay
+        // on top of the normal row background, then text is redrawn on top of the fill.
+        auto cellTag = [&](int width, const tagInfo& t, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
+        {
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+
+            int   delta    = std::clamp(t.fontDelta, -4, 4);
+            bool  styled   = t.bold || delta != 0;
+            HFONT cellFont = nullptr;
+            if (styled)
+            {
+                int baseSize = r.dimmed ? -14 : -17;
+                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                SelectObject(hDC, cellFont);
+            }
+
+            if (t.bgColor != TAG_COLOR_DEFAULT_NONE && !t.tag.empty())
+            {
+                SIZE textSize = {};
+                GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
+                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
+                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                             :                       rect.left;
+                int textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
+                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
+                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                FillRect(hDC, &fillRect, brush);
+                DeleteObject(brush);
+            }
+
+            SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
+            DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
+            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            cx += width;
+        };
+
+        auto cellTagClickable = [&](int width, const tagInfo& t, const std::string& objId,
+                                    UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
+        {
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+
+            int   delta    = std::clamp(t.fontDelta, -4, 4);
+            bool  styled   = t.bold || delta != 0;
+            HFONT cellFont = nullptr;
+            if (styled)
+            {
+                int baseSize = r.dimmed ? -14 : -17;
+                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                SelectObject(hDC, cellFont);
+            }
+
+            if (t.bgColor != TAG_COLOR_DEFAULT_NONE && !t.tag.empty())
+            {
+                SIZE textSize = {};
+                GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
+                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
+                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                             :                       rect.left;
+                int textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
+                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
+                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                FillRect(hDC, &fillRect, brush);
+                DeleteObject(brush);
+            }
+
+            SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
+            DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
+            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            AddScreenObject(SCREEN_OBJECT_TWR_OUT_CELL, objId.c_str(), rect, false, "");
+            cx += width;
+        };
+
         cellClickable(CS,   r.callsign,             r.callsignColor, r.callsign + "|CS");
-        cellClickable(STS,  r.status.tag,           r.status.color,  r.callsign + "|STS");
-        cellClickable(DEP,  r.depInfo.tag,          r.depInfo.color, r.callsign + "|DEP");
-        cellClickable(RWY,  r.rwy.tag,              r.rwy.color,     r.callsign + "|RWY", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(SID,  r.sameSid.tag,          r.sameSid.color, r.callsign + "|SID");
+        cellTagClickable(STS,  r.status,   r.callsign + "|STS");
+        cellTagClickable(DEP,  r.depInfo,  r.callsign + "|DEP");
+        cellTagClickable(RWY,  r.rwy,      r.callsign + "|RWY",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(SID,  r.sameSid,  r.callsign + "|SID");
         cellClickable(WTC,  std::string(1, r.wtc),  wtcColor(r.wtc), r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(ATYP, r.aircraftType,         r.callsignColor, r.callsign + "|ATYP");
-        cellClickable(FREQ, r.nextFreq.tag,         r.nextFreq.color, r.callsign + "|FREQ");
-        cellClickable(HP,   r.hp.tag,               r.hp.color,       r.callsign + "|HP",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(SPC,  r.spacing.tag,          r.spacing.color,  r.callsign + "|SPC", DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(TMR,  r.timeSinceTakeoff.tag,  r.timeSinceTakeoff.color,                      DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cell(LDST, r.liveSpacing.tag,       r.liveSpacing.color,                           DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(FREQ, r.nextFreq, r.callsign + "|FREQ");
+        cellTagClickable(HP,   r.hp,       r.callsign + "|HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(SPC,  r.spacing,  r.callsign + "|SPC",  DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellTag(TMR,  r.timeSinceTakeoff,                         DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellTag(LDST, r.liveSpacing,                              DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
     DeleteObject(altBrushOut);
@@ -765,15 +837,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRect(hDC, &alt, altBrushIn); }
         int cx   = wx + PAD;
 
-        auto cell = [&](int width, const std::string& text, COLORREF color,
-                        UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
-        {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
-            SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
-            DrawTextA(hDC, text.c_str(), -1, &rect, flags);
-            cx += width;
-        };
-
+        // Plain clickable cell for non-tagInfo data (callsign, rwy group, wtc, groundspeed, gate).
         auto cellClickable = [&](int width, const std::string& text, COLORREF color,
                                  const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
@@ -784,16 +848,97 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             cx += width;
         };
 
+        // tagInfo-aware variants: honour bgColor, bold, and fontDelta in addition to text and colour.
+        // When bgColor is set the fill is measured to the actual text extent and drawn as an overlay
+        // on top of the normal row background, then text is redrawn on top of the fill.
+        auto cellTag = [&](int width, const tagInfo& t, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
+        {
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+
+            int   delta    = std::clamp(t.fontDelta, -4, 4);
+            bool  styled   = t.bold || delta != 0;
+            HFONT cellFont = nullptr;
+            if (styled)
+            {
+                int baseSize = r.dimmed ? -14 : -17;
+                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                SelectObject(hDC, cellFont);
+            }
+
+            if (t.bgColor != TAG_COLOR_DEFAULT_NONE && !t.tag.empty())
+            {
+                SIZE textSize = {};
+                GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
+                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
+                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                             :                       rect.left;
+                int textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
+                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
+                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                FillRect(hDC, &fillRect, brush);
+                DeleteObject(brush);
+            }
+
+            SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
+            DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
+            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            cx += width;
+        };
+
+        auto cellTagClickable = [&](int width, const tagInfo& t, const std::string& objId,
+                                    UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
+        {
+            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+
+            int   delta    = std::clamp(t.fontDelta, -4, 4);
+            bool  styled   = t.bold || delta != 0;
+            HFONT cellFont = nullptr;
+            if (styled)
+            {
+                int baseSize = r.dimmed ? -14 : -17;
+                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                SelectObject(hDC, cellFont);
+            }
+
+            if (t.bgColor != TAG_COLOR_DEFAULT_NONE && !t.tag.empty())
+            {
+                SIZE textSize = {};
+                GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
+                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
+                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                             :                       rect.left;
+                int textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
+                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
+                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                FillRect(hDC, &fillRect, brush);
+                DeleteObject(brush);
+            }
+
+            SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
+            DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
+            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            AddScreenObject(SCREEN_OBJECT_TWR_IN_CELL, objId.c_str(), rect, false, "");
+            cx += width;
+        };
+
         cellClickable(RWY_GRP, r.rwyGroup,                  r.callsignColor, r.callsign + "|RWYGRP");
-        cellClickable(TTT,   r.ttt.tag,                     r.ttt.color,    r.callsign + "|TTT");
+        cellTagClickable(TTT,    r.ttt,    r.callsign + "|TTT");
         cellClickable(CS,    r.callsign,                    r.callsignColor, r.callsign + "|CS");
-        cellClickable(NM,    r.nm.tag,                      r.nm.color,      r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(NM,     r.nm,     r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(GS,    std::to_string(r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(WTC,   std::string(1, r.wtc),         wtcColor(r.wtc), r.callsign + "|WTC",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
         cellClickable(GATE,  r.gate,                        TAG_COLOR_WHITE, r.callsign + "|GATE");
-        cellClickable(VACATE,r.vacate.tag,                  r.vacate.color,  r.callsign + "|VACATE");
-        cellClickable(RWY,   r.arrRwy.tag,                  r.arrRwy.color,  r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(VACATE, r.vacate, r.callsign + "|VACATE");
+        cellTagClickable(RWY,    r.arrRwy, r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
     DeleteObject(altBrushIn);

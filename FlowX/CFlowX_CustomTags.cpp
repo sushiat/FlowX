@@ -691,8 +691,9 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         // Not squawking mode-C
         if (!rt.GetPosition().GetTransponderC() && rt.GetPosition().GetPressureAltitude() > (airportIt->second.fieldElevation + 50))
         {
-            t.tag   = "!MODE-C";
-            t.color = this->blinking ? TAG_COLOR_RED : TAG_COLOR_ORANGE;
+            t.tag     = "!MODE-C";
+            t.color   = TAG_COLOR_BLACK;
+            t.bgColor = TAG_BG_COLOR_YELLOW;
             return t;
         }
 
@@ -708,8 +709,11 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                     double dist = rt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
                     if (dist < 3.0)
                     {
-                        t.tag   = "!SEP";
-                        t.color = (dist < 2.0) ? (this->blinking ? TAG_COLOR_RED : TAG_COLOR_ORANGE) : TAG_COLOR_ORANGE;
+                        t.tag       = "!SEP";
+                        t.color     = TAG_COLOR_WHITE;
+                        t.bgColor   = TAG_BG_COLOR_RED;
+                        t.bold      = true;
+                        t.fontDelta = 2;
                         return t;
                     }
                 }
@@ -1207,6 +1211,27 @@ void CFlowX_CustomTags::UpdateTagCache()
                         else if (totalSeconds >= 0)
                         {
                             tttDisplay.color = TAG_COLOR_RED;
+                        }
+
+                        // Background alert for the closest inbound aircraft when not yet cleared to land.
+                        if (isFirst && totalSeconds >= 0 && !this->ttt_clearedToLand.count(callSign))
+                        {
+                            bool rwyOccupied = this->ttt_runwayOccupied.count(designator) > 0;
+                            if (rwyOccupied && totalSeconds < 30)
+                            {
+                                tttDisplay.bgColor = TAG_BG_COLOR_RED;
+                                tttDisplay.color   = TAG_COLOR_WHITE;
+                            }
+                            else if (totalSeconds < 15)
+                            {
+                                tttDisplay.bgColor = TAG_BG_COLOR_ORANGE;
+                                tttDisplay.color   = TAG_COLOR_WHITE;
+                            }
+                            else if (totalSeconds < 30)
+                            {
+                                tttDisplay.bgColor = TAG_BG_COLOR_YELLOW;
+                                tttDisplay.color   = TAG_COLOR_BLACK;
+                            }
                         }
                     }
                     else if (!timeStr.empty())

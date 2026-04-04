@@ -76,6 +76,7 @@ const COLORREF TAG_COLOR_DEFAULT_GRAY = RGB(135, 128, 118); ///< Default neutral
 
 const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (departed aircraft)
 const COLORREF TAG_COLOR_LIST_GRAY    = RGB(180, 175, 165); ///< Slightly brighter grey for custom list windows
+const COLORREF TAG_COLOR_BLACK        = RGB(0, 0, 0);       ///< Black (text on bright cell backgrounds)
 const COLORREF TAG_COLOR_WHITE        = RGB(255, 255, 255); ///< White (active / attention)
 
 const COLORREF TAG_COLOR_RED          = RGB(255, 9, 9);     ///< Error / warning red
@@ -85,6 +86,15 @@ const COLORREF TAG_COLOR_TURQ         = RGB(64, 224, 208);  ///< Turquoise (airb
 const COLORREF TAG_COLOR_PURPLE       = RGB(219, 163, 250); ///< Purple accent
 const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201, 14);  ///< Yellow (blinking urgent alert)
 const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (transfer-from-me initiated)
+/// @}
+
+/// @defgroup TagBgColors COLORREF constants for cell background fills in GDI custom list windows
+/// @note Background fills are not supported by the EuroScope native tag API — use only in DrawTwrOutbound / DrawTwrInbound.
+///       Reserve for safety-critical states only; foreground colour is sufficient for all other conditions.
+/// @{
+const COLORREF TAG_BG_COLOR_RED    = RGB(220, 20, 20);  ///< Bright red background  (live separation / runway conflict)
+const COLORREF TAG_BG_COLOR_ORANGE = RGB(255, 140, 0);  ///< Bright orange background (< 15 s TTT, not cleared to land) — use with white text
+const COLORREF TAG_BG_COLOR_YELLOW = RGB(255, 210, 0);  ///< Bright yellow background  (< 30 s TTT not cleared / MODE-C)
 /// @}
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject

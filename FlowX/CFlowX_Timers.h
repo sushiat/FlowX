@@ -46,6 +46,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::set<std::string>                           rvrUnacked;                ///< Airports where the RVR changed since the user last acknowledged.
     std::map<std::string, std::string>              standAssignment;           ///< Callsign -> assigned stand (populated from Ground Radar scratch-pad).
     std::set<std::string>                           ttt_clearedToLand;         ///< Callsigns for which cleared-to-land has been issued; erased on go-around, removal, or disconnect.
+    std::set<std::string>                           ttt_runwayOccupied;        ///< Runway designators that currently have a ground radar target within their runway bounds; refreshed each timer tick.
     std::map<std::string, double>                   ttt_distanceToRunway;      ///< Callsign+runway -> current distance (NM) to the runway threshold.
     std::map<std::string, runway>                   ttt_flightPlans;           ///< Callsign+runway -> runway struct for aircraft currently in the TTT inbound list.
     std::map<std::string, ULONGLONG>                ttt_goAround;              ///< Callsign+runway -> tick-count at which a go-around was detected.
