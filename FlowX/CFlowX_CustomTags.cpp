@@ -578,13 +578,13 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             {
                 subGroup = '2';
             }
-            else if (status == "TAXI")
+            else if (nearHp)
             {
-                subGroup = '3';
+                subGroup = '3'; // TAXI at/near holding point
             }
             else
             {
-                subGroup = '4';
+                subGroup = '4'; // TAXI far from holding point
             }
 
             char distBuf[16];
