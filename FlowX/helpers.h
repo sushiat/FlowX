@@ -33,7 +33,7 @@ class flowxexception : public std::exception
 public:
     /// @brief Constructs the exception with the given message string.
     /// @param what Human-readable error description.
-    explicit flowxexception(std::string& what) : std::exception{ what.c_str() } {}
+    explicit flowxexception(const std::string& what) : std::exception{ what.c_str() } {}
 
     /// @brief Returns the Win32 MB_ICON* constant appropriate for this exception type.
     /// @return Win32 message-box icon flag (e.g. MB_ICONERROR).
@@ -52,7 +52,7 @@ class error : public flowxexception
 public:
     /// @brief Constructs an error exception.
     /// @param what Human-readable error description.
-    explicit error(std::string& what) : flowxexception{ what } {}
+    explicit error(const std::string& what) : flowxexception{ what } {}
 
     /// @brief Returns MB_ICONERROR.
     const long icon() const override
@@ -67,7 +67,7 @@ class warning : public flowxexception
 public:
     /// @brief Constructs a warning exception.
     /// @param what Human-readable warning description.
-    explicit warning(std::string& what) : flowxexception{ what } {}
+    explicit warning(const std::string& what) : flowxexception{ what } {}
 
     /// @brief Returns MB_ICONWARNING.
     const long icon() const override
@@ -153,8 +153,7 @@ inline void to_upper(std::string& str)
 /// @return 6-character string with the dot removed and 3 decimal digits normalised (e.g. "121600").
 inline std::string freqToAnnotation(double freq)
 {
-    std::string s = std::to_string(freq);
-    s             = s.substr(0, s.find('.') + 4); // keep 3 decimal places
+    std::string s = std::format("{:.3f}", freq);
     s.erase(std::remove(s.begin(), s.end(), '.'), s.end());
     return s;
 }

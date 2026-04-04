@@ -172,15 +172,10 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
         }
         else if (args[1] == "debugstats")
         {
-            auto fmt = [](int v) { return std::to_string(v); };
             this->LogMessage(
-                "posUpd=" + fmt(this->dbg_positionCalls) +
-                " (inbound=" + fmt(this->dbg_positionInbound) +
-                " outbound=" + fmt(this->dbg_positionOutbound) + ")" +
-                " | tagItem=" + fmt(this->dbg_tagItemCalls) +
-                " | timer=" + fmt(this->dbg_timerTicks) +
-                " | standLaunch=" + fmt(this->dbg_standLaunches) +
-                " standSkip=" + fmt(this->dbg_standSkips),
+                std::format("posUpd={} (inbound={} outbound={}) | tagItem={} | timer={} | standLaunch={} standSkip={}",
+                    this->dbg_positionCalls, this->dbg_positionInbound, this->dbg_positionOutbound,
+                    this->dbg_tagItemCalls, this->dbg_timerTicks, this->dbg_standLaunches, this->dbg_standSkips),
                 "DebugStats");
 
             return true;
@@ -523,10 +518,10 @@ void CFlowX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
             std::string varUpper = rvrMatch[4].str();
             std::string trend    = rvrMatch[5].str();
 
-            std::string token = "R" + rwy + "/" + modifier + std::to_string(value);
+            std::string token = std::format("R{}/{}{}", rwy, modifier, value);
             if (!varUpper.empty())
             {
-                token += "V" + std::to_string(std::stoi(varUpper));
+                token += std::format("V{}", std::stoi(varUpper));
             }
             if (!trend.empty())
             {

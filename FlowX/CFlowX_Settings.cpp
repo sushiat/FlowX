@@ -216,8 +216,8 @@ void CFlowX_Settings::LoadAircraftData()
         }
 
         this->LogMessage(
-            "Loaded wingspan data for " + std::to_string(this->aircraftWingspans.size()) +
-            " aircraft types (" + std::to_string(noWingspan.size()) + " used WTC average).",
+            std::format("Loaded wingspan data for {} aircraft types ({} used WTC average).",
+                this->aircraftWingspans.size(), noWingspan.size()),
             "AircraftData");
     }
     catch (std::exception& e)
@@ -305,7 +305,7 @@ void CFlowX_Settings::LoadGroundRadarStands()
         }
         saveCurrentStand();
 
-        this->LogMessage("Loaded " + std::to_string(this->grStands.size()) + " stands from GRpluginStands.txt.", "Stands");
+        this->LogMessage(std::format("Loaded {} stands from GRpluginStands.txt.", this->grStands.size()), "Stands");
     }
     catch (std::exception& e)
     {
@@ -511,7 +511,7 @@ void CFlowX_Settings::LoadConfig()
         this->airports.emplace(icao, ap);
     }
 
-    this->LogMessage("Successfully loaded config for " + std::to_string(this->airports.size()) + " airport(s).", "Config");
+    this->LogMessage(std::format("Successfully loaded config for {} airport(s).", this->airports.size()), "Config");
 
     for (auto& airport : this->airports)
     {
@@ -520,7 +520,7 @@ void CFlowX_Settings::LoadConfig()
         int ctrIndex = 0;
         for (const auto& ctr : airport.second.ctrStations)
         {
-            this->LogDebugMessage("--> CTR[" + std::to_string(ctrIndex) + "]: " + ctr, "Config");
+            this->LogDebugMessage(std::format("--> CTR[{}]: {}", ctrIndex, ctr), "Config");
             ctrIndex++;
         }
         for (auto& geoGnd : airport.second.geoGndFreq)
@@ -530,13 +530,13 @@ void CFlowX_Settings::LoadConfig()
             std::string lat_string = std::accumulate(std::begin(geoGnd.second.lat), std::end(geoGnd.second.lat), std::string(),
                                                      [](const std::string& ss, const double s)
                                                      {
-                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
                                                      });
             this->LogDebugMessage("----> LAT: " + lat_string, "Config");
             std::string lon_string = std::accumulate(std::begin(geoGnd.second.lon), std::end(geoGnd.second.lon), std::string(),
                                                      [](const std::string& ss, const double s)
                                                      {
-                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
                                                      });
             this->LogDebugMessage("----> LON: " + lon_string, "Config");
         }
@@ -550,17 +550,19 @@ void CFlowX_Settings::LoadConfig()
             std::string lat_string = std::accumulate(std::begin(taxiOut.second.lat), std::end(taxiOut.second.lat), std::string(),
                                                      [](const std::string& ss, const double s)
                                                      {
-                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
                                                      });
             this->LogDebugMessage("----> LAT: " + lat_string, "Config");
             std::string lon_string = std::accumulate(std::begin(taxiOut.second.lon), std::end(taxiOut.second.lon), std::string(),
                                                      [](const std::string& ss, const double s)
                                                      {
-                                                         return ss.empty() ? std::to_string(s) : ss + ", " + std::to_string(s);
+                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
                                                      });
             this->LogDebugMessage("----> LON: " + lon_string, "Config");
         }
-        this->LogDebugMessage("---> NAP reminder: Enabled=" + std::to_string(airport.second.nap_reminder.enabled) + ", Hour=" + std::to_string(airport.second.nap_reminder.hour) + ", Minute=" + std::to_string(airport.second.nap_reminder.minute) + ", TZone=" + airport.second.nap_reminder.tzone, "Config");
+        this->LogDebugMessage(std::format("---> NAP reminder: Enabled={}, Hour={}, Minute={}, TZone={}",
+            airport.second.nap_reminder.enabled, airport.second.nap_reminder.hour,
+            airport.second.nap_reminder.minute, airport.second.nap_reminder.tzone), "Config");
     }
 }
 

@@ -208,7 +208,7 @@ bool CFlowX_LookupsTools::IsPositionOnRunway(const runway& rwy, const std::map<s
 
     // Flat-earth projection centred on the near threshold.
     // At typical runway lengths (<5 km) the error is negligible.
-    const double DEG_TO_RAD    = 3.14159265358979323846 / 180.0;
+    const double DEG_TO_RAD    = std::numbers::pi / 180.0;
     const double M_PER_DEG_LAT = 111195.0;
     double       midLat        = (rwy.thresholdLat + oppIt->second.thresholdLat) / 2.0;
     double       mPerDegLon    = M_PER_DEG_LAT * std::cos(midLat * DEG_TO_RAD);

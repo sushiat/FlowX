@@ -76,9 +76,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
             int    totalSeconds = static_cast<int>((distNm / speed) * 3600.0);
             int    mm           = totalSeconds / 60;
             int    ss           = totalSeconds % 60;
-            char   buf[16];
-            (void)sprintf_s(buf, "%s_%02d:%02d", designator.c_str(), mm, ss);
-            return std::string(buf);
+            return std::format("{}_{:02d}:{:02d}", designator, mm, ss);
         }
         return {};
     }();
@@ -93,9 +91,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         }
         if (isGoAround)
         {
-            char buf[16] = {};
-            (void)sprintf_s(buf, "%.1f", distToThreshold);
-            t.tag = std::string(buf);
+            t.tag = std::format("{:.1f}", distToThreshold);
             return t;
         }
         if (!hasSorted)
@@ -103,11 +99,11 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
             return t;
         }
 
-        const auto& keys    = sortedIt->second;
-        char        buf[16] = {};
+        const auto& keys = sortedIt->second;
+        std::string tag;
         if (keys.front() == resolvedKey)
         {
-            (void)sprintf_s(buf, "%.1f", distToThreshold);
+            tag = std::format("{:.1f}", distToThreshold);
         }
         else
         {
@@ -121,7 +117,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
                         break;
                     }
                     double gap = distToThreshold - leaderIt->second;
-                    (void)sprintf_s(buf, "+%.1f", gap);
+                    tag = std::format("+{:.1f}", gap);
                     if (gap > 3.0)
                     {
                         t.color = TAG_COLOR_GREEN;
@@ -138,7 +134,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
                 }
             }
         }
-        t.tag = std::string(buf);
+        t.tag = tag;
         return t;
     }();
 
@@ -416,9 +412,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             ULONGLONG   offsetSeconds = offsetIt->second;
             auto        reqIt         = this->dep_timeRequired.find(callSign);
             int         timeRequired  = (reqIt != this->dep_timeRequired.end()) ? reqIt->second : 120;
-            std::string valStr        = std::to_string(offsetSeconds);
-            valStr                    = std::string(4 - std::min((size_t)4, valStr.size()), ' ') + valStr;
-            t.tag                     = valStr + " s  /" + std::to_string(timeRequired);
+            t.tag = std::format("{:>4} s  /{}", offsetSeconds, timeRequired);
 
             if (offsetSeconds >= (ULONGLONG)timeRequired)
             {
@@ -442,9 +436,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                 return t;
             }
 
-            double      dist     = lockedDistIt->second;
-            std::string num_text = std::to_string(dist);
-            std::string rounded  = num_text.substr(0, num_text.find('.') + 2);
+            double dist = lockedDistIt->second;
 
             double      distRequired = 3.0;
             std::string curSid       = fpd.GetSidName();
@@ -466,11 +458,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                 }
             }
 
-            if (rounded.size() < 4)
-            {
-                rounded = std::string(4 - rounded.size(), ' ') + rounded;
-            }
-            t.tag = rounded + " nm /" + std::to_string(static_cast<int>(distRequired));
+            t.tag = std::format("{:>4.1f} nm /{}", dist, static_cast<int>(distRequired));
 
             if (distRequired >= 5.0)
             {
@@ -543,9 +531,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             }
         }
 
-        char distBuf[16];
-        (void)snprintf(distBuf, sizeof(distBuf), "%4.1f", dist);
-        t.tag = std::string(distBuf) + " nm";
+        t.tag = std::format("{:4.1f} nm", dist);
 
         double greenAt  = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852);
         double yellowAt = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852);
@@ -600,9 +586,6 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                 subGroup = '4'; // TAXI far from holding point
             }
 
-            char distBuf[16];
-            (void)snprintf(distBuf, sizeof(distBuf), "%05.2f", dist);
-
             std::string group = "A";
             auto        me    = this->ControllerMyself();
             if (me.IsController() && me.GetRating() > 1 && me.GetFacility() == 3 && subGroup < '3')
@@ -610,17 +593,15 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                 group = "B";
             }
 
-            return group + subGroup + rwyPadded + distBuf;
+            return std::format("{}{}{}{:05.2f}", group, subGroup, rwyPadded, dist);
         }
         else
         {
             bool        isStillMine = fp.GetTrackingControllerIsMe() && fp.GetState() != EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
             std::string group       = isStillMine ? "C" : "D";
             auto        seqIt       = this->dep_sequenceNumber.find(callSign);
-            int         seq         = (seqIt != this->dep_sequenceNumber.end()) ? seqIt->second : 0;
-            char        seqBuf[8];
-            (void)snprintf(seqBuf, sizeof(seqBuf), "%04d", seq);
-            return group + rwyPadded + seqBuf;
+            int         seq   = (seqIt != this->dep_sequenceNumber.end()) ? seqIt->second : 0;
+            return std::format("{}{}{:04d}", group, rwyPadded, seq);
         }
     }();
 
@@ -881,11 +862,11 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                     if (secondsSinceDeparted + 15 >= secondsRequired)
                     {
                         t.color = TAG_COLOR_YELLOW;
-                        t.tag   = std::to_string(secondsRequired - secondsSinceDeparted) + "s";
+                        t.tag   = std::format("{}s", secondsRequired - secondsSinceDeparted);
                         return t;
                     }
                     t.color = TAG_COLOR_RED;
-                    t.tag   = std::to_string(secondsRequired - secondsSinceDeparted) + "s";
+                    t.tag   = std::format("{}s", secondsRequired - secondsSinceDeparted);
                     return t;
                 }
 
@@ -944,8 +925,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                     {
                         remaining = 0.0;
                     }
-                    std::string s = std::to_string(remaining);
-                    r.tag         = s.substr(0, s.find('.') + 3) + "nm";
+                    r.tag = std::format("{:.2f}nm", remaining);
                     return r;
                 };
 
@@ -977,8 +957,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                     {
                         remaining = 0.0;
                     }
-                    std::string s = std::to_string(remaining);
-                    r.tag         = s.substr(0, s.find('.') + 3) + "nm";
+                    r.tag = std::format("{:.2f}nm", remaining);
                     return r;
                 };
 
@@ -1014,9 +993,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         ULONGLONG elapsed = (GetTickCount64() - takeoffTick) / 1000;
         int       m       = static_cast<int>(elapsed / 60);
         int       s       = static_cast<int>(elapsed % 60);
-        char      buf[8];
-        (void)snprintf(buf, sizeof(buf), "%d:%02d", m, s);
-        t.tag   = buf;
+        t.tag   = std::format("{}:{:02d}", m, s);
         t.color = TAG_COLOR_LIST_GRAY;
         return t;
     }();
@@ -1267,9 +1244,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                     {
                         gap = 0;
                     }
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "+%02d:%02d", gap / 60, gap % 60);
-                    tttDisplay.tag = buf;
+                    tttDisplay.tag = std::format("+{:02d}:{:02d}", gap / 60, gap % 60);
                 }
                 if (currTttSec >= 0)
                 {
@@ -1299,7 +1274,7 @@ void CFlowX_CustomTags::UpdateTagCache()
             depRow.runway = rwy;
 
             int count         = static_cast<int>(timestamps.size());
-            depRow.countStr   = std::to_string(count);
+            depRow.countStr   = std::format("{}", count);
             depRow.countColor = count > 0 ? TAG_COLOR_GREEN : TAG_COLOR_DEFAULT_GRAY;
 
             std::vector<ULONGLONG> recent;
@@ -1317,9 +1292,7 @@ void CFlowX_CustomTags::UpdateTagCache()
             {
                 std::sort(recent.begin(), recent.end());
                 ULONGLONG avgGapSec = ((recent.back() - recent.front()) / (recent.size() - 1)) / 1000ULL;
-                char      buf[8];
-                snprintf(buf, sizeof(buf), "%02llu:%02llu", avgGapSec / 60, avgGapSec % 60);
-                depRow.spacingStr   = buf;
+                depRow.spacingStr   = std::format("{:02}:{:02}", avgGapSec / 60, avgGapSec % 60);
                 depRow.spacingColor = TAG_COLOR_WHITE;
             }
 
@@ -1439,10 +1412,8 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
                 }
             }
 
-            char distBuf[16];
-            (void)snprintf(distBuf, sizeof(distBuf), "%4.1f", dist);
             tagInfo liveTag;
-            liveTag.tag        = std::string(distBuf) + " nm";
+            liveTag.tag        = std::format("{:4.1f} nm", dist);
             double greenAt     = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852);
             double yellowAt    = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852);
             liveTag.color      = (dist >= greenAt) ? TAG_COLOR_GREEN : (dist >= yellowAt) ? TAG_COLOR_YELLOW : TAG_COLOR_RED;

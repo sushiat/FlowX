@@ -46,7 +46,7 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @brief Returns a numeric ranking for an aircraft wake-turbulence category character.
     /// @param wtc Wake-turbulence category character (J, H, M, L; case-insensitive).
     /// @return Ranking value: J=4, H=3, M=2, L=1, unknown=0.
-    static int GetAircraftWeightCategoryRanking(char wtc);
+    [[nodiscard]] static int GetAircraftWeightCategoryRanking(char wtc);
 
     /// @brief Tests whether a position lies within the physical bounds of a runway.
     /// @param rwy The runway to test against (provides near threshold, width, and opposite designator).
@@ -54,14 +54,14 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @param pos Position to test.
     /// @return True if the position is within the runway rectangle (centerline ± half-width, between the two thresholds).
     /// @note Returns false if @p rwy has no width configured or the opposite runway is not in the map.
-    static bool IsPositionOnRunway(const runway& rwy, const std::map<std::string, runway>& runways, const EuroScopePlugIn::CPosition& pos);
+    [[nodiscard]] static bool IsPositionOnRunway(const runway& rwy, const std::map<std::string, runway>& runways, const EuroScopePlugIn::CPosition& pos);
 
     /// @brief Checks whether two holding-point names refer to the same physical point.
     /// @param hp1 First holding-point name.
     /// @param hp2 Second holding-point name.
     /// @param runways Map of runways for the airport.
     /// @return Non-zero if the points are considered the same (identical names or linked via sameAs).
-    static int IsSameHoldingPoint(std::string hp1, std::string hp2, const std::map<std::string, runway>& runways);
+    [[nodiscard]] static int IsSameHoldingPoint(std::string hp1, std::string hp2, const std::map<std::string, runway>& runways);
 
     /// @brief Tests whether the point (x, y) lies inside a polygon defined by parallel coordinate arrays.
     /// @param polyCorners Number of polygon vertices.
@@ -71,5 +71,5 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @param y Y (latitude) of the point to test.
     /// @return True if the point is inside the polygon.
     /// @note Uses the ray-casting algorithm; behaviour on edge points is unspecified.
-    static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
+    [[nodiscard]] static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
 };

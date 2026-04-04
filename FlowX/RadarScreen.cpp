@@ -45,9 +45,8 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
     // Not interested in observers, non-controllers and my own call-sign
     if (Controller.IsController() && Controller.GetRating() > 1 && cs != myCS)
     {
-        double freq = Controller.GetPrimaryFrequency();
-        auto freqString = std::to_string(freq);
-        std::string freqFormatted = freqString.substr(0, freqString.find('.') + 4);
+        double      freq          = Controller.GetPrimaryFrequency();
+        std::string freqFormatted = std::format("{:.3f}", freq);
 
         auto updateStation = [&](std::map<std::string, std::string>& stations, const char* label) {
             auto it = stations.find(cs);
@@ -211,57 +210,57 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
 {
     SetBkMode(hDC, TRANSPARENT);
 
-    for (auto it = this->radarTargetDepartureInfos.begin(); it != this->radarTargetDepartureInfos.end(); ++it)
+    for (auto& [cs, info] : this->radarTargetDepartureInfos)
     {
-        if (it->second.pos.x <= -1 || it->second.pos.y <= -1) { continue; }
+        if (info.pos.x <= -1 || info.pos.y <= -1) { continue; }
 
-        SetTextColor(hDC, it->second.dep_color);
+        SetTextColor(hDC, info.dep_color);
         SIZE textSize;
-        GetTextExtentPoint32A(hDC, it->second.dep_info.c_str(), (int)it->second.dep_info.length(), &textSize);
+        GetTextExtentPoint32A(hDC, info.dep_info.c_str(), (int)info.dep_info.length(), &textSize);
         TextOutA(hDC,
-                 it->second.pos.x - textSize.cx + it->second.dragX,
-                 it->second.pos.y + it->second.dragY,
-                 it->second.dep_info.c_str(), (int)it->second.dep_info.length());
+                 info.pos.x - textSize.cx + info.dragX,
+                 info.pos.y + info.dragY,
+                 info.dep_info.c_str(), (int)info.dep_info.length());
 
         RECT area;
-        area.left   = it->second.pos.x - textSize.cx - 2 + it->second.dragX;
-        area.top    = it->second.pos.y - 2 + it->second.dragY;
-        area.right  = it->second.pos.x + 2 + it->second.dragX;
-        area.bottom = it->second.pos.y + textSize.cy + 2 + it->second.dragY;
+        area.left   = info.pos.x - textSize.cx - 2 + info.dragX;
+        area.top    = info.pos.y - 2 + info.dragY;
+        area.right  = info.pos.x + 2 + info.dragX;
+        area.bottom = info.pos.y + textSize.cy + 2 + info.dragY;
 
-        auto sidBrush = CreateSolidBrush(it->second.sid_color);
-        auto sidPen   = CreatePen(PS_SOLID, 1, it->second.sid_color);
+        auto sidBrush = CreateSolidBrush(info.sid_color);
+        auto sidPen   = CreatePen(PS_SOLID, 1, info.sid_color);
         SelectObject(hDC, sidBrush);
         SelectObject(hDC, sidPen);
         RECT dotRect = {
-            it->second.pos.x - textSize.cx + it->second.dragX + 2,
-            it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5 + 2,
-            it->second.pos.x - textSize.cx + it->second.dragX + 14,
-            it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5 + 14 };
+            info.pos.x - textSize.cx + info.dragX + 2,
+            info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 2,
+            info.pos.x - textSize.cx + info.dragX + 14,
+            info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 14 };
         Ellipse(hDC, dotRect.left, dotRect.top, dotRect.right, dotRect.bottom);
         DeleteObject(sidBrush);
         DeleteObject(sidPen);
 
-        if (!it->second.hp_info.empty())
+        if (!info.hp_info.empty())
         {
-            SetTextColor(hDC, it->second.hp_color);
+            SetTextColor(hDC, info.hp_color);
             TextOutA(hDC,
-                     it->second.pos.x - textSize.cx + 18 + it->second.dragX,
-                     it->second.pos.y + it->second.dragY + (area.bottom - area.top) - 5,
-                     it->second.hp_info.c_str(), (int)it->second.hp_info.length());
+                     info.pos.x - textSize.cx + 18 + info.dragX,
+                     info.pos.y + info.dragY + (area.bottom - area.top) - 5,
+                     info.hp_info.c_str(), (int)info.hp_info.length());
             area.bottom += (area.bottom - area.top) - 5;
         }
 
-        auto pen = CreatePen(PS_SOLID, 1, it->second.dep_color);
+        auto pen = CreatePen(PS_SOLID, 1, info.dep_color);
         SelectObject(hDC, pen);
-        MoveToEx(hDC, it->second.pos.x + 16, it->second.pos.y - 3, nullptr);
-        if (area.right <= it->second.pos.x + 16)
+        MoveToEx(hDC, info.pos.x + 16, info.pos.y - 3, nullptr);
+        if (area.right <= info.pos.x + 16)
             LineTo(hDC, area.right, area.top + (area.bottom - area.top) / 2);
         else
             LineTo(hDC, area.left,  area.top + (area.bottom - area.top) / 2);
         DeleteObject(pen);
 
-        AddScreenObject(SCREEN_OBJECT_DEP_TAG, it->first.c_str(), area, true, "");
+        AddScreenObject(SCREEN_OBJECT_DEP_TAG, cs.c_str(), area, true, "");
     }
 }
 
@@ -933,7 +932,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         cellTagClickable(TTT,    r.ttt,    r.callsign + "|TTT");
         cellClickable(CS,    r.callsign,                    r.callsignColor, r.callsign + "|CS");
         cellTagClickable(NM,     r.nm,     r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(GS,    std::to_string(r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(GS,    std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(WTC,   std::string(1, r.wtc),         wtcColor(r.wtc), r.callsign + "|WTC",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
         cellTagClickable(GATE,   r.gate,  r.callsign + "|GATE");
@@ -1281,7 +1280,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
             SetTextColor(hDC, rowHovered ? TAG_COLOR_WHITE : TAG_COLOR_LIST_GRAY);
             DrawTextA(hDC, row.label, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-            std::string objId = "MENU|" + std::to_string(row.itemIdx);
+            std::string objId = std::format("MENU|{}", row.itemIdx);
             AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, objId.c_str(), rowRect, false, row.label);
         }
 
@@ -1475,8 +1474,7 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
     if (this->debug) GetPlugIn()->DisplayUserMessage("FlowX", "GndXfr",
-        (std::string("BtnDown type=") + std::to_string(ObjectType) + " id=" + sObjectId +
-         " btn=" + std::to_string(Button)).c_str(), true, true, false, false, false);
+        std::format("BtnDown type={} id={} btn={}", ObjectType, sObjectId, Button).c_str(), true, true, false, false, false);
 
     if (ObjectType == SCREEN_OBJECT_NAP_ACK)
     {

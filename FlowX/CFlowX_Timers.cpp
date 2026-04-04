@@ -205,7 +205,7 @@ void CFlowX_Timers::CheckReconnects()
             double dist           = rt.GetPosition().GetPosition().DistanceTo(storedPos);
             if (dist > 1.0)
             {
-                logMismatch("position", std::to_string(dist) + "nm", "<1nm");
+                logMismatch("position", std::format("{}nm", dist), "<1nm");
                 match = false;
             }
         }
@@ -1147,26 +1147,26 @@ void CFlowX_Timers::UpdateTWRInbound()
         auto        heading      = pos.GetReportedHeading();
         bool        isVfrByMe    = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
 
-        for (auto airport = this->airports.begin(); airport != this->airports.end(); ++airport)
+        for (auto& [icao, ap] : this->airports)
         {
-            int depElevation = airport->second.fieldElevation;
+            int depElevation = ap.fieldElevation;
 
-            for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
+            for (auto& [rwyKey, rwy] : ap.runways)
             {
-                std::string rwyCallsign = callSign + rwy->second.designator;
+                std::string rwyCallsign = callSign + rwy.designator;
 
                 // ── (A) Runway occupancy ──
                 // Inline check: replaces the old airports×runways×targets triple-nested walk.
-                if (rwy->second.widthMeters > 0
+                if (rwy.widthMeters > 0
                     && pressAlt <= depElevation + 80
-                    && !this->ttt_runwayOccupied.count(rwy->second.designator)
-                    && IsPositionOnRunway(rwy->second, airport->second.runways, position))
+                    && !this->ttt_runwayOccupied.count(rwy.designator)
+                    && IsPositionOnRunway(rwy, ap.runways, position))
                 {
-                    this->ttt_runwayOccupied.insert(rwy->second.designator);
+                    this->ttt_runwayOccupied.insert(rwy.designator);
                 }
 
                 // ── Shared: runway heading number ──
-                std::string arrRwyDigits = rwy->second.designator;
+                std::string arrRwyDigits = rwy.designator;
                 arrRwyDigits.erase(std::remove_if(arrRwyDigits.begin(), arrRwyDigits.end(),
                                                   [](char c)
                                                   { return !std::isdigit(c); }),
@@ -1190,8 +1190,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                 }
                 else
                 {
-                    double distance  = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
-                    double direction = DirectionFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                    double distance  = DistanceFromRunwayThreshold(rwy.designator, position, ap.runways);
+                    double direction = DirectionFromRunwayThreshold(rwy.designator, position, ap.runways);
                     int    hdgDiff   = std::abs(heading - arrRwyHdg * 10);
                     if (hdgDiff > 180)
                         hdgDiff = 360 - hdgDiff;
@@ -1200,7 +1200,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                     if (dirDiff > 180.0)
                         dirDiff = 360.0 - dirDiff;
 
-                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 5.0)
+                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 45 && distance < 25 && dirDiff <= 5.0)
                     {
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         std::string trackingControllerId        = fp.GetTrackingControllerId();
@@ -1214,7 +1214,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                         if (!this->ttt_flightPlans.count(rwyCallsign))
                         {
                             this->tttInbound.AddFpToTheList(fp);
-                            this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
+                            this->ttt_flightPlans.emplace(rwyCallsign, rwy);
                             this->ttt_callSigns.insert(callSign);
                         }
                     }
@@ -1246,11 +1246,11 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                     if (isGoAround || isRecentlyRemoved)
                     {
-                        double             distance     = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                        double             distance     = DistanceFromRunwayThreshold(rwy.designator, position, ap.runways);
                         int                hdgDiff      = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
                         if (hdgDiff > 180)
                             hdgDiff = 360 - hdgDiff;
-                        const std::string& opp = rwy->second.opposite;
+                        const std::string& opp = rwy.opposite;
 
                         if (isGoAround)
                         {
@@ -1274,7 +1274,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                         else if (!opp.empty())
                         {
                             // Check for go-around: recently removed, now near opposite threshold and airborne
-                            double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
+                            double distFromOpp = DistanceFromRunwayThreshold(opp, position, ap.runways);
                             if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
                             {
                                 this->ttt_clearedToLand.erase(callSign);
@@ -1283,7 +1283,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
                                 this->ttt_goAround[rwyCallsign]         = GetTickCount64();
                                 this->ttt_distanceToRunway[rwyCallsign] = distance;
-                                this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
+                                this->ttt_flightPlans.emplace(rwyCallsign, rwy);
                                 this->ttt_callSigns.insert(callSign);
                                 this->tttInbound.AddFpToTheList(fp);
                                 this->ttt_recentlyRemoved.erase(rwyCallsign);

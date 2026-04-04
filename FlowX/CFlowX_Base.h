@@ -31,7 +31,7 @@ class CFlowX_Base : public EuroScopePlugIn::CPlugIn
     CFlowX_Base();
 
     /// @brief Returns the current debug-mode state.
-    bool GetDebug() const { return this->debug; }
+    [[nodiscard]] bool GetDebug() const { return this->debug; }
 
     /// @brief Clears the stored radar screen pointer (called by the screen itself before deletion).
     void ClearRadarScreen()

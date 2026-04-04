@@ -19,13 +19,13 @@ std::string FetchVatsimData()
 
     HINTERNET init = InternetOpen(agent.str().c_str(), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!init) {
-        throw error{ std::string("VATSIM data: connection failed. Error: ") + std::to_string(GetLastError()) };
+        throw error{ std::format("VATSIM data: connection failed. Error: {}", GetLastError()) };
     }
 
     HINTERNET open = InternetOpenUrl(init, VATSIM_DATA_URL, NULL, 0, INTERNET_FLAG_PRAGMA_NOCACHE | INTERNET_FLAG_RELOAD, 0);
     if (!open) {
         InternetCloseHandle(init);
-        throw error{ std::string("VATSIM data: failed to open URL. Error: ") + std::to_string(GetLastError()) };
+        throw error{ std::format("VATSIM data: failed to open URL. Error: {}", GetLastError()) };
     }
 
     char data[4096];
@@ -49,13 +49,13 @@ std::string FetchLatestVersion()
 
     HINTERNET init = InternetOpen(agent.str().c_str(), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!init) {
-        throw error{ "Connection failed. Error: " + std::to_string(GetLastError()) };
+        throw error{ std::format("Connection failed. Error: {}", GetLastError()) };
     }
 
     HINTERNET open = InternetOpenUrl(init, PLUGIN_LATEST_VERSION_URL, NULL, 0, INTERNET_FLAG_PRAGMA_NOCACHE | INTERNET_FLAG_RELOAD, 0);
     if (!open) {
         InternetCloseHandle(init);
-        throw error{ "Failed to load URL. Error: " + std::to_string(GetLastError()) };
+        throw error{ std::format("Failed to load URL. Error: {}", GetLastError()) };
     }
 
     char data[256];

@@ -78,19 +78,19 @@ class CFlowX_Settings : public CFlowX_Logging
     CFlowX_Settings();
 
     /// @brief Returns the current auto-restore state.
-    bool GetAutoRestore() const { return this->autoRestore; }
+    [[nodiscard]] bool GetAutoRestore() const { return this->autoRestore; }
 
     /// @brief Returns whether the DEP/H departure rate window is currently visible.
-    bool GetDepRateVisible() const { return this->depRateVisible; }
+    [[nodiscard]] bool GetDepRateVisible() const { return this->depRateVisible; }
 
     /// @brief Returns whether the TWR Inbound window is currently visible.
-    bool GetTwrInboundVisible() const { return this->twrInboundVisible; }
+    [[nodiscard]] bool GetTwrInboundVisible() const { return this->twrInboundVisible; }
 
     /// @brief Returns whether the TWR Outbound window is currently visible.
-    bool GetTwrOutboundVisible() const { return this->twrOutboundVisible; }
+    [[nodiscard]] bool GetTwrOutboundVisible() const { return this->twrOutboundVisible; }
 
     /// @brief Returns whether the WX/ATIS window is currently visible.
-    bool GetWeatherVisible() const { return this->weatherVisible; }
+    [[nodiscard]] bool GetWeatherVisible() const { return this->weatherVisible; }
 
     /// @brief Toggles the auto-restore setting and persists it immediately.
     void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveSettings(); }

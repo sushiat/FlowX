@@ -11,7 +11,7 @@ FlowX is a EuroScope plugin (Windows DLL) for VATSIM air traffic controllers. It
 Open `FlowX.sln` in **Visual Studio 2022** and build with MSBuild. No CLI build commands are available.
 
 - Output: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`)
-- Language standard: C++17
+- Language standard: C++20
 - EuroScope lib: `lib\EuroScope\EuroScopePlugInDll.lib`
 - External headers: `include/` (nlohmann/json, semver, date/tz)
 
