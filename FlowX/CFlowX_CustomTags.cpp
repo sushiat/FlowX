@@ -1182,7 +1182,18 @@ void CFlowX_CustomTags::UpdateTagCache()
                 row.aircraftType  = fp.GetFlightPlanData().GetAircraftFPType();
                 {
                     auto standIt = this->standAssignment.find(callSign);
-                    row.gate     = (standIt != this->standAssignment.end()) ? standIt->second : "";
+                    if (standIt != this->standAssignment.end())
+                    {
+                        const std::string& stand = standIt->second;
+                        row.gate.tag   = stand;
+                        bool occupied  = this->standOccupancy.count(stand) > 0;
+                        if (!occupied)
+                        {
+                            for (auto& [cs, s] : this->standAssignment)
+                                if (cs != callSign && s == stand) { occupied = true; break; }
+                        }
+                        row.gate.color = occupied ? TAG_COLOR_RED : TAG_COLOR_WHITE;
+                    }
                 }
                 row.dimmed = !isFirst;
 

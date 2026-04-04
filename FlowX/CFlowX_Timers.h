@@ -45,6 +45,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, reconnectSnapshot>        reconnect_pending;         ///< Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.
     std::set<std::string>                           rvrUnacked;                ///< Airports where the RVR changed since the user last acknowledged.
     std::map<std::string, std::string>              standAssignment;           ///< Callsign -> assigned stand (populated from Ground Radar scratch-pad).
+    std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; rebuilt each timer tick.
     std::set<std::string>                           ttt_clearedToLand;         ///< Callsigns for which cleared-to-land has been issued; erased on go-around, removal, or disconnect.
     std::set<std::string>                           ttt_runwayOccupied;        ///< Runway designators that currently have a ground radar target within their runway bounds; refreshed each timer tick.
     std::map<std::string, double>                   ttt_distanceToRunway;      ///< Callsign+runway -> current distance (NM) to the runway threshold.
@@ -88,6 +89,10 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @brief Rebuilds adesCache for all correlated flight plans.
     /// For type-Y plans returns the last IFR waypoint (turquoise); all others return the destination ICAO.
     void UpdateAdesCache();
+
+    /// @brief Rebuilds standOccupancy by checking all slow/grounded radar targets against the loaded stand polygons.
+    /// Blocks with a wingspan threshold are applied only when the occupying aircraft's wingspan meets the minimum.
+    void UpdateOccupiedStands();
 
     /// @brief Updates the departure information overlays on the radar screen for all taxiing/departing aircraft.
     /// @note Only active when the logged-in controller's facility is GND (3) or above.

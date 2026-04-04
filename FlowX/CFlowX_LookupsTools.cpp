@@ -8,31 +8,50 @@
 #include "pch.h"
 #include "CFlowX_LookupsTools.h"
 
-/// @brief Tests whether point (x, y) lies inside the given polygon using ray casting.
+/// @brief Tests whether point (x, y) lies inside the given polygon using the winding-number algorithm.
 /// @param polyCorners Number of polygon vertices.
 /// @param polyX Array of X (longitude) coordinates.
 /// @param polyY Array of Y (latitude) coordinates.
 /// @param x X coordinate of the test point.
 /// @param y Y coordinate of the test point.
 /// @return True if the point is inside the polygon.
+/// @note Vertices must be listed in sequential traversal order (CW or CCW; either direction is accepted).
+///       Unlike ray-casting, winding-number is not sensitive to edge direction or degenerate vertex positions.
 bool CFlowX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y)
 {
-    int  i, j = polyCorners - 1;
-    bool oddNodes = false;
+    // Accumulate signed crossings. Interior points yield a non-zero winding number for both
+    // clockwise (–1) and counter-clockwise (+1) polygons.
+    int winding = 0;
 
-    for (i = 0; i < polyCorners; i++)
+    for (int i = 0, j = polyCorners - 1; i < polyCorners; j = i++)
     {
-        if (polyY[i] < y && polyY[j] >= y || polyY[j] < y && polyY[i] >= y)
+        if (polyY[j] <= y)
         {
-            if (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x)
+            // Upward crossing: edge passes from below-or-at y to strictly above y.
+            if (polyY[i] > y)
             {
-                oddNodes = !oddNodes;
+                // Cross product > 0 means the test point is to the left of the edge (j→i).
+                double cross = (polyX[i] - polyX[j]) * (y - polyY[j])
+                             - (x        - polyX[j]) * (polyY[i] - polyY[j]);
+                if (cross > 0.0)
+                    ++winding;
             }
         }
-        j = i;
+        else
+        {
+            // Downward crossing: edge passes from strictly above y to below-or-at y.
+            if (polyY[i] <= y)
+            {
+                // Cross product < 0 means the test point is to the right of the edge (j→i).
+                double cross = (polyX[i] - polyX[j]) * (y - polyY[j])
+                             - (x        - polyX[j]) * (polyY[i] - polyY[j]);
+                if (cross < 0.0)
+                    --winding;
+            }
+        }
     }
 
-    return oddNodes;
+    return winding != 0;
 }
 
 /// @brief Returns the distance in NM from a runway threshold to the given position.

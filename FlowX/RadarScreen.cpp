@@ -936,7 +936,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         cellClickable(GS,    std::to_string(r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(WTC,   std::string(1, r.wtc),         wtcColor(r.wtc), r.callsign + "|WTC",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
-        cellClickable(GATE,  r.gate,                        TAG_COLOR_WHITE, r.callsign + "|GATE");
+        cellTagClickable(GATE,   r.gate,  r.callsign + "|GATE");
         cellTagClickable(VACATE, r.vacate, r.callsign + "|VACATE");
         cellTagClickable(RWY,    r.arrRwy, r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
@@ -1684,13 +1684,13 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             if (Button == EuroScopePlugIn::BUTTON_LEFT)
             {
                 this->StartTagFunction(callsign.c_str(),
-                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.c_str(),
+                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.tag.c_str(),
                     GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_FUNC_STAND_MENU, Pt, Area);
             }
             else
             {
                 this->StartTagFunction(callsign.c_str(),
-                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.c_str(),
+                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.tag.c_str(),
                     PLUGIN_NAME, TAG_FUNC_STAND_AUTO, Pt, Area);
             }
         }

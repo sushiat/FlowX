@@ -71,7 +71,7 @@ struct TwrInboundRowCache
     tagInfo     ttt;                                 ///< TAG_ITEM_TTT — display text has the "rwy_" prefix stripped
     tagInfo     nm;                                  ///< TAG_ITEM_INBOUND_NM
     std::string aircraftType;                        ///< Aircraft type string (e.g. "B738") from GetAircraftFPType()
-    std::string gate;                                ///< Assigned stand/gate from standAssignment map
+    tagInfo     gate;                                ///< Assigned stand/gate from standAssignment map; red if stand is occupied
     tagInfo     vacate;                              ///< TAG_ITEM_SUGGESTED_VACATE
     tagInfo     arrRwy;                              ///< TAG_ITEM_ASSIGNED_ARR_RUNWAY
     bool        dimmed = false;                      ///< True for non-closest aircraft per runway — draw at reduced font size

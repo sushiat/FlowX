@@ -21,11 +21,13 @@ using json = nlohmann::json;
 class CFlowX_Settings : public CFlowX_Logging
 {
   protected:
+    std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
     bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from windowLocations.json
     int                            depRateWindowX = -1;     ///< Last-saved X position of the departure rate window; -1 = not yet positioned
     int                            depRateWindowY = -1;     ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
+    std::map<std::string, grStand> grStands;                ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
     std::future<std::string>       latestVersion;           ///< Async future holding the fetched latest version string
     std::string                    napLastDismissedDate;    ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
     int                            napWindowX         = -1; ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
@@ -44,6 +46,14 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Compares the fetched latest version against the running version and logs a message if outdated.
     /// @note Must only be called after the @c latestVersion future has become ready.
     void CheckForUpdate();
+
+    /// @brief Loads ICAO_Aircraft.json from the adjacent Groundradar folder into @c aircraftWingspans.
+    /// @note Aircraft without a wingspan are assigned the per-WTC average computed from the loaded data.
+    void LoadAircraftData();
+
+    /// @brief Loads GRpluginStands.txt from the adjacent Groundradar folder into @c grStands.
+    /// @note Only STAND/COORD/BLOCKS lines are parsed; STANDLIST, GROUP, and other directives are ignored.
+    void LoadGroundRadarStands();
 
     /// @brief Parses config.json from the plugin directory and populates the @c airports map.
     /// @note Logs a message and returns early if the file cannot be read or parsed.

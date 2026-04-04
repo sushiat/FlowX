@@ -842,6 +842,76 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
     }
 }
 
+/// @brief Rebuilds standOccupancy from all slow/grounded radar targets and the loaded stand polygons.
+void CFlowX_Timers::UpdateOccupiedStands()
+{
+    this->standOccupancy.clear();
+
+    if (this->grStands.empty()) return;
+
+    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+    {
+        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+        if (!pos.IsValid()) continue;
+        if (pos.GetReportedGS() >= 50) continue;       // skip aircraft that are clearly taxiing fast or airborne
+        if (pos.GetPressureAltitude() > 5000) continue; // quick reject for obviously airborne targets
+
+        std::string callSign = rt.GetCallsign();
+
+        // Iterate stands in sorted (ICAO-prefixed) order; cache field elevation per ICAO change.
+        std::string lastIcao;
+        int         fieldElev = 0;
+
+        for (auto& [key, stand] : this->grStands)
+        {
+            if (stand.lat.size() < 3) continue;
+
+            if (stand.icao != lastIcao)
+            {
+                lastIcao  = stand.icao;
+                fieldElev = 0;
+                auto apIt = this->airports.find(stand.icao);
+                if (apIt != this->airports.end())
+                    fieldElev = apIt->second.fieldElevation;
+            }
+
+            if (pos.GetPressureAltitude() > fieldElev + 200) continue;
+
+            if (!PointInsidePolygon(
+                    static_cast<int>(stand.lat.size()),
+                    stand.lon.data(),
+                    stand.lat.data(),
+                    pos.GetPosition().m_Longitude,
+                    pos.GetPosition().m_Latitude))
+                continue;
+
+            // Aircraft is in this stand — record it and apply blocking rules.
+            this->standOccupancy[stand.name] = callSign;
+
+            // Resolve wingspan for conditional block thresholds (FP not always available).
+            double wingspan = 0.0;
+            {
+                EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+                if (fp.IsValid())
+                {
+                    std::string acType = fp.GetFlightPlanData().GetAircraftFPType();
+                    auto        wsIt   = this->aircraftWingspans.find(acType);
+                    if (wsIt != this->aircraftWingspans.end())
+                        wingspan = wsIt->second;
+                }
+            }
+
+            for (auto& block : stand.blocks)
+            {
+                if (wingspan >= block.minWingspan)
+                    this->standOccupancy[block.standName] = callSign;
+            }
+
+            break; // An aircraft can only occupy one stand — move on to the next radar target.
+        }
+    }
+}
+
 /// @brief Updates the TWR same-SID outbound list and records per-departure timing and sequencing data.
 void CFlowX_Timers::UpdateTWROutbound()
 {

@@ -20,6 +20,8 @@ CFlowX_Settings::CFlowX_Settings()
     this->LoadSettings();
     this->LoadWindowLocations();
     this->LoadConfig();
+    this->LoadAircraftData();
+    this->LoadGroundRadarStands();
 
     if (this->updateCheck)
     {
@@ -155,6 +157,159 @@ void CFlowX_Settings::SaveWindowLocations()
     catch (std::exception& e)
     {
         this->LogMessage("Failed to save window locations. Error: " + std::string(e.what()), "Settings");
+    }
+}
+
+/// @brief Loads ICAO_Aircraft.json from the adjacent Groundradar folder into aircraftWingspans.
+void CFlowX_Settings::LoadAircraftData()
+{
+    try
+    {
+        std::filesystem::path path(GetPluginDirectory());
+        path = path.parent_path() / "Groundradar" / "ICAO_Aircraft.json";
+
+        std::ifstream ifs(path);
+        if (!ifs.is_open())
+        {
+            this->LogMessage("ICAO_Aircraft.json not found at: " + path.string(), "AircraftData");
+            return;
+        }
+
+        json j = json::parse(ifs);
+
+        // First pass: collect wingspans and accumulate per-WTC sums for average computation.
+        std::map<std::string, double> wtcSum;
+        std::map<std::string, int>    wtcCount;
+        std::vector<std::pair<std::string, std::string>> noWingspan; // {ICAO, WTC}
+
+        for (auto& entry : j)
+        {
+            std::string icao = entry.value("ICAO", "");
+            std::string wtc  = entry.value("WTC", "");
+            if (icao.empty() || wtc.empty())
+                continue;
+
+            if (entry.contains("Wingspan"))
+            {
+                double ws                       = entry["Wingspan"].get<double>();
+                this->aircraftWingspans[icao]   = ws;
+                wtcSum[wtc]                    += ws;
+                wtcCount[wtc]                  += 1;
+            }
+            else
+            {
+                noWingspan.emplace_back(icao, wtc);
+            }
+        }
+
+        // Compute per-WTC averages.
+        std::map<std::string, double> wtcAvg;
+        for (auto& [wtc, sum] : wtcSum)
+            wtcAvg[wtc] = sum / wtcCount[wtc];
+
+        // Second pass: fill missing wingspans with the WTC average.
+        for (auto& [icao, wtc] : noWingspan)
+        {
+            auto it = wtcAvg.find(wtc);
+            if (it != wtcAvg.end())
+                this->aircraftWingspans[icao] = it->second;
+        }
+
+        this->LogMessage(
+            "Loaded wingspan data for " + std::to_string(this->aircraftWingspans.size()) +
+            " aircraft types (" + std::to_string(noWingspan.size()) + " used WTC average).",
+            "AircraftData");
+    }
+    catch (std::exception& e)
+    {
+        this->LogMessage("Failed to load ICAO_Aircraft.json: " + std::string(e.what()), "AircraftData");
+    }
+}
+
+/// @brief Loads GRpluginStands.txt from the adjacent Groundradar folder into grStands.
+void CFlowX_Settings::LoadGroundRadarStands()
+{
+    try
+    {
+        std::filesystem::path path(GetPluginDirectory());
+        path = path.parent_path() / "Groundradar" / "GRpluginStands.txt";
+
+        std::ifstream ifs(path);
+        if (!ifs.is_open())
+        {
+            this->LogMessage("GRpluginStands.txt not found at: " + path.string(), "Stands");
+            return;
+        }
+
+        // Parses one DMS coordinate token: N048.07.14.709 or E016.33.00.259
+        auto parseDMS = [](const std::string& dms) -> double
+        {
+            if (dms.size() < 2) return 0.0;
+            char   hemi = dms[0];
+            auto   segs = split(dms.substr(1), '.');
+            if (segs.size() < 4) return 0.0;
+            double deg  = std::stod(segs[0]);
+            double min  = std::stod(segs[1]);
+            double sec  = std::stod(segs[2]) + std::stod(segs[3]) / 1000.0;
+            double val  = deg + min / 60.0 + sec / 3600.0;
+            return (hemi == 'S' || hemi == 'W') ? -val : val;
+        };
+
+        grStand current;
+        bool    inStand = false;
+
+        auto saveCurrentStand = [&]()
+        {
+            if (inStand && current.lat.size() >= 3)
+                this->grStands[current.icao + ":" + current.name] = current;
+        };
+
+        std::string line;
+        while (std::getline(ifs, line))
+        {
+            line = trim(line);
+            if (line.empty() || line[0] == '/') continue;
+
+            if (starts_with(line, "STAND:"))
+            {
+                saveCurrentStand();
+                current = {};
+                inStand = true;
+                // "STAND:LOWW:B67" — split into three parts
+                auto parts = split(line, ':');
+                if (parts.size() >= 3)
+                {
+                    current.icao = parts[1];
+                    current.name = parts[2];
+                }
+            }
+            else if (inStand && starts_with(line, "COORD:"))
+            {
+                // "COORD:N048.07.14.709:E016.33.00.259"
+                auto coords = split(line.substr(6), ':');
+                if (coords.size() >= 2)
+                {
+                    current.lat.push_back(parseDMS(coords[0]));
+                    current.lon.push_back(parseDMS(coords[1]));
+                }
+            }
+            else if (inStand && starts_with(line, "BLOCKS:"))
+            {
+                // "BLOCKS:B68"  |  "BLOCKS:B69:35.99"  |  "BLOCKS:A93,A96:31.99"
+                std::string rest      = line.substr(7);
+                auto        cp        = split(rest, ':');
+                double      minWs     = (cp.size() >= 2) ? std::stod(cp[1]) : 0.0;
+                for (auto& sn : split(cp[0], ','))
+                    current.blocks.push_back({trim(sn), minWs});
+            }
+        }
+        saveCurrentStand();
+
+        this->LogMessage("Loaded " + std::to_string(this->grStands.size()) + " stands from GRpluginStands.txt.", "Stands");
+    }
+    catch (std::exception& e)
+    {
+        this->LogMessage("Failed to load GRpluginStands.txt: " + std::string(e.what()), "Stands");
     }
 }
 

@@ -48,6 +48,23 @@ struct holdingPoint
     std::vector<double> lon = {};           ///< Polygon vertex longitudes
 };
 
+/// @brief A single blocking relationship on a Ground Radar stand.
+struct standBlock
+{
+    std::string standName;   ///< Stand designator that gets blocked
+    double      minWingspan; ///< Minimum aircraft wingspan (m) to trigger this block; 0 = always blocked
+};
+
+/// @brief A stand polygon loaded from GRpluginStands.txt.
+struct grStand
+{
+    std::string              icao;   ///< Airport ICAO code
+    std::string              name;   ///< Stand designator (e.g. "B67")
+    std::vector<double>      lat;    ///< Polygon vertex latitudes
+    std::vector<double>      lon;    ///< Polygon vertex longitudes
+    std::vector<standBlock>  blocks; ///< Stands blocked when this one is occupied
+};
+
 /// @brief Suggested runway vacate point with a minimum gap requirement and associated stands.
 struct vacatePoint
 {

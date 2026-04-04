@@ -181,7 +181,7 @@ inline int round_to_closest(int num, int closest)
 /// @param str Input string.
 /// @param charset Set of characters to strip (default: space and tab).
 /// @return Trimmed copy of @p str, or an empty string if @p str consists only of charset characters.
-inline std::string trim(const std::string& str, const std::string& charset = " \t")
+inline std::string trim(const std::string& str, const std::string& charset = " \t\r\n")
 {
     size_t begin = str.find_first_not_of(charset);
     if (begin == std::string::npos) {

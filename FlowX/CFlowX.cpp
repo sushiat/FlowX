@@ -34,7 +34,7 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
         if (args.size() == 1)
         {
             std::ostringstream msg;
-            msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: gnd, twr, nocheck, reset, update, flash, redoflags, autorestore";
+            msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: gnd, twr, nocheck, reset, update, flash, redoflags, autorestore, stands";
 
             this->LogMessage(msg.str(), "Init");
 
@@ -167,6 +167,44 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
             this->autoRestore = !this->autoRestore;
             this->LogMessage(std::string("Auto-restore on reconnect: ") + (this->autoRestore ? "ON" : "OFF"), "AutoRestore");
             this->SaveSettings();
+
+            return true;
+        }
+        else if (args[1] == "stands")
+        {
+            std::filesystem::path dumpPath = std::filesystem::path(GetPluginDirectory()) / "stands_debug.txt";
+            std::ofstream         ofs(dumpPath);
+
+            ofs << "=== FlowX Stand Diagnostics ===\n\n";
+            ofs << "Stands loaded (grStands): " << this->grStands.size() << "\n\n";
+
+            ofs << "Polygon-occupied stands (" << this->standOccupancy.size() << "):\n";
+            for (auto& [key, cs] : this->standOccupancy)
+                ofs << "  " << key << " <- " << cs << "\n";
+
+            ofs << "\nScratch-pad stand assignments (" << this->standAssignment.size() << "):\n";
+            for (auto& [cs, stand] : this->standAssignment)
+                ofs << "  " << cs << " -> " << stand << "\n";
+
+            ofs << "\nAll radar targets (GS < 50, alt < 5000):\n";
+            for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+            {
+                auto pos = rt.GetPosition();
+                if (!pos.IsValid()) continue;
+                if (pos.GetReportedGS() >= 50) continue;
+                if (pos.GetPressureAltitude() > 5000) continue;
+                auto fp = rt.GetCorrelatedFlightPlan();
+                ofs << "  " << rt.GetCallsign()
+                    << "  GS=" << pos.GetReportedGS()
+                    << "  alt=" << pos.GetPressureAltitude()
+                    << "  lat=" << pos.GetPosition().m_Latitude
+                    << "  lon=" << pos.GetPosition().m_Longitude
+                    << "  fp=" << (fp.IsValid() ? fp.GetFlightPlanData().GetAircraftFPType() : "none")
+                    << "\n";
+            }
+
+            ofs.close();
+            this->LogMessage("Wrote " + dumpPath.string(), "Stands");
 
             return true;
         }
@@ -680,6 +718,7 @@ void CFlowX::OnTimer(int Counter)
         this->UpdateTWROutbound();
         this->AutoUpdateDepartureHoldingPoints();
         this->UpdateTWRInbound();
+        this->UpdateOccupiedStands();
         this->CheckReconnects();
     }
 
