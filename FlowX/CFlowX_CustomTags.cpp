@@ -1114,17 +1114,17 @@ void CFlowX_CustomTags::UpdateTagCache()
 
                 auto callsignColor = [&]() -> COLORREF
                 {
-                    if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED)
-                    {
-                        return TAG_COLOR_BROWN;
-                    }
-                    if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_TO_ME_INITIATED)
+                    if (this->ttt_clearedToLand.count(callSign))
                     {
                         return TAG_COLOR_TURQ;
                     }
                     if (fp.GetTrackingControllerIsMe())
                     {
                         return TAG_COLOR_WHITE;
+                    }
+                    if (fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_TO_ME_INITIATED)
+                    {
+                        return TAG_COLOR_BROWN;
                     }
                     return TAG_COLOR_LIST_GRAY;
                 };

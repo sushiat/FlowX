@@ -227,7 +227,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
 
 /// @brief Builds the same-SID tag showing the SID name colour-coded by its configured group.
 /// @param fp Flight plan being evaluated.
-/// @return tagInfo with the SID name and group colour, greyed out once the aircraft has departed.
+/// @return tagInfo with the SID name and group colour; darkened (55 %) once the aircraft has departed.
 tagInfo CFlowX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
 {
     tagInfo tag;
@@ -270,12 +270,12 @@ tagInfo CFlowX_Tags::GetSameSidTag(EuroScopePlugIn::CFlightPlan& fp)
             }
         }
 
-        // Override to dark gray if the aircraft has already departed
+        // Dim the colour once the aircraft has departed; preserve the SID group colour at 55 % brightness
         std::string callSign = fp.GetCallsign();
         auto        depIt    = this->twrSameSID_flightPlans.find(callSign);
         if (depIt != this->twrSameSID_flightPlans.end() && depIt->second > 0)
         {
-            tag.color = TAG_COLOR_DARKGREY;
+            tag.color = RGB(GetRValue(tag.color) * 55 / 100, GetGValue(tag.color) * 55 / 100, GetBValue(tag.color) * 55 / 100);
         }
     }
 

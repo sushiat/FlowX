@@ -21,10 +21,10 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @param fp Currently selected flight plan.
     void Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp);
 
-    /// @brief Clears the inbound for landing, drops tracking, and triggers TopSky highlight.
+    /// @brief Records cleared-to-land state, drops tracking, and triggers TopSky highlight.
     /// @param fp Currently selected flight plan.
     /// @param radarScreenInstance Active radar screen used to invoke the TopSky tag function.
-    static void Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
+    void Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
 
     /// @brief Callback invoked when the controller selects an item from the HP popup list.
     /// @param fp Currently selected flight plan.
@@ -35,10 +35,10 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @param fp Currently selected flight plan.
     static void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
 
-    /// @brief Handles a missed approach: takes tracking, assigns 5000 ft, and triggers TopSky highlight.
+    /// @brief Handles a missed approach: clears cleared-to-land state, takes tracking, assigns 5000 ft, and triggers TopSky highlight.
     /// @param fp Currently selected flight plan.
     /// @param radarScreenInstance Active radar screen used to invoke the TopSky tag function.
-    static void Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
+    void Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);
 
     /// @brief Handles the ONFREQ / ST-UP / PUSH function: sets the appropriate ground state based on position.
     /// @param fp Currently selected flight plan.

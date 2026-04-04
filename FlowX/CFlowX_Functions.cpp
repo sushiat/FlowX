@@ -52,12 +52,13 @@ void CFlowX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)
     }
 }
 
-/// @brief Ends tracking of the inbound and triggers TopSky's highlight function.
+/// @brief Records cleared-to-land state, drops tracking, and triggers TopSky's highlight function.
 /// @param fp Currently selected flight plan.
 /// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
 void CFlowX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
     std::string callSign = fp.GetCallsign();
+    this->ttt_clearedToLand.insert(callSign);
     if (fp.GetTrackingControllerIsMe())
     {
         fp.EndTracking();
@@ -85,18 +86,19 @@ void CFlowX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
     fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
 }
 
-/// @brief Handles a missed approach: takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
+/// @brief Handles a missed approach: clears cleared-to-land state, takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
 /// @param fp Currently selected flight plan.
 /// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
 void CFlowX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
 {
+    std::string callSign = fp.GetCallsign();
+    this->ttt_clearedToLand.erase(callSign);
     if (!fp.GetTrackingControllerIsMe())
     {
         fp.StartTracking();
     }
     fp.GetControllerAssignedData().SetClearedAltitude(5000);
 
-    std::string callSign = fp.GetCallsign();
     radarScreenInstance->StartTagFunction(callSign.c_str(), nullptr, 0, "S-Highlight", TOPSKY_PLUGIN_NAME, 4, POINT(), RECT());
     std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
     fp.GetControllerAssignedData().SetScratchPadString((scratchBackup + "MISAP_").c_str());

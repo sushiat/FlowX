@@ -988,6 +988,7 @@ void CFlowX_Timers::UpdateTTTInbounds()
                 this->tttInbound.RemoveFpFromTheList(fp);
             }
 
+            this->ttt_clearedToLand.clear();
             this->ttt_flightPlans.clear();
             this->ttt_goAround.clear();
             this->ttt_recentlyRemoved.clear();
@@ -1070,6 +1071,7 @@ void CFlowX_Timers::UpdateTTTInbounds()
                     if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end() && this->ttt_goAround.find(rwyCallsign) == this->ttt_goAround.end())
                     {
                         this->tttInbound.RemoveFpFromTheList(fp);
+                        this->ttt_clearedToLand.erase(callSign);
                         this->ttt_flightPlans.erase(rwyCallsign);
                         this->ttt_distanceToRunway.erase(rwyCallsign);
                         this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
@@ -1148,6 +1150,7 @@ void CFlowX_Timers::UpdateTTTInbounds()
                         this->ttt_flightPlans.erase(rwyCallsign);
                         this->ttt_goAround.erase(rwyCallsign);
                         this->ttt_distanceToRunway.erase(rwyCallsign);
+                        this->ttt_clearedToLand.erase(callSign);
                     }
                     else
                     {
@@ -1160,6 +1163,7 @@ void CFlowX_Timers::UpdateTTTInbounds()
                     double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
                     if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
                     {
+                        this->ttt_clearedToLand.erase(callSign);
                         this->ttt_goAround[rwyCallsign]         = GetTickCount64();
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);

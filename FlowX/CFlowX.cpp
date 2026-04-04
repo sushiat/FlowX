@@ -281,6 +281,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
             ++it;
         }
     }
+    this->ttt_clearedToLand.erase(callSign);
 
     for (auto it = this->ttt_distanceToRunway.begin(); it != this->ttt_distanceToRunway.end();)
     {
