@@ -161,6 +161,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
     if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
     {
         this->DrawDepartureInfoTag(hDC);
+        this->DrawGndTransferSquares(hDC);
     }
 
     if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
@@ -178,6 +179,32 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 // ─────────────────────────────────────────────────────────────────────────────
 // Private draw helpers — pure GDI output, no state calculations
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Draws a green filled square near each landed inbound awaiting GND handoff; registers each as a clickable screen object.
+void RadarScreen::DrawGndTransferSquares(HDC hDC)
+{
+    if (this->gndTransferSquares.empty()) { return; }
+
+    SetBkMode(hDC, TRANSPARENT);
+    auto brush = CreateSolidBrush(TAG_COLOR_GREEN);
+    auto pen   = CreatePen(PS_SOLID, 1, TAG_COLOR_GREEN);
+    SelectObject(hDC, brush);
+    SelectObject(hDC, pen);
+
+    for (const auto& callSign : this->gndTransferSquares)
+    {
+        EuroScopePlugIn::CRadarTarget rt = GetPlugIn()->RadarTargetSelect(callSign.c_str());
+        if (!rt.IsValid() || !rt.GetPosition().IsValid()) { continue; }
+
+        POINT pt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
+        RECT  sq = { pt.x - 22, pt.y + 10, pt.x - 10, pt.y + 22 };
+        Rectangle(hDC, sq.left, sq.top, sq.right, sq.bottom);
+        AddScreenObject(SCREEN_OBJECT_GND_TRANSFER, callSign.c_str(), sq, true, "");
+    }
+
+    DeleteObject(pen);
+    DeleteObject(brush);
+}
 
 /// @brief Draws per-aircraft departure info overlays (text, SID dot, HP label, connector line).
 void RadarScreen::DrawDepartureInfoTag(HDC hDC)
@@ -1298,8 +1325,14 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 }
 
 /// @brief Sets the pressed state when the mouse button goes down over the ACK or Start button.
+/// Also handles the GND transfer square, which must be triggered on button-down rather than click
+/// because EuroScope's radar target selection logic may consume the full press+release sequence.
 void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
+    if (this->debug) GetPlugIn()->DisplayUserMessage("FlowX", "GndXfr",
+        (std::string("BtnDown type=") + std::to_string(ObjectType) + " id=" + sObjectId +
+         " btn=" + std::to_string(Button)).c_str(), true, true, false, false, false);
+
     if (ObjectType == SCREEN_OBJECT_NAP_ACK)
     {
         this->napAckPressed = true;
@@ -1309,6 +1342,12 @@ void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId
     if (ObjectType == SCREEN_OBJECT_START_BTN)
     {
         this->startBtnPressed = true;
+        this->RequestRefresh();
+    }
+
+    if (ObjectType == SCREEN_OBJECT_GND_TRANSFER)
+    {
+        static_cast<CFlowX_Functions*>(this->GetPlugIn())->Func_GndTransfer(std::string(sObjectId));
         this->RequestRefresh();
     }
 }

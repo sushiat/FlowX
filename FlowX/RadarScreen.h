@@ -82,6 +82,9 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws departure info overlays (text, SID dot, HP label, connector line).
     void DrawDepartureInfoTag(HDC hDC);
 
+    /// @brief Draws a green square near each aircraft in gndTransferSquares and registers it as a clickable screen object.
+    void DrawGndTransferSquares(HDC hDC);
+
     /// @brief Draws the DEP/H departure-rate window using pre-calculated depRateRowsCache.
     void DrawDepRateWindow(HDC hDC);
 
@@ -111,6 +114,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::map<std::string, std::vector<ULONGLONG>> depRateLog;                      ///< Runway designator -> list of takeoff timestamps (GetTickCount64 ms) used for per-hour departure rate counting
     std::vector<DepRateRowCache>                  depRateRowsCache;                ///< Cached per-runway rows for the DEP/H window; rebuilt every second by UpdateTagCache()
     POINT                                         depRateWindowPos = {-1, -1};     ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
+    std::set<std::string>                         gndTransferSquares;              ///< Callsigns for which a GND-transfer green square is currently shown on the radar
     std::map<std::string, std::string>            groundStations;                  ///< Callsign -> primary frequency string for online GND controllers (facility 3)
     ULONGLONG                                     napAckClickTick   = 0;           ///< Tick (GetTickCount64) at which the ACK button was clicked; 0 when not animating
     bool                                          napAckPressed     = false;       ///< True while the left mouse button is held down over the ACK button

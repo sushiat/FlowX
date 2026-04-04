@@ -314,6 +314,10 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     this->dep_prevDistanceAtTakeoff.erase(callSign);
     this->dep_timeRequired.erase(callSign);
     this->dep_sequenceNumber.erase(callSign);
+
+    this->gndTransfer_list.erase(callSign);
+    this->gndTransfer_soundPlayed.erase(callSign);
+    if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
 }
 
 /// @brief Dispatches tag function callbacks to the appropriate Func_* method.

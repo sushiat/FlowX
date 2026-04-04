@@ -7,6 +7,10 @@
 
 #include "pch.h"
 #include "CFlowX_CustomTags.h"
+
+#include <filesystem>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 #include "helpers.h"
 
 void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             tttKey,
@@ -638,11 +642,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             std::string storedFreq = ann.substr(1, 6);
             if (storedFreq.find_first_not_of(' ') != std::string::npos)
             {
-                double      myFreqDouble = this->ControllerMyself().GetPrimaryFrequency();
-                auto        s            = std::to_string(myFreqDouble);
-                std::string myFreq       = s.substr(0, s.find('.') + 4);
-                myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
-                transferred = (storedFreq != myFreq);
+                transferred = (storedFreq != freqToAnnotation(this->ControllerMyself().GetPrimaryFrequency()));
             }
         }
 
@@ -1321,6 +1321,16 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     this->DetectTakeoffState(rt);
 
     std::string callSign = rt.GetCallsign();
+
+    // GND transfer: first time GS drops below 50 kts after landing, show square and play sound.
+    if (this->gndTransfer_list.count(callSign) && !this->gndTransfer_soundPlayed.count(callSign) &&
+        rt.GetPosition().GetReportedGS() < 50)
+    {
+        this->gndTransfer_soundPlayed.insert(callSign);
+        if (this->radarScreen) this->radarScreen->gndTransferSquares.insert(callSign);
+        std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "gndtransfer.wav";
+        PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+    }
 
     EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
     if (!fp.IsValid())

@@ -807,11 +807,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
                 std::string storedFreq = annotation.substr(1, 6);
                 if (storedFreq.find_first_not_of(' ') != std::string::npos)
                 {
-                    double      myFreqDouble = me.GetPrimaryFrequency();
-                    auto        s            = std::to_string(myFreqDouble);
-                    std::string myFreq       = s.substr(0, s.find('.') + 4);
-                    myFreq.erase(std::remove(myFreq.begin(), myFreq.end(), '.'), myFreq.end());
-                    transferred = (storedFreq != myFreq);
+                    transferred = (storedFreq != freqToAnnotation(me.GetPrimaryFrequency()));
                 }
             }
             if (!transferred)
@@ -1038,6 +1034,9 @@ void CFlowX_Timers::UpdateTWRInbound()
             this->ttt_flightPlans.clear();
             this->ttt_goAround.clear();
             this->ttt_recentlyRemoved.clear();
+            this->gndTransfer_list.clear();
+            this->gndTransfer_soundPlayed.clear();
+            if (this->radarScreen) this->radarScreen->gndTransferSquares.clear();
         }
 
         return;
@@ -1121,6 +1120,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                         this->ttt_flightPlans.erase(rwyCallsign);
                         this->ttt_distanceToRunway.erase(rwyCallsign);
                         this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                        if (pressAlt < depElevation + 50)
+                            this->gndTransfer_list.insert(callSign);
                     }
                 }
             }
@@ -1210,6 +1211,9 @@ void CFlowX_Timers::UpdateTWRInbound()
                     if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
                     {
                         this->ttt_clearedToLand.erase(callSign);
+                        this->gndTransfer_list.erase(callSign);
+                        this->gndTransfer_soundPlayed.erase(callSign);
+                        if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
                         this->ttt_goAround[rwyCallsign]         = GetTickCount64();
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);

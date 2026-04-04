@@ -102,6 +102,7 @@ const int SCREEN_OBJECT_WEATHER_ROW  = 6690; ///< Clickable airport section in t
 const int SCREEN_OBJECT_START_BTN       = 6691; ///< Start button anchored to the lower-right corner of the radar screen
 const int SCREEN_OBJECT_START_MENU_ITEM = 6692; ///< Clickable row inside the Start button popup menu
 const int SCREEN_OBJECT_WIN_CLOSE       = 6693; ///< Close (X) button on a custom window title bar
+const int SCREEN_OBJECT_GND_TRANSFER    = 6694; ///< Green square shown when a landed inbound is ready for GND handoff
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

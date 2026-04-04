@@ -38,6 +38,8 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, int>                      dep_sequenceNumber;        ///< Callsign -> departure sequence number assigned at takeoff.
     std::map<std::string, int>                      dep_timeRequired;          ///< Callsign -> required time separation in seconds (computed from holding point relationship).
     std::map<std::string, std::string>              flightStripAnnotation;     ///< Callsign -> cached content of flight-strip annotation slot 8.
+    std::set<std::string>                           gndTransfer_list;          ///< Callsigns of landed inbounds awaiting GND handoff (added at TTT removal, cleared on click/disconnect).
+    std::set<std::string>                           gndTransfer_soundPlayed;   ///< Subset of gndTransfer_list where GS<50 was first detected; square is shown and sound has played.
     std::map<std::string, std::string>              groundStatus;              ///< Callsign -> last known ground status string.
     std::set<std::string>                           qnhUnacked;                ///< Airports where the QNH value changed since the user last acknowledged.
     std::map<std::string, reconnectSnapshot>        reconnect_pending;         ///< Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.

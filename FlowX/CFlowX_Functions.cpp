@@ -368,10 +368,8 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
     // Snapshot spacing data at the moment of transfer-of-communication
     this->RecordDepartureSpacingSnapshot(callSign);
 
-    // Mark FP as transferred — store target frequency (dot removed, 6 chars) at [1..6]
-    std::string transferFreq = stationFreq;
-    transferFreq.erase(std::remove(transferFreq.begin(), transferFreq.end(), '.'), transferFreq.end());
-    transferFreq.resize(6, ' ');
+    // Mark FP as transferred — store target frequency (dot removed, 3 dp normalised) at [1..6]
+    std::string transferFreq = freqToAnnotation(stationFreq);
     auto& anno = this->flightStripAnnotation[callSign];
     anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
     for (int i = 0; i < 6; i++)
@@ -405,6 +403,53 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             fp.EndTracking();
         }
     }
+}
+
+/// @brief Marks the flight strip annotation with the GND frequency, drops tracking, and removes the GND transfer square.
+void CFlowX_Functions::Func_GndTransfer(const std::string& callSign)
+{
+    EuroScopePlugIn::CFlightPlan  fp = this->FlightPlanSelect(callSign.c_str());
+    if (!fp.IsValid()) { return; }
+
+    std::string arr    = fp.GetFlightPlanData().GetDestination();
+    auto        airportIt = this->FindMyAirport(arr);
+    if (airportIt == this->airports.end()) { return; }
+
+    // Resolve GND freq: check geo zones first (requires valid position), fall back to default
+    std::string gndFreq = airportIt->second.gndFreq;
+    EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
+    if (rt.IsValid() && rt.GetPosition().IsValid())
+    {
+        EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
+        for (auto& [name, zone] : airportIt->second.geoGndFreq)
+        {
+            u_int  corners = static_cast<u_int>(zone.lat.size());
+            double lat[10], lon[10];
+            std::copy(zone.lat.begin(), zone.lat.end(), lat);
+            std::copy(zone.lon.begin(), zone.lon.end(), lon);
+            if (PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            {
+                gndFreq = zone.freq;
+                break;
+            }
+        }
+    }
+
+    // Write freq (dot removed, 3 dp normalised) to annotation slot 8 at positions [1..6]
+    std::string transferFreq = freqToAnnotation(gndFreq);
+    auto& anno = this->flightStripAnnotation[callSign];
+    anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
+    for (int i = 0; i < 6; i++) { anno[1 + i] = transferFreq[i]; }
+    fp.GetControllerAssignedData().SetFlightStripAnnotation(8, anno.c_str());
+    this->PushToOtherControllers(fp);
+
+    // Drop tracking — GND controllers don't accept tag transfers
+    if (fp.GetTrackingControllerIsMe()) { fp.EndTracking(); }
+
+    // Remove from GND transfer tracking state
+    this->gndTransfer_list.erase(callSign);
+    this->gndTransfer_soundPlayed.erase(callSign);
+    if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
 }
 
 /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.

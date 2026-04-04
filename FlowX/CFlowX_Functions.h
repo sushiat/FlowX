@@ -69,6 +69,11 @@ class CFlowX_Functions : public CFlowX_CustomTags
     void Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp);
 
   public:
+    /// @brief Marks the flight strip annotation with the GND frequency, drops tracking, and removes the GND transfer square.
+    /// @param callSign Callsign of the landed aircraft being handed to ground.
+    /// @note Resolves the correct GND frequency via geoGndFreq polygons, falling back to the airport default.
+    void Func_GndTransfer(const std::string& callSign);
+
     /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.
     /// @note Used to recover from flag corruption; operates on untracked and self-tracked aircraft only.
     void RedoFlags();

@@ -148,6 +148,26 @@ inline void to_upper(std::string& str)
         [](unsigned char c) -> unsigned char { return std::toupper(c); });
 }
 
+/// @brief Formats a VHF frequency as a 6-character dot-free annotation token.
+/// @param freq Frequency value (e.g. 121.6, 122.800).
+/// @return 6-character string with the dot removed and 3 decimal digits normalised (e.g. "121600").
+inline std::string freqToAnnotation(double freq)
+{
+    std::string s = std::to_string(freq);
+    s             = s.substr(0, s.find('.') + 4); // keep 3 decimal places
+    s.erase(std::remove(s.begin(), s.end(), '.'), s.end());
+    return s;
+}
+
+/// @brief Formats a VHF frequency string as a 6-character dot-free annotation token.
+/// @param freq Frequency string in any format (e.g. "121.6", "121.600", "122.800").
+/// @return 6-character string with the dot removed and 3 decimal digits normalised (e.g. "121600").
+inline std::string freqToAnnotation(const std::string& freq)
+{
+    try   { return freqToAnnotation(std::stod(freq)); }
+    catch (...) { return freq; } // caller will notice the wrong length and can handle it
+}
+
 /// @brief Rounds an integer to the nearest multiple of @p closest.
 /// @param num Value to round.
 /// @param closest Rounding unit (must be > 0).

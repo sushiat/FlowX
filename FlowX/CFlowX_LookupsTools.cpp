@@ -75,6 +75,27 @@ double CFlowX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rwy,
     return rwyThreshold.DirectionTo(currentPosition);
 }
 
+/// @brief Finds the airport config for the currently logged-in controller, falling back to @p fallbackIcao.
+/// @param fallbackIcao ICAO to search when the controller's callsign prefix doesn't match any airport.
+/// @return Iterator into airports for the matched entry, or airports.end() if neither matches.
+std::map<std::string, airport>::iterator CFlowX_LookupsTools::FindMyAirport(const std::string& fallbackIcao)
+{
+    std::string myCs = this->ControllerMyself().GetCallsign();
+    std::transform(myCs.begin(), myCs.end(), myCs.begin(), ::toupper);
+    for (auto it = this->airports.begin(); it != this->airports.end(); ++it)
+    {
+        if (myCs.rfind(it->first, 0) == 0)
+            return it;
+    }
+    if (!fallbackIcao.empty())
+    {
+        std::string icao = fallbackIcao;
+        std::transform(icao.begin(), icao.end(), icao.begin(), ::toupper);
+        return this->airports.find(icao);
+    }
+    return this->airports.end();
+}
+
 /// @brief Returns a numeric ranking for a wake-turbulence category character.
 /// @param wtc Wake-turbulence category (J, H, M, L; case-insensitive).
 /// @return 4 for J, 3 for H, 2 for M, 1 for L, 0 for unknown.
