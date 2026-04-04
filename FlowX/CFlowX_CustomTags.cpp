@@ -696,6 +696,26 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             return t;
         }
 
+        // Separation alert: airborne aircraft too close to the previous departure
+        if (isAirborne)
+        {
+            auto prevCallIt = this->dep_prevCallSign.find(callSign);
+            if (prevCallIt != this->dep_prevCallSign.end())
+            {
+                auto prevRt = this->RadarTargetSelect(prevCallIt->second.c_str());
+                if (prevRt.IsValid() && prevRt.GetPosition().IsValid())
+                {
+                    double dist = rt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
+                    if (dist < 3.0)
+                    {
+                        t.tag   = "!SEP";
+                        t.color = (dist < 2.0) ? (this->blinking ? TAG_COLOR_RED : TAG_COLOR_ORANGE) : TAG_COLOR_ORANGE;
+                        return t;
+                    }
+                }
+            }
+        }
+
         // VFR and VFR-to-IFR traffic stays with tower
         {
             std::string planType = fpd.GetPlanType();
