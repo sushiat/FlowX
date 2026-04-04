@@ -71,18 +71,20 @@ const int TAG_FUNC_REVERT_TO_TAXI = 209; ///< Revert ground state from LINEUP ba
 
 /// @defgroup TagColors COLORREF constants used for tag colouring
 /// @{
+const COLORREF TAG_COLOR_DEFAULT_NONE = RGB(1, 2, 3);       ///< Sentinel: let EuroScope apply its default tag colour (not rendered)
 const COLORREF TAG_COLOR_DEFAULT_GRAY = RGB(135, 128, 118); ///< Default neutral grey
+
+const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (departed aircraft)
+const COLORREF TAG_COLOR_LIST_GRAY    = RGB(180, 175, 165); ///< Slightly brighter grey for custom list windows
+const COLORREF TAG_COLOR_WHITE        = RGB(255, 255, 255); ///< White (active / attention)
+
 const COLORREF TAG_COLOR_RED          = RGB(255, 9, 9);     ///< Error / warning red
 const COLORREF TAG_COLOR_ORANGE       = RGB(255, 165, 0);   ///< Caution orange
 const COLORREF TAG_COLOR_GREEN        = RGB(0, 200, 0);     ///< OK / ready green
 const COLORREF TAG_COLOR_TURQ         = RGB(64, 224, 208);  ///< Turquoise (airborne transfer)
 const COLORREF TAG_COLOR_PURPLE       = RGB(219, 163, 250); ///< Purple accent
-const COLORREF TAG_COLOR_WHITE        = RGB(255, 255, 255); ///< White (active / attention)
-const COLORREF TAG_COLOR_DARKGREY     = RGB(135, 128, 118); ///< Dark grey (departed aircraft)
 const COLORREF TAG_COLOR_YELLOW       = RGB(255, 201, 14);  ///< Yellow (blinking urgent alert)
 const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (transfer-from-me initiated)
-const COLORREF TAG_COLOR_LIST_GRAY    = RGB(180, 175, 165); ///< Slightly brighter grey for custom list windows
-const COLORREF TAG_COLOR_DEFAULT_NONE = RGB(1, 2, 3);       ///< Sentinel: let EuroScope apply its default tag colour (not rendered)
 /// @}
 
 /// @defgroup ScreenObjects Screen object type IDs used with AddScreenObject
