@@ -21,6 +21,17 @@
 class CFlowX_Timers : public CFlowX_LookupsTools
 {
   protected:
+    /// @brief Plain-data snapshot of one slow/grounded radar target used for off-thread stand containment checks.
+    /// Contains no EuroScope handles — safe to move into a worker-thread lambda.
+    struct StandCheckTarget
+    {
+        std::string callSign; ///< Aircraft callsign.
+        double      lat;      ///< Position latitude.
+        double      lon;      ///< Position longitude.
+        int         pressAlt; ///< Pressure altitude in feet.
+        double      wingspan; ///< Resolved wingspan in metres; 0.0 if unknown.
+    };
+
     std::map<std::string, tagInfo>                  adesCache;                 ///< Callsign -> cached ADES tag (destination ICAO, or last IFR fix for type-Y plans).
     std::map<std::string, std::string>              airportQNH;                ///< Last known QNH string per airport ICAO (e.g. "Q1013").
     std::map<std::string, std::string>              airportRVR;                ///< Formatted RVR display string per airport ICAO; empty if no RVR in the latest METAR.
@@ -45,7 +56,9 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, reconnectSnapshot>        reconnect_pending;         ///< Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.
     std::set<std::string>                           rvrUnacked;                ///< Airports where the RVR changed since the user last acknowledged.
     std::map<std::string, std::string>              standAssignment;           ///< Callsign -> assigned stand (populated from Ground Radar scratch-pad).
-    std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; rebuilt each timer tick.
+    std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; updated from stand-occupancy worker thread.
+    std::future<std::map<std::string, std::string>> standOccupancyFuture;      ///< Worker-thread stand-occupancy result; invalid when no computation is in progress.
+    std::set<std::string>                           ttt_callSigns;             ///< Callsigns currently present in ttt_flightPlans; kept in sync for O(log N) inbound membership tests.
     std::set<std::string>                           ttt_clearedToLand;         ///< Callsigns for which cleared-to-land has been issued; erased on go-around, removal, or disconnect.
     std::set<std::string>                           ttt_runwayOccupied;        ///< Runway designators that currently have a ground radar target within their runway bounds; refreshed each timer tick.
     std::map<std::string, double>                   ttt_distanceToRunway;      ///< Callsign+runway -> current distance (NM) to the runway threshold.
@@ -56,9 +69,6 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, ULONGLONG>                twrSameSID_flightPlans;    ///< Callsign -> tick-count (ms) at which the aircraft took off, or 0 while still on the ground.
     std::map<std::string, std::string>              twrSameSID_lastDeparted;   ///< Runway designator -> callsign of the last departed aircraft from that runway.
     std::set<std::string>                           windUnacked;               ///< Airports where the wind value changed since the user last acknowledged.
-
-    /// @brief Automatically detects which holding-point polygon a taxiing aircraft is in and writes it to slot 8.
-    void AutoUpdateDepartureHoldingPoints();
 
     /// @brief Checks each configured airport's NAP reminder and fires a modal alert when the time is reached.
     /// @note Uses the airport's configured IANA timezone to evaluate the current local time.

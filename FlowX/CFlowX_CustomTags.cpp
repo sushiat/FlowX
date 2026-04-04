@@ -1450,10 +1450,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
 
     // Only update for inbound aircraft
-    bool isInbound = std::any_of(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-                                 [&callSign](const auto& e)
-                                 { return e.first.rfind(callSign, 0) == 0; });
-    if (!isInbound)
+    if (!this->ttt_callSigns.count(callSign))
     {
         return;
     }

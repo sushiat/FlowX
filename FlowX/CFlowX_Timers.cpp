@@ -29,74 +29,6 @@ static std::string UtcDateString()
     return ss.str();
 }
 
-/// @brief Detects which holding-point polygon a taxiing aircraft occupies and writes it to flight-strip slot 8.
-void CFlowX_Timers::AutoUpdateDepartureHoldingPoints()
-{
-    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
-    {
-        EuroScopePlugIn::CRadarTargetPositionData          pos      = rt.GetPosition();
-        EuroScopePlugIn::CFlightPlan                       fp       = rt.GetCorrelatedFlightPlan();
-        EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad    = fp.GetControllerAssignedData();
-        std::string                                        callSign = fp.GetCallsign();
-
-        if (!pos.IsValid() || !fp.IsValid())
-        {
-            continue;
-        }
-
-        std::string dep = fp.GetFlightPlanData().GetOrigin();
-        to_upper(dep);
-
-        std::string arr = fp.GetFlightPlanData().GetDestination();
-        to_upper(arr);
-
-        // Skip aircraft without a valid flight plan (no departure/destination airport)
-        if (dep.empty() || arr.empty())
-        {
-            continue;
-        }
-
-        auto airport = this->airports.find(dep);
-        if (airport == this->airports.end())
-        {
-            continue;
-        }
-
-        EuroScopePlugIn::CFlightPlanData fpd         = fp.GetFlightPlanData();
-        std::string                      rwy         = fpd.GetDepartureRwy();
-        std::string                      groundState = fp.GetGroundState();
-        auto                             pressAlt    = pos.GetPressureAltitude();
-        auto                             groundSpeed = pos.GetReportedGS();
-
-        std::string before       = this->flightStripAnnotation[callSign];
-        int         depElevation = airport->second.fieldElevation;
-        if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && groundSpeed < 30)
-        {
-            auto rwyIt = airport->second.runways.find(rwy);
-            if (rwyIt != airport->second.runways.end())
-            {
-                for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-                {
-                    u_int  corners = static_cast<u_int>(hpData.lat.size());
-                    double polyX[10], polyY[10];
-                    std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
-                    std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
-
-                    if (CFlowX_Timers::PointInsidePolygon(static_cast<int>(corners), polyX, polyY, pos.GetPosition().m_Longitude, pos.GetPosition().m_Latitude))
-                    {
-                        this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
-                    }
-                }
-            }
-
-            if (before != this->flightStripAnnotation[callSign])
-            {
-                fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-                this->PushToOtherControllers(fp);
-            }
-        }
-    }
-}
 
 /// @brief Checks each airport's NAP reminder configuration and shows the custom reminder window when the time is reached.
 /// The reminder is suppressed if it was already acknowledged today (UTC date comparison).
@@ -842,74 +774,106 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
     }
 }
 
-/// @brief Rebuilds standOccupancy from all slow/grounded radar targets and the loaded stand polygons.
+/// @brief Snapshots slow/grounded radar targets on the main thread, then offloads polygon tests to a worker thread.
+/// The previous worker result is applied at the start of the next call (atisFuture pattern).
 void CFlowX_Timers::UpdateOccupiedStands()
 {
-    this->standOccupancy.clear();
+    // Apply previous worker result if ready.
+    if (this->standOccupancyFuture.valid() &&
+        this->standOccupancyFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+    {
+        this->standOccupancy = this->standOccupancyFuture.get();
+    }
+
+    // Skip launch if worker is still running.
+    if (this->standOccupancyFuture.valid() &&
+        this->standOccupancyFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+        return;
 
     if (this->grStands.empty()) return;
 
+    // Snapshot phase — all EuroScope API calls happen here on the main thread.
+    std::vector<StandCheckTarget> targets;
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
         if (!pos.IsValid()) continue;
-        if (pos.GetReportedGS() >= 50) continue;       // skip aircraft that are clearly taxiing fast or airborne
-        if (pos.GetPressureAltitude() > 5000) continue; // quick reject for obviously airborne targets
+        if (pos.GetReportedGS() >= 50) continue;
+        if (pos.GetPressureAltitude() > 5000) continue;
 
-        std::string callSign = rt.GetCallsign();
+        StandCheckTarget snap;
+        snap.callSign = rt.GetCallsign();
+        snap.lat      = pos.GetPosition().m_Latitude;
+        snap.lon      = pos.GetPosition().m_Longitude;
+        snap.pressAlt = pos.GetPressureAltitude();
+        snap.wingspan = 0.0;
 
-        // Iterate stands in sorted (ICAO-prefixed) order; cache field elevation per ICAO change.
-        std::string lastIcao;
-        int         fieldElev = 0;
-
-        for (auto& [key, stand] : this->grStands)
+        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+        if (fp.IsValid())
         {
-            if (stand.lat.size() < 3) continue;
+            std::string acType = fp.GetFlightPlanData().GetAircraftFPType();
+            auto        wsIt   = this->aircraftWingspans.find(acType);
+            if (wsIt != this->aircraftWingspans.end())
+                snap.wingspan = wsIt->second;
+        }
 
-            if (stand.icao != lastIcao)
+        targets.push_back(std::move(snap));
+    }
+
+    if (targets.empty())
+    {
+        this->standOccupancy.clear();
+        return;
+    }
+
+    // Launch worker — grStands and airports are read-only after startup; const-ref capture is safe.
+    this->standOccupancyFuture = std::async(
+        std::launch::async,
+        [targets = std::move(targets), &grStands = this->grStands, &airports = this->airports]()
+            -> std::map<std::string, std::string>
+        {
+            std::map<std::string, std::string> result;
+            std::string                        lastIcao;
+            int                                fieldElev = 0;
+
+            for (const auto& t : targets)
             {
-                lastIcao  = stand.icao;
-                fieldElev = 0;
-                auto apIt = this->airports.find(stand.icao);
-                if (apIt != this->airports.end())
-                    fieldElev = apIt->second.fieldElevation;
-            }
-
-            if (pos.GetPressureAltitude() > fieldElev + 200) continue;
-
-            if (!PointInsidePolygon(
-                    static_cast<int>(stand.lat.size()),
-                    stand.lon.data(),
-                    stand.lat.data(),
-                    pos.GetPosition().m_Longitude,
-                    pos.GetPosition().m_Latitude))
-                continue;
-
-            // Aircraft is in this stand — record it and apply blocking rules.
-            this->standOccupancy[stand.name] = callSign;
-
-            // Resolve wingspan for conditional block thresholds (FP not always available).
-            double wingspan = 0.0;
-            {
-                EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-                if (fp.IsValid())
+                for (const auto& [key, stand] : grStands)
                 {
-                    std::string acType = fp.GetFlightPlanData().GetAircraftFPType();
-                    auto        wsIt   = this->aircraftWingspans.find(acType);
-                    if (wsIt != this->aircraftWingspans.end())
-                        wingspan = wsIt->second;
+                    if (stand.lat.size() < 3) continue;
+
+                    if (stand.icao != lastIcao)
+                    {
+                        lastIcao  = stand.icao;
+                        fieldElev = 0;
+                        auto apIt = airports.find(stand.icao);
+                        if (apIt != airports.end())
+                            fieldElev = apIt->second.fieldElevation;
+                    }
+
+                    if (t.pressAlt > fieldElev + 200) continue;
+
+                    // PointInsidePolygon requires non-const pointers — copy into local arrays.
+                    size_t n = std::min(stand.lon.size(), size_t{16});
+                    double polyX[16], polyY[16];
+                    std::copy_n(stand.lon.data(), n, polyX);
+                    std::copy_n(stand.lat.data(), n, polyY);
+
+                    if (!CFlowX_LookupsTools::PointInsidePolygon(
+                            static_cast<int>(n), polyX, polyY, t.lon, t.lat))
+                        continue;
+
+                    result[stand.name] = t.callSign;
+                    for (const auto& block : stand.blocks)
+                        if (t.wingspan >= block.minWingspan)
+                            result[block.standName] = t.callSign;
+
+                    break; // An aircraft can only occupy one stand — move on to the next target.
                 }
             }
 
-            for (auto& block : stand.blocks)
-            {
-                if (wingspan >= block.minWingspan)
-                    this->standOccupancy[block.standName] = callSign;
-            }
-
-            break; // An aircraft can only occupy one stand — move on to the next radar target.
-        }
-    }
+            return result;
+        });
 }
 
 /// @brief Updates the TWR same-SID outbound list and records per-departure timing and sequencing data.
@@ -1017,6 +981,40 @@ void CFlowX_Timers::UpdateTWROutbound()
             this->twrSameSID_flightPlans.emplace(callSign, 0);
         }
 
+        // Holding-point auto-detection (absorbed from AutoUpdateDepartureHoldingPoints)
+        // Runs for any slow TAXI/DEPA aircraft that is still on the ground; writes slot 8 and
+        // pushes to other controllers only when the annotation actually changes.
+        if ((groundState == "TAXI" || groundState == "DEPA") && pressAlt < depElevation + 50 && pos.GetReportedGS() < 30)
+        {
+            EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad  = fp.GetControllerAssignedData();
+            std::string                                        rwy    = fp.GetFlightPlanData().GetDepartureRwy();
+            std::string                                        before = this->flightStripAnnotation[callSign];
+
+            auto rwyIt = airport->second.runways.find(rwy);
+            if (rwyIt != airport->second.runways.end())
+            {
+                for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
+                {
+                    u_int  corners = static_cast<u_int>(hpData.lat.size());
+                    double polyX[10], polyY[10];
+                    std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
+                    std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
+                    if (PointInsidePolygon(static_cast<int>(corners), polyX, polyY,
+                                           pos.GetPosition().m_Longitude,
+                                           pos.GetPosition().m_Latitude))
+                    {
+                        this->flightStripAnnotation[callSign] =
+                            AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
+                    }
+                }
+            }
+            if (before != this->flightStripAnnotation[callSign])
+            {
+                fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
+                this->PushToOtherControllers(fp);
+            }
+        }
+
         // Check if we need to remove the flight plan because of ground state
         if (!(groundState == "TAXI" || groundState == "DEPA") && this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
         {
@@ -1100,6 +1098,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                 this->tttInbound.RemoveFpFromTheList(fp);
             }
 
+            this->ttt_callSigns.clear();
             this->ttt_clearedToLand.clear();
             this->ttt_flightPlans.clear();
             this->ttt_goAround.clear();
@@ -1113,25 +1112,17 @@ void CFlowX_Timers::UpdateTWRInbound()
         return;
     }
 
-    // Refresh runway-occupancy set: a runway is "occupied" when any radar target is on the ground
-    // within its physical bounds. Used by the TTT inbound cell background alert.
+    // Single pass over all radar targets.
+    // Combines: runway-occupancy detection (was a separate airports×runways×targets triple-nest),
+    // inbound tracking, and go-around lifecycle — all in one RadarTargetSelectFirst/Next walk.
     this->ttt_runwayOccupied.clear();
-    for (auto& [icao, airport] : this->airports)
+
+    // Prune stale recently-removed entries (>60 s with no active go-around)
     {
-        for (auto& [rwyName, rwy] : airport.runways)
+        ULONGLONG now = GetTickCount64();
+        for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
         {
-            if (rwy.widthMeters <= 0) { continue; }
-            for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
-            {
-                EuroScopePlugIn::CRadarTargetPositionData rpos = rt.GetPosition();
-                if (!rpos.IsValid()) { continue; }
-                if (rpos.GetPressureAltitude() > airport.fieldElevation + 80) { continue; }
-                if (IsPositionOnRunway(rwy, airport.runways, rpos.GetPosition()))
-                {
-                    this->ttt_runwayOccupied.insert(rwyName);
-                    break;
-                }
-            }
+            it = ((now - it->second) / 1000 > 60) ? this->ttt_recentlyRemoved.erase(it) : std::next(it);
         }
     }
 
@@ -1147,11 +1138,30 @@ void CFlowX_Timers::UpdateTWRInbound()
             continue;
         }
 
+        auto        position     = pos.GetPosition();
+        auto        pressAlt     = pos.GetPressureAltitude();
+        auto        heading      = pos.GetReportedHeading();
+        bool        isVfrByMe    = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
+
         for (auto airport = this->airports.begin(); airport != this->airports.end(); ++airport)
         {
+            int depElevation = airport->second.fieldElevation;
+
             for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
             {
-                std::string rwyCallsign  = callSign + rwy->second.designator;
+                std::string rwyCallsign = callSign + rwy->second.designator;
+
+                // ── (A) Runway occupancy ──
+                // Inline check: replaces the old airports×runways×targets triple-nested walk.
+                if (rwy->second.widthMeters > 0
+                    && pressAlt <= depElevation + 80
+                    && !this->ttt_runwayOccupied.count(rwy->second.designator)
+                    && IsPositionOnRunway(rwy->second, airport->second.runways, position))
+                {
+                    this->ttt_runwayOccupied.insert(rwy->second.designator);
+                }
+
+                // ── Shared: runway heading number ──
                 std::string arrRwyDigits = rwy->second.designator;
                 arrRwyDigits.erase(std::remove_if(arrRwyDigits.begin(), arrRwyDigits.end(),
                                                   [](char c)
@@ -1159,159 +1169,122 @@ void CFlowX_Timers::UpdateTWRInbound()
                                    arrRwyDigits.end());
                 int arrRwyHdg = arrRwyDigits.empty() ? -1 : std::stoi(arrRwyDigits);
 
-                // If we can't determine the arrival runway heading, we can't determine if it's an inbound or not, so skip it
+                // ── (B) Main inbound tracking ──
                 if (arrRwyHdg == -1)
                 {
-                    if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end())
+                    // Can't determine arrival heading — remove if tracked, then fall through to (C)
+                    if (this->ttt_flightPlans.count(rwyCallsign))
                     {
                         this->tttInbound.RemoveFpFromTheList(fp);
                         this->ttt_flightPlans.erase(rwyCallsign);
                         this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                        auto lb = this->ttt_flightPlans.lower_bound(callSign);
+                        if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
+                            this->ttt_callSigns.erase(callSign);
                     }
-                    continue;
-                }
-
-                // Check if the flight plan needs to be added to the list
-                auto position  = pos.GetPosition();
-                auto distance  = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
-                auto direction = DirectionFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
-                auto pressAlt  = pos.GetPressureAltitude();
-                auto heading   = pos.GetReportedHeading();
-                int  hdgDiff   = std::abs(heading - arrRwyHdg * 10);
-                if (hdgDiff > 180)
-                    hdgDiff = 360 - hdgDiff;
-                double approachDir = std::fmod(arrRwyHdg * 10 + 180.0, 360.0);
-                double dirDiff     = std::abs(direction - approachDir);
-                if (dirDiff > 180.0)
-                    dirDiff = 360.0 - dirDiff;
-
-                int depElevation = airport->second.fieldElevation;
-                if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 5.0)
-                {
-                    this->ttt_distanceToRunway[rwyCallsign] = distance;
-                    std::string trackingControllerId        = fp.GetTrackingControllerId();
-
-                    if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && this->standAssignment.find(callSign) == this->standAssignment.end())
-                    {
-                        // Trigger auto stand assignment in GroundRadar plugin
-                        this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
-                    }
-
-                    if (this->ttt_flightPlans.find(rwyCallsign) == this->ttt_flightPlans.end())
-                    {
-                        this->tttInbound.AddFpToTheList(fp);
-                        this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
-                    }
+                    // Fall through to (C) — go-around check uses hdgDiff=0 for unknown headings
                 }
                 else
                 {
-                    // Only remove normal inbounds; go-arounds are handled in the separate pass below
-                    if (this->ttt_flightPlans.find(rwyCallsign) != this->ttt_flightPlans.end() && this->ttt_goAround.find(rwyCallsign) == this->ttt_goAround.end())
+                    double distance  = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                    double direction = DirectionFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                    int    hdgDiff   = std::abs(heading - arrRwyHdg * 10);
+                    if (hdgDiff > 180)
+                        hdgDiff = 360 - hdgDiff;
+                    double approachDir = std::fmod(arrRwyHdg * 10 + 180.0, 360.0);
+                    double dirDiff     = std::abs(direction - approachDir);
+                    if (dirDiff > 180.0)
+                        dirDiff = 360.0 - dirDiff;
+
+                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 30 && distance < 20 && dirDiff <= 5.0)
                     {
-                        this->tttInbound.RemoveFpFromTheList(fp);
-                        this->ttt_clearedToLand.erase(callSign);
-                        this->ttt_flightPlans.erase(rwyCallsign);
-                        this->ttt_distanceToRunway.erase(rwyCallsign);
-                        this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
-                        if (pressAlt < depElevation + 50)
-                            this->gndTransfer_list.insert(callSign);
-                    }
-                }
-            }
-        }
-    }
+                        this->ttt_distanceToRunway[rwyCallsign] = distance;
+                        std::string trackingControllerId        = fp.GetTrackingControllerId();
 
-    // Go-around detection and lifecycle pass
-    // Prune stale recently-removed entries (>60s with no active go-around)
-    {
-        ULONGLONG now = GetTickCount64();
-        for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
-        {
-            if ((now - it->second) / 1000 > 60)
-            {
-                it = this->ttt_recentlyRemoved.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-    }
+                        if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && !this->standAssignment.count(callSign))
+                        {
+                            // Trigger auto stand assignment in GroundRadar plugin
+                            this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
+                        }
 
-    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
-    {
-        EuroScopePlugIn::CRadarTargetPositionData pos      = rt.GetPosition();
-        EuroScopePlugIn::CFlightPlan              fp       = rt.GetCorrelatedFlightPlan();
-        std::string                               callSign = fp.GetCallsign();
-
-        if (!pos.IsValid())
-        {
-            continue;
-        }
-
-        for (auto airport = this->airports.begin(); airport != this->airports.end(); ++airport)
-        {
-            for (auto rwy = airport->second.runways.begin(); rwy != airport->second.runways.end(); ++rwy)
-            {
-                std::string rwyCallsign       = callSign + rwy->second.designator;
-                bool        isVfrTrackedByMe  = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
-                bool        isGoAround        = !isVfrTrackedByMe && this->ttt_goAround.find(rwyCallsign) != this->ttt_goAround.end();
-                bool        isRecentlyRemoved = !isGoAround && !isVfrTrackedByMe && this->ttt_recentlyRemoved.find(rwyCallsign) != this->ttt_recentlyRemoved.end();
-
-                if (!isGoAround && !isRecentlyRemoved)
-                {
-                    continue;
-                }
-
-                const std::string& opp          = rwy->second.opposite;
-                auto               position     = pos.GetPosition();
-                auto               pressAlt     = pos.GetPressureAltitude();
-                int                depElevation = airport->second.fieldElevation;
-                double             distance     = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
-                auto               heading      = pos.GetReportedHeading();
-                std::string        rwyDigits    = rwy->second.designator;
-                rwyDigits.erase(std::remove_if(rwyDigits.begin(), rwyDigits.end(),
-                                               [](char c)
-                                               { return !std::isdigit(c); }),
-                                rwyDigits.end());
-                int arrRwyHdg = rwyDigits.empty() ? -1 : std::stoi(rwyDigits);
-                int hdgDiff   = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
-                if (hdgDiff > 180)
-                {
-                    hdgDiff = 360 - hdgDiff;
-                }
-
-                if (isGoAround)
-                {
-                    // Active go-around: check removal conditions, otherwise keep distance updated
-                    if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100 || hdgDiff > 30)
-                    {
-                        this->tttInbound.RemoveFpFromTheList(fp);
-                        this->ttt_flightPlans.erase(rwyCallsign);
-                        this->ttt_goAround.erase(rwyCallsign);
-                        this->ttt_distanceToRunway.erase(rwyCallsign);
-                        this->ttt_clearedToLand.erase(callSign);
+                        if (!this->ttt_flightPlans.count(rwyCallsign))
+                        {
+                            this->tttInbound.AddFpToTheList(fp);
+                            this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
+                            this->ttt_callSigns.insert(callSign);
+                        }
                     }
                     else
                     {
-                        this->ttt_distanceToRunway[rwyCallsign] = distance;
+                        // Only remove normal inbounds; go-arounds are handled in (C) below
+                        if (this->ttt_flightPlans.count(rwyCallsign) && !this->ttt_goAround.count(rwyCallsign))
+                        {
+                            this->tttInbound.RemoveFpFromTheList(fp);
+                            this->ttt_clearedToLand.erase(callSign);
+                            this->ttt_flightPlans.erase(rwyCallsign);
+                            this->ttt_distanceToRunway.erase(rwyCallsign);
+                            this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                            auto lb = this->ttt_flightPlans.lower_bound(callSign);
+                            if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
+                                this->ttt_callSigns.erase(callSign);
+                            if (pressAlt < depElevation + 50)
+                                this->gndTransfer_list.insert(callSign);
+                        }
                     }
                 }
-                else if (!opp.empty())
+
+                // ── (C) Go-around / recently-removed lifecycle ──
+                // Runs after (B) so that aircraft removed this tick are correctly visible here.
+                if (!isVfrByMe)
                 {
-                    // Check for go-around: recently removed from normal list, now near opposite threshold and airborne
-                    double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
-                    if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
+                    bool isGoAround        = this->ttt_goAround.count(rwyCallsign) > 0;
+                    bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.count(rwyCallsign) > 0;
+
+                    if (isGoAround || isRecentlyRemoved)
                     {
-                        this->ttt_clearedToLand.erase(callSign);
-                        this->gndTransfer_list.erase(callSign);
-                        this->gndTransfer_soundPlayed.erase(callSign);
-                        if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
-                        this->ttt_goAround[rwyCallsign]         = GetTickCount64();
-                        this->ttt_distanceToRunway[rwyCallsign] = distance;
-                        this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
-                        this->tttInbound.AddFpToTheList(fp);
-                        this->ttt_recentlyRemoved.erase(rwyCallsign);
+                        double             distance     = DistanceFromRunwayThreshold(rwy->second.designator, position, airport->second.runways);
+                        int                hdgDiff      = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
+                        if (hdgDiff > 180)
+                            hdgDiff = 360 - hdgDiff;
+                        const std::string& opp = rwy->second.opposite;
+
+                        if (isGoAround)
+                        {
+                            // Active go-around: check removal conditions, otherwise keep distance updated
+                            if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100 || hdgDiff > 30)
+                            {
+                                this->tttInbound.RemoveFpFromTheList(fp);
+                                this->ttt_flightPlans.erase(rwyCallsign);
+                                this->ttt_goAround.erase(rwyCallsign);
+                                this->ttt_distanceToRunway.erase(rwyCallsign);
+                                this->ttt_clearedToLand.erase(callSign);
+                                auto lb = this->ttt_flightPlans.lower_bound(callSign);
+                                if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
+                                    this->ttt_callSigns.erase(callSign);
+                            }
+                            else
+                            {
+                                this->ttt_distanceToRunway[rwyCallsign] = distance;
+                            }
+                        }
+                        else if (!opp.empty())
+                        {
+                            // Check for go-around: recently removed, now near opposite threshold and airborne
+                            double distFromOpp = DistanceFromRunwayThreshold(opp, position, airport->second.runways);
+                            if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
+                            {
+                                this->ttt_clearedToLand.erase(callSign);
+                                this->gndTransfer_list.erase(callSign);
+                                this->gndTransfer_soundPlayed.erase(callSign);
+                                if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
+                                this->ttt_goAround[rwyCallsign]         = GetTickCount64();
+                                this->ttt_distanceToRunway[rwyCallsign] = distance;
+                                this->ttt_flightPlans.emplace(rwyCallsign, rwy->second);
+                                this->ttt_callSigns.insert(callSign);
+                                this->tttInbound.AddFpToTheList(fp);
+                                this->ttt_recentlyRemoved.erase(rwyCallsign);
+                            }
+                        }
                     }
                 }
             }
