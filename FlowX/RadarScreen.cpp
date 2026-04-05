@@ -969,8 +969,13 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 
         cellClickable(RWY_GRP, r.rwyGroup,                  r.callsignColor, r.callsign + "|RWYGRP");
         cellTagClickable(TTT,    r.ttt,    r.callsign + "|TTT");
-        cellTagClickable(CS, { .tag = r.callsign, .color = r.isGoAround ? TAG_COLOR_WHITE : r.callsignColor,
-                                .bgColor = r.isGoAround ? TAG_BG_COLOR_RED : TAG_COLOR_DEFAULT_NONE },
+        cellTagClickable(CS, { .tag     = r.callsign,
+                                .color   = r.isGoAround ? TAG_COLOR_WHITE
+                                         : r.isFrozen   ? TAG_COLOR_BLACK
+                                         :                r.callsignColor,
+                                .bgColor = r.isGoAround ? TAG_BG_COLOR_RED
+                                         : r.isFrozen   ? TAG_BG_COLOR_YELLOW
+                                         :                TAG_COLOR_DEFAULT_NONE },
                          r.callsign + "|CS");
         cellTagClickable(NM,     r.nm,     r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(GS,    std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);

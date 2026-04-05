@@ -38,8 +38,10 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     const TTTInboundState& state      = planIt->second;
     const std::string&     designator = state.flightPlan.designator;
     double                 distToThreshold = state.distanceToRunway;
-    bool                   isGoAround      = state.goAroundTick != 0;
-    row.isGoAround                         = isGoAround;
+    bool                   isGoAround = state.goAroundTick != 0;
+    bool                   isFrozen   = state.frozenTick != 0;
+    row.isGoAround                    = isGoAround;
+    row.isFrozen                      = isFrozen;
 
     auto sortedIt  = this->ttt_sortedByRunway.find(designator);
     bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());
@@ -50,6 +52,10 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         if (isGoAround)
         {
             return designator + "_->" + state.flightPlan.goAroundFreq;
+        }
+        if (isFrozen)
+        {
+            return designator + "_?" + state.frozenTttStr + "?";
         }
 
         auto position = rt.GetPosition().GetPosition();
@@ -1199,7 +1205,12 @@ void CFlowX_CustomTags::UpdateTagCache()
                     auto        sep     = raw.find('_');
                     std::string timeStr = (sep != std::string::npos) ? raw.substr(sep + 1) : raw;
 
-                    if (!timeStr.empty() && timeStr[0] != '-' && timeStr[0] != '>')
+                    if (!timeStr.empty() && timeStr[0] == '?')
+                    {
+                        // frozen exit: solid yellow, no blinking
+                        tttDisplay.color = TAG_COLOR_YELLOW;
+                    }
+                    else if (!timeStr.empty() && timeStr[0] != '-' && timeStr[0] != '>')
                     {
                         int totalSeconds = parseTttSec(timeStr);
                         if (totalSeconds > 120)

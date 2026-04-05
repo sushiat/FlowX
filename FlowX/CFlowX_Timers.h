@@ -35,9 +35,12 @@ struct TTTInboundState
 {
     runway    flightPlan;                ///< Runway struct (designator, thresholds, approach paths, vacate points, etc.).
     double    distanceToRunway  = 0.0;  ///< NM to runway threshold; updated every position report.
-    ULONGLONG goAroundTick        = 0;     ///< 0 = no go-around detected; non-zero = tick at detection.
-    bool      goAroundConfirmed  = false; ///< True once the controller right-clicked to confirm the go-around; suppresses the 60-second auto-removal timeout.
-    bool      approachFixTracked = false; ///< True while tracking a non-straight-in RNP approach leg.
+    ULONGLONG   frozenTick        = 0;     ///< Non-zero while in 5-second frozen-exit display; set to GetTickCount64() at cone exit.
+    ULONGLONG   goAroundTick     = 0;     ///< 0 = no go-around detected; non-zero = tick at detection.
+    std::string frozenTttStr;             ///< TTT string captured at freeze time (e.g. "02:12"); displayed as "?02:12?".
+    bool        approachFixTracked = false; ///< True while tracking a non-straight-in RNP approach leg.
+    bool        goAroundConfirmed  = false; ///< True once the controller right-clicked to confirm the go-around; suppresses the 60-second auto-removal timeout.
+    bool        wasTrackedByMe     = false; ///< True if GetTrackingControllerIsMe() was true at go-around detection; gates tag-drop and handoff removal.
     int       approachPathIdx   = -1;   ///< Index into flightPlan.gpsApproachPaths; -1 if unused.
     int       approachSegIdx    = -1;   ///< Index of the last passed fix in the approach path; -1 if unused.
 };

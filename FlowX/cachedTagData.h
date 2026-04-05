@@ -64,6 +64,7 @@ struct TwrInboundRowCache
 {
     std::string callsign;
     COLORREF    callsignColor = TAG_COLOR_LIST_GRAY; ///< Callsign colour: gray (unrelated), brown (handover pending), white (tracking), turq (cleared to land)
+    bool        isFrozen      = false;               ///< True when in the 5-second frozen-exit state; drives yellow CS background and "?mm:ss?" TTT
     bool        isGoAround    = false;               ///< True when the row is in active go-around state; drives the red CS background
     char        wtc           = ' ';                 ///< Aircraft weight turbulence category character
     int         groundSpeed   = 0;                   ///< Current ground speed in knots

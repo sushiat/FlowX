@@ -1229,6 +1229,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                         else
                         {
                             inboundIt->second.distanceToRunway   = distance;
+                            inboundIt->second.frozenTick         = 0;
+                            inboundIt->second.frozenTttStr       = {};
                             // Transition from approach-fix tracking to normal cone tracking
                             inboundIt->second.approachFixTracked = false;
                             inboundIt->second.approachPathIdx    = -1;
@@ -1407,25 +1409,64 @@ void CFlowX_Timers::UpdateTWRInbound()
                         }
                         else
                         {
-                            // Only remove normal inbounds; go-arounds are handled in (C) below
+                            // Only process normal inbounds; go-arounds are handled in (C) below
                             if (trackedThisRwy && inboundIt->second.goAroundTick == 0)
                             {
-                                std::string why;
-                                if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
-                                if (pressAlt >= altProfile)           why += " alt_profile=" + std::to_string(pressAlt) + "ft(lim" + std::to_string(static_cast<int>(altProfile)) + ")";
-                                if (hdgDiff > 45)                     why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
-                                if (distance >= 25.0)                 why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
-                                if (dirDiff > dirLimit)               why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(dirLimit)) + ")";
-                                this->LogDebugMessage(callSign + " removed from TTT (cone left) rwy=" + rwy.designator + why, "TTT");
-                                this->tttInbound.RemoveFpFromTheList(fp);
-                                this->ttt_clearedToLand.erase(callSign);
-                                this->ttt_inbound.erase(callSign);
-                                this->ttt_callSigns.erase(callSign);
-                                this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
-                                if (pressAlt < depElevation + 125)
-                                    this->gndTransfer_list.insert(callSign);
+                                TTTInboundState& st = inboundIt->second;
+
+                                if (st.frozenTick != 0)
+                                {
+                                    // Already frozen — check 5-second timeout
+                                    if ((GetTickCount64() - st.frozenTick) / 1000 >= 5)
+                                    {
+                                        this->LogDebugMessage(callSign + " removed from TTT (frozen timeout) rwy=" + rwy.designator, "TTT");
+                                        this->tttInbound.RemoveFpFromTheList(fp);
+                                        this->ttt_clearedToLand.erase(callSign);
+                                        this->ttt_inbound.erase(callSign);
+                                        this->ttt_callSigns.erase(callSign);
+                                    }
+                                    // else: still within 5 s window — keep displaying
+                                }
                                 else
-                                    this->LogDebugMessage(callSign + " removed from TTT but skipped gndTransfer (pressAlt=" + std::to_string(pressAlt) + " depElev=" + std::to_string(depElevation) + " gate=" + std::to_string(depElevation + 125) + ")", "TTT");
+                                {
+                                    // First time leaving cone — decide: landing path or freeze
+                                    std::string why;
+                                    if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
+                                    if (pressAlt >= altProfile)           why += " alt_profile=" + std::to_string(pressAlt) + "ft(lim" + std::to_string(static_cast<int>(altProfile)) + ")";
+                                    if (hdgDiff > 45)                     why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
+                                    if (distance >= 25.0)                 why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
+                                    if (dirDiff > dirLimit)               why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(dirLimit)) + ")";
+
+                                    bool isLanding = pressAlt < depElevation + 125 && hdgDiff < 120;
+                                    if (isLanding)
+                                    {
+                                        // Landing path: immediate removal + gndTransfer
+                                        this->LogDebugMessage(callSign + " removed from TTT (cone left)" + why + " rwy=" + rwy.designator, "TTT");
+                                        this->tttInbound.RemoveFpFromTheList(fp);
+                                        this->ttt_clearedToLand.erase(callSign);
+                                        this->ttt_inbound.erase(callSign);
+                                        this->ttt_callSigns.erase(callSign);
+                                        this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                                        this->gndTransfer_list.insert(callSign);
+                                    }
+                                    else
+                                    {
+                                        // Freeze: stay in list for 5 s with "?mm:ss?" display
+                                        int speed = rt.GetPosition().GetReportedGS();
+                                        if (speed > 0)
+                                        {
+                                            int totalSec    = static_cast<int>((distance / speed) * 3600.0);
+                                            st.frozenTttStr = std::format("{:02d}:{:02d}", totalSec / 60, totalSec % 60);
+                                        }
+                                        else
+                                        {
+                                            st.frozenTttStr = "--:--";
+                                        }
+                                        st.frozenTick = GetTickCount64();
+                                        this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
+                                        this->LogDebugMessage(callSign + " frozen in TTT (cone left)" + why + " rwy=" + rwy.designator, "TTT");
+                                    }
+                                }
                             }
                         }
                     }
@@ -1443,20 +1484,18 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                     if (isGoAround || isRecentlyRemoved)
                     {
-                        double             distance = DistanceFromRunwayThreshold(rwy.designator, position, ap.runways);
-                        int                hdgDiff  = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
-                        if (hdgDiff > 180)
-                            hdgDiff = 360 - hdgDiff;
-                        const std::string& opp = rwy.opposite;
+                        double distance = DistanceFromRunwayThreshold(rwy.designator, position, ap.runways);
 
                         if (isGoAround)
                         {
                             // Active go-around: remove if unconfirmed after 60 s, tag dropped, or outgoing handoff initiated.
+                            // tagDropped/handoffInitiated are only meaningful if I was tracking when the go-around was detected.
                             const TTTInboundState& gaState     = inboundIt->second;
                             bool unconfirmedTimeout            = !gaState.goAroundConfirmed
                                                                  && (GetTickCount64() - gaState.goAroundTick) / 1000 > 60;
-                            bool tagDropped                    = !fp.GetTrackingControllerIsMe();
-                            bool handoffInitiated              = fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
+                            bool tagDropped                    = gaState.wasTrackedByMe && !fp.GetTrackingControllerIsMe();
+                            bool handoffInitiated              = gaState.wasTrackedByMe
+                                                                 && fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
                             if (unconfirmedTimeout || tagDropped || handoffInitiated)
                             {
                                 std::string why;
@@ -1474,37 +1513,40 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 inboundIt->second.distanceToRunway = distance;
                             }
                         }
-                        else if (!opp.empty())
+                        else
                         {
-                            // Check for go-around: recently removed, now near opposite threshold and airborne,
-                            // OR climbing back toward the runway after being removed from the cone.
-                            double distFromOpp     = DistanceFromRunwayThreshold(opp, position, ap.runways);
-                            int    prevAlt         = rt.GetPreviousPosition(pos).GetPressureAltitude();
-                            bool   climbing        = prevAlt < pressAlt - 50;
-                            bool   detectNearOpp   = distFromOpp < 5.0;
-                            bool   detectReapproach = hdgDiff <= 30
-                                                      && (distance < 15.0 || distFromOpp < 1.0)
-                                                      && pressAlt < depElevation + 3000
-                                                      && climbing;
-                            if ((detectNearOpp || detectReapproach) && pressAlt > depElevation + 100)
+                            // Check for go-around: recently-removed aircraft that is climbing.
+                            // Climbing is the only reliable signal; position relative to the opposite
+                            // threshold is not — it was just an indirect proxy.
+                            int  prevAlt        = rt.GetPreviousPosition(pos).GetPressureAltitude();
+                            bool climbing       = prevAlt < pressAlt - 50;
+                            bool detectGoAround = climbing
+                                                  && distance < 15.0
+                                                  && pressAlt < depElevation + 3000;
+                            if (detectGoAround && pressAlt > depElevation + 100)
                             {
                                 this->ttt_clearedToLand.erase(callSign);
                                 this->gndTransfer_list.erase(callSign);
                                 this->gndTransfer_soundPlayed.erase(callSign);
                                 if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
                                 this->LogDebugMessage(callSign + " added to TTT (go-around) rwy=" + rwy.designator
-                                    + " dist=" + std::to_string(static_cast<int>(distFromOpp)) + "NM"
+                                    + " dist=" + std::to_string(static_cast<int>(distance)) + "NM"
                                     + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
-                                TTTInboundState& ga   = this->ttt_inbound[callSign];
-                                ga.flightPlan         = rwy;
-                                ga.distanceToRunway   = distance;
-                                ga.goAroundTick       = GetTickCount64();
-                                ga.goAroundConfirmed  = false;
-                                ga.approachFixTracked = false;
-                                ga.approachPathIdx    = -1;
-                                ga.approachSegIdx     = -1;
+                                bool             wasTracked = trackedThisRwy; // frozen entries are already in ttt_inbound
+                                TTTInboundState& ga         = this->ttt_inbound[callSign];
+                                ga.flightPlan               = rwy;
+                                ga.distanceToRunway         = distance;
+                                ga.frozenTick               = 0;
+                                ga.frozenTttStr             = {};
+                                ga.goAroundTick             = GetTickCount64();
+                                ga.goAroundConfirmed        = false;
+                                ga.wasTrackedByMe           = fp.GetTrackingControllerIsMe();
+                                ga.approachFixTracked       = false;
+                                ga.approachPathIdx          = -1;
+                                ga.approachSegIdx           = -1;
                                 this->ttt_callSigns.insert(callSign);
-                                this->tttInbound.AddFpToTheList(fp);
+                                if (!wasTracked)
+                                    this->tttInbound.AddFpToTheList(fp);
                                 this->ttt_recentlyRemoved.erase(rwyCallsign);
                             }
                         }
