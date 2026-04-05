@@ -17,6 +17,7 @@
 #include <mmsystem.h>
 #include <string>
 #include "constants.h"
+#include "helpers.h"
 
 RadarScreen::RadarScreen()
 {
@@ -1692,6 +1693,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
         }
         // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows; close for all commands
         if (idx < 4 || idx == 12) { this->startMenuOpen = false; }
+
+        std::string clickSnd = GetPluginDirectory() + "\\click.wav";
+        PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+
         this->RequestRefresh();
         return;
     }
