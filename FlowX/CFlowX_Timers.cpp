@@ -1485,14 +1485,14 @@ void CFlowX_Timers::UpdateTWRInbound()
     }
 }
 
-/// @brief Records today's UTC date as the last NAP acknowledgement date and persists it to windowLocations.json.
+/// @brief Records today's UTC date as the last NAP acknowledgement date and persists it to windowSettings.json.
 void CFlowX_Timers::AckNapReminder()
 {
     this->napLastDismissedDate = UtcDateString();
-    this->SaveWindowLocations();
+    this->SaveWindowSettings();
 }
 
-/// @brief Syncs on-screen window positions into the settings layer and writes windowLocations.json.
+/// @brief Syncs on-screen window positions into the settings layer and writes windowSettings.json.
 void CFlowX_Timers::SaveWindowPositions()
 {
     if (this->radarScreen == nullptr) { return; }
@@ -1508,7 +1508,7 @@ void CFlowX_Timers::SaveWindowPositions()
     this->weatherWindowX    = this->radarScreen->weatherWindowPos.x;
     this->weatherWindowY    = this->radarScreen->weatherWindowPos.y;
 
-    this->SaveWindowLocations();
+    this->SaveWindowSettings();
 }
 
 /// @brief Clears all unacknowledged change flags for the given airport.

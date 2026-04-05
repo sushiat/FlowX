@@ -267,16 +267,20 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
 /// @brief Draws the DEP/H departure-rate window from the pre-calculated depRateRowsCache.
 void RadarScreen::DrawDepRateWindow(HDC hDC)
 {
-    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetDepRateVisible()) { return; }
+    auto* settingsDep = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settingsDep->GetDepRateVisible()) { return; }
+    int fo = settingsDep->GetFontOffset();
 
     const int TITLE_H = 13;
-    const int HDR_H   = 17;
-    const int ROW_H   = 15;
+    const int HDR_H   = 17 + fo;
+    const int ROW_H   = 15 + fo;
     const int WIN_PAD = 6;
-    const int COL_RWY = 35;
-    const int COL_CNT = 20;
+    // Base column widths at font size 12; scaled by (12+fo)/12:
+    auto cw = [&](int base) -> int { return base * (12 + fo) / 12; };
+    const int COL_RWY = cw(35);
+    const int COL_CNT = cw(20);
     const int COL_GAP = 6;
-    const int COL_SPC = 56;
+    const int COL_SPC = cw(56);
     const int WIN_W   = WIN_PAD + COL_RWY + COL_CNT + COL_GAP + COL_SPC + WIN_PAD;
     const int X_BTN   = 11;  ///< Width and height of the title-bar close button
     int numRows       = (int)this->depRateRowsCache.size();
@@ -337,13 +341,21 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "Departures", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
-    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
     RECT dragRect = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
     AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", dragRect, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "depRate", xRect, false, "");
+
+    HFONT hdrFontDep  = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT dataFontDep = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevFontDep = (HFONT)SelectObject(hDC, hdrFontDep);
 
     // Column headers
     SetTextColor(hDC, TAG_COLOR_WHITE);
@@ -359,6 +371,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     }
 
     // Data rows
+    SelectObject(hDC, dataFontDep);
     auto altBrushDep = CreateSolidBrush(RGB(32, 32, 32));
     for (int row = 0; row < numRows; ++row)
     {
@@ -378,32 +391,38 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
         DrawTextA(hDC, r.spacingStr.c_str(), -1, &spcRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     DeleteObject(altBrushDep);
+    SelectObject(hDC, prevFontDep);
+    DeleteObject(hdrFontDep);
+    DeleteObject(dataFontDep);
 }
 
 /// @brief Draws the TWR Outbound custom window from the pre-sorted twrOutboundRowsCache.
 /// Column widths derived from the original EuroScope list definition char widths × 7px.
 void RadarScreen::DrawTwrOutbound(HDC hDC)
 {
-    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetTwrOutboundVisible()) { return; }
+    auto* settingsOut = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settingsOut->GetTwrOutboundVisible()) { return; }
+    int fo = settingsOut->GetFontOffset();
 
     const int TITLE_H = 13;
-    const int HDR_H   = 17;
-    const int ROW_H   = 19;
+    const int HDR_H   = 17 + fo;
+    const int ROW_H   = 19 + fo;
     const int PAD     = 6;
-    // Original list column order and widths in chars:
+    // Original list column order and widths in chars (base widths at font size 17; scaled by (17+fo)/17):
     // C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, ATYP=8, Freq=15, HP=4, Spacing=17, dNM=8
-    const int CS      = 84;   // 12 chars
-    const int STS     = 84;   // 12 chars
-    const int DEP     = 70;   // 10 chars
-    const int RWY     = 35;   //  4 chars (widened: "RWY" label needs more than 4×7px)
-    const int SID     = 77;   // 11 chars
-    const int WTC     = 28;   //  4 chars
-    const int ATYP    = 56;   //  8 chars
-    const int FREQ    = 105;  // 15 chars
-    const int HP      = 28;   //  4 chars
-    const int SPC     = 119;  // 17 chars
-    const int TMR     = 56;   //  8 chars ("9:59"; extra left margin separates from Spacing)
-    const int LDST    = 77;   // 11 chars (live distance to previous departure; extra left margin separates from T+)
+    auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
+    const int CS      = cw(84);   // 12 chars
+    const int STS     = cw(84);   // 12 chars
+    const int DEP     = cw(70);   // 10 chars
+    const int RWY     = cw(35);   //  4 chars (widened: "RWY" label needs more than 4×7px)
+    const int SID     = cw(77);   // 11 chars
+    const int WTC     = cw(28);   //  4 chars
+    const int ATYP    = cw(56);   //  8 chars
+    const int FREQ    = cw(105);  // 15 chars
+    const int HP      = cw(28);   //  4 chars
+    const int SPC     = cw(119);  // 17 chars
+    const int TMR     = cw(56);   //  8 chars ("9:59"; extra left margin separates from Spacing)
+    const int LDST    = cw(77);   // 11 chars (live distance to previous departure; extra left margin separates from T+)
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
     const int SEP_H   = 12;    ///< Height of blank separator row between sort groups
     const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + TMR + LDST + PAD;
@@ -474,7 +493,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Outbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
-    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
@@ -483,7 +502,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrOut", xRect, false, "");
 
     // Column headers — smaller font
-    HFONT hdrFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT hdrFont = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevDataFont = (HFONT)SelectObject(hDC, hdrFont);
@@ -514,10 +533,10 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     DeleteObject(hdrFont);
 
     // Data rows — normal font for active aircraft, dimmed for departed+untracked
-    HFONT dataFont = CreateFontA(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT dataFont = CreateFontA(-17 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT dimFont  = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT dimFont  = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     prevDataFont = (HFONT)SelectObject(hDC, dataFont);
@@ -573,7 +592,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             HFONT cellFont = nullptr;
             if (styled)
             {
-                int baseSize = r.dimmed ? -14 : -17;
+                int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -612,7 +631,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             HFONT cellFont = nullptr;
             if (styled)
             {
-                int baseSize = r.dimmed ? -14 : -17;
+                int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -667,25 +686,29 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 /// Column widths derived from the original EuroScope list definition char widths × 7px.
 void RadarScreen::DrawTwrInbound(HDC hDC)
 {
-    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetTwrInboundVisible()) { return; }
+    auto* settingsIn = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settingsIn->GetTwrInboundVisible()) { return; }
+    int fo = settingsIn->GetFontOffset();
 
-    const int TITLE_H = 13;
-    const int HDR_H   = 17;
-    const int ROW_H        = 19;
+    const int TITLE_H      = 13;
+    const int HDR_H        = 17 + fo;
+    const int ROW_H        = 19 + fo;
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
     const int SEP_H        = 12;    ///< Height of blank separator row between runway groups
     const int PAD     = 6;
     // Column order: RWY_GRP (new), TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, RWY
-    const int RWY_GRP = 35;   //  new front column — runway group label
-    const int TTT     = 56;   //  now displays "mm:ss" only (~5 chars)
-    const int CS      = 84;   // 12 chars
-    const int NM      = 56;   //  8 chars
-    const int GS      = 35;   //  5 chars
-    const int WTC     = 28;   //  4 chars
-    const int ATYP    = 56;   //  8 chars
-    const int GATE    = 35;   //  5 chars
-    const int VACATE  = 49;   //  7 chars
-    const int RWY     = 49;   //  7 chars
+    // Base widths at font size 17; scaled by (17+fo)/17:
+    auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
+    const int RWY_GRP = cw(35);   //  new front column — runway group label
+    const int TTT     = cw(56);   //  now displays "mm:ss" only (~5 chars)
+    const int CS      = cw(84);   // 12 chars
+    const int NM      = cw(56);   //  8 chars
+    const int GS      = cw(35);   //  5 chars
+    const int WTC     = cw(28);   //  4 chars
+    const int ATYP    = cw(56);   //  8 chars
+    const int GATE    = cw(35);   //  5 chars
+    const int VACATE  = cw(49);   //  7 chars
+    const int RWY     = cw(49);   //  7 chars
     const int WIN_W   = PAD + RWY_GRP + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + RWY + PAD;
     int numRows       = (int)this->twrInboundRowsCache.size();
 
@@ -759,7 +782,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Inbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
-    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
@@ -768,7 +791,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrIn", xRect, false, "");
 
     // Column headers — smaller font
-    HFONT hdrFont = CreateFontA(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT hdrFont = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevDataFont = (HFONT)SelectObject(hDC, hdrFont);
@@ -797,10 +820,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     DeleteObject(hdrFont);
 
     // Data rows — normal font for the closest aircraft per runway, dimmed for the rest
-    HFONT dataFont = CreateFontA(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT dataFont = CreateFontA(-17 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT dimFont  = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT dimFont  = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     prevDataFont = (HFONT)SelectObject(hDC, dataFont);
@@ -859,7 +882,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             HFONT cellFont = nullptr;
             if (styled)
             {
-                int baseSize = r.dimmed ? -14 : -17;
+                int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -898,7 +921,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             HFONT cellFont = nullptr;
             if (styled)
             {
-                int baseSize = r.dimmed ? -14 : -17;
+                int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -1141,19 +1164,19 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 {
     if (!this->startMenuOpen) { return; }
 
-    const int BTN_H     = 20;  ///< Must match DrawStartButton::BTN_H
-    const int HEADER_H  = 16;  ///< Height of a section header row
-    const int ITEM_H    = 20;  ///< Height of a clickable item row
-    const int GAP_H     = 10;  ///< Spacer height inserted above each section header after the first
-    const int OUTER_PAD = 6;   ///< Margin from the outer border to all content on every side
-    const int CBX_S     = 9;   ///< Checkbox square size in pixels
-    const int CBX_GAP   = 4;   ///< Gap between checkbox right edge and item label
-    const int MENU_W    = 150; ///< Menu width; right-aligned with the button
-
-    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; };
-
+    const int BTN_H     = 20;  ///< Must match DrawStartButton::BTN_H (fixed)
     auto* base     = static_cast<CFlowX_Base*>(this->GetPlugIn());
     auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    const int fo        = settings->GetFontOffset();
+    const int HEADER_H  = 16 + fo;  ///< Height of a section header row
+    const int ITEM_H    = 20 + fo;  ///< Height of a clickable item row
+    const int GAP_H     = 10;       ///< Spacer height inserted above each section header after the first
+    const int OUTER_PAD = 6;        ///< Margin from the outer border to all content on every side
+    const int CBX_S     = 9 + fo;   ///< Checkbox square size in pixels
+    const int CBX_GAP   = 4;        ///< Gap between checkbox right edge and item label
+    const int MENU_W    = 150 * (14 + fo) / 14; ///< Menu width scaled with item font; right-aligned with the button
+
+    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; };
 
     MenuRow rows[] = {
         { true,  "Windows",        false, false,                              -1 },
@@ -1167,6 +1190,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { true,  "Options",        false, false,                              -1 },
         { false, "Debug mode",     true,  base->GetDebug(),                    2 },
         { false, "Autostore FPLN", true,  settings->GetAutoRestore(),          3 },
+        { false, "Fonts",          false, false,                              -1, true },
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -1208,13 +1232,13 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
     SetBkMode(hDC, TRANSPARENT);
 
-    HFONT headerFont = CreateFontA(-10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT headerFont = CreateFontA(-10 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT itemFont   = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT itemFont   = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT cbxFont    = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT cbxFont    = CreateFontA(-11 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prev = (HFONT)SelectObject(hDC, itemFont);
@@ -1241,6 +1265,44 @@ void RadarScreen::DrawStartMenu(HDC hDC)
             SetTextColor(hDC, TAG_COLOR_WHITE);
             RECT textRect = { mx + OUTER_PAD, iy, mx + MENU_W - OUTER_PAD, iy + HEADER_H };
             DrawTextA(hDC, row.label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+        else if (row.hasFontButtons)
+        {
+            // Fonts row: label + current offset value on the left, [−] [+] buttons on the right.
+            const int BTN_W = 14 + fo;
+            int fo = settings->GetFontOffset();
+            std::string valStr = (fo > 0) ? std::format("+{}", fo) : std::format("{}", fo);
+
+            RECT minusRect = { mx + MENU_W - OUTER_PAD - BTN_W * 2 - 2, iy + (ITEM_H - BTN_W) / 2,
+                               mx + MENU_W - OUTER_PAD - BTN_W - 2,     iy + (ITEM_H + BTN_W) / 2 };
+            RECT plusRect  = { mx + MENU_W - OUTER_PAD - BTN_W,         iy + (ITEM_H - BTN_W) / 2,
+                               mx + MENU_W - OUTER_PAD,                  iy + (ITEM_H + BTN_W) / 2 };
+            bool minusHov = PtInRect(&minusRect, cursor) != 0;
+            bool plusHov  = PtInRect(&plusRect,  cursor) != 0;
+
+            for (auto [rect, hov] : { std::pair{minusRect, minusHov}, std::pair{plusRect, plusHov} })
+            {
+                auto btnBrush = CreateSolidBrush(hov ? RGB(45, 70, 115) : RGB(35, 35, 35));
+                FillRect(hDC, &rect, btnBrush);
+                DeleteObject(btnBrush);
+                auto btnBorder = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+                FrameRect(hDC, &rect, btnBorder);
+                DeleteObject(btnBorder);
+            }
+
+            SelectObject(hDC, itemFont);
+            std::string fullLabel = std::string("Fonts ") + valStr;
+            RECT labelRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, minusRect.left - 4, iy + ITEM_H };
+            SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
+            DrawTextA(hDC, fullLabel.c_str(), -1, &labelRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            SelectObject(hDC, cbxFont);
+            SetTextColor(hDC, TAG_COLOR_WHITE);
+            DrawTextA(hDC, "-", -1, &minusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextA(hDC, "+", -1, &plusRect,  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|8", minusRect, false, "");
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|9", plusRect,  false, "");
         }
         else
         {
@@ -1302,7 +1364,9 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 /// Values are highlighted yellow when changed; clicking the row acknowledges them.
 void RadarScreen::DrawWeatherWindow(HDC hDC)
 {
-    if (!static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetWeatherVisible()) { return; }
+    auto* settingsWx = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settingsWx->GetWeatherVisible()) { return; }
+    int fo = settingsWx->GetFontOffset();
 
     const int TITLE_H = 13;
     const int DATA_H  = 36;
@@ -1316,7 +1380,7 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT dataFont  = CreateFontA(-20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    HFONT dataFont  = CreateFontA(-20 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
 
@@ -1388,7 +1452,7 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "WX/ATIS", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
-    SetTextColor(hDC, xHovered ? TAG_COLOR_WHITE : RGB(180, 100, 100));
+    SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     RECT dragRectWx = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
     AddScreenObject(SCREEN_OBJECT_WEATHER_WIN, "WXATIS", dragRectWx, true, "");
@@ -1564,6 +1628,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
             else if (idx == 7) { settings->ToggleWeatherVisible(); }
+            else if (idx == 8) { settings->DecreaseFontOffset(); }
+            else if (idx == 9) { settings->IncreaseFontOffset(); }
         }
         // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows
         if (idx < 4) { this->startMenuOpen = false; }

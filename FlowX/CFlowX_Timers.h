@@ -126,11 +126,11 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     void UpdateTWRInbound();
 
   public:
-    /// @brief Records today's UTC date as the last NAP dismissal date and saves it to windowLocations.json.
+    /// @brief Records today's UTC date as the last NAP dismissal date and saves it to windowSettings.json.
     /// @note Called by RadarScreen when the user clicks the ACK button on the NAP reminder window.
     void AckNapReminder();
 
-    /// @brief Syncs current on-screen window positions into the settings layer and writes windowLocations.json.
+    /// @brief Syncs current on-screen window positions into the settings layer and writes windowSettings.json.
     /// @note Called when the user clicks "Save positions" in the FlowX menu.
     void SaveWindowPositions();
 

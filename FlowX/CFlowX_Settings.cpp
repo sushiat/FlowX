@@ -18,7 +18,7 @@ CFlowX_Settings::CFlowX_Settings()
     this->updateCheck = false;
 
     this->LoadSettings();
-    this->LoadWindowLocations();
+    this->LoadWindowSettings();
     this->LoadConfig();
     this->LoadAircraftData();
     this->LoadGroundRadarStands();
@@ -73,13 +73,13 @@ void CFlowX_Settings::SaveSettings()
     this->SaveDataToSettings(PLUGIN_NAME, "FlowX settings", ss.str().c_str());
 }
 
-/// @brief Loads window positions from windowLocations.json in the plugin directory.
-void CFlowX_Settings::LoadWindowLocations()
+/// @brief Loads window positions and global UI settings from windowSettings.json in the plugin directory.
+void CFlowX_Settings::LoadWindowSettings()
 {
     try
     {
         std::filesystem::path path(GetPluginDirectory());
-        path.append("windowLocations.json");
+        path.append("windowSettings.json");
 
         std::ifstream ifs(path);
         if (!ifs.is_open())
@@ -89,35 +89,47 @@ void CFlowX_Settings::LoadWindowLocations()
 
         json j = json::parse(ifs);
 
-        if (j.contains("depRateWindow"))
+        if (j.contains("global"))
         {
-            this->depRateWindowX = j["depRateWindow"].value("x", -1);
-            this->depRateWindowY = j["depRateWindow"].value("y", -1);
-            this->depRateVisible = j["depRateWindow"].value("visible", true);
+            this->fontOffset = j["global"].value("fontOffset", 0);
         }
-        if (j.contains("twrOutboundWindow"))
+
+        if (j.contains("windowSettings") && j["windowSettings"].is_array())
         {
-            this->twrOutboundWindowX = j["twrOutboundWindow"].value("x", -1);
-            this->twrOutboundWindowY = j["twrOutboundWindow"].value("y", -1);
-            this->twrOutboundVisible = j["twrOutboundWindow"].value("visible", true);
-        }
-        if (j.contains("twrInboundWindow"))
-        {
-            this->twrInboundWindowX = j["twrInboundWindow"].value("x", -1);
-            this->twrInboundWindowY = j["twrInboundWindow"].value("y", -1);
-            this->twrInboundVisible = j["twrInboundWindow"].value("visible", true);
-        }
-        if (j.contains("napWindow"))
-        {
-            this->napWindowX           = j["napWindow"].value("x", -1);
-            this->napWindowY           = j["napWindow"].value("y", -1);
-            this->napLastDismissedDate = j["napWindow"].value("lastDismissedDate", "");
-        }
-        if (j.contains("weatherWindow"))
-        {
-            this->weatherWindowX = j["weatherWindow"].value("x", -1);
-            this->weatherWindowY = j["weatherWindow"].value("y", -1);
-            this->weatherVisible = j["weatherWindow"].value("visible", true);
+            for (const auto& w : j["windowSettings"])
+            {
+                std::string name = w.value("name", "");
+                if (name == "depRateWindow")
+                {
+                    this->depRateWindowX = w.value("x", -1);
+                    this->depRateWindowY = w.value("y", -1);
+                    this->depRateVisible = w.value("visible", true);
+                }
+                else if (name == "twrOutboundWindow")
+                {
+                    this->twrOutboundWindowX = w.value("x", -1);
+                    this->twrOutboundWindowY = w.value("y", -1);
+                    this->twrOutboundVisible = w.value("visible", true);
+                }
+                else if (name == "twrInboundWindow")
+                {
+                    this->twrInboundWindowX = w.value("x", -1);
+                    this->twrInboundWindowY = w.value("y", -1);
+                    this->twrInboundVisible = w.value("visible", true);
+                }
+                else if (name == "napWindow")
+                {
+                    this->napWindowX           = w.value("x", -1);
+                    this->napWindowY           = w.value("y", -1);
+                    this->napLastDismissedDate = w.value("lastDismissedDate", "");
+                }
+                else if (name == "weatherWindow")
+                {
+                    this->weatherWindowX = w.value("x", -1);
+                    this->weatherWindowY = w.value("y", -1);
+                    this->weatherVisible = w.value("visible", true);
+                }
+            }
         }
     }
     catch (std::exception&)
@@ -126,37 +138,47 @@ void CFlowX_Settings::LoadWindowLocations()
     }
 }
 
-/// @brief Writes current window positions to windowLocations.json in the plugin directory.
-void CFlowX_Settings::SaveWindowLocations()
+/// @brief Writes window positions and global UI settings to windowSettings.json in the plugin directory.
+void CFlowX_Settings::SaveWindowSettings()
 {
     try
     {
         json j;
-        j["depRateWindow"]["x"]              = this->depRateWindowX;
-        j["depRateWindow"]["y"]              = this->depRateWindowY;
-        j["depRateWindow"]["visible"]        = this->depRateVisible;
-        j["twrOutboundWindow"]["x"]          = this->twrOutboundWindowX;
-        j["twrOutboundWindow"]["y"]          = this->twrOutboundWindowY;
-        j["twrOutboundWindow"]["visible"]    = this->twrOutboundVisible;
-        j["twrInboundWindow"]["x"]           = this->twrInboundWindowX;
-        j["twrInboundWindow"]["y"]           = this->twrInboundWindowY;
-        j["twrInboundWindow"]["visible"]     = this->twrInboundVisible;
-        j["napWindow"]["x"]                  = this->napWindowX;
-        j["napWindow"]["y"]                  = this->napWindowY;
-        j["napWindow"]["lastDismissedDate"]  = this->napLastDismissedDate;
-        j["weatherWindow"]["x"]              = this->weatherWindowX;
-        j["weatherWindow"]["y"]              = this->weatherWindowY;
-        j["weatherWindow"]["visible"]        = this->weatherVisible;
+        j["global"]["fontOffset"] = this->fontOffset;
+
+        json windows = json::array();
+        auto addWin = [&](const char* name, int x, int y, bool vis)
+        {
+            json w;
+            w["name"]    = name;
+            w["x"]       = x;
+            w["y"]       = y;
+            w["visible"] = vis;
+            windows.push_back(w);
+        };
+        addWin("depRateWindow",     this->depRateWindowX,     this->depRateWindowY,     this->depRateVisible);
+        addWin("twrOutboundWindow", this->twrOutboundWindowX, this->twrOutboundWindowY, this->twrOutboundVisible);
+        addWin("twrInboundWindow",  this->twrInboundWindowX,  this->twrInboundWindowY,  this->twrInboundVisible);
+        {
+            json w;
+            w["name"]              = "napWindow";
+            w["x"]                 = this->napWindowX;
+            w["y"]                 = this->napWindowY;
+            w["lastDismissedDate"] = this->napLastDismissedDate;
+            windows.push_back(w);
+        }
+        addWin("weatherWindow", this->weatherWindowX, this->weatherWindowY, this->weatherVisible);
+        j["windowSettings"] = windows;
 
         std::filesystem::path path(GetPluginDirectory());
-        path.append("windowLocations.json");
+        path.append("windowSettings.json");
 
         std::ofstream ofs(path);
         ofs << j.dump(4);
     }
     catch (std::exception& e)
     {
-        this->LogMessage("Failed to save window locations. Error: " + std::string(e.what()), "Settings");
+        this->LogMessage("Failed to save window settings. Error: " + std::string(e.what()), "Settings");
     }
 }
 
