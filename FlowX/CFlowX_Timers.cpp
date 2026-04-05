@@ -1202,7 +1202,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                     if (dirDiff > 180.0)
                         dirDiff = 360.0 - dirDiff;
 
-                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 45 && distance < 25 && dirDiff <= 5.0 + distance * 0.7)
+                    double dirLimit = std::min(5.0 + distance * 0.7, 15.0);
+                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 45 && distance < 25 && dirDiff <= dirLimit)
                     {
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         std::string trackingControllerId        = fp.GetTrackingControllerId();
@@ -1415,7 +1416,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 if (pressAlt >= depElevation + 7050)  why += " alt_high=" + std::to_string(pressAlt) + "ft";
                                 if (hdgDiff > 45)                     why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
                                 if (distance >= 25.0)                 why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
-                                if (dirDiff > 5.0 + distance * 0.7)   why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(5.0 + distance * 0.7)) + ")";
+                                if (dirDiff > dirLimit)               why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(dirLimit)) + ")";
                                 this->LogDebugMessage(callSign + " removed from TTT (cone left) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
@@ -1454,6 +1455,12 @@ void CFlowX_Timers::UpdateTWRInbound()
                             // Active go-around: check removal conditions, otherwise keep distance updated
                             if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100 || hdgDiff > 30)
                             {
+                                std::string why;
+                                if (distance > 5.0)                      why += " dist>" + std::to_string(static_cast<int>(distance)) + "NM";
+                                if (pressAlt > depElevation + 3000)      why += " alt_high=" + std::to_string(pressAlt) + "ft";
+                                if (pressAlt < depElevation + 100)       why += " alt_low=" + std::to_string(pressAlt) + "ft";
+                                if (hdgDiff > 30)                        why += " hdg=" + std::to_string(hdgDiff) + "deg(lim30)";
+                                this->LogDebugMessage(callSign + " removed from TTT (go-around cleared) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_flightPlans.erase(rwyCallsign);
                                 this->ttt_goAround.erase(rwyCallsign);
@@ -1478,6 +1485,9 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 this->gndTransfer_list.erase(callSign);
                                 this->gndTransfer_soundPlayed.erase(callSign);
                                 if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
+                                this->LogDebugMessage(callSign + " added to TTT (go-around) rwy=" + rwy.designator
+                                    + " dist=" + std::to_string(static_cast<int>(distFromOpp)) + "NM"
+                                    + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
                                 this->ttt_goAround[rwyCallsign]         = GetTickCount64();
                                 this->ttt_distanceToRunway[rwyCallsign] = distance;
                                 this->ttt_flightPlans.emplace(rwyCallsign, rwy);

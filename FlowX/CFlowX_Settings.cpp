@@ -13,6 +13,130 @@
 #include <future>
 #include <semver/semver.hpp>
 
+/// @brief Returns true if every element of the JSON array is a scalar (not object/array).
+static bool isScalarArray(const nlohmann::json& j)
+{
+    if (!j.is_array()) return false;
+    for (const auto& v : j)
+        if (v.is_object() || v.is_array()) return false;
+    return true;
+}
+
+/// @brief Returns true if every value in the JSON object is a scalar or scalar-array.
+static bool isSimpleObject(const nlohmann::json& j)
+{
+    if (!j.is_object()) return false;
+    for (const auto& [k, v] : j.items())
+        if (v.is_object() || (v.is_array() && !isScalarArray(v))) return false;
+    return true;
+}
+
+/// @brief Returns true if j (object, ≤4 keys) should be inlined even though it contains
+///        nested simple-objects as values (e.g. a holding-point with a polygon child).
+///        Does NOT apply to plain simple-objects — those are already handled by isSimpleObject.
+static bool isDeepInlineable(const nlohmann::json& j)
+{
+    if (!j.is_object() || j.size() > 4) return false;
+    bool hasNestedObject = false;
+    for (const auto& [k, v] : j.items())
+    {
+        if (v.is_array() && !isScalarArray(v)) return false;
+        if (v.is_object())
+        {
+            if (!isSimpleObject(v)) return false;  // only one level of nesting allowed
+            hasNestedObject = true;
+        }
+    }
+    return hasNestedObject;  // pure simple-objects are handled by isSimpleObject already
+}
+
+/// @brief Renders a deep-inlineable object (one level of simple-object nesting) on one line.
+static std::string fmtDeepInline(const nlohmann::json& j)
+{
+    std::string s = "{ ";
+    bool first = true;
+    for (const auto& [k, v] : j.items())
+    {
+        if (!first) s += ", ";
+        s += nlohmann::json(k).dump() + ": ";
+        if (v.is_object())
+        {
+            std::string s2 = "{ ";
+            bool f2 = true;
+            for (const auto& [k2, v2] : v.items())
+            {
+                if (!f2) s2 += ", ";
+                s2 += nlohmann::json(k2).dump() + ": " + v2.dump();
+                f2 = false;
+            }
+            s += s2 + " }";
+        }
+        else
+            s += v.dump();
+        first = false;
+    }
+    return s + " }";
+}
+
+/// @brief Produces compact JSON: scalar arrays, simple objects, and small objects with one level
+///        of simple-object nesting are written on one line; everything else is pretty-printed.
+static std::string compactJson(const nlohmann::json& j, int depth = 0)
+{
+    const std::string pad(static_cast<size_t>(depth) * 2, ' ');
+    const std::string pad1(static_cast<size_t>(depth + 1) * 2, ' ');
+
+    if (!j.is_object() && !j.is_array())
+        return j.dump();
+
+    if (j.is_array())
+    {
+        if (isScalarArray(j))
+        {
+            std::string s = "[";
+            bool first = true;
+            for (const auto& v : j) { if (!first) s += ", "; s += v.dump(); first = false; }
+            return s + "]";
+        }
+        // Array with complex elements: one per line
+        std::string s = "[\n";
+        bool first = true;
+        for (const auto& v : j)
+        {
+            if (!first) s += ",\n";
+            s += pad1 + compactJson(v, depth + 1);
+            first = false;
+        }
+        return s + "\n" + pad + "]";
+    }
+
+    // Object: inline if all values are scalars/scalar-arrays (any key count),
+    // or if ≤4 keys with exactly one level of simple-object nesting.
+    if (isSimpleObject(j))
+    {
+        std::string s = "{ ";
+        bool first = true;
+        for (const auto& [k, v] : j.items())
+        {
+            if (!first) s += ", ";
+            s += nlohmann::json(k).dump() + ": " + v.dump();
+            first = false;
+        }
+        return s + " }";
+    }
+    if (isDeepInlineable(j))
+        return fmtDeepInline(j);
+
+    std::string s = "{\n";
+    bool first = true;
+    for (const auto& [k, v] : j.items())
+    {
+        if (!first) s += ",\n";
+        s += pad1 + nlohmann::json(k).dump() + ": " + compactJson(v, depth + 1);
+        first = false;
+    }
+    return s + "\n" + pad + "}";
+}
+
 CFlowX_Settings::CFlowX_Settings()
 {
     this->updateCheck = false;
@@ -619,7 +743,7 @@ void CFlowX_Settings::LoadConfig()
         sprintf_s(ts, sizeof(ts), "%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         std::filesystem::path logPath = std::filesystem::path(GetPluginDirectory()) / "debugLog.txt";
         std::ofstream         f(logPath, std::ios::app);
-        if (f) f << ts << " [Config] config.json contents:\n" << config.dump(2) << "\n";
+        if (f) f << ts << " [Config] config.json contents:\n" << compactJson(config) << "\n";
     }
 
     // Computed/derived values not present in raw JSON (arc geometry for GPS approach paths).
