@@ -591,14 +591,21 @@ void CFlowX_Settings::LoadConfig()
                         rwy.sidColors.emplace(sid.get<std::string>(), color);
                 }
 
+                int hpOrder = 0;
                 for (auto& [hpName, json_hp] : json_rwy["holdingPoints"].items())
                 {
                     holdingPoint hp{};
                     hp.name       = hpName;
                     hp.assignable = json_hp.value<bool>("assignable", false);
                     hp.sameAs     = json_hp.value<std::string>("sameAs", "");
+                    hp.order      = hpOrder++;
                     hp.lat        = json_hp["polygon"]["lat"].get<std::vector<double>>();
                     hp.lon        = json_hp["polygon"]["lon"].get<std::vector<double>>();
+                    if (!hp.lat.empty())
+                    {
+                        hp.centerLat = std::ranges::fold_left(hp.lat, 0.0, std::plus{}) / hp.lat.size();
+                        hp.centerLon = std::ranges::fold_left(hp.lon, 0.0, std::plus{}) / hp.lon.size();
+                    }
                     rwy.holdingPoints.emplace(hpName, hp);
                 }
 
@@ -709,11 +716,20 @@ void CFlowX_Settings::LoadConfig()
         if (f) f << ts << " [Config] config.json contents:\n" << compactJson(config) << "\n";
     }
 
-    // Computed/derived values not present in raw JSON (arc geometry for GPS approach paths).
+    // Computed/derived values not present in raw JSON (arc geometry for GPS approach paths; holding-point centroids).
     for (auto& [icao, ap] : this->airports)
     {
         for (auto& [rwyDesignator, rwy] : ap.runways)
         {
+            for (auto& [hpName, hp] : rwy.holdingPoints)
+            {
+                if (hp.centerLat == 0.0 && hp.centerLon == 0.0) { continue; }
+                this->LogDebugFileOnly(std::format(
+                    "[{}][{}][{}] hp centre={:.6f}/{:.6f}",
+                    icao, rwyDesignator, hpName,
+                    hp.centerLat, hp.centerLon), "Config");
+            }
+
             for (auto& path : rwy.gpsApproachPaths)
             {
                 for (auto& fix : path.fixes)

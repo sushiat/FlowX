@@ -290,6 +290,44 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         }
     }
 
+    // Distance to target holding point — used for the sort key instead of runway-threshold distance.
+    // Prefers the assigned HP (annotation slot 8, pos 7+, no * suffix); falls back to the first HP in
+    // config.json order (lowest order index); falls back to distToRunwayThreshold if no HP data.
+    double distToTargetHp = (distToRunwayThreshold >= 0.0) ? distToRunwayThreshold : 0.0;
+    if (rwyIt != airportIt->second.runways.end() && !rwyIt->second.holdingPoints.empty())
+    {
+        const holdingPoint* targetHp = nullptr;
+
+        auto annoIt = this->flightStripAnnotation.find(callSign);
+        if (annoIt != this->flightStripAnnotation.end() && annoIt->second.size() > 7)
+        {
+            std::string hpName = annoIt->second.substr(7);
+            if (!hpName.empty() && !hpName.contains('*'))
+            {
+                auto hpIt = rwyIt->second.holdingPoints.find(hpName);
+                if (hpIt != rwyIt->second.holdingPoints.end() && hpIt->second.centerLat != 0.0)
+                    targetHp = &hpIt->second;
+            }
+        }
+
+        if (!targetHp)
+        {
+            for (auto& [name, hp] : rwyIt->second.holdingPoints)
+            {
+                if (hp.centerLat != 0.0 && (!targetHp || hp.order < targetHp->order))
+                    targetHp = &hp;
+            }
+        }
+
+        if (targetHp)
+        {
+            EuroScopePlugIn::CPosition hpPos;
+            hpPos.m_Latitude  = targetHp->centerLat;
+            hpPos.m_Longitude = targetHp->centerLon;
+            distToTargetHp = pos.DistanceTo(hpPos);
+        }
+    }
+
     // Roll tick (0 = not yet rolling; non-zero = roll detected or airborne fallback)
     auto      twrIt       = this->twrSameSID_flightPlans.find(callSign);
     ULONGLONG takeoffTick = (twrIt != this->twrSameSID_flightPlans.end()) ? twrIt->second : 0;
@@ -566,7 +604,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
         if (!isAirborne)
         {
-            double dist = (distToRunwayThreshold >= 0.0) ? distToRunwayThreshold : 0.0;
+            double dist = distToTargetHp;
 
             char subGroup;
             if (status == "DEPA")

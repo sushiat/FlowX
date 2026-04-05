@@ -367,14 +367,18 @@ void CFlowX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 
     std::vector<std::string> metarElements = split(sFullMetar);
     std::vector<std::string> rvrTokens;
+    bool inForecastGroup = false;
     for (std::string metarElement : metarElements)
     {
+        if (metarElement == "BECMG" || metarElement == "TEMPO" || metarElement == "NOSIG")
+            inForecastGroup = true;
+
         static const std::regex windRx(R"([0-9]{3}[0-9]{2}(?:G[0-9]{2,3})?(?:KT|MPS))");
         static const std::regex qnh(R"(Q[0-9]{4})");
         static const std::regex alt(R"(A[0-9]{4})");
         static const std::regex rvrRx(R"(R([0-9]{2}[LCR]?)\/([MP]?)([0-9]{4})(?:V([0-9]{4}))?([UDN])?(?:FT)?)");
 
-        if (std::regex_match(metarElement, windRx))
+        if (!inForecastGroup && std::regex_match(metarElement, windRx))
         {
             auto existingWind = this->airportWind.find(station);
             if (existingWind == this->airportWind.end())

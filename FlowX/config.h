@@ -46,6 +46,9 @@ struct holdingPoint
     std::string         sameAs;             ///< Name of another holding point considered physically equivalent
     std::vector<double> lat = {};           ///< Polygon vertex latitudes
     std::vector<double> lon = {};           ///< Polygon vertex longitudes
+    double              centerLat = 0.0;   ///< Centroid latitude (mean of polygon vertices); computed at config load.
+    double              centerLon = 0.0;   ///< Centroid longitude (mean of polygon vertices); computed at config load.
+    int                 order     = 0;     ///< Insertion index from config.json (0 = first); preserves longest-to-shortest takeoff distance order.
 };
 
 /// @brief A single blocking relationship on a Ground Radar stand.

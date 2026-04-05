@@ -29,13 +29,12 @@ void CFlowX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
     auto        rwyIt   = airport->second.runways.find(rwy);
     if (rwyIt != airport->second.runways.end())
     {
-        for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-        {
-            if (hpData.assignable)
-            {
-                this->AddPopupListElement(hpName.c_str(), "", TAG_FUNC_HP_LISTSELECT);
-            }
-        }
+        std::vector<const std::pair<const std::string, holdingPoint>*> sorted;
+        for (auto& kv : rwyIt->second.holdingPoints)
+            if (kv.second.assignable) sorted.push_back(&kv);
+        std::ranges::sort(sorted, {}, [](auto* kv) { return kv->second.order; });
+        for (auto* kv : sorted)
+            this->AddPopupListElement(kv->first.c_str(), "", TAG_FUNC_HP_LISTSELECT);
     }
 }
 
@@ -196,13 +195,12 @@ void CFlowX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt
     auto        rwyIt   = airport->second.runways.find(rwy);
     if (rwyIt != airport->second.runways.end())
     {
-        for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
-        {
-            if (hpData.assignable)
-            {
-                this->AddPopupListElement((hpName + "*").c_str(), "", TAG_FUNC_HP_LISTSELECT);
-            }
-        }
+        std::vector<const std::pair<const std::string, holdingPoint>*> sorted;
+        for (auto& kv : rwyIt->second.holdingPoints)
+            if (kv.second.assignable) sorted.push_back(&kv);
+        std::ranges::sort(sorted, {}, [](auto* kv) { return kv->second.order; });
+        for (auto* kv : sorted)
+            this->AddPopupListElement((kv->first + "*").c_str(), "", TAG_FUNC_HP_LISTSELECT);
     }
 }
 
