@@ -14,5 +14,6 @@
 #include <date/date.h>
 #include <format>
 #include <numbers>
+#include <ranges>
 
 #endif //PCH_H
