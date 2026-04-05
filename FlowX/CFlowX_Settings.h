@@ -22,7 +22,7 @@ class CFlowX_Settings : public CFlowX_Logging
   protected:
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
-    bool                           autoParked     = true;   ///< Whether arriving aircraft are automatically set to PARKED when stopped at their assigned stand.
+    bool                           autoParked     = true;   ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
     bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     int                            bgOpacity      = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
     bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from windowSettings.json

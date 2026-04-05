@@ -107,6 +107,12 @@ void CFlowX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScr
 {
     std::string callSign = fp.GetCallsign();
     this->ttt_clearedToLand.erase(callSign);
+
+    // If the aircraft is in TTT go-around state, confirm it so the 60-second auto-removal timeout is suppressed.
+    auto inboundIt = this->ttt_inbound.find(callSign);
+    if (inboundIt != this->ttt_inbound.end() && inboundIt->second.goAroundTick != 0)
+        inboundIt->second.goAroundConfirmed = true;
+
     if (!fp.GetTrackingControllerIsMe())
     {
         fp.StartTracking();

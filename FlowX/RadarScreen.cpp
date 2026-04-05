@@ -721,7 +721,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     // Base widths at font size 17; scaled by (17+fo)/17:
     auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
     const int RWY_GRP = cw(35);   //  new front column — runway group label
-    const int TTT     = cw(56);   //  now displays "mm:ss" only (~5 chars)
+    const int TTT     = cw(70);   //  "mm:ss" normally; "->nnn.nnn" (~9 chars) on go-around
     const int CS      = cw(84);   // 12 chars
     const int NM      = cw(56);   //  8 chars
     const int GS      = cw(35);   //  5 chars
@@ -969,7 +969,9 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 
         cellClickable(RWY_GRP, r.rwyGroup,                  r.callsignColor, r.callsign + "|RWYGRP");
         cellTagClickable(TTT,    r.ttt,    r.callsign + "|TTT");
-        cellClickable(CS,    r.callsign,                    r.callsignColor, r.callsign + "|CS");
+        cellTagClickable(CS, { .tag = r.callsign, .color = r.isGoAround ? TAG_COLOR_WHITE : r.callsignColor,
+                                .bgColor = r.isGoAround ? TAG_BG_COLOR_RED : TAG_COLOR_DEFAULT_NONE },
+                         r.callsign + "|CS");
         cellTagClickable(NM,     r.nm,     r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(GS,    std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellTagClickable(WTC, { .tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0 }, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);

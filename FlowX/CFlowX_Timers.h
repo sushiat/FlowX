@@ -35,7 +35,8 @@ struct TTTInboundState
 {
     runway    flightPlan;                ///< Runway struct (designator, thresholds, approach paths, vacate points, etc.).
     double    distanceToRunway  = 0.0;  ///< NM to runway threshold; updated every position report.
-    ULONGLONG goAroundTick      = 0;    ///< 0 = no go-around detected; non-zero = tick at detection.
+    ULONGLONG goAroundTick        = 0;     ///< 0 = no go-around detected; non-zero = tick at detection.
+    bool      goAroundConfirmed  = false; ///< True once the controller right-clicked to confirm the go-around; suppresses the 60-second auto-removal timeout.
     bool      approachFixTracked = false; ///< True while tracking a non-straight-in RNP approach leg.
     int       approachPathIdx   = -1;   ///< Index into flightPlan.gpsApproachPaths; -1 if unused.
     int       approachSegIdx    = -1;   ///< Index of the last passed fix in the approach path; -1 if unused.
@@ -102,7 +103,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @note Uses the airport's configured IANA timezone to evaluate the current local time.
     void CheckAirportNAPReminder();
 
-    /// @brief Detects arriving aircraft that have stopped inside their assigned stand polygon and sets ground status to PARKED.
+    /// @brief Detects arriving aircraft that have stopped inside their assigned stand polygon and sets ground status to PARK.
     /// Fires once per aircraft; idempotent due to the arrivedAtStand guard.
     void CheckArrivedAtStand();
 

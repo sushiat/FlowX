@@ -39,6 +39,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     const std::string&     designator = state.flightPlan.designator;
     double                 distToThreshold = state.distanceToRunway;
     bool                   isGoAround      = state.goAroundTick != 0;
+    row.isGoAround                         = isGoAround;
 
     auto sortedIt  = this->ttt_sortedByRunway.find(designator);
     bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());

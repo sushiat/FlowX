@@ -78,7 +78,7 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
         }
 
         // Check for ground status
-        static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA", "PARKED"};
+        static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "TXIN", "LINEUP", "DEPA", "PARK"};
         for (const auto& status : groundStatuses)
         {
             if (scratch.contains(status))
@@ -335,7 +335,7 @@ void CFlowX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
         if (metarElement == "BECMG" || metarElement == "TEMPO" || metarElement == "NOSIG")
             inForecastGroup = true;
 
-        static const std::regex windRx(R"([0-9]{3}[0-9]{2}(?:G[0-9]{2,3})?(?:KT|MPS))");
+        static const std::regex windRx(R"((?:[0-9]{3}|VRB)[0-9]{2}(?:G[0-9]{2,3})?(?:KT|MPS))");
         static const std::regex qnh(R"(Q[0-9]{4})");
         static const std::regex alt(R"(A[0-9]{4})");
         static const std::regex rvrRx(R"(R([0-9]{2}[LCR]?)\/([MP]?)([0-9]{4})(?:V([0-9]{4}))?([UDN])?(?:FT)?)");

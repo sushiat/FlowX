@@ -752,7 +752,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
     }
 }
 
-/// @brief Sets ground status to PARKED for arriving aircraft that have stopped inside their assigned stand polygon.
+/// @brief Sets ground status to PARK for arriving aircraft that have stopped inside their assigned stand polygon.
 /// Depends on standOccupancy being current (refreshed by UpdateOccupiedStands every 4 ticks).
 void CFlowX_Timers::CheckArrivedAtStand()
 {
@@ -777,7 +777,7 @@ void CFlowX_Timers::CheckArrivedAtStand()
 
         auto gsIt = this->groundStatus.find(callSign);
         if (gsIt != this->groundStatus.end() &&
-            (depStates.contains(gsIt->second) || gsIt->second == "PARKED")) { continue; }
+            (depStates.contains(gsIt->second) || gsIt->second == "PARK")) { continue; }
 
         auto occupyIt = this->standOccupancy.find(standIt->second);
         if (occupyIt == this->standOccupancy.end() || occupyIt->second != callSign) { continue; }
@@ -788,10 +788,10 @@ void CFlowX_Timers::CheckArrivedAtStand()
         if (pos.GetPressureAltitude() > airportIt->second.fieldElevation + 200) { continue; }
 
         std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-        fp.GetControllerAssignedData().SetScratchPadString("PARKED");
+        fp.GetControllerAssignedData().SetScratchPadString("PARK");
         fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
 
-        this->LogDebugMessage(callSign + " auto-PARKED at stand " + standIt->second, "GND");
+        this->LogDebugMessage(callSign + " auto-PARK at stand " + standIt->second, "GND");
     }
 }
 
@@ -1123,12 +1123,12 @@ void CFlowX_Timers::UpdateTWRInbound()
     // inbound tracking, and go-around lifecycle — all in one RadarTargetSelectFirst/Next walk.
     this->ttt_runwayOccupied.clear();
 
-    // Prune stale recently-removed entries (>60 s with no active go-around)
+    // Prune stale recently-removed entries (>90 s with no active go-around)
     {
         ULONGLONG now = GetTickCount64();
         for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
         {
-            it = ((now - it->second) / 1000 > 60) ? this->ttt_recentlyRemoved.erase(it) : std::next(it);
+            it = ((now - it->second) / 1000 > 90) ? this->ttt_recentlyRemoved.erase(it) : std::next(it);
         }
     }
 
@@ -1451,14 +1451,18 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                         if (isGoAround)
                         {
-                            // Active go-around: check removal conditions, otherwise keep distance updated
-                            if (distance > 5.0 || pressAlt > depElevation + 3000 || pressAlt < depElevation + 100 || hdgDiff > 30)
+                            // Active go-around: remove if unconfirmed after 60 s, tag dropped, or outgoing handoff initiated.
+                            const TTTInboundState& gaState     = inboundIt->second;
+                            bool unconfirmedTimeout            = !gaState.goAroundConfirmed
+                                                                 && (GetTickCount64() - gaState.goAroundTick) / 1000 > 60;
+                            bool tagDropped                    = !fp.GetTrackingControllerIsMe();
+                            bool handoffInitiated              = fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
+                            if (unconfirmedTimeout || tagDropped || handoffInitiated)
                             {
                                 std::string why;
-                                if (distance > 5.0)                      why += " dist>" + std::to_string(static_cast<int>(distance)) + "NM";
-                                if (pressAlt > depElevation + 3000)      why += " alt_high=" + std::to_string(pressAlt) + "ft";
-                                if (pressAlt < depElevation + 100)       why += " alt_low=" + std::to_string(pressAlt) + "ft";
-                                if (hdgDiff > 30)                        why += " hdg=" + std::to_string(hdgDiff) + "deg(lim30)";
+                                if (unconfirmedTimeout)  why += " unconfirmed_timeout";
+                                if (tagDropped)          why += " tag_dropped";
+                                if (handoffInitiated)    why += " handoff_initiated";
                                 this->LogDebugMessage(callSign + " removed from TTT (go-around cleared) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_inbound.erase(callSign);
@@ -1472,9 +1476,17 @@ void CFlowX_Timers::UpdateTWRInbound()
                         }
                         else if (!opp.empty())
                         {
-                            // Check for go-around: recently removed, now near opposite threshold and airborne
-                            double distFromOpp = DistanceFromRunwayThreshold(opp, position, ap.runways);
-                            if (distFromOpp < 5.0 && pressAlt > depElevation + 100)
+                            // Check for go-around: recently removed, now near opposite threshold and airborne,
+                            // OR climbing back toward the runway after being removed from the cone.
+                            double distFromOpp     = DistanceFromRunwayThreshold(opp, position, ap.runways);
+                            int    prevAlt         = rt.GetPreviousPosition(pos).GetPressureAltitude();
+                            bool   climbing        = prevAlt < pressAlt - 50;
+                            bool   detectNearOpp   = distFromOpp < 5.0;
+                            bool   detectReapproach = hdgDiff <= 30
+                                                      && (distance < 15.0 || distFromOpp < 1.0)
+                                                      && pressAlt < depElevation + 3000
+                                                      && climbing;
+                            if ((detectNearOpp || detectReapproach) && pressAlt > depElevation + 100)
                             {
                                 this->ttt_clearedToLand.erase(callSign);
                                 this->gndTransfer_list.erase(callSign);
@@ -1487,6 +1499,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 ga.flightPlan         = rwy;
                                 ga.distanceToRunway   = distance;
                                 ga.goAroundTick       = GetTickCount64();
+                                ga.goAroundConfirmed  = false;
                                 ga.approachFixTracked = false;
                                 ga.approachPathIdx    = -1;
                                 ga.approachSegIdx     = -1;
