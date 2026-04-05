@@ -146,69 +146,31 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
         this->twrSameSID_flightPlans.erase(callSign);
     }
 
-    for (auto it = this->ttt_flightPlans.begin(); it != this->ttt_flightPlans.end();)
     {
-        if (it->first.substr(0, callSign.size()) == callSign)
+        auto inboundIt = this->ttt_inbound.find(callSign);
+        if (inboundIt != this->ttt_inbound.end())
         {
-            this->LogDebugMessage(callSign + " removed from TTT (disconnect) rwy=" + it->first.substr(callSign.size()), "TTT");
+            this->LogDebugMessage(callSign + " removed from TTT (disconnect) rwy=" + inboundIt->second.flightPlan.designator, "TTT");
             this->tttInbound.RemoveFpFromTheList(FlightPlan);
-            this->ttt_goAround.erase(it->first);
-            it = this->ttt_flightPlans.erase(it);
-        }
-        else
-        {
-            ++it;
+            this->ttt_inbound.erase(inboundIt);
         }
     }
+    this->ttt_callSigns.erase(callSign);
     this->ttt_clearedToLand.erase(callSign);
-
-    for (auto it = this->ttt_approachFixTracked.begin(); it != this->ttt_approachFixTracked.end();)
-    {
-        if (it->substr(0, callSign.size()) == callSign)
-            it = this->ttt_approachFixTracked.erase(it);
-        else
-            ++it;
-    }
-    for (auto it = this->ttt_approachPathIdx.begin(); it != this->ttt_approachPathIdx.end();)
-        it = (it->first.substr(0, callSign.size()) == callSign) ? this->ttt_approachPathIdx.erase(it) : ++it;
-    for (auto it = this->ttt_approachSegIdx.begin(); it != this->ttt_approachSegIdx.end();)
-        it = (it->first.substr(0, callSign.size()) == callSign) ? this->ttt_approachSegIdx.erase(it) : ++it;
-
-    for (auto it = this->ttt_distanceToRunway.begin(); it != this->ttt_distanceToRunway.end();)
-    {
-        if (it->first.substr(0, callSign.size()) == callSign)
-        {
-            it = this->ttt_distanceToRunway.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
 
     for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
     {
-        if (it->first.substr(0, callSign.size()) == callSign)
-        {
-            it = this->ttt_recentlyRemoved.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
+        it = (it->first.rfind(callSign, 0) == 0) ? this->ttt_recentlyRemoved.erase(it) : ++it;
     }
 
-    this->dep_prevCallSign.erase(callSign);
-    this->dep_prevWtc.erase(callSign);
-    this->dep_prevSid.erase(callSign);
-    this->dep_prevTakeoffOffset.erase(callSign);
-    this->dep_prevDistanceAtTakeoff.erase(callSign);
-    this->dep_timeRequired.erase(callSign);
+    this->dep_liveSpacing.erase(callSign);
     this->dep_sequenceNumber.erase(callSign);
 
     this->gndTransfer_list.erase(callSign);
     this->gndTransfer_soundPlayed.erase(callSign);
     if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
+
+    this->standAssignment.erase(callSign);
 }
 
 /// @brief Dispatches tag function callbacks to the appropriate Func_* method.

@@ -14,9 +14,36 @@
 #include <set>
 #include <string>
 
+/// @brief Spacing data captured at takeoff (prevCallSign) and TOC (remaining fields) for an outbound aircraft.
+/// Populated in two stages: prevCallSign is set at the airborne moment; snapshotTaken + all other fields
+/// are set by RecordDepartureSpacingSnapshot at transfer-of-communication.
+struct DepartureLiveSpacing
+{
+    std::string prevCallSign;             ///< Callsign of the previous departure on the same runway.
+    std::string prevSid;                  ///< SID of the previous departure.
+    char        prevWtc          = '\0';  ///< WTC of the previous departure.
+    ULONGLONG   takeoffTimeOffset = 0;    ///< Elapsed seconds between the previous takeoff and this one.
+    double      distanceAtTakeoff = 0.0;  ///< NM between this aircraft and the previous one at liftoff.
+    int         timeRequired      = 0;    ///< Required separation in seconds (holding-point adjusted).
+    bool        snapshotTaken     = false; ///< True once RecordDepartureSpacingSnapshot has completed.
+};
+
+/// @brief Per-aircraft TTT inbound tracking state. Keyed by plain callsign in ttt_inbound.
+/// The runway designator is stored in flightPlan.designator; ttt_recentlyRemoved still uses
+/// the compound callsign+runway key for per-runway anti-bounce semantics.
+struct TTTInboundState
+{
+    runway    flightPlan;                ///< Runway struct (designator, thresholds, approach paths, vacate points, etc.).
+    double    distanceToRunway  = 0.0;  ///< NM to runway threshold; updated every position report.
+    ULONGLONG goAroundTick      = 0;    ///< 0 = no go-around detected; non-zero = tick at detection.
+    bool      approachFixTracked = false; ///< True while tracking a non-straight-in RNP approach leg.
+    int       approachPathIdx   = -1;   ///< Index into flightPlan.gpsApproachPaths; -1 if unused.
+    int       approachSegIdx    = -1;   ///< Index of the last passed fix in the approach path; -1 if unused.
+};
+
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
 ///
-/// All state is stored in maps keyed by callsign (or callsign+runway designator for inbound tracking).
+/// All state is stored in maps keyed by callsign.
 /// The Update* methods are called on a timer cadence from CFlowX::OnTimer().
 class CFlowX_Timers : public CFlowX_LookupsTools
 {
@@ -47,14 +74,9 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     int                                             dbg_standSkips = 0;        ///< Times UpdateOccupiedStands skipped launch (worker still running).
     int                                             dbg_tagItemCalls = 0;      ///< Total OnGetTagItem calls.
     int                                             dbg_timerTicks = 0;        ///< Total OnTimer calls.
-    std::map<std::string, std::string>              dep_prevCallSign;          ///< Callsign -> callsign of the previous departure on the same runway (captured at airborne moment).
-    std::map<std::string, double>                   dep_prevDistanceAtTakeoff; ///< Callsign -> distance (NM) to the previous aircraft at the moment this aircraft took off.
-    std::map<std::string, std::string>              dep_prevSid;               ///< Callsign -> SID of the previous departure on the same runway.
-    std::map<std::string, ULONGLONG>                dep_prevTakeoffOffset;     ///< Callsign -> elapsed seconds between the previous departure's takeoff and this aircraft's takeoff.
-    std::map<std::string, char>                     dep_prevWtc;               ///< Callsign -> WTC of the previous departure on the same runway (snapshot at this aircraft's takeoff).
+    std::map<std::string, DepartureLiveSpacing>      dep_liveSpacing;           ///< Callsign -> spacing data for the current departure; populated in two stages (see DepartureLiveSpacing).
     int                                             dep_sequenceCounter = 0;   ///< Global sequence counter incremented at each takeoff.
     std::map<std::string, int>                      dep_sequenceNumber;        ///< Callsign -> departure sequence number assigned at takeoff.
-    std::map<std::string, int>                      dep_timeRequired;          ///< Callsign -> required time separation in seconds (computed from holding point relationship).
     std::map<std::string, std::string>              flightStripAnnotation;     ///< Callsign -> cached content of flight-strip annotation slot 8.
     std::set<std::string>                           gndTransfer_list;          ///< Callsigns of landed inbounds awaiting GND handoff (added at TTT removal, cleared on click/disconnect).
     std::set<std::string>                           gndTransfer_soundPlayed;   ///< Subset of gndTransfer_list where GS<50 was first detected; square is shown and sound has played.
@@ -65,17 +87,12 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              standAssignment;           ///< Callsign -> assigned stand (populated from Ground Radar scratch-pad).
     std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; updated from stand-occupancy worker thread.
     std::future<std::map<std::string, std::string>> standOccupancyFuture;      ///< Worker-thread stand-occupancy result; invalid when no computation is in progress.
-    std::set<std::string>                           ttt_approachFixTracked;    ///< Callsign+runway keys in ttt_flightPlans added via approach-fix proximity (not yet in straight-in cone).
-    std::map<std::string, int>                      ttt_approachPathIdx;       ///< Callsign+runway -> index into rwy.approachPaths for the matched approach; valid while ttt_approachFixTracked.
-    std::map<std::string, int>                      ttt_approachSegIdx;        ///< Callsign+runway -> index of the last fix the aircraft passed in its approachPath (i.e. flying toward fixes[segIdx+1]).
-    std::set<std::string>                           ttt_callSigns;             ///< Callsigns currently present in ttt_flightPlans; kept in sync for O(log N) inbound membership tests.
+    std::map<std::string, TTTInboundState>           ttt_inbound;               ///< Callsign -> TTT inbound state; plain callsign key (one active entry per aircraft).
+    std::set<std::string>                           ttt_callSigns;             ///< Callsigns currently present in ttt_inbound; O(log N) membership test used in hot paths.
     std::set<std::string>                           ttt_clearedToLand;         ///< Callsigns for which cleared-to-land has been issued; erased on go-around, removal, or disconnect.
+    std::map<std::string, ULONGLONG>                ttt_recentlyRemoved;       ///< Callsign+runway compound key -> tick at removal; per-runway anti-bounce (prevents re-entry within 60 s).
     std::set<std::string>                           ttt_runwayOccupied;        ///< Runway designators that currently have a ground radar target within their runway bounds; refreshed each timer tick.
-    std::map<std::string, double>                   ttt_distanceToRunway;      ///< Callsign+runway -> current distance (NM) to the runway threshold.
-    std::map<std::string, runway>                   ttt_flightPlans;           ///< Callsign+runway -> runway struct for aircraft currently in the TTT inbound list.
-    std::map<std::string, ULONGLONG>                ttt_goAround;              ///< Callsign+runway -> tick-count at which a go-around was detected.
-    std::map<std::string, ULONGLONG>                ttt_recentlyRemoved;       ///< Callsign+runway -> tick-count at which an aircraft was removed from the normal inbound list.
-    std::map<std::string, std::vector<std::string>> ttt_sortedByRunway;        ///< Runway designator -> sorted list of callsign+runway keys ordered by distance (nearest first).
+    std::map<std::string, std::vector<std::string>> ttt_sortedByRunway;        ///< Runway designator -> sorted list of callsigns ordered by distance to threshold (nearest first).
     std::map<std::string, ULONGLONG>                twrSameSID_flightPlans;    ///< Callsign -> tick-count (ms) at which the aircraft took off, or 0 while still on the ground.
     std::map<std::string, std::string>              twrSameSID_lastDeparted;   ///< Runway designator -> callsign of the last departed aircraft from that runway.
     std::set<std::string>                           windUnacked;               ///< Airports where the wind value changed since the user last acknowledged.

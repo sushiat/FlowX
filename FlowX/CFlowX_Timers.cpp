@@ -355,9 +355,9 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
             auto               prevTakeoffIt = this->twrSameSID_flightPlans.find(prevCallSign);
             if (prevTakeoffIt != this->twrSameSID_flightPlans.end() && prevTakeoffIt->second > 0)
             {
-                // Store the previous callsign now so the live-spacing column and the
+                // Create the spacing entry now so the live-spacing column and the
                 // spacing snapshot (recorded later at transfer-of-communication) can use it.
-                this->dep_prevCallSign[callSign] = prevCallSign;
+                this->dep_liveSpacing[callSign].prevCallSign = prevCallSign;
             }
         }
         this->twrSameSID_lastDeparted[depRwy] = callSign;
@@ -375,18 +375,13 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
 {
     // Already snapshotted — nothing to do
-    if (this->dep_prevDistanceAtTakeoff.contains(callSign))
+    auto spacingIt = this->dep_liveSpacing.find(callSign);
+    if (spacingIt == this->dep_liveSpacing.end() || spacingIt->second.snapshotTaken)
     {
         return;
     }
-
-    // Previous aircraft must have been identified at airborne time
-    auto prevCallIt = this->dep_prevCallSign.find(callSign);
-    if (prevCallIt == this->dep_prevCallSign.end())
-    {
-        return;
-    }
-    const std::string& prevCallSign = prevCallIt->second;
+    DepartureLiveSpacing& spacing = spacingIt->second;
+    const std::string&    prevCallSign = spacing.prevCallSign;
 
     // Both roll ticks must be available to compute the time offset
     auto thisTickIt = this->twrSameSID_flightPlans.find(callSign);
@@ -397,20 +392,20 @@ void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
         return;
     }
 
-    this->dep_prevTakeoffOffset[callSign] = (thisTickIt->second - prevTickIt->second) / 1000;
+    spacing.takeoffTimeOffset = (thisTickIt->second - prevTickIt->second) / 1000;
 
     auto thisRt = this->RadarTargetSelect(callSign.c_str());
     auto prevRt = this->RadarTargetSelect(prevCallSign.c_str());
     if (thisRt.IsValid() && prevRt.IsValid())
     {
-        this->dep_prevDistanceAtTakeoff[callSign] = thisRt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
-        this->dep_prevWtc[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
-        this->dep_prevSid[callSign]               = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
+        spacing.distanceAtTakeoff = thisRt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
+        spacing.prevWtc           = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetAircraftWtc();
+        spacing.prevSid           = prevRt.GetCorrelatedFlightPlan().GetFlightPlanData().GetSidName();
     }
 
-    int timeRequired = 120;
-    auto thisFp      = this->FlightPlanSelect(callSign.c_str());
-    auto prevFp      = this->FlightPlanSelect(prevCallSign.c_str());
+    int  timeRequired = 120;
+    auto thisFp       = this->FlightPlanSelect(callSign.c_str());
+    auto prevFp       = this->FlightPlanSelect(prevCallSign.c_str());
     if (thisFp.IsValid() && prevFp.IsValid())
     {
         this->flightStripAnnotation[callSign]     = thisFp.GetControllerAssignedData().GetFlightStripAnnotation(8);
@@ -431,7 +426,8 @@ void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
             }
         }
     }
-    this->dep_timeRequired[callSign] = timeRequired;
+    spacing.timeRequired  = timeRequired;
+    spacing.snapshotTaken = true;
 }
 
 /// @brief Fires a background VATSIM data fetch every 60 s and resolves the result into atisLetters.
@@ -982,12 +978,7 @@ void CFlowX_Timers::UpdateTWROutbound()
             {
                 this->twrSameSID.RemoveFpFromTheList(fp);
                 this->twrSameSID_flightPlans.erase(callSign);
-                this->dep_prevCallSign.erase(callSign);
-                this->dep_prevWtc.erase(callSign);
-                this->dep_prevSid.erase(callSign);
-                this->dep_prevTakeoffOffset.erase(callSign);
-                this->dep_prevDistanceAtTakeoff.erase(callSign);
-                this->dep_timeRequired.erase(callSign);
+                this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
             }
 
@@ -1002,12 +993,7 @@ void CFlowX_Timers::UpdateTWROutbound()
             {
                 this->twrSameSID.RemoveFpFromTheList(fp);
                 this->twrSameSID_flightPlans.erase(callSign);
-                this->dep_prevCallSign.erase(callSign);
-                this->dep_prevWtc.erase(callSign);
-                this->dep_prevSid.erase(callSign);
-                this->dep_prevTakeoffOffset.erase(callSign);
-                this->dep_prevDistanceAtTakeoff.erase(callSign);
-                this->dep_timeRequired.erase(callSign);
+                this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
             }
 
@@ -1063,11 +1049,7 @@ void CFlowX_Timers::UpdateTWROutbound()
         {
             this->twrSameSID.RemoveFpFromTheList(fp);
             this->twrSameSID_flightPlans.erase(callSign);
-            this->dep_prevWtc.erase(callSign);
-            this->dep_prevSid.erase(callSign);
-            this->dep_prevTakeoffOffset.erase(callSign);
-            this->dep_prevDistanceAtTakeoff.erase(callSign);
-            this->dep_timeRequired.erase(callSign);
+            this->dep_liveSpacing.erase(callSign);
             this->dep_sequenceNumber.erase(callSign);
         }
 
@@ -1085,18 +1067,15 @@ void CFlowX_Timers::UpdateTWROutbound()
                     this->PushToOtherControllers(fp);
                     this->twrSameSID.RemoveFpFromTheList(fp);
                     this->twrSameSID_flightPlans.erase(callSign);
-                    this->dep_prevWtc.erase(callSign);
-                    this->dep_prevSid.erase(callSign);
-                    this->dep_prevTakeoffOffset.erase(callSign);
-                    this->dep_prevDistanceAtTakeoff.erase(callSign);
-                    this->dep_timeRequired.erase(callSign);
+                    this->dep_liveSpacing.erase(callSign);
                     this->dep_sequenceNumber.erase(callSign);
                     continue;
                 }
 
                 // Failsafe: snapshot not yet taken and tracking has already ended — record now
+                auto spacingIt2 = this->dep_liveSpacing.find(callSign);
                 if (this->dep_sequenceNumber.contains(callSign) &&
-                    !this->dep_prevDistanceAtTakeoff.contains(callSign) &&
+                    (spacingIt2 == this->dep_liveSpacing.end() || !spacingIt2->second.snapshotTaken) &&
                     (!fp.GetTrackingControllerIsMe() ||
                      fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED))
                 {
@@ -1116,12 +1095,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->PushToOtherControllers(fp);
                 this->twrSameSID.RemoveFpFromTheList(fp);
                 this->twrSameSID_flightPlans.erase(callSign);
-                this->dep_prevCallSign.erase(callSign);
-                this->dep_prevWtc.erase(callSign);
-                this->dep_prevSid.erase(callSign);
-                this->dep_prevTakeoffOffset.erase(callSign);
-                this->dep_prevDistanceAtTakeoff.erase(callSign);
-                this->dep_timeRequired.erase(callSign);
+                this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
             }
         }
@@ -1133,21 +1107,17 @@ void CFlowX_Timers::UpdateTWRInbound()
 {
     if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
     {
-        if (!this->ttt_flightPlans.empty())
+        if (!this->ttt_inbound.empty())
         {
-            for (auto ttt_fp : this->ttt_flightPlans)
+            for (auto& [cs, state] : this->ttt_inbound)
             {
-                auto fp = this->FlightPlanSelect(ttt_fp.first.c_str());
+                auto fp = this->FlightPlanSelect(cs.c_str());
                 this->tttInbound.RemoveFpFromTheList(fp);
             }
 
-            this->ttt_approachFixTracked.clear();
-            this->ttt_approachPathIdx.clear();
-            this->ttt_approachSegIdx.clear();
+            this->ttt_inbound.clear();
             this->ttt_callSigns.clear();
             this->ttt_clearedToLand.clear();
-            this->ttt_flightPlans.clear();
-            this->ttt_goAround.clear();
             this->ttt_recentlyRemoved.clear();
             this->ttt_runwayOccupied.clear();
             this->gndTransfer_list.clear();
@@ -1212,17 +1182,18 @@ void CFlowX_Timers::UpdateTWRInbound()
                 int arrRwyHdg = arrRwyDigits.empty() ? -1 : std::stoi(arrRwyDigits);
 
                 // ── (B) Main inbound tracking ──
+                auto   inboundIt       = this->ttt_inbound.find(callSign);
+                bool   trackedThisRwy  = (inboundIt != this->ttt_inbound.end() && inboundIt->second.flightPlan.designator == rwy.designator);
+
                 if (arrRwyHdg == -1)
                 {
                     // Can't determine arrival heading — remove if tracked, then fall through to (C)
-                    if (this->ttt_flightPlans.contains(rwyCallsign))
+                    if (trackedThisRwy)
                     {
                         this->tttInbound.RemoveFpFromTheList(fp);
-                        this->ttt_flightPlans.erase(rwyCallsign);
+                        this->ttt_inbound.erase(callSign);
+                        this->ttt_callSigns.erase(callSign);
                         this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
-                        auto lb = this->ttt_flightPlans.lower_bound(callSign);
-                        if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
-                            this->ttt_callSigns.erase(callSign);
                     }
                     // Fall through to (C) — go-around check uses hdgDiff=0 for unknown headings
                 }
@@ -1242,8 +1213,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                     double altProfile = depElevation + distance * 300.0 + 1000.0; // ~3.3° glidepath + 1000 ft buffer
                     if (pressAlt > depElevation + 50 && pressAlt < altProfile && hdgDiff <= 45 && distance < 25 && dirDiff <= dirLimit)
                     {
-                        this->ttt_distanceToRunway[rwyCallsign] = distance;
-                        std::string trackingControllerId        = fp.GetTrackingControllerId();
+                        std::string trackingControllerId = fp.GetTrackingControllerId();
 
                         if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && !this->standAssignment.contains(callSign))
                         {
@@ -1251,10 +1221,16 @@ void CFlowX_Timers::UpdateTWRInbound()
                             this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
                         }
 
-                        if (!this->ttt_flightPlans.contains(rwyCallsign))
+                        if (!trackedThisRwy)
                         {
                             this->tttInbound.AddFpToTheList(fp);
-                            this->ttt_flightPlans.emplace(rwyCallsign, rwy);
+                            TTTInboundState& state      = this->ttt_inbound[callSign];
+                            state.flightPlan            = rwy;
+                            state.distanceToRunway      = distance;
+                            state.approachFixTracked    = false;
+                            state.approachPathIdx       = -1;
+                            state.approachSegIdx        = -1;
+                            state.goAroundTick          = 0;
                             this->ttt_callSigns.insert(callSign);
                             this->LogDebugMessage(callSign + " added to TTT (cone) rwy=" + rwy.designator
                                 + " dist=" + std::to_string(static_cast<int>(distance)) + "NM"
@@ -1262,27 +1238,29 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 + " hdgDiff=" + std::to_string(hdgDiff / 10) + "deg"
                                 + " dirDiff=" + std::to_string(static_cast<int>(dirDiff)) + "deg", "TTT");
                         }
-                        // Transition from approach-fix tracking to normal cone tracking
-                        this->ttt_approachFixTracked.erase(rwyCallsign);
-                        this->ttt_approachPathIdx.erase(rwyCallsign);
-                        this->ttt_approachSegIdx.erase(rwyCallsign);
+                        else
+                        {
+                            inboundIt->second.distanceToRunway   = distance;
+                            // Transition from approach-fix tracking to normal cone tracking
+                            inboundIt->second.approachFixTracked = false;
+                            inboundIt->second.approachPathIdx    = -1;
+                            inboundIt->second.approachSegIdx     = -1;
+                        }
                     }
                     else
                     {
-                        const bool isFixTracked = this->ttt_approachFixTracked.contains(rwyCallsign);
+                        const bool isFixTracked = trackedThisRwy && inboundIt->second.approachFixTracked;
 
                         if (isFixTracked)
                         {
                             // Aircraft is on a non-straight-in approach leg — keep in list and compute path distance
-                            auto pathIdxIt = this->ttt_approachPathIdx.find(rwyCallsign);
-                            auto segIdxIt  = this->ttt_approachSegIdx.find(rwyCallsign);
+                            TTTInboundState& state     = inboundIt->second;
+                            int              pathIdx   = state.approachPathIdx;
+                            int&             segIdx    = state.approachSegIdx;
 
-                            if (pathIdxIt != this->ttt_approachPathIdx.end()
-                                && segIdxIt  != this->ttt_approachSegIdx.end()
-                                && pathIdxIt->second < static_cast<int>(rwy.gpsApproachPaths.size()))
+                            if (pathIdx >= 0 && pathIdx < static_cast<int>(rwy.gpsApproachPaths.size()))
                             {
-                                const auto& path   = rwy.gpsApproachPaths[pathIdxIt->second];
-                                int&        segIdx = segIdxIt->second;
+                                const auto& path = rwy.gpsApproachPaths[pathIdx];
 
                                 // Advance segment when within 1.5 NM of the next fix
                                 int nextFi = segIdx + 1;
@@ -1351,11 +1329,11 @@ void CFlowX_Timers::UpdateTWRInbound()
                                     pathDist = distance;
                                 }
 
-                                this->ttt_distanceToRunway[rwyCallsign] = pathDist;
+                                state.distanceToRunway = pathDist;
                             }
                             else
                             {
-                                this->ttt_distanceToRunway[rwyCallsign] = distance;
+                                state.distanceToRunway = distance;
                             }
 
                             // Safety valve: remove if impossibly far, too high, wrong heading/direction, or climbing
@@ -1372,19 +1350,13 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 this->LogDebugMessage(callSign + " removed from TTT (RNP safety) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
-                                this->ttt_flightPlans.erase(rwyCallsign);
-                                this->ttt_distanceToRunway.erase(rwyCallsign);
-                                this->ttt_approachFixTracked.erase(rwyCallsign);
-                                this->ttt_approachPathIdx.erase(rwyCallsign);
-                                this->ttt_approachSegIdx.erase(rwyCallsign);
+                                this->ttt_inbound.erase(callSign);
+                                this->ttt_callSigns.erase(callSign);
                                 this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
-                                auto lb = this->ttt_flightPlans.lower_bound(callSign);
-                                if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
-                                    this->ttt_callSigns.erase(callSign);
                             }
                         }
                         else if (!rwy.gpsApproachPaths.empty()
-                                 && !this->ttt_flightPlans.contains(rwyCallsign)
+                                 && !trackedThisRwy
                                  && pressAlt > depElevation + 50
                                  && pressAlt < depElevation + 8000
                                  && hdgDiff <= 120
@@ -1428,12 +1400,14 @@ void CFlowX_Timers::UpdateTWRInbound()
                                         }
 
                                         this->tttInbound.AddFpToTheList(fp);
-                                        this->ttt_flightPlans.emplace(rwyCallsign, rwy);
+                                        TTTInboundState& ns   = this->ttt_inbound[callSign];
+                                        ns.flightPlan         = rwy;
+                                        ns.distanceToRunway   = distance; // path dist computed next tick
+                                        ns.goAroundTick       = 0;
+                                        ns.approachFixTracked = true;
+                                        ns.approachPathIdx    = pi;
+                                        ns.approachSegIdx     = fi;
                                         this->ttt_callSigns.insert(callSign);
-                                        this->ttt_approachFixTracked.insert(rwyCallsign);
-                                        this->ttt_approachPathIdx[rwyCallsign] = pi;
-                                        this->ttt_approachSegIdx[rwyCallsign]  = fi;
-                                        this->ttt_distanceToRunway[rwyCallsign] = distance; // path dist computed next tick
                                         this->LogDebugMessage(callSign + " added to TTT (RNP) rwy=" + rwy.designator
                                             + " approach=" + path.name + " fix=" + fix.name
                                             + " fixDist=" + std::to_string(fixDist).substr(0, 4) + "NM"
@@ -1446,7 +1420,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                         else
                         {
                             // Only remove normal inbounds; go-arounds are handled in (C) below
-                            if (this->ttt_flightPlans.contains(rwyCallsign) && !this->ttt_goAround.contains(rwyCallsign))
+                            if (trackedThisRwy && inboundIt->second.goAroundTick == 0)
                             {
                                 std::string why;
                                 if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
@@ -1457,12 +1431,9 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 this->LogDebugMessage(callSign + " removed from TTT (cone left) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
-                                this->ttt_flightPlans.erase(rwyCallsign);
-                                this->ttt_distanceToRunway.erase(rwyCallsign);
+                                this->ttt_inbound.erase(callSign);
+                                this->ttt_callSigns.erase(callSign);
                                 this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
-                                auto lb = this->ttt_flightPlans.lower_bound(callSign);
-                                if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
-                                    this->ttt_callSigns.erase(callSign);
                                 if (pressAlt < depElevation + 125)
                                     this->gndTransfer_list.insert(callSign);
                                 else
@@ -1473,16 +1444,19 @@ void CFlowX_Timers::UpdateTWRInbound()
                 }
 
                 // ── (C) Go-around / recently-removed lifecycle ──
-                // Runs after (B) so that aircraft removed this tick are correctly visible here.
+                // Re-fetch inboundIt in case (B) erased or created the entry.
+                inboundIt      = this->ttt_inbound.find(callSign);
+                trackedThisRwy = (inboundIt != this->ttt_inbound.end() && inboundIt->second.flightPlan.designator == rwy.designator);
+
                 if (!isVfrByMe)
                 {
-                    bool isGoAround        = this->ttt_goAround.contains(rwyCallsign);
+                    bool isGoAround        = trackedThisRwy && inboundIt->second.goAroundTick != 0;
                     bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.contains(rwyCallsign);
 
                     if (isGoAround || isRecentlyRemoved)
                     {
-                        double             distance     = DistanceFromRunwayThreshold(rwy.designator, position, ap.runways);
-                        int                hdgDiff      = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
+                        double             distance = DistanceFromRunwayThreshold(rwy.designator, position, ap.runways);
+                        int                hdgDiff  = (arrRwyHdg == -1) ? 0 : std::abs(heading - arrRwyHdg * 10);
                         if (hdgDiff > 180)
                             hdgDiff = 360 - hdgDiff;
                         const std::string& opp = rwy.opposite;
@@ -1499,17 +1473,13 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 if (hdgDiff > 30)                        why += " hdg=" + std::to_string(hdgDiff) + "deg(lim30)";
                                 this->LogDebugMessage(callSign + " removed from TTT (go-around cleared) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
-                                this->ttt_flightPlans.erase(rwyCallsign);
-                                this->ttt_goAround.erase(rwyCallsign);
-                                this->ttt_distanceToRunway.erase(rwyCallsign);
+                                this->ttt_inbound.erase(callSign);
+                                this->ttt_callSigns.erase(callSign);
                                 this->ttt_clearedToLand.erase(callSign);
-                                auto lb = this->ttt_flightPlans.lower_bound(callSign);
-                                if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
-                                    this->ttt_callSigns.erase(callSign);
                             }
                             else
                             {
-                                this->ttt_distanceToRunway[rwyCallsign] = distance;
+                                inboundIt->second.distanceToRunway = distance;
                             }
                         }
                         else if (!opp.empty())
@@ -1525,9 +1495,13 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 this->LogDebugMessage(callSign + " added to TTT (go-around) rwy=" + rwy.designator
                                     + " dist=" + std::to_string(static_cast<int>(distFromOpp)) + "NM"
                                     + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
-                                this->ttt_goAround[rwyCallsign]         = GetTickCount64();
-                                this->ttt_distanceToRunway[rwyCallsign] = distance;
-                                this->ttt_flightPlans.emplace(rwyCallsign, rwy);
+                                TTTInboundState& ga   = this->ttt_inbound[callSign];
+                                ga.flightPlan         = rwy;
+                                ga.distanceToRunway   = distance;
+                                ga.goAroundTick       = GetTickCount64();
+                                ga.approachFixTracked = false;
+                                ga.approachPathIdx    = -1;
+                                ga.approachSegIdx     = -1;
                                 this->ttt_callSigns.insert(callSign);
                                 this->tttInbound.AddFpToTheList(fp);
                                 this->ttt_recentlyRemoved.erase(rwyCallsign);
@@ -1541,18 +1515,14 @@ void CFlowX_Timers::UpdateTWRInbound()
 
     // Rebuild sorted-by-runway index
     this->ttt_sortedByRunway.clear();
-    for (auto& [key, dist] : this->ttt_distanceToRunway)
+    for (auto& [cs, state] : this->ttt_inbound)
     {
-        auto planIt = this->ttt_flightPlans.find(key);
-        if (planIt != this->ttt_flightPlans.end())
-        {
-            this->ttt_sortedByRunway[planIt->second.designator].push_back(key);
-        }
+        this->ttt_sortedByRunway[state.flightPlan.designator].push_back(cs);
     }
-    for (auto& [designator, keys] : this->ttt_sortedByRunway)
+    for (auto& [designator, callSigns] : this->ttt_sortedByRunway)
     {
-        std::sort(keys.begin(), keys.end(), [this](const std::string& a, const std::string& b)
-                  { return this->ttt_distanceToRunway.at(a) < this->ttt_distanceToRunway.at(b); });
+        std::sort(callSigns.begin(), callSigns.end(), [this](const std::string& a, const std::string& b)
+                  { return this->ttt_inbound.at(a).distanceToRunway < this->ttt_inbound.at(b).distanceToRunway; });
     }
 }
 

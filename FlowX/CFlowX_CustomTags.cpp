@@ -22,21 +22,11 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     std::string callSign = fp.GetCallsign();
     auto        fpd      = fp.GetFlightPlanData();
 
-    // Resolve tttKey: if empty, search by callSign prefix (for UpdatePositionDerivedTags)
-    std::string resolvedKey = tttKey;
-    if (resolvedKey.empty())
-    {
-        auto it = std::ranges::find_if(this->ttt_flightPlans,
-                                       [&callSign](const auto& e)
-                                       { return e.first.rfind(callSign, 0) == 0; });
-        if (it != this->ttt_flightPlans.end())
-        {
-            resolvedKey = it->first;
-        }
-    }
+    // Resolve tttKey: tttKey is the plain callsign; fall back to callSign if empty
+    std::string resolvedKey = tttKey.empty() ? callSign : tttKey;
 
-    auto planIt = this->ttt_flightPlans.find(resolvedKey);
-    if (planIt == this->ttt_flightPlans.end())
+    auto planIt = this->ttt_inbound.find(resolvedKey);
+    if (planIt == this->ttt_inbound.end())
     {
         row.sortKey = {};
         row.nm      = tagInfo{};
@@ -45,13 +35,10 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         return;
     }
 
-    const std::string& designator = planIt->second.designator;
-
-    auto   distIt          = this->ttt_distanceToRunway.find(resolvedKey);
-    bool   hasDistance     = (distIt != this->ttt_distanceToRunway.end());
-    double distToThreshold = hasDistance ? distIt->second : 0.0;
-
-    bool isGoAround = this->ttt_goAround.contains(resolvedKey);
+    const TTTInboundState& state      = planIt->second;
+    const std::string&     designator = state.flightPlan.designator;
+    double                 distToThreshold = state.distanceToRunway;
+    bool                   isGoAround      = state.goAroundTick != 0;
 
     auto sortedIt  = this->ttt_sortedByRunway.find(designator);
     bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());
@@ -61,7 +48,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     {
         if (isGoAround)
         {
-            return designator + "_->" + planIt->second.goAroundFreq;
+            return designator + "_->" + state.flightPlan.goAroundFreq;
         }
 
         auto position = rt.GetPosition().GetPosition();
@@ -69,8 +56,8 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         if (speed > 0)
         {
             EuroScopePlugIn::CPosition rwyThreshold;
-            rwyThreshold.m_Latitude  = planIt->second.thresholdLat;
-            rwyThreshold.m_Longitude = planIt->second.thresholdLon;
+            rwyThreshold.m_Latitude  = state.flightPlan.thresholdLat;
+            rwyThreshold.m_Longitude = state.flightPlan.thresholdLon;
 
             double distNm       = position.DistanceTo(rwyThreshold);
             int    totalSeconds = static_cast<int>((distNm / speed) * 3600.0);
@@ -85,10 +72,6 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     row.nm = [&]() -> tagInfo
     {
         tagInfo t;
-        if (!hasDistance)
-        {
-            return t;
-        }
         if (isGoAround)
         {
             t.tag = std::format("{:.1f}", distToThreshold);
@@ -111,12 +94,12 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
             {
                 if (keys[i] == resolvedKey)
                 {
-                    auto leaderIt = this->ttt_distanceToRunway.find(keys[i - 1]);
-                    if (leaderIt == this->ttt_distanceToRunway.end())
+                    auto leaderIt = this->ttt_inbound.find(keys[i - 1]);
+                    if (leaderIt == this->ttt_inbound.end())
                     {
                         break;
                     }
-                    double gap = distToThreshold - leaderIt->second;
+                    double gap = distToThreshold - leaderIt->second.distanceToRunway;
                     tag = std::format("+{:.1f}", gap);
                     if (gap > 3.0)
                     {
@@ -177,13 +160,12 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         double gap         = 0.0;
         if (hasFollower)
         {
-            auto followerIt = this->ttt_distanceToRunway.find(*(myIdx + 1));
-            auto selfIt     = this->ttt_distanceToRunway.find(resolvedKey);
-            if (followerIt == this->ttt_distanceToRunway.end() || selfIt == this->ttt_distanceToRunway.end())
+            auto followerIt = this->ttt_inbound.find(*(myIdx + 1));
+            if (followerIt == this->ttt_inbound.end())
             {
                 return t;
             }
-            gap = followerIt->second - selfIt->second;
+            gap = followerIt->second.distanceToRunway - distToThreshold;
         }
 
         std::string arr = fpd.GetDestination();
@@ -266,10 +248,16 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
     double distToRunwayThreshold = -1.0;
     bool   atHoldingPoint        = false;
 
+    // Distance to target holding point — used for the sort key instead of runway-threshold distance.
+    // Prefers the assigned HP (annotation slot 8, pos 7+, no * suffix); falls back to the first HP in
+    // config.json order (lowest order index); falls back to distToRunwayThreshold if no HP data.
+    double distToTargetHp = 0.0;
+
     if (rtValid && hasAirport)
     {
         auto pos              = rt.GetPosition().GetPosition();
         distToRunwayThreshold = DistanceFromRunwayThreshold(rwy, pos, airportIt->second.runways);
+        distToTargetHp        = (distToRunwayThreshold >= 0.0) ? distToRunwayThreshold : 0.0;
 
         auto rwyIt = airportIt->second.runways.find(rwy);
         if (rwyIt != airportIt->second.runways.end())
@@ -287,44 +275,39 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                     break;
                 }
             }
-        }
-    }
 
-    // Distance to target holding point — used for the sort key instead of runway-threshold distance.
-    // Prefers the assigned HP (annotation slot 8, pos 7+, no * suffix); falls back to the first HP in
-    // config.json order (lowest order index); falls back to distToRunwayThreshold if no HP data.
-    double distToTargetHp = (distToRunwayThreshold >= 0.0) ? distToRunwayThreshold : 0.0;
-    if (rwyIt != airportIt->second.runways.end() && !rwyIt->second.holdingPoints.empty())
-    {
-        const holdingPoint* targetHp = nullptr;
-
-        auto annoIt = this->flightStripAnnotation.find(callSign);
-        if (annoIt != this->flightStripAnnotation.end() && annoIt->second.size() > 7)
-        {
-            std::string hpName = annoIt->second.substr(7);
-            if (!hpName.empty() && !hpName.contains('*'))
+            if (!rwyIt->second.holdingPoints.empty())
             {
-                auto hpIt = rwyIt->second.holdingPoints.find(hpName);
-                if (hpIt != rwyIt->second.holdingPoints.end() && hpIt->second.centerLat != 0.0)
-                    targetHp = &hpIt->second;
-            }
-        }
+                const holdingPoint* targetHp = nullptr;
 
-        if (!targetHp)
-        {
-            for (auto& [name, hp] : rwyIt->second.holdingPoints)
-            {
-                if (hp.centerLat != 0.0 && (!targetHp || hp.order < targetHp->order))
-                    targetHp = &hp;
-            }
-        }
+                if (ann.size() > 7)
+                {
+                    std::string hpName = ann.substr(7);
+                    if (!hpName.empty() && !hpName.contains('*'))
+                    {
+                        auto hpIt = rwyIt->second.holdingPoints.find(hpName);
+                        if (hpIt != rwyIt->second.holdingPoints.end() && hpIt->second.centerLat != 0.0)
+                            targetHp = &hpIt->second;
+                    }
+                }
 
-        if (targetHp)
-        {
-            EuroScopePlugIn::CPosition hpPos;
-            hpPos.m_Latitude  = targetHp->centerLat;
-            hpPos.m_Longitude = targetHp->centerLon;
-            distToTargetHp = pos.DistanceTo(hpPos);
+                if (!targetHp)
+                {
+                    for (auto& [name, hp] : rwyIt->second.holdingPoints)
+                    {
+                        if (hp.centerLat != 0.0 && (!targetHp || hp.order < targetHp->order))
+                            targetHp = &hp;
+                    }
+                }
+
+                if (targetHp)
+                {
+                    EuroScopePlugIn::CPosition hpPos;
+                    hpPos.m_Latitude  = targetHp->centerLat;
+                    hpPos.m_Longitude = targetHp->centerLon;
+                    distToTargetHp    = pos.DistanceTo(hpPos);
+                }
+            }
         }
     }
 
@@ -427,19 +410,19 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         {
             return t;
         }
-        auto offsetIt = this->dep_prevTakeoffOffset.find(callSign);
-        if (offsetIt == this->dep_prevTakeoffOffset.end())
+        auto spacingIt = this->dep_liveSpacing.find(callSign);
+        if (spacingIt == this->dep_liveSpacing.end() || !spacingIt->second.snapshotTaken)
         {
             t.tag = "---";
             return t;
         }
+        const DepartureLiveSpacing& sp = spacingIt->second;
 
         bool timeBased = false;
-        auto prevWtcIt = this->dep_prevWtc.find(callSign);
-        if (prevWtcIt != this->dep_prevWtc.end())
+        if (sp.prevWtc != '\0')
         {
             char curWtc = fpd.GetAircraftWtc();
-            if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(prevWtcIt->second))
+            if (GetAircraftWeightCategoryRanking(curWtc) < GetAircraftWeightCategoryRanking(sp.prevWtc))
             {
                 timeBased = true;
             }
@@ -447,9 +430,8 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
         if (timeBased)
         {
-            ULONGLONG   offsetSeconds = offsetIt->second;
-            auto        reqIt         = this->dep_timeRequired.find(callSign);
-            int         timeRequired  = (reqIt != this->dep_timeRequired.end()) ? reqIt->second : 120;
+            ULONGLONG offsetSeconds = sp.takeoffTimeOffset;
+            int       timeRequired  = (sp.timeRequired > 0) ? sp.timeRequired : 120;
             t.tag = std::format("{:>4} s  /{}", offsetSeconds, timeRequired);
 
             if (offsetSeconds >= (ULONGLONG)timeRequired)
@@ -467,21 +449,18 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         }
         else
         {
-            auto lockedDistIt = this->dep_prevDistanceAtTakeoff.find(callSign);
-            if (lockedDistIt == this->dep_prevDistanceAtTakeoff.end())
+            double dist = sp.distanceAtTakeoff;
+            if (dist == 0.0)
             {
                 t.tag = "---";
                 return t;
             }
 
-            double dist = lockedDistIt->second;
-
             double      distRequired = 3.0;
             std::string curSid       = fpd.GetSidName();
-            auto        prevSidIt    = this->dep_prevSid.find(callSign);
-            if (prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty() && prevSidIt->second.length() > 2 && curSid.length() > 2)
+            if (!sp.prevSid.empty() && !curSid.empty() && sp.prevSid.length() > 2 && curSid.length() > 2)
             {
-                auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+                auto prevSidKey = sp.prevSid.substr(0, sp.prevSid.length() - 2);
                 auto curSidKey  = curSid.substr(0, curSid.length() - 2);
                 auto rwyIt      = airportIt->second.runways.find(rwy);
                 if (rwyIt != airportIt->second.runways.end())
@@ -535,13 +514,13 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         {
             return t;
         }
-        auto prevCallIt = this->dep_prevCallSign.find(callSign);
-        if (prevCallIt == this->dep_prevCallSign.end())
+        auto lsIt = this->dep_liveSpacing.find(callSign);
+        if (lsIt == this->dep_liveSpacing.end() || lsIt->second.prevCallSign.empty())
         {
             t.tag = "---";
             return t;
         }
-        auto prevRt = this->RadarTargetSelect(prevCallIt->second.c_str());
+        auto prevRt = this->RadarTargetSelect(lsIt->second.prevCallSign.c_str());
         if (!prevRt.IsValid() || !prevRt.GetPosition().IsValid())
         {
             t.tag = "---";
@@ -551,10 +530,10 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
         double      distRequired = 3.0;
         std::string curSid       = fpd.GetSidName();
-        auto        prevSidIt    = this->dep_prevSid.find(callSign);
-        if (prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty() && prevSidIt->second.length() > 2 && curSid.length() > 2)
+        const std::string& prevSid2 = lsIt->second.prevSid;
+        if (!prevSid2.empty() && !curSid.empty() && prevSid2.length() > 2 && curSid.length() > 2)
         {
-            auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+            auto prevSidKey = prevSid2.substr(0, prevSid2.length() - 2);
             auto curSidKey  = curSid.substr(0, curSid.length() - 2);
             auto rwyIt      = airportIt->second.runways.find(rwy);
             if (rwyIt != airportIt->second.runways.end())
@@ -720,10 +699,10 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         // Separation alert: airborne aircraft too close to the previous departure
         if (isAirborne)
         {
-            auto prevCallIt = this->dep_prevCallSign.find(callSign);
-            if (prevCallIt != this->dep_prevCallSign.end())
+            auto prevCallIt = this->dep_liveSpacing.find(callSign);
+            if (prevCallIt != this->dep_liveSpacing.end() && !prevCallIt->second.prevCallSign.empty())
             {
-                auto prevRt = this->RadarTargetSelect(prevCallIt->second.c_str());
+                auto prevRt = this->RadarTargetSelect(prevCallIt->second.prevCallSign.c_str());
                 if (prevRt.IsValid() && prevRt.GetPosition().IsValid())
                 {
                     double dist = rt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
@@ -1155,15 +1134,14 @@ void CFlowX_CustomTags::UpdateTagCache()
 
             for (auto& key : keys)
             {
-                auto planIt = this->ttt_flightPlans.find(key);
-                if (planIt == this->ttt_flightPlans.end())
+                auto planIt = this->ttt_inbound.find(key);
+                if (planIt == this->ttt_inbound.end())
                 {
                     continue;
                 }
 
-                // Key = callSign + runway designator; strip the designator suffix
-                const std::string& designator = planIt->second.designator;
-                std::string        callSign   = key.substr(0, key.size() - designator.size());
+                const std::string& designator = planIt->second.flightPlan.designator;
+                const std::string& callSign   = key;
 
                 EuroScopePlugIn::CFlightPlan  fp = this->FlightPlanSelect(callSign.c_str());
                 EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
@@ -1407,7 +1385,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
 
     // Skip the ES API call for aircraft with no role in either list.
-    if (!this->ttt_callSigns.contains(callSign) && !this->dep_prevCallSign.contains(callSign))
+    if (!this->ttt_callSigns.contains(callSign) && !this->dep_liveSpacing.contains(callSign))
         return;
 
     EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
@@ -1417,10 +1395,11 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
 
     // Update live spacing for airborne outbound aircraft on every position report.
-    if (this->radarScreen != nullptr && this->dep_prevCallSign.contains(callSign))
+    auto liveSpacingIt = this->dep_liveSpacing.find(callSign);
+    if (this->radarScreen != nullptr && liveSpacingIt != this->dep_liveSpacing.end() && !liveSpacingIt->second.prevCallSign.empty())
     {
         this->dbg_positionOutbound++;
-        auto& prevCs = this->dep_prevCallSign.at(callSign);
+        auto& prevCs = liveSpacingIt->second.prevCallSign;
         auto  prevRt = this->RadarTargetSelect(prevCs.c_str());
         if (prevRt.IsValid() && prevRt.GetPosition().IsValid() && rt.GetPosition().IsValid())
         {
@@ -1432,10 +1411,10 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
             to_upper(dep);
             std::string rwy       = fp.GetFlightPlanData().GetDepartureRwy();
             auto        airportIt = this->airports.find(dep);
-            auto        prevSidIt = this->dep_prevSid.find(callSign);
-            if (airportIt != this->airports.end() && prevSidIt != this->dep_prevSid.end() && !prevSidIt->second.empty() && !curSid.empty() && prevSidIt->second.length() > 2 && curSid.length() > 2)
+            const std::string& prevSid3 = liveSpacingIt->second.prevSid;
+            if (airportIt != this->airports.end() && !prevSid3.empty() && !curSid.empty() && prevSid3.length() > 2 && curSid.length() > 2)
             {
-                auto prevSidKey = prevSidIt->second.substr(0, prevSidIt->second.length() - 2);
+                auto prevSidKey = prevSid3.substr(0, prevSid3.length() - 2);
                 auto curSidKey  = curSid.substr(0, curSid.length() - 2);
                 auto rwyIt      = airportIt->second.runways.find(rwy);
                 if (rwyIt != airportIt->second.runways.end())
@@ -1472,22 +1451,12 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
     this->dbg_positionInbound++;
 
-    // Find the full tttKey (callSign + runway designator)
-    std::string tttKey;
-    {
-        auto it = std::ranges::find_if(this->ttt_flightPlans,
-                                       [&callSign](const auto& e)
-                                       { return e.first.rfind(callSign, 0) == 0; });
-        if (it != this->ttt_flightPlans.end())
-        {
-            tttKey = it->first;
-        }
-    }
-
-    if (tttKey.empty())
+    // tttKey is just the callsign (plain key since refactor)
+    if (!this->ttt_inbound.contains(callSign))
     {
         return;
     }
+    const std::string& tttKey = callSign;
 
     if (this->radarScreen == nullptr)
     {
