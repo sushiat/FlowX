@@ -134,7 +134,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     bool groundOnline = false;
     for (auto station : this->radarScreen->groundStations)
     {
-        if (station.first.contains(dep))
+        if (station.first.find(dep) != std::string::npos)
         {
             groundOnline = true;
             continue;
@@ -166,7 +166,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     bool towerOnline = false;
     for (auto station : this->radarScreen->towerStations)
     {
-        if (station.first.contains(dep))
+        if (station.first.find(dep) != std::string::npos)
         {
             towerOnline = true;
             continue;

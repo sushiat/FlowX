@@ -1213,7 +1213,8 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
     // Compute total menu height: outer padding at bottom only (top header sits flush with the border), gaps before non-first headers, row heights.
     int MENU_H = OUTER_PAD;
-    for (int i = 0; i < NUM_ROWS; i++) { MENU_H += (rows[i].isHeader && i > 0) ? GAP_H + HEADER_H : rows[i].isHeader ? HEADER_H : ITEM_H; }
+    for (auto [i, row] : std::views::enumerate(rows))
+        { MENU_H += (row.isHeader && i > 0) ? GAP_H + HEADER_H : row.isHeader ? HEADER_H : ITEM_H; }
 
     // Mirror DrawStartButton's anchor logic exactly.
     RECT clip;
@@ -1261,9 +1262,8 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     HFONT prev = (HFONT)SelectObject(hDC, itemFont);
 
     int iy = my;
-    for (int i = 0; i < NUM_ROWS; i++)
+    for (auto [i, row] : std::views::enumerate(rows))
     {
-        const MenuRow& row = rows[i];
         int  rh      = row.isHeader ? HEADER_H : ITEM_H;
         RECT rowRect = { mx, iy, mx + MENU_W, iy + rh }; // rowRect for headers is updated after gap advance below
 
