@@ -26,9 +26,9 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     std::string resolvedKey = tttKey;
     if (resolvedKey.empty())
     {
-        auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-                               [&callSign](const auto& e)
-                               { return e.first.rfind(callSign, 0) == 0; });
+        auto it = std::ranges::find_if(this->ttt_flightPlans,
+                                       [&callSign](const auto& e)
+                                       { return e.first.rfind(callSign, 0) == 0; });
         if (it != this->ttt_flightPlans.end())
         {
             resolvedKey = it->first;
@@ -51,7 +51,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     bool   hasDistance     = (distIt != this->ttt_distanceToRunway.end());
     double distToThreshold = hasDistance ? distIt->second : 0.0;
 
-    bool isGoAround = (this->ttt_goAround.count(resolvedKey) > 0);
+    bool isGoAround = this->ttt_goAround.contains(resolvedKey);
 
     auto sortedIt  = this->ttt_sortedByRunway.find(designator);
     bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());
@@ -167,7 +167,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
 
         std::string stand = standIt->second;
         const auto& keys  = sortedIt->second;
-        auto        myIdx = std::find(keys.begin(), keys.end(), resolvedKey);
+        auto        myIdx = std::ranges::find(keys, resolvedKey);
         if (myIdx == keys.end())
         {
             return t;
@@ -296,7 +296,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
     // Airborne: sequence number is assigned at liftoff, not at roll start.
     // Gates --DEP-- status, group C/D, and spacing column.
-    bool isAirborne = (this->dep_sequenceNumber.count(callSign) > 0);
+    bool isAirborne = this->dep_sequenceNumber.contains(callSign);
 
     // Ground state with DEPA-override logic
     std::string defGroundState = fp.GetGroundState();
@@ -370,7 +370,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         }
         t.tag   = ann.substr(7);
         t.color = TAG_COLOR_GREEN;
-        if (t.tag.find('*') != std::string::npos)
+        if (t.tag.contains('*'))
         {
             t.color = TAG_COLOR_ORANGE;
         }
@@ -638,7 +638,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             bool towerOnline = false;
             for (auto& station : this->radarScreen->towerStations)
             {
-                if (station.first.find(dep) != std::string::npos)
+                if (station.first.contains(dep))
                 {
                     towerOnline = true;
                     break;
@@ -732,7 +732,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             std::string sid = fpd.GetSidName();
             for (auto& [f, sids] : airportIt->second.sidAppFreqs)
             {
-                if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+                if (std::ranges::find(sids, sid) != sids.end())
                 {
                     targetFreq = f;
                     break;
@@ -742,7 +742,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
         for (const auto& station : this->radarScreen->approachStations)
         {
-            if (airportIt->second.appFreqFallbacks.count(station.second))
+            if (airportIt->second.appFreqFallbacks.contains(station.second))
             {
                 t.tag = "->" + targetFreq;
                 return t;
@@ -791,7 +791,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
             for (const auto& [cs, tick] : this->twrSameSID_flightPlans)
             {
-                if (tick == 0 || cs == callSign || this->dep_sequenceNumber.count(cs) > 0)
+                if (tick == 0 || cs == callSign || this->dep_sequenceNumber.contains(cs))
                 {
                     continue;
                 }
@@ -1077,7 +1077,7 @@ void CFlowX_CustomTags::UpdateTagCache()
             ComputeOutboundCacheEntry(fp, rt, row);
 
             // Also dim group D (departed + not tracking by me, including transfer-from-me-initiated)
-            row.dimmed |= row.status.tag.find("DEP") != std::string::npos && row.callsignColor != TAG_COLOR_WHITE;
+            row.dimmed |= row.status.tag.contains("DEP") && row.callsignColor != TAG_COLOR_WHITE;
 
             outboundRows.push_back(std::move(row));
         }
@@ -1136,7 +1136,7 @@ void CFlowX_CustomTags::UpdateTagCache()
 
                 auto callsignColor = [&]() -> COLORREF
                 {
-                    if (this->ttt_clearedToLand.count(callSign))
+                    if (this->ttt_clearedToLand.contains(callSign))
                     {
                         return TAG_COLOR_TURQ;
                     }
@@ -1164,7 +1164,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                     {
                         const std::string& stand = standIt->second;
                         row.gate.tag   = stand;
-                        bool occupied  = stand != "GAC" && (this->standOccupancy.count(stand) > 0);
+                        bool occupied  = stand != "GAC" && this->standOccupancy.contains(stand);
                         if (!occupied && stand != "GAC")
                         {
                             for (auto& [cs, s] : this->standAssignment)
@@ -1203,9 +1203,9 @@ void CFlowX_CustomTags::UpdateTagCache()
                         }
 
                         // Background alert for the closest inbound aircraft when not yet cleared to land.
-                        if (isFirst && totalSeconds >= 0 && !this->ttt_clearedToLand.count(callSign))
+                        if (isFirst && totalSeconds >= 0 && !this->ttt_clearedToLand.contains(callSign))
                         {
-                            bool rwyOccupied = this->ttt_runwayOccupied.count(designator) > 0;
+                            bool rwyOccupied = this->ttt_runwayOccupied.contains(designator);
                             if (rwyOccupied && totalSeconds < 30)
                             {
                                 tttDisplay.bgColor    = TAG_BG_COLOR_RED;
@@ -1321,22 +1321,22 @@ void CFlowX_CustomTags::UpdateTagCache()
 
             auto windIt   = this->airportWind.find(icao);
             row.wind      = (windIt != this->airportWind.end() && !windIt->second.empty()) ? windIt->second : "-";
-            row.windColor = (this->windUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+            row.windColor = this->windUnacked.contains(icao) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
 
             auto qnhIt   = this->airportQNH.find(icao);
             row.qnh      = (qnhIt != this->airportQNH.end() && !qnhIt->second.empty()) ? qnhIt->second : "-";
-            row.qnhColor = (this->qnhUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+            row.qnhColor = this->qnhUnacked.contains(icao) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
 
             auto atisIt    = this->atisLetters.find(icao);
             bool atisAvail = (atisIt != this->atisLetters.end() && !atisIt->second.empty());
             row.atis       = atisAvail ? atisIt->second : "?";
             row.atisColor  = atisAvail
-                                 ? ((this->atisUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE)
+                                 ? (this->atisUnacked.contains(icao) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE)
                                  : TAG_COLOR_DEFAULT_GRAY;
 
             auto rvrIt   = this->airportRVR.find(icao);
             row.rvr      = (rvrIt != this->airportRVR.end()) ? rvrIt->second : "";
-            row.rvrColor = (this->rvrUnacked.count(icao) > 0) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
+            row.rvrColor = this->rvrUnacked.contains(icao) ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE;
 
             this->radarScreen->weatherRowsCache.push_back(std::move(row));
             break; // only one airport per session
@@ -1355,11 +1355,11 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
 
     std::string callSign = rt.GetCallsign();
 
-    if (this->twrSameSID_flightPlans.count(callSign))
+    if (this->twrSameSID_flightPlans.contains(callSign))
         this->DetectTakeoffState(rt);
 
     // GND transfer: first time GS drops below 50 kts after landing, show square and play sound.
-    if (this->gndTransfer_list.count(callSign) && !this->gndTransfer_soundPlayed.count(callSign) &&
+    if (this->gndTransfer_list.contains(callSign) && !this->gndTransfer_soundPlayed.contains(callSign) &&
         rt.GetPosition().GetReportedGS() < 50)
     {
         this->gndTransfer_soundPlayed.insert(callSign);
@@ -1369,7 +1369,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
 
     // Skip the ES API call for aircraft with no role in either list.
-    if (!this->ttt_callSigns.count(callSign) && !this->dep_prevCallSign.count(callSign))
+    if (!this->ttt_callSigns.contains(callSign) && !this->dep_prevCallSign.contains(callSign))
         return;
 
     EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
@@ -1379,7 +1379,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
 
     // Update live spacing for airborne outbound aircraft on every position report.
-    if (this->radarScreen != nullptr && this->dep_prevCallSign.count(callSign) > 0)
+    if (this->radarScreen != nullptr && this->dep_prevCallSign.contains(callSign))
     {
         this->dbg_positionOutbound++;
         auto& prevCs = this->dep_prevCallSign.at(callSign);
@@ -1428,7 +1428,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     }
 
     // Only update for inbound aircraft
-    if (!this->ttt_callSigns.count(callSign))
+    if (!this->ttt_callSigns.contains(callSign))
     {
         return;
     }
@@ -1437,9 +1437,9 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
     // Find the full tttKey (callSign + runway designator)
     std::string tttKey;
     {
-        auto it = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-                               [&callSign](const auto& e)
-                               { return e.first.rfind(callSign, 0) == 0; });
+        auto it = std::ranges::find_if(this->ttt_flightPlans,
+                                       [&callSign](const auto& e)
+                                       { return e.first.rfind(callSign, 0) == 0; });
         if (it != this->ttt_flightPlans.end())
         {
             tttKey = it->first;

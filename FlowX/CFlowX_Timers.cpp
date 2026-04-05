@@ -293,7 +293,7 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
     // ── Phase 1b: Rejected takeoff ──
     // If the roll tick was set but the aircraft never went airborne and GS has fallen back below 30,
     // reset the tick so depInfo and T+ are restored for a subsequent attempt.
-    if (mapIt->second != 0 && this->dep_sequenceNumber.count(callSign) == 0 && pos.GetReportedGS() < 30)
+    if (mapIt->second != 0 && !this->dep_sequenceNumber.contains(callSign) && pos.GetReportedGS() < 30)
     {
         mapIt->second = 0;
     }
@@ -334,7 +334,7 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
     //   TopSky state was ever set; spacing precision is slightly lower but still useful.
     std::string groundStatePh2    = fp.GetGroundState();
     bool        airborneCondition = (pressAlt >= depElevation + 200) || (pressAlt >= depElevation + 50 && (groundStatePh2 == "TAXI" || groundStatePh2 == "LINEUP" || groundStatePh2 == "DEPA"));
-    if (this->dep_sequenceNumber.count(callSign) == 0 && airborneCondition)
+    if (!this->dep_sequenceNumber.contains(callSign) && airborneCondition)
     {
         if (mapIt->second == 0)
         {
@@ -375,7 +375,7 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
 {
     // Already snapshotted — nothing to do
-    if (this->dep_prevDistanceAtTakeoff.count(callSign) > 0)
+    if (this->dep_prevDistanceAtTakeoff.contains(callSign))
     {
         return;
     }
@@ -457,7 +457,7 @@ void CFlowX_Timers::PollAtisLetters(int Counter)
                     std::string cs = entry.value("callsign", "");
                     to_upper(cs);
 
-                    if (cs.find(icaoUpper) == std::string::npos)
+                    if (!cs.contains(icaoUpper))
                     {
                         continue;
                     }
@@ -469,7 +469,7 @@ void CFlowX_Timers::PollAtisLetters(int Counter)
                     }
 
                     // First match wins; a _D_ match overrides any earlier non-_D_ match
-                    if (best.empty() || cs.find("_D_") != std::string::npos)
+                    if (best.empty() || cs.contains("_D_"))
                     {
                         best   = code;
                         bestCs = cs;
@@ -710,10 +710,9 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
     for (const auto& callSign : toShow)
     {
         // Find the row in twrOutboundRowsCache for this callsign
-        auto rowIt = std::find_if(this->radarScreen->twrOutboundRowsCache.begin(),
-                                  this->radarScreen->twrOutboundRowsCache.end(),
-                                  [&callSign](const TwrOutboundRowCache& r)
-                                  { return r.callsign == callSign; });
+        auto rowIt = std::ranges::find_if(this->radarScreen->twrOutboundRowsCache,
+                                          [&callSign](const TwrOutboundRowCache& r)
+                                          { return r.callsign == callSign; });
         if (rowIt == this->radarScreen->twrOutboundRowsCache.end())
         {
             continue;
@@ -906,10 +905,7 @@ void CFlowX_Timers::UpdateTWROutbound()
         for (auto& kv : this->radarScreen->depRateLog)
         {
             auto& ts = kv.second;
-            ts.erase(std::remove_if(ts.begin(), ts.end(),
-                                    [now](ULONGLONG t)
-                                    { return (now - t) > 3600000ULL; }),
-                     ts.end());
+            std::erase_if(ts, [now](ULONGLONG t) { return (now - t) > 3600000ULL; });
         }
     }
 
@@ -1056,8 +1052,8 @@ void CFlowX_Timers::UpdateTWROutbound()
                 }
 
                 // Failsafe: snapshot not yet taken and tracking has already ended — record now
-                if (this->dep_sequenceNumber.count(callSign) > 0 &&
-                    this->dep_prevDistanceAtTakeoff.count(callSign) == 0 &&
+                if (this->dep_sequenceNumber.contains(callSign) &&
+                    !this->dep_prevDistanceAtTakeoff.contains(callSign) &&
                     (!fp.GetTrackingControllerIsMe() ||
                      fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED))
                 {
@@ -1161,7 +1157,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                 // Inline check: replaces the old airports×runways×targets triple-nested walk.
                 if (rwy.widthMeters > 0
                     && pressAlt <= depElevation + 80
-                    && !this->ttt_runwayOccupied.count(rwy.designator)
+                    && !this->ttt_runwayOccupied.contains(rwy.designator)
                     && IsPositionOnRunway(rwy, ap.runways, position))
                 {
                     this->ttt_runwayOccupied.insert(rwy.designator);
@@ -1169,17 +1165,14 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                 // ── Shared: runway heading number ──
                 std::string arrRwyDigits = rwy.designator;
-                arrRwyDigits.erase(std::remove_if(arrRwyDigits.begin(), arrRwyDigits.end(),
-                                                  [](char c)
-                                                  { return !std::isdigit(c); }),
-                                   arrRwyDigits.end());
+                std::erase_if(arrRwyDigits, [](char c) { return !std::isdigit(c); });
                 int arrRwyHdg = arrRwyDigits.empty() ? -1 : std::stoi(arrRwyDigits);
 
                 // ── (B) Main inbound tracking ──
                 if (arrRwyHdg == -1)
                 {
                     // Can't determine arrival heading — remove if tracked, then fall through to (C)
-                    if (this->ttt_flightPlans.count(rwyCallsign))
+                    if (this->ttt_flightPlans.contains(rwyCallsign))
                     {
                         this->tttInbound.RemoveFpFromTheList(fp);
                         this->ttt_flightPlans.erase(rwyCallsign);
@@ -1208,13 +1201,13 @@ void CFlowX_Timers::UpdateTWRInbound()
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         std::string trackingControllerId        = fp.GetTrackingControllerId();
 
-                        if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && !this->standAssignment.count(callSign))
+                        if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && !this->standAssignment.contains(callSign))
                         {
                             // Trigger auto stand assignment in GroundRadar plugin
                             this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0, "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
                         }
 
-                        if (!this->ttt_flightPlans.count(rwyCallsign))
+                        if (!this->ttt_flightPlans.contains(rwyCallsign))
                         {
                             this->tttInbound.AddFpToTheList(fp);
                             this->ttt_flightPlans.emplace(rwyCallsign, rwy);
@@ -1232,7 +1225,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                     }
                     else
                     {
-                        const bool isFixTracked = this->ttt_approachFixTracked.count(rwyCallsign) > 0;
+                        const bool isFixTracked = this->ttt_approachFixTracked.contains(rwyCallsign);
 
                         if (isFixTracked)
                         {
@@ -1347,7 +1340,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                             }
                         }
                         else if (!rwy.gpsApproachPaths.empty()
-                                 && !this->ttt_flightPlans.count(rwyCallsign)
+                                 && !this->ttt_flightPlans.contains(rwyCallsign)
                                  && pressAlt > depElevation + 50
                                  && pressAlt < depElevation + 8000
                                  && hdgDiff <= 120
@@ -1384,7 +1377,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                     {
                                         std::string trackingControllerId = fp.GetTrackingControllerId();
                                         if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty())
-                                            && !this->standAssignment.count(callSign))
+                                            && !this->standAssignment.contains(callSign))
                                         {
                                             this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0,
                                                 "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
@@ -1409,7 +1402,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                         else
                         {
                             // Only remove normal inbounds; go-arounds are handled in (C) below
-                            if (this->ttt_flightPlans.count(rwyCallsign) && !this->ttt_goAround.count(rwyCallsign))
+                            if (this->ttt_flightPlans.contains(rwyCallsign) && !this->ttt_goAround.contains(rwyCallsign))
                             {
                                 std::string why;
                                 if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
@@ -1439,8 +1432,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                 // Runs after (B) so that aircraft removed this tick are correctly visible here.
                 if (!isVfrByMe)
                 {
-                    bool isGoAround        = this->ttt_goAround.count(rwyCallsign) > 0;
-                    bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.count(rwyCallsign) > 0;
+                    bool isGoAround        = this->ttt_goAround.contains(rwyCallsign);
+                    bool isRecentlyRemoved = !isGoAround && this->ttt_recentlyRemoved.contains(rwyCallsign);
 
                     if (isGoAround || isRecentlyRemoved)
                     {

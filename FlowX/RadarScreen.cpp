@@ -1871,7 +1871,7 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
     if (!fp.IsValid()) { return; }
 
     // Only revert when the aircraft is currently in LINEUP state
-    auto statusIt = std::find_if(this->twrOutboundRowsCache.begin(), this->twrOutboundRowsCache.end(),
+    auto statusIt = std::ranges::find_if(this->twrOutboundRowsCache,
         [&callsign](const TwrOutboundRowCache& r) { return r.callsign == callsign; });
     if (statusIt == this->twrOutboundRowsCache.end()) { return; }
     if (statusIt->status.tag != "LINE UP") { return; }

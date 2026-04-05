@@ -134,7 +134,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     bool groundOnline = false;
     for (auto station : this->radarScreen->groundStations)
     {
-        if (station.first.find(dep) != std::string::npos)
+        if (station.first.contains(dep))
         {
             groundOnline = true;
             continue;
@@ -166,7 +166,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     bool towerOnline = false;
     for (auto station : this->radarScreen->towerStations)
     {
-        if (station.first.find(dep) != std::string::npos)
+        if (station.first.contains(dep))
         {
             towerOnline = true;
             continue;
@@ -189,7 +189,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
         std::string sid = fpd.GetSidName();
         for (auto& [f, sids] : airport->second.sidAppFreqs)
         {
-            if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+            if (std::ranges::find(sids, sid) != sids.end())
             {
                 targetFreq = f;
                 break;
@@ -200,7 +200,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     // If any online approach station is on one of this airport's approach frequencies, show the SID-determined frequency
     for (const auto& station : this->radarScreen->approachStations)
     {
-        if (airport->second.appFreqFallbacks.count(station.second))
+        if (airport->second.appFreqFallbacks.contains(station.second))
         {
             tag.tag += "->" + targetFreq;
             return tag;

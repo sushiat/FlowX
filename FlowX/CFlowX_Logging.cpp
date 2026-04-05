@@ -62,10 +62,8 @@ void CFlowX_Logging::LogDebugFileOnly(const std::string& message, const std::str
     std::string            entry   = std::string(ts) + " [" + type + "] " + message;
     std::filesystem::path  logPath = std::filesystem::path(GetPluginDirectory()) / "debugLog.txt";
 
-    this->debugLogFutures.erase(
-        std::remove_if(this->debugLogFutures.begin(), this->debugLogFutures.end(),
-            [](const std::future<void>& f) { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }),
-        this->debugLogFutures.end());
+    std::erase_if(this->debugLogFutures,
+        [](const std::future<void>& f) { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; });
 
     this->debugLogFutures.push_back(std::async(std::launch::async,
         [entry, logPath, mutex = this->debugLogMutex]()
@@ -93,11 +91,8 @@ void CFlowX_Logging::LogDebugMessage(const std::string& message, const std::stri
     std::string entry     = std::string(ts) + " [" + type + "] " + message;
     std::filesystem::path logPath = std::filesystem::path(GetPluginDirectory()) / "debugLog.txt";
 
-    // Prune completed futures, then launch new write
-    this->debugLogFutures.erase(
-        std::remove_if(this->debugLogFutures.begin(), this->debugLogFutures.end(),
-            [](const std::future<void>& f) { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }),
-        this->debugLogFutures.end());
+    std::erase_if(this->debugLogFutures,
+        [](const std::future<void>& f) { return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; });
 
     this->debugLogFutures.push_back(std::async(std::launch::async,
         [entry, logPath, mutex = this->debugLogMutex]()

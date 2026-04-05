@@ -204,7 +204,7 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
         static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA"};
         for (const auto& status : groundStatuses)
         {
-            if (scratch.find(status) != std::string::npos)
+            if (scratch.contains(status))
             {
                 this->groundStatus[callSign] = status;
                 break;
@@ -350,7 +350,7 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
     to_upper(dep);
 
     static const std::vector<int> noDepartureAirportCheckRequired = {TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP, TAG_FUNC_STAND_AUTO};
-    if (this->airports.find(dep) == this->airports.end() && std::find(noDepartureAirportCheckRequired.begin(), noDepartureAirportCheckRequired.end(), FunctionId) == noDepartureAirportCheckRequired.end())
+    if (!this->airports.contains(dep) && std::ranges::find(noDepartureAirportCheckRequired, FunctionId) == noDepartureAirportCheckRequired.end())
     {
         return;
     }

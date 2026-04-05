@@ -280,9 +280,9 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
         decltype(this->airports)::iterator airport = this->airports.end();
 
         // Check for go-around first — arrival airport may differ from departure airport
-        auto planIt = std::find_if(this->ttt_flightPlans.begin(), this->ttt_flightPlans.end(),
-                                   [&callSign](const auto& e)
-                                   { return e.first.rfind(callSign, 0) == 0; });
+        auto planIt = std::ranges::find_if(this->ttt_flightPlans,
+                                           [&callSign](const auto& e)
+                                           { return e.first.rfind(callSign, 0) == 0; });
         if (planIt != this->ttt_flightPlans.end() &&
             this->ttt_goAround.find(planIt->first) != this->ttt_goAround.end())
         {
@@ -314,7 +314,7 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             targetFreq      = airport->second.defaultAppFreq;
             for (auto& [f, sids] : airport->second.sidAppFreqs)
             {
-                if (std::find(sids.begin(), sids.end(), sid) != sids.end())
+                if (std::ranges::find(sids, sid) != sids.end())
                 {
                     targetFreq = f;
                     break;
