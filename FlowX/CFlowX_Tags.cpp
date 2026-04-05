@@ -122,7 +122,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     auto me = this->ControllerMyself();
     if (me.IsController() && me.GetRating() > 1 && me.GetFacility() >= 3)
     {
-        tag.tag.empty() ? tag.tag = "OK" : tag.tag += "→OK";
+        tag.tag.empty() ? tag.tag = "OK" : tag.tag += "->OK";
         return tag;
     }
 
