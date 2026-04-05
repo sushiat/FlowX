@@ -1195,8 +1195,9 @@ void CFlowX_Timers::UpdateTWRInbound()
                     if (dirDiff > 180.0)
                         dirDiff = 360.0 - dirDiff;
 
-                    double dirLimit = std::min(5.0 + distance * 0.7, 15.0);
-                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 45 && distance < 25 && dirDiff <= dirLimit)
+                    double dirLimit   = std::min(5.0 + distance * 0.7, 15.0);
+                    double altProfile = depElevation + distance * 300.0 + 1000.0; // ~3.3° glidepath + 1000 ft buffer
+                    if (pressAlt > depElevation + 50 && pressAlt < altProfile && hdgDiff <= 45 && distance < 25 && dirDiff <= dirLimit)
                     {
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         std::string trackingControllerId        = fp.GetTrackingControllerId();
@@ -1406,7 +1407,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                             {
                                 std::string why;
                                 if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
-                                if (pressAlt >= depElevation + 7050)  why += " alt_high=" + std::to_string(pressAlt) + "ft";
+                                if (pressAlt >= altProfile)           why += " alt_profile=" + std::to_string(pressAlt) + "ft(lim" + std::to_string(static_cast<int>(altProfile)) + ")";
                                 if (hdgDiff > 45)                     why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
                                 if (distance >= 25.0)                 why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
                                 if (dirDiff > dirLimit)               why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(dirLimit)) + ")";

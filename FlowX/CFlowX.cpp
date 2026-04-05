@@ -273,6 +273,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     {
         if (it->first.substr(0, callSign.size()) == callSign)
         {
+            this->LogDebugMessage(callSign + " removed from TTT (disconnect) rwy=" + it->first.substr(callSign.size()), "TTT");
             this->tttInbound.RemoveFpFromTheList(FlightPlan);
             this->ttt_goAround.erase(it->first);
             it = this->ttt_flightPlans.erase(it);
