@@ -500,24 +500,27 @@ void CFlowX_Settings::LoadConfig()
                     }
                 }
 
-                if (json_rwy.contains("approachPaths"))
+                if (json_rwy.contains("gpsApproachPaths"))
                 {
-                    for (const auto& json_path : json_rwy["approachPaths"])
+                    for (const auto& json_path : json_rwy["gpsApproachPaths"])
                     {
                         approachPath path{};
                         path.name = json_path.value<std::string>("name", "");
                         for (const auto& json_af : json_path["fixes"])
                         {
                             approachFix af{};
-                            af.name        = json_af.value<std::string>("name", "");
-                            af.lat         = json_af.value<double>("lat", 0.0);
-                            af.lon         = json_af.value<double>("lon", 0.0);
-                            af.altMinFt    = json_af.value<int>("altMinFt", 0);
-                            af.altMaxFt    = json_af.value<int>("altMaxFt", 0);
+                            af.name               = json_af.value<std::string>("name", "");
+                            af.lat                = json_af.value<double>("lat", 0.0);
+                            af.lon                = json_af.value<double>("lon", 0.0);
                             af.legType            = json_af.value<std::string>("legType", "straight");
                             af.legLengthNm        = json_af.value<double>("legLengthNm", 0.0);
                             af.detectionRadiusNm  = json_af.value<double>("detectionRadiusNm", 0.0);
                             af.iafHeading         = json_af.value<int>("iafHeading", 0);
+                            int altitude     = json_af.value<int>("altitude", 0);
+                            int offsetBelow  = json_af.value<int>("altOffsetBelow", 0);
+                            int offsetAbove  = json_af.value<int>("altOffsetAbove", 0);
+                            af.altMinFt = (altitude > 0 && offsetBelow > 0) ? altitude - offsetBelow : 0;
+                            af.altMaxFt = (altitude > 0 && offsetAbove > 0) ? altitude + offsetAbove : 0;
                             path.fixes.push_back(af);
                         }
 
@@ -530,7 +533,7 @@ void CFlowX_Settings::LoadConfig()
 
                             // Flat-earth local NM coordinate system centred on prev
                             double latAvg = (prev.lat + fix.lat) * 0.5;
-                            double cosLat = std::cos(latAvg * std::numbers::pi / 180.0);
+                            double cosLat = std::cos(latAvg * 3.141592653589793 / 180.0);
                             double dx     = (fix.lon - prev.lon) * cosLat * 60.0; // NM east
                             double dy     = (fix.lat - prev.lat) * 60.0;           // NM north
                             double chord  = std::sqrt(dx * dx + dy * dy);
@@ -563,7 +566,7 @@ void CFlowX_Settings::LoadConfig()
                             fix.arcRadiusNm  = r;
                         }
 
-                        rwy.approachPaths.push_back(path);
+                        rwy.gpsApproachPaths.push_back(path);
                     }
                 }
 

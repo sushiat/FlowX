@@ -268,23 +268,23 @@
                         "stands": ["GAC","A3*","A4*","A5*","A6*"]
                     }
                 },
-                "approachPaths": [
+                "gpsApproachPaths": [
                     {
                         "name": "RNP N",
                         "fixes": [
-                            { "name": "WW008", "lat": 48.311261, "lon": 16.528883, "altMinFt": 3100, "altMaxFt": 5214, "detectionRadiusNm": 0.3, "iafHeading": 139 },
-                            { "name": "WW006", "lat": 48.263956, "lon": 16.579958, "altMinFt": 3100, "altMaxFt": 4100, "legType": "straight", "legLengthNm": 3.5 },
-                            { "name": "WW004", "lat": 48.212519, "lon": 16.577550, "altMinFt": 2149, "altMaxFt": 2949, "legType": "arcRight", "legLengthNm": 3.3 },
-                            { "name": "WW002", "lat": 48.206067, "lon": 16.569667, "altMinFt": 2090, "altMaxFt": 2690, "legType": "straight", "legLengthNm": 0.5 },
-                            { "name": "WW001", "lat": 48.167869, "lon": 16.557797, "altMinFt": 1426, "altMaxFt": 1826, "legType": "arcLeft",  "legLengthNm": 2.4 }
+                            { "name": "WW008", "lat": 48.311261, "lon": 16.528883, "altitude": 3600, "altOffsetBelow": 500, "altOffsetAbove": 1614, "detectionRadiusNm": 0.3, "iafHeading": 139 },
+                            { "name": "WW006", "lat": 48.263956, "lon": 16.579958, "altitude": 3600, "altOffsetBelow": 500, "altOffsetAbove": 500,  "legType": "straight", "legLengthNm": 3.5 },
+                            { "name": "WW004", "lat": 48.212519, "lon": 16.577550, "altitude": 2549, "altOffsetBelow": 400, "altOffsetAbove": 400,  "legType": "arcRight", "legLengthNm": 3.3 },
+                            { "name": "WW002", "lat": 48.206067, "lon": 16.569667, "altitude": 2390, "altOffsetBelow": 300, "altOffsetAbove": 300,  "legType": "straight", "legLengthNm": 0.5 },
+                            { "name": "WW001", "lat": 48.167869, "lon": 16.557797, "altitude": 1626, "altOffsetBelow": 200, "altOffsetAbove": 200,  "legType": "arcLeft",  "legLengthNm": 2.4 }
                         ]
                     },
                     {
                         "name": "RNP E",
                         "fixes": [
-                            { "name": "WW005", "lat": 48.205858, "lon": 16.718783, "altMinFt": 2800, "altMaxFt": 4928, "detectionRadiusNm": 0.3, "iafHeading": 279 },
-                            { "name": "WW003", "lat": 48.220333, "lon": 16.634269, "altMinFt": 2914, "altMaxFt": 3714, "legType": "straight", "legLengthNm": 3.5 },
-                            { "name": "WW001", "lat": 48.167869, "lon": 16.557797, "altMinFt": 1426, "altMaxFt": 1826, "legType": "arcLeft",  "legLengthNm": 5.3 }
+                            { "name": "WW005", "lat": 48.205858, "lon": 16.718783, "altitude": 3300, "altOffsetBelow": 500, "altOffsetAbove": 1628, "detectionRadiusNm": 0.3, "iafHeading": 279 },
+                            { "name": "WW003", "lat": 48.220333, "lon": 16.634269, "altitude": 3300, "altOffsetBelow": 400, "altOffsetAbove": 400,  "legType": "straight", "legLengthNm": 3.5 },
+                            { "name": "WW001", "lat": 48.167869, "lon": 16.557797, "altitude": 1626, "altOffsetBelow": 200, "altOffsetAbove": 200,  "legType": "arcLeft",  "legLengthNm": 5.3 }
                         ]
                     }
                 ]

@@ -78,8 +78,8 @@ struct approachFix
     std::string name;                        ///< Fix identifier for debugging (e.g. "WW008")
     double      lat          = 0.0;          ///< Fix latitude (decimal degrees)
     double      lon          = 0.0;          ///< Fix longitude (decimal degrees)
-    int         altMinFt     = 0;            ///< Lower altitude bound (ft MSL); 0 = no lower gate.
-    int         altMaxFt     = 0;            ///< Upper altitude bound (ft MSL); 0 = no upper gate.
+    int         altMinFt     = 0;            ///< Computed lower bound (ft MSL): altitude - altOffsetBelow. 0 = no lower gate.
+    int         altMaxFt     = 0;            ///< Computed upper bound (ft MSL): altitude + altOffsetAbove. 0 = no upper gate.
     std::string legType      = "straight";   ///< Incoming leg type: "straight", "arcLeft", or "arcRight". IAF has no incoming leg (legLengthNm == 0).
     double      legLengthNm  = 0.0;         ///< Along-track length of the incoming leg in NM; 0 = IAF (no incoming leg).
     double      arcCenterLat     = 0.0; ///< Derived arc centre latitude (decimal degrees); 0 for straight legs.
@@ -99,7 +99,7 @@ struct approachPath
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
-    std::vector<approachPath>            approachPaths = {}; ///< Non-straight-in approach paths for early TTT detection; empty = straight-in only.
+    std::vector<approachPath>            gpsApproachPaths = {}; ///< Non-straight-in GPS approach paths for early TTT detection; empty = straight-in only.
     std::string                         designator;         ///< Runway designator (e.g. "11")
     std::string                         opposite;           ///< Designator of the reciprocal runway (used for go-around detection)
     double                              thresholdLat = 0.0; ///< Runway threshold latitude

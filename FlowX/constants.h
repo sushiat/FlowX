@@ -93,7 +93,7 @@ const COLORREF TAG_COLOR_BROWN        = RGB(200, 160, 100); ///< Light brown (tr
 ///       Reserve for safety-critical states only; foreground colour is sufficient for all other conditions.
 /// @{
 const COLORREF TAG_BG_COLOR_RED    = RGB(220, 20, 20);  ///< Bright red background  (live separation / runway conflict)
-const COLORREF TAG_BG_COLOR_ORANGE = RGB(255, 140, 0);  ///< Bright orange background (< 15 s TTT, not cleared to land) — use with white text
+const COLORREF TAG_BG_COLOR_ORANGE = RGB(230, 120, 0);  ///< Orange background (< 15 s TTT, not cleared to land) — use with white text
 const COLORREF TAG_BG_COLOR_YELLOW = RGB(255, 210, 0);  ///< Bright yellow background  (< 30 s TTT not cleared / MODE-C)
 /// @}
 

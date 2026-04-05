@@ -1237,9 +1237,9 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                             if (pathIdxIt != this->ttt_approachPathIdx.end()
                                 && segIdxIt  != this->ttt_approachSegIdx.end()
-                                && pathIdxIt->second < static_cast<int>(rwy.approachPaths.size()))
+                                && pathIdxIt->second < static_cast<int>(rwy.gpsApproachPaths.size()))
                             {
-                                const auto& path   = rwy.approachPaths[pathIdxIt->second];
+                                const auto& path   = rwy.gpsApproachPaths[pathIdxIt->second];
                                 int&        segIdx = segIdxIt->second;
 
                                 // Advance segment when within 1.5 NM of the next fix
@@ -1334,7 +1334,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                     this->ttt_callSigns.erase(callSign);
                             }
                         }
-                        else if (!rwy.approachPaths.empty()
+                        else if (!rwy.gpsApproachPaths.empty()
                                  && !this->ttt_flightPlans.count(rwyCallsign)
                                  && pressAlt > depElevation + 50
                                  && pressAlt < depElevation + 8000
@@ -1344,9 +1344,9 @@ void CFlowX_Timers::UpdateTWRInbound()
                         {
                             // Approach-fix proximity detection for non-straight-in RNP approaches
                             bool added = false;
-                            for (int pi = 0; pi < static_cast<int>(rwy.approachPaths.size()) && !added; ++pi)
+                            for (int pi = 0; pi < static_cast<int>(rwy.gpsApproachPaths.size()) && !added; ++pi)
                             {
-                                const auto& path = rwy.approachPaths[pi];
+                                const auto& path = rwy.gpsApproachPaths[pi];
                                 for (int fi = 0; fi < static_cast<int>(path.fixes.size()) && !added; ++fi)
                                 {
                                     const auto& fix = path.fixes[fi];
