@@ -1202,7 +1202,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                     if (dirDiff > 180.0)
                         dirDiff = 360.0 - dirDiff;
 
-                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 45 && distance < 25 && dirDiff <= 5.0)
+                    if (pressAlt > depElevation + 50 && pressAlt < depElevation + 50 + 7000 && hdgDiff <= 45 && distance < 25 && dirDiff <= 5.0 + distance * 0.7)
                     {
                         this->ttt_distanceToRunway[rwyCallsign] = distance;
                         std::string trackingControllerId        = fp.GetTrackingControllerId();
@@ -1321,10 +1321,17 @@ void CFlowX_Timers::UpdateTWRInbound()
                             }
 
                             // Safety valve: remove if impossibly far, too high, wrong heading/direction, or climbing
+                            int prevAlt = rt.GetPreviousPosition(pos).GetPressureAltitude();
                             if (distance > 35.0 || pressAlt > depElevation + 8000 || hdgDiff > 120
-                                || dirDiff > 60.0
-                                || rt.GetPreviousPosition(pos).GetPressureAltitude() < pressAlt - 200)
+                                || dirDiff > 60.0 || prevAlt < pressAlt - 200)
                             {
+                                std::string why;
+                                if (distance > 35.0)             why += " dist>" + std::to_string(static_cast<int>(distance)) + "NM";
+                                if (pressAlt > depElevation + 8000) why += " alt>" + std::to_string(pressAlt) + "ft";
+                                if (hdgDiff > 120)               why += " hdg=" + std::to_string(hdgDiff) + "deg";
+                                if (dirDiff > 60.0)              why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg";
+                                if (prevAlt < pressAlt - 200)    why += " climbing(" + std::to_string(prevAlt) + "->" + std::to_string(pressAlt) + "ft)";
+                                this->LogDebugMessage(callSign + " removed from TTT (RNP safety) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
                                 this->ttt_flightPlans.erase(rwyCallsign);
@@ -1403,6 +1410,13 @@ void CFlowX_Timers::UpdateTWRInbound()
                             // Only remove normal inbounds; go-arounds are handled in (C) below
                             if (this->ttt_flightPlans.count(rwyCallsign) && !this->ttt_goAround.count(rwyCallsign))
                             {
+                                std::string why;
+                                if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
+                                if (pressAlt >= depElevation + 7050)  why += " alt_high=" + std::to_string(pressAlt) + "ft";
+                                if (hdgDiff > 45)                     why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
+                                if (distance >= 25.0)                 why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
+                                if (dirDiff > 5.0 + distance * 0.7)   why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(5.0 + distance * 0.7)) + ")";
+                                this->LogDebugMessage(callSign + " removed from TTT (cone left) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
                                 this->ttt_flightPlans.erase(rwyCallsign);

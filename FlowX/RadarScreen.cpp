@@ -261,6 +261,7 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
         DeleteObject(pen);
 
         AddScreenObject(SCREEN_OBJECT_DEP_TAG, cs.c_str(), area, true, "");
+        AddScreenObject(SCREEN_OBJECT_DEP_TAG_SID_DOT, (cs + "|SID_DOT").c_str(), dotRect, false, "");
     }
 }
 
@@ -1705,6 +1706,27 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
     {
         static_cast<CFlowX_Timers*>(this->GetPlugIn())->AckWeather(std::string(sObjectId));
         this->RequestRefresh();
+    }
+
+    if (ObjectType == SCREEN_OBJECT_DEP_TAG_SID_DOT && Button == EuroScopePlugIn::BUTTON_LEFT)
+    {
+        std::string id(sObjectId);
+        auto sep = id.rfind('|');
+        if (sep == std::string::npos) { return; }
+        std::string callsign = id.substr(0, sep);
+
+        auto ctrl = this->GetPlugIn()->ControllerMyself();
+        if (!ctrl.IsController() || ctrl.GetFacility() != 3) { return; }
+
+        auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+        if (aselFp.IsValid()) { GetPlugIn()->SetASELAircraft(aselFp); }
+
+        this->StartTagFunction(callsign.c_str(),
+            PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, "",
+            PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
+
+        this->RequestRefresh();
+        return;
     }
 
     if (ObjectType == SCREEN_OBJECT_TWR_OUT_CELL)

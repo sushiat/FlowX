@@ -43,22 +43,13 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
 
         if (args[1] == "debug")
         {
-            if (this->debug)
-            {
-                this->LogMessage("Disabling debug mode", "Debug");
-            }
-            else
-            {
-                this->LogMessage("Enabling debug mode", "Debug");
-            }
+            this->LogMessage(this->debug ? "Disabling debug mode" : "Enabling debug mode", "Debug");
 
-            this->debug = !this->debug;
+            this->ToggleDebug();
             if (this->radarScreen != nullptr)
             {
                 this->radarScreen->debug = this->debug;
             }
-
-            this->SaveSettings();
 
             return true;
         }

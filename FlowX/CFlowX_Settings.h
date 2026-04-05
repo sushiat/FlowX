@@ -116,7 +116,7 @@ class CFlowX_Settings : public CFlowX_Logging
     void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveSettings(); }
 
     /// @brief Toggles the debug-mode setting and persists it immediately.
-    void ToggleDebug() { this->debug = !this->debug; SaveSettings(); }
+    void ToggleDebug() { this->debug = !this->debug; SaveSettings(); if (this->debug) { this->LogDebugSessionStart(); } }
 
     /// @brief Toggles the DEP/H departure rate window visibility (does not affect the saved position).
     void ToggleDepRateVisible() { this->depRateVisible = !this->depRateVisible; }

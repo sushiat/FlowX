@@ -10,6 +10,8 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -17,10 +19,20 @@
 class CFlowX_Logging : public CFlowX_Base
 {
   private:
-    std::vector<std::future<void>> debugLogFutures; ///< Pending async debug-log file writes; pruned on each LogDebugMessage call.
+    std::shared_ptr<std::mutex>    debugLogMutex   = std::make_shared<std::mutex>(); ///< Serialises concurrent async debug-log file writes.
+    std::vector<std::future<void>> debugLogFutures;                                  ///< Pending async debug-log file writes; pruned on each LogDebugMessage call.
 
   protected:
     bool flashOnMessage; ///< When true, the EuroScope message area flashes on every logged message
+
+    /// @brief Writes a timestamped session-start header to the debug log file.
+    /// Should be called exactly when debug mode turns on (startup with debug=true, or manual toggle).
+    void LogDebugSessionStart();
+
+    /// @brief Writes a message to the debug log file only (no EuroScope chat) when debug mode is enabled.
+    /// @param message Text to write.
+    /// @param type Category label shown in the file.
+    void LogDebugFileOnly(const std::string& message, const std::string& type);
 
     /// @brief Displays a message only when debug mode is enabled.
     /// @param message Text to display.

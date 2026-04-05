@@ -53,6 +53,7 @@ void CFlowX_Settings::LoadSettings()
         {
             std::istringstream(splitSettings[3]) >> this->autoRestore;
         }
+        if (this->debug) { this->LogDebugSessionStart(); }
         this->LogMessage("Successfully loaded settings.", "Settings");
     }
     else
@@ -608,56 +609,36 @@ void CFlowX_Settings::LoadConfig()
 
     this->LogMessage(std::format("Successfully loaded config for {} airport(s).", this->airports.size()), "Config");
 
-    for (auto& airport : this->airports)
+    // Dump the raw JSON to the debug log file only (too verbose for chat).
+    // Header line has a timestamp prefix; the JSON body is written as-is for easy copy/paste.
+    if (this->debug)
     {
-        this->LogDebugMessage("Airport: " + airport.first, "Config");
-        this->LogDebugMessage("--> GND: " + airport.second.gndFreq, "Config");
-        int ctrIndex = 0;
-        for (const auto& ctr : airport.second.ctrStations)
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        char ts[20];
+        sprintf_s(ts, sizeof(ts), "%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+        std::filesystem::path logPath = std::filesystem::path(GetPluginDirectory()) / "debugLog.txt";
+        std::ofstream         f(logPath, std::ios::app);
+        if (f) f << ts << " [Config] config.json contents:\n" << config.dump(2) << "\n";
+    }
+
+    // Computed/derived values not present in raw JSON (arc geometry for GPS approach paths).
+    for (auto& [icao, ap] : this->airports)
+    {
+        for (auto& [rwyDesignator, rwy] : ap.runways)
         {
-            this->LogDebugMessage(std::format("--> CTR[{}]: {}", ctrIndex, ctr), "Config");
-            ctrIndex++;
+            for (auto& path : rwy.gpsApproachPaths)
+            {
+                for (auto& fix : path.fixes)
+                {
+                    if (fix.arcRadiusNm <= 0.0) { continue; }
+                    this->LogDebugFileOnly(std::format(
+                        "[{}][{}][{}][{}] arc: centre={:.6f}/{:.6f} r={:.3f}nm",
+                        icao, rwyDesignator, path.name, fix.name,
+                        fix.arcCenterLat, fix.arcCenterLon, fix.arcRadiusNm), "Config");
+                }
+            }
         }
-        for (auto& geoGnd : airport.second.geoGndFreq)
-        {
-            this->LogDebugMessage("--> GeoGnd " + geoGnd.first, "Config");
-            this->LogDebugMessage("----> FRQ: " + geoGnd.second.freq, "Config");
-            std::string lat_string = std::accumulate(std::begin(geoGnd.second.lat), std::end(geoGnd.second.lat), std::string(),
-                                                     [](const std::string& ss, const double s)
-                                                     {
-                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
-                                                     });
-            this->LogDebugMessage("----> LAT: " + lat_string, "Config");
-            std::string lon_string = std::accumulate(std::begin(geoGnd.second.lon), std::end(geoGnd.second.lon), std::string(),
-                                                     [](const std::string& ss, const double s)
-                                                     {
-                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
-                                                     });
-            this->LogDebugMessage("----> LON: " + lon_string, "Config");
-        }
-        for (auto& rwy : airport.second.runways)
-        {
-            this->LogDebugMessage("--> RWY[" + rwy.first + "] TWR: " + rwy.second.twrFreq + ", GA: " + rwy.second.goAroundFreq, "Config");
-        }
-        for (auto& taxiOut : airport.second.taxiOutStands)
-        {
-            this->LogDebugMessage("--> TaxiOut " + taxiOut.first, "Config");
-            std::string lat_string = std::accumulate(std::begin(taxiOut.second.lat), std::end(taxiOut.second.lat), std::string(),
-                                                     [](const std::string& ss, const double s)
-                                                     {
-                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
-                                                     });
-            this->LogDebugMessage("----> LAT: " + lat_string, "Config");
-            std::string lon_string = std::accumulate(std::begin(taxiOut.second.lon), std::end(taxiOut.second.lon), std::string(),
-                                                     [](const std::string& ss, const double s)
-                                                     {
-                                                         return ss.empty() ? std::format("{}", s) : std::format("{}, {}", ss, s);
-                                                     });
-            this->LogDebugMessage("----> LON: " + lon_string, "Config");
-        }
-        this->LogDebugMessage(std::format("---> NAP reminder: Enabled={}, Hour={}, Minute={}, TZone={}",
-            airport.second.nap_reminder.enabled, airport.second.nap_reminder.hour,
-            airport.second.nap_reminder.minute, airport.second.nap_reminder.tzone), "Config");
     }
 }
 
