@@ -1103,6 +1103,8 @@ void CFlowX_Timers::UpdateTWRInbound()
             }
 
             this->ttt_approachFixTracked.clear();
+            this->ttt_approachPathIdx.clear();
+            this->ttt_approachSegIdx.clear();
             this->ttt_callSigns.clear();
             this->ttt_clearedToLand.clear();
             this->ttt_flightPlans.clear();
@@ -1220,6 +1222,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                         }
                         // Transition from approach-fix tracking to normal cone tracking
                         this->ttt_approachFixTracked.erase(rwyCallsign);
+                        this->ttt_approachPathIdx.erase(rwyCallsign);
+                        this->ttt_approachSegIdx.erase(rwyCallsign);
                     }
                     else
                     {
@@ -1227,58 +1231,162 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                         if (isFixTracked)
                         {
-                            // Aircraft is on a non-straight-in approach leg — keep in list
-                            this->ttt_distanceToRunway[rwyCallsign] = distance;
+                            // Aircraft is on a non-straight-in approach leg — keep in list and compute path distance
+                            auto pathIdxIt = this->ttt_approachPathIdx.find(rwyCallsign);
+                            auto segIdxIt  = this->ttt_approachSegIdx.find(rwyCallsign);
 
-                            // Safety valve: remove if impossibly far or too high
-                            if (distance > 35.0 || pressAlt > depElevation + 8000)
+                            if (pathIdxIt != this->ttt_approachPathIdx.end()
+                                && segIdxIt  != this->ttt_approachSegIdx.end()
+                                && pathIdxIt->second < static_cast<int>(rwy.approachPaths.size()))
+                            {
+                                const auto& path   = rwy.approachPaths[pathIdxIt->second];
+                                int&        segIdx = segIdxIt->second;
+
+                                // Advance segment when within 1.5 NM of the next fix
+                                int nextFi = segIdx + 1;
+                                if (nextFi < static_cast<int>(path.fixes.size()))
+                                {
+                                    EuroScopePlugIn::CPosition nextPos;
+                                    nextPos.m_Latitude  = path.fixes[nextFi].lat;
+                                    nextPos.m_Longitude = path.fixes[nextFi].lon;
+                                    if (position.DistanceTo(nextPos) < 1.5)
+                                        segIdx = nextFi;
+                                }
+
+                                // Compute remaining path distance from current position
+                                int curNext = segIdx + 1;
+                                double pathDist = 0.0;
+
+                                if (curNext < static_cast<int>(path.fixes.size()))
+                                {
+                                    const auto& nextFix = path.fixes[curNext];
+                                    if ((nextFix.legType == "arcLeft" || nextFix.legType == "arcRight") && nextFix.arcRadiusNm > 0.0)
+                                    {
+                                        // Remaining arc: r × angular distance from aircraft to end fix (in turn direction)
+                                        double bearingToAC  = BearingBetween(nextFix.arcCenterLat, nextFix.arcCenterLon,
+                                                                              position.m_Latitude, position.m_Longitude);
+                                        double bearingToEnd = BearingBetween(nextFix.arcCenterLat, nextFix.arcCenterLon,
+                                                                              nextFix.lat, nextFix.lon);
+                                        double angDeg;
+                                        if (nextFix.legType == "arcLeft")
+                                        {
+                                            // CCW: bearing decreases toward end
+                                            angDeg = bearingToAC - bearingToEnd;
+                                            if (angDeg < 0.0) angDeg += 360.0;
+                                        }
+                                        else
+                                        {
+                                            // CW: bearing increases toward end
+                                            angDeg = bearingToEnd - bearingToAC;
+                                            if (angDeg < 0.0) angDeg += 360.0;
+                                        }
+                                        pathDist = nextFix.arcRadiusNm * angDeg * std::numbers::pi / 180.0;
+                                    }
+                                    else
+                                    {
+                                        // Straight: direct distance to next fix
+                                        EuroScopePlugIn::CPosition nextPos;
+                                        nextPos.m_Latitude  = nextFix.lat;
+                                        nextPos.m_Longitude = nextFix.lon;
+                                        pathDist = position.DistanceTo(nextPos);
+                                    }
+
+                                    // Add full lengths of all subsequent segments
+                                    for (int fi = curNext + 1; fi < static_cast<int>(path.fixes.size()); ++fi)
+                                        pathDist += path.fixes[fi].legLengthNm;
+
+                                    // Add straight final from last approach fix to runway threshold
+                                    EuroScopePlugIn::CPosition lastFixPos, threshPos;
+                                    lastFixPos.m_Latitude  = path.fixes.back().lat;
+                                    lastFixPos.m_Longitude = path.fixes.back().lon;
+                                    threshPos.m_Latitude   = rwy.thresholdLat;
+                                    threshPos.m_Longitude  = rwy.thresholdLon;
+                                    pathDist += lastFixPos.DistanceTo(threshPos);
+                                }
+                                else
+                                {
+                                    // Past all approach fixes — on the straight final
+                                    pathDist = distance;
+                                }
+
+                                this->ttt_distanceToRunway[rwyCallsign] = pathDist;
+                            }
+                            else
+                            {
+                                this->ttt_distanceToRunway[rwyCallsign] = distance;
+                            }
+
+                            // Safety valve: remove if impossibly far, too high, wrong heading/direction, or climbing
+                            if (distance > 35.0 || pressAlt > depElevation + 8000 || hdgDiff > 120
+                                || dirDiff > 60.0
+                                || rt.GetPreviousPosition(pos).GetPressureAltitude() < pressAlt - 200)
                             {
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
                                 this->ttt_flightPlans.erase(rwyCallsign);
                                 this->ttt_distanceToRunway.erase(rwyCallsign);
                                 this->ttt_approachFixTracked.erase(rwyCallsign);
+                                this->ttt_approachPathIdx.erase(rwyCallsign);
+                                this->ttt_approachSegIdx.erase(rwyCallsign);
                                 this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
                                 auto lb = this->ttt_flightPlans.lower_bound(callSign);
                                 if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
                                     this->ttt_callSigns.erase(callSign);
                             }
                         }
-                        else if (!rwy.approachFixes.empty()
+                        else if (!rwy.approachPaths.empty()
                                  && !this->ttt_flightPlans.count(rwyCallsign)
                                  && pressAlt > depElevation + 50
-                                 && pressAlt < depElevation + 8000)
+                                 && pressAlt < depElevation + 8000
+                                 && hdgDiff <= 120
+                                 && dirDiff <= 45.0
+                                 && rt.GetPreviousPosition(pos).GetPressureAltitude() >= pressAlt)
                         {
                             // Approach-fix proximity detection for non-straight-in RNP approaches
-                            for (const auto& fix : rwy.approachFixes)
+                            bool added = false;
+                            for (int pi = 0; pi < static_cast<int>(rwy.approachPaths.size()) && !added; ++pi)
                             {
-                                if (fix.lat == 0.0 && fix.lon == 0.0) continue;
-
-                                EuroScopePlugIn::CPosition fixPos;
-                                fixPos.m_Latitude  = fix.lat;
-                                fixPos.m_Longitude = fix.lon;
-                                double fixDist = position.DistanceTo(fixPos);
-
-                                bool altOk = fix.altFt == 0
-                                             || (pressAlt > fix.altFt - 500 && pressAlt < fix.altFt + 500);
-
-                                if (fixDist < 3.0 && altOk)
+                                const auto& path = rwy.approachPaths[pi];
+                                for (int fi = 0; fi < static_cast<int>(path.fixes.size()) && !added; ++fi)
                                 {
-                                    this->ttt_distanceToRunway[rwyCallsign] = distance;
+                                    const auto& fix = path.fixes[fi];
+                                    if (fix.lat == 0.0 && fix.lon == 0.0) continue;
 
-                                    std::string trackingControllerId = fp.GetTrackingControllerId();
-                                    if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty())
-                                        && !this->standAssignment.count(callSign))
+                                    EuroScopePlugIn::CPosition fixPos;
+                                    fixPos.m_Latitude  = fix.lat;
+                                    fixPos.m_Longitude = fix.lon;
+                                    double fixDist = position.DistanceTo(fixPos);
+
+                                    bool altOk = (fix.altMinFt == 0 || pressAlt >= fix.altMinFt)
+                                                 && (fix.altMaxFt == 0 || pressAlt <= fix.altMaxFt);
+
+                                    bool iafHdgOk = true;
+                                    if (fix.iafHeading != 0)
                                     {
-                                        this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0,
-                                            "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
+                                        int iafHdgDiff = std::abs(heading - fix.iafHeading * 10);
+                                        if (iafHdgDiff > 1800) iafHdgDiff = 3600 - iafHdgDiff;
+                                        iafHdgOk = iafHdgDiff <= 300;
                                     }
 
-                                    this->tttInbound.AddFpToTheList(fp);
-                                    this->ttt_flightPlans.emplace(rwyCallsign, rwy);
-                                    this->ttt_callSigns.insert(callSign);
-                                    this->ttt_approachFixTracked.insert(rwyCallsign);
-                                    break;
+                                    if (fix.detectionRadiusNm > 0.0 && fixDist < fix.detectionRadiusNm && altOk && iafHdgOk)
+                                    {
+                                        std::string trackingControllerId = fp.GetTrackingControllerId();
+                                        if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty())
+                                            && !this->standAssignment.count(callSign))
+                                        {
+                                            this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0,
+                                                "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
+                                        }
+
+                                        this->tttInbound.AddFpToTheList(fp);
+                                        this->ttt_flightPlans.emplace(rwyCallsign, rwy);
+                                        this->ttt_callSigns.insert(callSign);
+                                        this->ttt_approachFixTracked.insert(rwyCallsign);
+                                        this->ttt_approachPathIdx[rwyCallsign] = pi;
+                                        this->ttt_approachSegIdx[rwyCallsign]  = fi;
+                                        this->ttt_distanceToRunway[rwyCallsign] = distance; // path dist computed next tick
+                                        added = true;
+                                    }
                                 }
                             }
                         }

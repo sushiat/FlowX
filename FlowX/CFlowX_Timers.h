@@ -66,6 +66,8 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; updated from stand-occupancy worker thread.
     std::future<std::map<std::string, std::string>> standOccupancyFuture;      ///< Worker-thread stand-occupancy result; invalid when no computation is in progress.
     std::set<std::string>                           ttt_approachFixTracked;    ///< Callsign+runway keys in ttt_flightPlans added via approach-fix proximity (not yet in straight-in cone).
+    std::map<std::string, int>                      ttt_approachPathIdx;       ///< Callsign+runway -> index into rwy.approachPaths for the matched approach; valid while ttt_approachFixTracked.
+    std::map<std::string, int>                      ttt_approachSegIdx;        ///< Callsign+runway -> index of the last fix the aircraft passed in its approachPath (i.e. flying toward fixes[segIdx+1]).
     std::set<std::string>                           ttt_callSigns;             ///< Callsigns currently present in ttt_flightPlans; kept in sync for O(log N) inbound membership tests.
     std::set<std::string>                           ttt_clearedToLand;         ///< Callsigns for which cleared-to-land has been issued; erased on go-around, removal, or disconnect.
     std::set<std::string>                           ttt_runwayOccupied;        ///< Runway designators that currently have a ground radar target within their runway bounds; refreshed each timer tick.

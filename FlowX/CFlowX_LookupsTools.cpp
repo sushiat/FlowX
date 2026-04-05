@@ -55,6 +55,21 @@ bool CFlowX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], do
 }
 
 /// @brief Returns the distance in NM from a runway threshold to the given position.
+/// @param fromLat Latitude of the origin (decimal degrees).
+/// @param fromLon Longitude of the origin (decimal degrees).
+/// @param toLat Latitude of the destination (decimal degrees).
+/// @param toLon Longitude of the destination (decimal degrees).
+/// @return Bearing in degrees (0–360).
+double CFlowX_LookupsTools::BearingBetween(double fromLat, double fromLon, double toLat, double toLon)
+{
+    EuroScopePlugIn::CPosition from, to;
+    from.m_Latitude  = fromLat;
+    from.m_Longitude = fromLon;
+    to.m_Latitude    = toLat;
+    to.m_Longitude   = toLon;
+    return from.DirectionTo(to);
+}
+
 /// @param rwy Runway designator.
 /// @param currentPosition Aircraft or point position.
 /// @param runways Runway map for the airport.

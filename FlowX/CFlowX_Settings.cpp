@@ -500,16 +500,70 @@ void CFlowX_Settings::LoadConfig()
                     }
                 }
 
-                if (json_rwy.contains("approachFixes"))
+                if (json_rwy.contains("approachPaths"))
                 {
-                    for (const auto& json_af : json_rwy["approachFixes"])
+                    for (const auto& json_path : json_rwy["approachPaths"])
                     {
-                        approachFix af{};
-                        af.name  = json_af.value<std::string>("name", "");
-                        af.lat   = json_af.value<double>("lat", 0.0);
-                        af.lon   = json_af.value<double>("lon", 0.0);
-                        af.altFt = json_af.value<int>("altFt", 0);
-                        rwy.approachFixes.push_back(af);
+                        approachPath path{};
+                        path.name = json_path.value<std::string>("name", "");
+                        for (const auto& json_af : json_path["fixes"])
+                        {
+                            approachFix af{};
+                            af.name        = json_af.value<std::string>("name", "");
+                            af.lat         = json_af.value<double>("lat", 0.0);
+                            af.lon         = json_af.value<double>("lon", 0.0);
+                            af.altMinFt    = json_af.value<int>("altMinFt", 0);
+                            af.altMaxFt    = json_af.value<int>("altMaxFt", 0);
+                            af.legType            = json_af.value<std::string>("legType", "straight");
+                            af.legLengthNm        = json_af.value<double>("legLengthNm", 0.0);
+                            af.detectionRadiusNm  = json_af.value<double>("detectionRadiusNm", 0.0);
+                            af.iafHeading         = json_af.value<int>("iafHeading", 0);
+                            path.fixes.push_back(af);
+                        }
+
+                        // Derive arc centre and radius for each arc-type fix from its predecessor
+                        for (size_t fi = 1; fi < path.fixes.size(); ++fi)
+                        {
+                            auto& fix = path.fixes[fi];
+                            if ((fix.legType != "arcLeft" && fix.legType != "arcRight") || fix.legLengthNm <= 0.0) continue;
+                            const auto& prev = path.fixes[fi - 1];
+
+                            // Flat-earth local NM coordinate system centred on prev
+                            double latAvg = (prev.lat + fix.lat) * 0.5;
+                            double cosLat = std::cos(latAvg * std::numbers::pi / 180.0);
+                            double dx     = (fix.lon - prev.lon) * cosLat * 60.0; // NM east
+                            double dy     = (fix.lat - prev.lat) * 60.0;           // NM north
+                            double chord  = std::sqrt(dx * dx + dy * dy);
+                            double L      = fix.legLengthNm;
+
+                            // Solve sin(u)/u = chord/L for u = half-subtended-angle (Newton-Raphson)
+                            double ratio = chord / L;
+                            double u     = 1.0;
+                            for (int iter = 0; iter < 30; ++iter)
+                            {
+                                double fu  = std::sin(u) / u - ratio;
+                                double dfu = (std::cos(u) * u - std::sin(u)) / (u * u);
+                                double du  = -fu / dfu;
+                                u += du;
+                                if (std::abs(du) < 1e-10) break;
+                            }
+                            double r = L / (2.0 * u);   // radius
+                            double d = r * std::cos(u); // signed distance from chord midpoint to centre
+
+                            // Chord unit vector and perpendicular (left = CCW 90°, right = CW 90°)
+                            double ux = dx / chord, uy = dy / chord;
+                            double perpX = (fix.legType == "arcRight") ?  uy : -uy;
+                            double perpY = (fix.legType == "arcRight") ? -ux :  ux;
+
+                            // Centre in NM relative to prev, then back to lat/lon
+                            double cx = dx * 0.5 + d * perpX;
+                            double cy = dy * 0.5 + d * perpY;
+                            fix.arcCenterLat = prev.lat + cy / 60.0;
+                            fix.arcCenterLon = prev.lon + cx / (cosLat * 60.0);
+                            fix.arcRadiusNm  = r;
+                        }
+
+                        rwy.approachPaths.push_back(path);
                     }
                 }
 

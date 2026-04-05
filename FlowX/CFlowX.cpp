@@ -300,6 +300,10 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
         else
             ++it;
     }
+    for (auto it = this->ttt_approachPathIdx.begin(); it != this->ttt_approachPathIdx.end();)
+        it = (it->first.substr(0, callSign.size()) == callSign) ? this->ttt_approachPathIdx.erase(it) : ++it;
+    for (auto it = this->ttt_approachSegIdx.begin(); it != this->ttt_approachSegIdx.end();)
+        it = (it->first.substr(0, callSign.size()) == callSign) ? this->ttt_approachSegIdx.erase(it) : ++it;
 
     for (auto it = this->ttt_distanceToRunway.begin(); it != this->ttt_distanceToRunway.end();)
     {

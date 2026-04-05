@@ -24,6 +24,14 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @return Matching COLORREF, or TAG_COLOR_DEFAULT_GRAY if the name is not recognised.
     static COLORREF ColorFromString(const std::string& colorName);
 
+    /// @brief Returns the bearing in degrees from one geographic position to another.
+    /// @param fromLat Latitude of the origin (decimal degrees).
+    /// @param fromLon Longitude of the origin (decimal degrees).
+    /// @param toLat Latitude of the destination (decimal degrees).
+    /// @param toLon Longitude of the destination (decimal degrees).
+    /// @return Bearing in degrees (0–360).
+    [[nodiscard]] static double BearingBetween(double fromLat, double fromLon, double toLat, double toLon);
+
     /// @brief Returns the bearing in degrees from a runway threshold to the given position.
     /// @param rwy Runway designator string.
     /// @param currentPosition Position to measure to.

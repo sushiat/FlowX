@@ -75,16 +75,31 @@ struct vacatePoint
 /// @brief A named approach fix for early TTT detection of non-straight-in RNP approaches.
 struct approachFix
 {
-    std::string name;          ///< Fix identifier for debugging (e.g. "WW008")
-    double      lat   = 0.0;  ///< Fix latitude (decimal degrees)
-    double      lon   = 0.0;  ///< Fix longitude (decimal degrees)
-    int         altFt = 0;    ///< Published altitude constraint (ft MSL); 0 = no per-fix altitude gate
+    std::string name;                        ///< Fix identifier for debugging (e.g. "WW008")
+    double      lat          = 0.0;          ///< Fix latitude (decimal degrees)
+    double      lon          = 0.0;          ///< Fix longitude (decimal degrees)
+    int         altMinFt     = 0;            ///< Lower altitude bound (ft MSL); 0 = no lower gate.
+    int         altMaxFt     = 0;            ///< Upper altitude bound (ft MSL); 0 = no upper gate.
+    std::string legType      = "straight";   ///< Incoming leg type: "straight", "arcLeft", or "arcRight". IAF has no incoming leg (legLengthNm == 0).
+    double      legLengthNm  = 0.0;         ///< Along-track length of the incoming leg in NM; 0 = IAF (no incoming leg).
+    double      arcCenterLat     = 0.0; ///< Derived arc centre latitude (decimal degrees); 0 for straight legs.
+    double      arcCenterLon     = 0.0; ///< Derived arc centre longitude (decimal degrees); 0 for straight legs.
+    double      arcRadiusNm      = 0.0; ///< Derived arc radius in NM; 0 for straight legs.
+    double      detectionRadiusNm = 0.0; ///< Proximity radius (NM) for initial TTT detection; 0 = this fix does not trigger detection.
+    int         iafHeading        = 0;   ///< Expected inbound heading (degrees) at this IAF; 0 = no heading check.
+};
+
+/// @brief An ordered sequence of approach fixes belonging to a single named non-straight-in approach.
+struct approachPath
+{
+    std::string              name;  ///< Approach identifier (e.g. "RNP N")
+    std::vector<approachFix> fixes; ///< Ordered list of fixes along the approach path (IAF first).
 };
 
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
-    std::vector<approachFix>            approachFixes = {}; ///< Approach fixes for early non-straight-in RNP detection; empty = straight-in only.
+    std::vector<approachPath>            approachPaths = {}; ///< Non-straight-in approach paths for early TTT detection; empty = straight-in only.
     std::string                         designator;         ///< Runway designator (e.g. "11")
     std::string                         opposite;           ///< Designator of the reciprocal runway (used for go-around detection)
     double                              thresholdLat = 0.0; ///< Runway threshold latitude
