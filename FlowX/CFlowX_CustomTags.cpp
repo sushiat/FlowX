@@ -657,13 +657,13 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                                       ? (this->blinking ? TAG_COLOR_YELLOW : TAG_COLOR_WHITE)
                                       : TAG_COLOR_WHITE;
                     }
-                    t.tag = "->" + rwyIt->second.twrFreq;
+                    t.tag = "→" + rwyIt->second.twrFreq;
                     return t;
                 }
 
                 if (rwy.empty() && fpd.GetPlanType() == std::string("V"))
                 {
-                    t.tag = "->" + airportIt->second.runways.begin()->second.twrFreq;
+                    t.tag = "→" + airportIt->second.runways.begin()->second.twrFreq;
                     return t;
                 }
             }
@@ -744,7 +744,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         {
             if (airportIt->second.appFreqFallbacks.count(station.second))
             {
-                t.tag = "->" + targetFreq;
+                t.tag = "→" + targetFreq;
                 return t;
             }
         }
@@ -755,13 +755,13 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             {
                 if (station.second == ctrFreq)
                 {
-                    t.tag = "->" + ctrFreq;
+                    t.tag = "→" + ctrFreq;
                     return t;
                 }
             }
         }
 
-        t.tag = "->122.8";
+        t.tag = "→122.8";
         return t;
     }();
 

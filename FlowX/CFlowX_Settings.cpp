@@ -487,7 +487,8 @@ void CFlowX_Settings::LoadConfig()
                 rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
                 rwy.twrFreq      = json_rwy.value<std::string>("twrFreq", "");
                 rwy.goAroundFreq = json_rwy.value<std::string>("goAroundFreq", "");
-                rwy.widthMeters  = json_rwy.value<int>("width", 0);
+                rwy.thresholdElevationFt = json_rwy.value<int>("thresholdElevationFt", 0);
+                rwy.widthMeters          = json_rwy.value<int>("width", 0);
 
                 for (auto& [groupKey, sids] : json_rwy["sidGroups"].items())
                 {

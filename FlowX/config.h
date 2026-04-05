@@ -106,7 +106,8 @@ struct runway
     double                              thresholdLon = 0.0; ///< Runway threshold longitude
     std::string                         twrFreq;            ///< Tower frequency for this runway
     std::string                         goAroundFreq;       ///< Go-around frequency for this runway
-    int                                 widthMeters   = 0;  ///< Runway width in metres (from config "width")
+    int                                 thresholdElevationFt = 0;  ///< Threshold elevation in feet (overrides airport fieldElevation for TTT altitude gates; 0 = use fieldElevation)
+    int                                 widthMeters          = 0;  ///< Runway width in metres (from config "width")
     std::map<std::string, holdingPoint> holdingPoints = {}; ///< Named holding points on this runway
     std::map<std::string, int>          sidGroups     = {}; ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
     std::map<std::string, std::string>  sidColors     = {}; ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })

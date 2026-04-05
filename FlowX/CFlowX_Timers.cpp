@@ -562,7 +562,7 @@ void CFlowX_Timers::UpdateAdesCache()
             {
                 return false;
             }
-            if (!std::all_of(base.begin(), base.end(), ::isalnum))
+            if (!std::all_of(base.begin(), base.end(), [](unsigned char c){ return std::isalnum(c); }))
             {
                 return false;
             }
@@ -1152,10 +1152,9 @@ void CFlowX_Timers::UpdateTWRInbound()
 
         for (auto& [icao, ap] : this->airports)
         {
-            int depElevation = ap.fieldElevation;
-
             for (auto& [rwyKey, rwy] : ap.runways)
             {
+                int depElevation = (rwy.thresholdElevationFt > 0) ? rwy.thresholdElevationFt : ap.fieldElevation;
                 std::string rwyCallsign = callSign + rwy.designator;
 
                 // ── (A) Runway occupancy ──
@@ -1219,6 +1218,11 @@ void CFlowX_Timers::UpdateTWRInbound()
                             this->tttInbound.AddFpToTheList(fp);
                             this->ttt_flightPlans.emplace(rwyCallsign, rwy);
                             this->ttt_callSigns.insert(callSign);
+                            this->LogDebugMessage(callSign + " added to TTT (cone) rwy=" + rwy.designator
+                                + " dist=" + std::to_string(static_cast<int>(distance)) + "NM"
+                                + " alt=" + std::to_string(pressAlt) + "ft"
+                                + " hdgDiff=" + std::to_string(hdgDiff / 10) + "deg"
+                                + " dirDiff=" + std::to_string(static_cast<int>(dirDiff)) + "deg", "TTT");
                         }
                         // Transition from approach-fix tracking to normal cone tracking
                         this->ttt_approachFixTracked.erase(rwyCallsign);
@@ -1385,6 +1389,10 @@ void CFlowX_Timers::UpdateTWRInbound()
                                         this->ttt_approachPathIdx[rwyCallsign] = pi;
                                         this->ttt_approachSegIdx[rwyCallsign]  = fi;
                                         this->ttt_distanceToRunway[rwyCallsign] = distance; // path dist computed next tick
+                                        this->LogDebugMessage(callSign + " added to TTT (RNP) rwy=" + rwy.designator
+                                            + " approach=" + path.name + " fix=" + fix.name
+                                            + " fixDist=" + std::to_string(fixDist).substr(0, 4) + "NM"
+                                            + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
                                         added = true;
                                     }
                                 }
@@ -1403,8 +1411,10 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 auto lb = this->ttt_flightPlans.lower_bound(callSign);
                                 if (lb == this->ttt_flightPlans.end() || lb->first.rfind(callSign, 0) != 0)
                                     this->ttt_callSigns.erase(callSign);
-                                if (pressAlt < depElevation + 50)
+                                if (pressAlt < depElevation + 125)
                                     this->gndTransfer_list.insert(callSign);
+                                else
+                                    this->LogDebugMessage(callSign + " removed from TTT but skipped gndTransfer (pressAlt=" + std::to_string(pressAlt) + " depElev=" + std::to_string(depElevation) + " gate=" + std::to_string(depElevation + 125) + ")", "TTT");
                             }
                         }
                     }

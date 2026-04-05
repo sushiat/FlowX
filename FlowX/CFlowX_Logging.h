@@ -7,10 +7,18 @@
 
 #pragma once
 #include "CFlowX_Base.h"
+#include <filesystem>
+#include <fstream>
+#include <future>
+#include <string>
+#include <vector>
 
 /// @brief Plugin layer that provides chat-message logging to the EuroScope message area.
 class CFlowX_Logging : public CFlowX_Base
 {
+  private:
+    std::vector<std::future<void>> debugLogFutures; ///< Pending async debug-log file writes; pruned on each LogDebugMessage call.
+
   protected:
     bool flashOnMessage; ///< When true, the EuroScope message area flashes on every logged message
 

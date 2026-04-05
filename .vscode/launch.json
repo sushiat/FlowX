@@ -16,7 +16,7 @@
             "name": "Attach to EuroScope",
             "type": "cppvsdbg",
             "request": "attach",
-            "processName": "EuroScope.exe",
+            "processId": "${command:pickProcess}",
             "symbolSearchPath": "${workspaceFolder}\\Debug"
         }
     ]

@@ -685,7 +685,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         cellTagClickable(DEP,  r.depInfo,  r.callsign + "|DEP");
         cellTagClickable(RWY,  r.rwy,      r.callsign + "|RWY",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellTagClickable(SID,  r.sameSid,  r.callsign + "|SID");
-        cellClickable(WTC,  std::string(1, r.wtc),  wtcColor(r.wtc), r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(WTC, { .tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0 }, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(ATYP, r.aircraftType,         r.callsignColor, r.callsign + "|ATYP");
         cellTagClickable(FREQ, r.nextFreq, r.callsign + "|FREQ");
         cellTagClickable(HP,   r.hp,       r.callsign + "|HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -970,7 +970,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         cellClickable(CS,    r.callsign,                    r.callsignColor, r.callsign + "|CS");
         cellTagClickable(NM,     r.nm,     r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellClickable(GS,    std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(WTC,   std::string(1, r.wtc),         wtcColor(r.wtc), r.callsign + "|WTC",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(WTC, { .tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0 }, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
         cellTagClickable(GATE,   r.gate,  r.callsign + "|GATE");
         cellTagClickable(VACATE, r.vacate, r.callsign + "|VACATE");
@@ -1203,7 +1203,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { false, "Save positions", false, false,                               1 },
         { true,  "Options",        false, false,                              -1 },
         { false, "Debug mode",     true,  base->GetDebug(),                    2 },
-        { false, "Autostore FPLN", true,  settings->GetAutoRestore(),          3 },
+        { false, "Auto-Restore FPLN", true,  settings->GetAutoRestore(),        3 },
         { false, "Fonts",          false, false,                              -1, true  },
         { false, "BG opacity",     false, false,                              -1, false, true },
     };
