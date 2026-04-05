@@ -1024,11 +1024,7 @@ void CFlowX_Timers::UpdateTWROutbound()
             {
                 for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
                 {
-                    u_int  corners = static_cast<u_int>(hpData.lat.size());
-                    double polyX[10], polyY[10];
-                    std::copy(hpData.lon.begin(), hpData.lon.end(), polyX);
-                    std::copy(hpData.lat.begin(), hpData.lat.end(), polyY);
-                    if (PointInsidePolygon(static_cast<int>(corners), polyX, polyY,
+                    if (PointInsidePolygon(static_cast<int>(hpData.lat.size()), hpData.lon.data(), hpData.lat.data(),
                                            pos.GetPosition().m_Longitude,
                                            pos.GetPosition().m_Latitude))
                     {

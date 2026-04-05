@@ -26,7 +26,7 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
 {
     std::vector<std::string> args = split(sCommandLine);
 
-    if (starts_with(args[0], ".flowx"))
+    if (!args.empty() && starts_with(args[0], ".flowx"))
     {
         if (args.size() == 1)
         {

@@ -141,12 +141,7 @@ void CFlowX_Functions::Func_OnFreq(EuroScopePlugIn::CFlightPlan& fp, EuroScopePl
         bool isTaxiOut = false;
         for (auto& taxiOut : airport->second.taxiOutStands)
         {
-            u_int  corners = taxiOut.second.lat.size();
-            double lat[10], lon[10];
-            std::copy(taxiOut.second.lat.begin(), taxiOut.second.lat.end(), lat);
-            std::copy(taxiOut.second.lon.begin(), taxiOut.second.lon.end(), lon);
-
-            if (CFlowX_Functions::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            if (CFlowX_Functions::PointInsidePolygon(static_cast<int>(taxiOut.second.lat.size()), taxiOut.second.lon.data(), taxiOut.second.lat.data(), position.m_Longitude, position.m_Latitude))
             {
                 isTaxiOut = true;
                 continue;
@@ -433,11 +428,7 @@ void CFlowX_Functions::Func_GndTransfer(const std::string& callSign)
         EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
         for (auto& [name, zone] : airportIt->second.geoGndFreq)
         {
-            u_int  corners = static_cast<u_int>(zone.lat.size());
-            double lat[10], lon[10];
-            std::copy(zone.lat.begin(), zone.lat.end(), lat);
-            std::copy(zone.lon.begin(), zone.lon.end(), lon);
-            if (PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            if (PointInsidePolygon(static_cast<int>(zone.lat.size()), zone.lon.data(), zone.lat.data(), position.m_Longitude, position.m_Latitude))
             {
                 gndFreq = zone.freq;
                 break;

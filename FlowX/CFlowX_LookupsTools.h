@@ -78,6 +78,6 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @param x X (longitude) of the point to test.
     /// @param y Y (latitude) of the point to test.
     /// @return True if the point is inside the polygon.
-    /// @note Uses the ray-casting algorithm; behaviour on edge points is unspecified.
+    /// @note Uses the winding-number algorithm; vertices must be in sequential traversal order (CW or CCW).
     [[nodiscard]] static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
 };

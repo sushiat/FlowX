@@ -141,12 +141,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
         EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
         for (auto& geoGnd : airport->second.geoGndFreq)
         {
-            u_int  corners = geoGnd.second.lat.size();
-            double lat[10], lon[10];
-            std::copy(geoGnd.second.lat.begin(), geoGnd.second.lat.end(), lat);
-            std::copy(geoGnd.second.lon.begin(), geoGnd.second.lon.end(), lon);
-
-            if (PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            if (PointInsidePolygon(static_cast<int>(geoGnd.second.lat.size()), geoGnd.second.lon.data(), geoGnd.second.lat.data(), position.m_Longitude, position.m_Latitude))
             {
                 tag.tag += "->" + geoGnd.second.freq;
                 return tag;
@@ -303,12 +298,7 @@ tagInfo CFlowX_Tags::GetTaxiOutTag(EuroScopePlugIn::CFlightPlan& fp, EuroScopePl
         bool isTaxiOut = false;
         for (auto& taxiOut : airport->second.taxiOutStands)
         {
-            u_int  corners = taxiOut.second.lat.size();
-            double lat[10], lon[10];
-            std::copy(taxiOut.second.lat.begin(), taxiOut.second.lat.end(), lat);
-            std::copy(taxiOut.second.lon.begin(), taxiOut.second.lon.end(), lon);
-
-            if (CFlowX_Tags::PointInsidePolygon(static_cast<int>(corners), lon, lat, position.m_Longitude, position.m_Latitude))
+            if (CFlowX_Tags::PointInsidePolygon(static_cast<int>(taxiOut.second.lat.size()), taxiOut.second.lon.data(), taxiOut.second.lat.data(), position.m_Longitude, position.m_Latitude))
             {
                 isTaxiOut = true;
                 continue;
