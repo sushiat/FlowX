@@ -773,6 +773,49 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
     }
 }
 
+/// @brief Sets ground status to PARKED for arriving aircraft that have stopped inside their assigned stand polygon.
+/// Depends on standOccupancy being current (refreshed by UpdateOccupiedStands every 4 ticks).
+void CFlowX_Timers::CheckArrivedAtStand()
+{
+    if (!this->autoParked) { return; }
+
+    static const std::set<std::string> depStates = { "PUSH", "ST-UP", "ONFREQ", "LINEUP", "DEPA" };
+
+    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+    {
+        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+        if (!fp.IsValid()) { continue; }
+
+        std::string callSign = fp.GetCallsign();
+
+        auto standIt = this->standAssignment.find(callSign);
+        if (standIt == this->standAssignment.end()) { continue; }
+
+        std::string arr = fp.GetFlightPlanData().GetDestination();
+        to_upper(arr);
+        auto airportIt = this->airports.find(arr);
+        if (airportIt == this->airports.end()) { continue; }
+
+        auto gsIt = this->groundStatus.find(callSign);
+        if (gsIt != this->groundStatus.end() &&
+            (depStates.contains(gsIt->second) || gsIt->second == "PARKED")) { continue; }
+
+        auto occupyIt = this->standOccupancy.find(standIt->second);
+        if (occupyIt == this->standOccupancy.end() || occupyIt->second != callSign) { continue; }
+
+        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+        if (!pos.IsValid()) { continue; }
+        if (pos.GetReportedGS() >= 3) { continue; }
+        if (pos.GetPressureAltitude() > airportIt->second.fieldElevation + 200) { continue; }
+
+        std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+        fp.GetControllerAssignedData().SetScratchPadString("PARKED");
+        fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+
+        this->LogDebugMessage(callSign + " auto-PARKED at stand " + standIt->second, "GND");
+    }
+}
+
 /// @brief Snapshots slow/grounded radar targets on the main thread, then offloads polygon tests to a worker thread.
 /// The previous worker result is applied at the start of the next call (atisFuture pattern).
 void CFlowX_Timers::UpdateOccupiedStands()

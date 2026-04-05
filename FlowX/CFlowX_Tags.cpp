@@ -78,7 +78,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     }
 
     std::string rwy = fpd.GetDepartureRwy();
-    if (!this->noChecks && rwy.empty())
+    if (rwy.empty())
     {
         tag.tag   = "!RWY";
         tag.color = TAG_COLOR_RED;
@@ -90,11 +90,6 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     std::string assignedSquawk = cad.GetSquawk();
     std::string currentSquawk  = rt.GetPosition().GetSquawk();
 
-    if (this->noChecks && assignedSquawk.empty())
-    {
-        assignedSquawk = "2000";
-    }
-
     if (assignedSquawk.empty())
     {
         tag.tag   = "!ASSR";
@@ -104,7 +99,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
     }
 
     bool clearanceFlag = fp.GetClearenceFlag();
-    if (!this->noChecks && !clearanceFlag)
+    if (!clearanceFlag)
     {
         tag.tag   = "!CLR";
         tag.color = TAG_COLOR_RED;
@@ -141,7 +136,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
         }
     }
 
-    if (groundOnline || this->groundOverride)
+    if (groundOnline)
     {
         EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
         for (auto& geoGnd : airport->second.geoGndFreq)
@@ -173,7 +168,7 @@ tagInfo CFlowX_Tags::GetPushStartHelperTag(EuroScopePlugIn::CFlightPlan& fp, Eur
         }
     }
 
-    if (towerOnline || this->towerOverride)
+    if (towerOnline)
     {
         auto rwyIt = airport->second.runways.find(rwy);
         if (rwyIt != airport->second.runways.end())

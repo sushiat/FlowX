@@ -1203,11 +1203,14 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { false, "Redo CLR flags", false, false,                               0 },
         { false, "Dismiss QNH",   false, false,                              12 },
         { false, "Save positions", false, false,                               1 },
-        { true,  "Options",        false, false,                              -1 },
-        { false, "Debug mode",     true,  base->GetDebug(),                    2 },
-        { false, "Auto-Restore FPLN", true,  settings->GetAutoRestore(),        3 },
-        { false, "Fonts",          false, false,                              -1, true  },
-        { false, "BG opacity",     false, false,                              -1, false, true },
+        { true,  "Options",           false, false,                                 -1 },
+        { false, "Debug mode",        true,  base->GetDebug(),                     2 },
+        { false, "Auto-Restore FPLN", true,  settings->GetAutoRestore(),            3 },
+        { false, "Update check",      true,  settings->GetUpdateCheck(),           13 },
+        { false, "Flash messages",    true,  settings->GetFlashOnMessage(),        14 },
+        { false, "Auto Parked",       true,  settings->GetAutoParked(),            15 },
+        { false, "Fonts",             false, false,                                -1, true  },
+        { false, "BG opacity",        false, false,                                -1, false, true },
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -1682,6 +1685,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             {
                 settings->ToggleAutoRestore();
             }
+            else if (idx == 13) { settings->ToggleUpdateCheck(); }
+            else if (idx == 14) { settings->ToggleFlashOnMessage(); }
+            else if (idx == 15) { settings->ToggleAutoParked(); }
             else if (idx == 4) { settings->ToggleDepRateVisible(); }
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
@@ -1691,8 +1697,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 10) { settings->DecreaseBgOpacity(); }
             else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
-        // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows; close for all commands
-        if (idx < 4 || idx == 12) { this->startMenuOpen = false; }
+        // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows; close for all others
+        if (idx < 4 || idx == 12 || idx >= 13) { this->startMenuOpen = false; }
 
         std::string clickSnd = GetPluginDirectory() + "\\click.wav";
         PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);

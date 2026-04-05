@@ -13,10 +13,6 @@
 class CFlowX_Tags : public CFlowX_Timers
 {
   protected:
-    bool groundOverride = false; ///< When true, behaves as if a ground station is online (for testing)
-    bool noChecks       = false; ///< When true, skips flight-plan validation checks (offline testing only)
-    bool towerOverride  = false; ///< When true, behaves as if a tower station is online (for testing)
-
     /// @brief Builds the ADES tag: destination ICAO for normal plans, last IFR waypoint (turquoise) for type-Y.
     /// Returns from adesCache; colour TAG_COLOR_DEFAULT_NONE signals that EuroScope's default colour should be used.
     /// @param fp Flight plan being evaluated.

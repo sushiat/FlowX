@@ -17,9 +17,6 @@
 /// @brief Constructs the main plugin object and initialises override flags to false.
 CFlowX::CFlowX()
 {
-    this->groundOverride = false;
-    this->towerOverride  = false;
-    this->noChecks       = false;
 }
 
 /// @brief Processes `.flowx` chat commands.
@@ -34,134 +31,14 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
         if (args.size() == 1)
         {
             std::ostringstream msg;
-            msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: gnd, twr, nocheck, reset, update, flash, redoflags, autorestore, stands";
+            msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: debugstats";
 
             this->LogMessage(msg.str(), "Init");
 
             return true;
         }
 
-        if (args[1] == "debug")
-        {
-            this->LogMessage(this->debug ? "Disabling debug mode" : "Enabling debug mode", "Debug");
-
-            this->ToggleDebug();
-            if (this->radarScreen != nullptr)
-            {
-                this->radarScreen->debug = this->debug;
-            }
-
-            return true;
-        }
-        else if (args[1] == "update")
-        {
-            if (this->updateCheck)
-            {
-                this->LogMessage("Disabling update check", "Update");
-            }
-            else
-            {
-                this->LogMessage("Enabling update check", "Update");
-            }
-
-            this->updateCheck = !this->updateCheck;
-
-            this->SaveSettings();
-
-            return true;
-        }
-        else if (args[1] == "flash")
-        {
-            if (this->flashOnMessage)
-            {
-                this->LogMessage("No longer flashing on FlowX message", "Config");
-            }
-            else
-            {
-                this->LogMessage("Flashing on FlowX message", "Config");
-            }
-
-            this->flashOnMessage = !this->flashOnMessage;
-
-            this->SaveSettings();
-
-            return true;
-        }
-        else if (args[1] == "gnd")
-        {
-            if (this->groundOverride)
-            {
-                this->LogMessage("GND freq override OFF", "GND");
-            }
-            else
-            {
-                this->LogMessage("GND freq override ON", "GND");
-            }
-
-            this->groundOverride = !this->groundOverride;
-
-            return true;
-        }
-        else if (args[1] == "twr")
-        {
-            if (this->towerOverride)
-            {
-                this->LogMessage("TWR freq override OFF", "TWR");
-            }
-            else
-            {
-                this->LogMessage("TWR freq override ON", "TWR");
-            }
-
-            this->towerOverride = !this->towerOverride;
-
-            return true;
-        }
-        else if (args[1] == "nocheck")
-        {
-            if (this->noChecks)
-            {
-                this->LogMessage("Flight plan checks turned ON", "Checks");
-            }
-            else
-            {
-                this->LogMessage("Flight plan checks turned OFF, use only for testing!!!", "Checks");
-            }
-
-            this->noChecks = !this->noChecks;
-
-            return true;
-        }
-        else if (args[1] == "reset")
-        {
-            this->LogMessage("Resetting FlowX plugin to defaults", "Defaults");
-            this->updateCheck    = false;
-            this->flashOnMessage = false;
-            this->groundOverride = false;
-            this->towerOverride  = false;
-            this->noChecks       = false;
-            this->autoRestore    = false;
-
-            this->SaveSettings();
-
-            return true;
-        }
-        else if (args[1] == "redoflags")
-        {
-            this->LogMessage("Redoing clearance flags...", "Flags");
-            this->RedoFlags();
-
-            return true;
-        }
-        else if (args[1] == "autorestore")
-        {
-            this->autoRestore = !this->autoRestore;
-            this->LogMessage(std::string("Auto-restore on reconnect: ") + (this->autoRestore ? "ON" : "OFF"), "AutoRestore");
-            this->SaveSettings();
-
-            return true;
-        }
-        else if (args[1] == "debugstats")
+        if (args[1] == "debugstats")
         {
             this->LogMessage(
                 std::format("posUpd={} (inbound={} outbound={}) | tagItem={} | timer={} | standLaunch={} standSkip={}",
@@ -201,7 +78,7 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
         }
 
         // Check for ground status
-        static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA"};
+        static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "LINEUP", "DEPA", "PARKED"};
         for (const auto& status : groundStatuses)
         {
             if (scratch.contains(status))
@@ -702,6 +579,7 @@ void CFlowX::OnTimer(int Counter)
     if (Counter > 0 && Counter % 4 == 0)
     {
         this->UpdateOccupiedStands();
+        this->CheckArrivedAtStand();
     }
 
     // Rebuild tag cache and departure overlays every second (after state maps are current)

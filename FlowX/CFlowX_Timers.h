@@ -84,6 +84,10 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @note Uses the airport's configured IANA timezone to evaluate the current local time.
     void CheckAirportNAPReminder();
 
+    /// @brief Detects arriving aircraft that have stopped inside their assigned stand polygon and sets ground status to PARKED.
+    /// Fires once per aircraft; idempotent due to the arrivedAtStand guard.
+    void CheckArrivedAtStand();
+
     /// @brief Scans for reconnected pilots and restores their clearance flag and ground state if flight plan attributes match.
     /// @note Also expires snapshots that have been pending longer than 90 seconds.
     void CheckReconnects();

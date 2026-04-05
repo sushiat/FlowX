@@ -139,9 +139,6 @@ static std::string compactJson(const nlohmann::json& j, int depth = 0)
 
 CFlowX_Settings::CFlowX_Settings()
 {
-    this->updateCheck = false;
-
-    this->LoadSettings();
     this->LoadWindowSettings();
     this->LoadConfig();
     this->LoadAircraftData();
@@ -151,51 +148,6 @@ CFlowX_Settings::CFlowX_Settings()
     {
         this->latestVersion = std::async(FetchLatestVersion);
     }
-}
-
-/// @brief Loads persisted plugin settings from EuroScope's settings store.
-void CFlowX_Settings::LoadSettings()
-{
-    const char* settings = this->GetDataFromSettings(PLUGIN_NAME);
-    if (settings)
-    {
-        std::vector<std::string> splitSettings = split(settings, SETTINGS_DELIMITER);
-
-        if (splitSettings.size() < 3)
-        {
-            this->LogMessage("Invalid saved settings found, reverting to default.", "Settings");
-
-            this->SaveSettings();
-
-            return;
-        }
-
-        std::istringstream(splitSettings[0]) >> this->updateCheck;
-        std::istringstream(splitSettings[1]) >> this->flashOnMessage;
-        std::istringstream(splitSettings[2]) >> this->debug;
-        if (splitSettings.size() >= 4)
-        {
-            std::istringstream(splitSettings[3]) >> this->autoRestore;
-        }
-        if (this->debug) { this->LogDebugSessionStart(); }
-        this->LogMessage("Successfully loaded settings.", "Settings");
-    }
-    else
-    {
-        this->LogMessage("No saved settings found, using defaults.", "Settings");
-    }
-}
-
-/// @brief Serialises current settings and writes them to EuroScope's settings store.
-void CFlowX_Settings::SaveSettings()
-{
-    std::ostringstream ss;
-    ss << this->updateCheck << SETTINGS_DELIMITER
-       << this->flashOnMessage << SETTINGS_DELIMITER
-       << this->debug << SETTINGS_DELIMITER
-       << this->autoRestore;
-
-    this->SaveDataToSettings(PLUGIN_NAME, "FlowX settings", ss.str().c_str());
 }
 
 /// @brief Loads window positions and global UI settings from windowSettings.json in the plugin directory.
@@ -216,9 +168,15 @@ void CFlowX_Settings::LoadWindowSettings()
 
         if (j.contains("global"))
         {
-            this->fontOffset = j["global"].value("fontOffset", 0);
-            this->bgOpacity  = j["global"].value("bgOpacity",  100);
+            this->autoParked       = j["global"].value("autoParked",      true);
+            this->autoRestore      = j["global"].value("autoRestore",     false);
+            this->bgOpacity        = j["global"].value("bgOpacity",       100);
+            this->debug            = j["global"].value("debug",           false);
+            this->flashOnMessage   = j["global"].value("flashOnMessage",  false);
+            this->fontOffset       = j["global"].value("fontOffset",      0);
+            this->updateCheck      = j["global"].value("updateCheck",     true);
         }
+        if (this->debug) { this->LogDebugSessionStart(); }
 
         if (j.contains("windowSettings") && j["windowSettings"].is_array())
         {
@@ -270,8 +228,13 @@ void CFlowX_Settings::SaveWindowSettings()
     try
     {
         json j;
-        j["global"]["fontOffset"] = this->fontOffset;
-        j["global"]["bgOpacity"]  = this->bgOpacity;
+        j["global"]["autoParked"]     = this->autoParked;
+        j["global"]["autoRestore"]    = this->autoRestore;
+        j["global"]["bgOpacity"]      = this->bgOpacity;
+        j["global"]["debug"]          = this->debug;
+        j["global"]["flashOnMessage"] = this->flashOnMessage;
+        j["global"]["fontOffset"]     = this->fontOffset;
+        j["global"]["updateCheck"]    = this->updateCheck;
 
         json windows = json::array();
         auto addWin = [&](const char* name, int x, int y, bool vis)

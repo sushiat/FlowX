@@ -15,14 +15,14 @@ using json = nlohmann::json;
 
 /// @brief Plugin layer responsible for persisting settings and loading the airport configuration.
 ///
-/// Reads and writes plugin preferences via EuroScope's settings storage, parses config.json
-/// into the @c airports map, and optionally checks for a newer plugin version in the background.
-/// Window positions and global UI settings are stored separately in windowSettings.json in the plugin directory.
+/// All user preferences and window positions are stored in windowSettings.json in the plugin directory.
+/// Airport configuration is loaded from config.json at startup.
 class CFlowX_Settings : public CFlowX_Logging
 {
   protected:
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
+    bool                           autoParked     = true;   ///< Whether arriving aircraft are automatically set to PARKED when stopped at their assigned stand.
     bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     int                            bgOpacity      = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
     bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from windowSettings.json
@@ -40,7 +40,7 @@ class CFlowX_Settings : public CFlowX_Logging
     bool                           twrOutboundVisible = true;  ///< Whether the TWR Outbound window is visible; restored from windowSettings.json
     int                            twrOutboundWindowX = -1; ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
     int                            twrOutboundWindowY = -1; ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
-    bool                           updateCheck;             ///< Whether the background update check is enabled
+    bool                           updateCheck    = true;   ///< Whether the background update check is enabled
     bool                           weatherVisible     = true;  ///< Whether the WX/ATIS window is visible; restored from windowSettings.json
     int                            weatherWindowX = -1;     ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
     int                            weatherWindowY = -1;     ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
@@ -61,16 +61,9 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @note Logs a message and returns early if the file cannot be read or parsed.
     void LoadConfig();
 
-    /// @brief Loads persisted plugin settings from EuroScope's settings store.
-    /// @note Reverts to defaults and saves them if the stored data is malformed.
-    void LoadSettings();
-
     /// @brief Loads window positions and global UI settings from windowSettings.json in the plugin directory.
     /// @note Missing or malformed file is silently ignored; positions stay at -1 (auto-place).
     void LoadWindowSettings();
-
-    /// @brief Serialises current plugin settings and writes them to EuroScope's settings store.
-    void SaveSettings();
 
     /// @brief Writes window positions and global UI settings to windowSettings.json in the plugin directory.
     void SaveWindowSettings();
@@ -84,6 +77,9 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Decreases the font size offset by one step (floor −5) and persists immediately.
     void DecreaseFontOffset() { this->fontOffset = std::max(-5, this->fontOffset - 1); SaveWindowSettings(); }
+
+    /// @brief Returns whether Auto Parked is enabled.
+    [[nodiscard]] bool GetAutoParked() const { return this->autoParked; }
 
     /// @brief Returns the current auto-restore state.
     [[nodiscard]] bool GetAutoRestore() const { return this->autoRestore; }
@@ -106,17 +102,32 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Returns whether the WX/ATIS window is currently visible.
     [[nodiscard]] bool GetWeatherVisible() const { return this->weatherVisible; }
 
+    /// @brief Returns whether flash-on-message is enabled.
+    [[nodiscard]] bool GetFlashOnMessage() const { return this->flashOnMessage; }
+
+    /// @brief Returns whether the update check is enabled.
+    [[nodiscard]] bool GetUpdateCheck() const { return this->updateCheck; }
+
     /// @brief Increases the background opacity by 10 pp (ceiling 100%) and persists immediately.
     void IncreaseBgOpacity() { this->bgOpacity = std::min(100, this->bgOpacity + 10); SaveWindowSettings(); }
 
     /// @brief Increases the font size offset by one step (ceiling +5) and persists immediately.
     void IncreaseFontOffset() { this->fontOffset = std::min(5, this->fontOffset + 1); SaveWindowSettings(); }
 
+    /// @brief Toggles the Auto Parked feature and persists immediately.
+    void ToggleAutoParked() { this->autoParked = !this->autoParked; SaveWindowSettings(); }
+
     /// @brief Toggles the auto-restore setting and persists it immediately.
-    void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveSettings(); }
+    void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveWindowSettings(); }
 
     /// @brief Toggles the debug-mode setting and persists it immediately.
-    void ToggleDebug() { this->debug = !this->debug; SaveSettings(); if (this->debug) { this->LogDebugSessionStart(); } }
+    void ToggleDebug() { this->debug = !this->debug; SaveWindowSettings(); if (this->debug) { this->LogDebugSessionStart(); } }
+
+    /// @brief Toggles the flash-on-message setting and persists it immediately.
+    void ToggleFlashOnMessage() { this->flashOnMessage = !this->flashOnMessage; SaveWindowSettings(); }
+
+    /// @brief Toggles the update check setting and persists it immediately.
+    void ToggleUpdateCheck() { this->updateCheck = !this->updateCheck; SaveWindowSettings(); }
 
     /// @brief Toggles the DEP/H departure rate window visibility (does not affect the saved position).
     void ToggleDepRateVisible() { this->depRateVisible = !this->depRateVisible; }

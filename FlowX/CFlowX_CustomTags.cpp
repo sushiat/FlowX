@@ -645,7 +645,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
                 }
             }
 
-            if (towerOnline || this->towerOverride)
+            if (towerOnline)
             {
                 auto rwyIt = airportIt->second.runways.find(rwy);
                 if (rwyIt != airportIt->second.runways.end())
