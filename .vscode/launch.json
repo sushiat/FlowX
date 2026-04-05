@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch EuroScope (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "D:\\EuroScope\\EuroScope.exe",
+            "args": ["d:\\EuroScope\\VACC-Austria\\LOWW.prf"],
+            "cwd": "D:\\EuroScope",
+            "symbolSearchPath": "${workspaceFolder}\\Debug",
+            "preLaunchTask": "Deploy Debug",
+            "visualizerFile": "${workspaceFolder}\\FlowX\\FlowX.natvis"
+        },
+        {
+            "name": "Attach to EuroScope",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processName": "EuroScope.exe",
+            "symbolSearchPath": "${workspaceFolder}\\Debug"
+        }
+    ]
+}
