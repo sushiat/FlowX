@@ -92,6 +92,7 @@ void CFlowX_Settings::LoadWindowSettings()
         if (j.contains("global"))
         {
             this->fontOffset = j["global"].value("fontOffset", 0);
+            this->bgOpacity  = j["global"].value("bgOpacity",  100);
         }
 
         if (j.contains("windowSettings") && j["windowSettings"].is_array())
@@ -145,6 +146,7 @@ void CFlowX_Settings::SaveWindowSettings()
     {
         json j;
         j["global"]["fontOffset"] = this->fontOffset;
+        j["global"]["bgOpacity"]  = this->bgOpacity;
 
         json windows = json::array();
         auto addWin = [&](const char* name, int x, int y, bool vis)

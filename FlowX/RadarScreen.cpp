@@ -264,12 +264,41 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
     }
 }
 
+/// @brief Fills a rect with the given color at the specified opacity percent (20–100).
+/// At 100% falls back to a plain FillRect. Otherwise uses AlphaBlend (Msimg32).
+static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct)
+{
+    int w = rect.right  - rect.left;
+    int h = rect.bottom - rect.top;
+    if (w <= 0 || h <= 0) { return; }
+    if (opacityPct >= 100)
+    {
+        auto brush = CreateSolidBrush(color);
+        FillRect(hDC, &rect, brush);
+        DeleteObject(brush);
+        return;
+    }
+    HDC     memDC  = CreateCompatibleDC(hDC);
+    HBITMAP bmp    = CreateCompatibleBitmap(hDC, w, h);
+    HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, bmp);
+    RECT    local  = { 0, 0, w, h };
+    auto    brush  = CreateSolidBrush(color);
+    FillRect(memDC, &local, brush);
+    DeleteObject(brush);
+    BLENDFUNCTION bf = { AC_SRC_OVER, 0, static_cast<BYTE>(opacityPct * 255 / 100), 0 };
+    AlphaBlend(hDC, rect.left, rect.top, w, h, memDC, 0, 0, w, h, bf);
+    SelectObject(memDC, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(memDC);
+}
+
 /// @brief Draws the DEP/H departure-rate window from the pre-calculated depRateRowsCache.
 void RadarScreen::DrawDepRateWindow(HDC hDC)
 {
     auto* settingsDep = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     if (!settingsDep->GetDepRateVisible()) { return; }
     int fo = settingsDep->GetFontOffset();
+    int op = settingsDep->GetBgOpacity();
 
     const int TITLE_H = 13;
     const int HDR_H   = 17 + fo;
@@ -310,15 +339,11 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
 
-    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
+    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
-    auto hdrBrush   = CreateSolidBrush(RGB(40, 40, 40));
-    FillRect(hDC, &winRect,   bgBrush);
     FillRect(hDC, &titleRect, titleBrush);
-    FillRect(hDC, &hdrRect,   hdrBrush);
-    DeleteObject(bgBrush);
     DeleteObject(titleBrush);
-    DeleteObject(hdrBrush);
 
     if (xHovered)
     {
@@ -372,12 +397,11 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
 
     // Data rows
     SelectObject(hDC, dataFontDep);
-    auto altBrushDep = CreateSolidBrush(RGB(32, 32, 32));
     for (int row = 0; row < numRows; ++row)
     {
         const auto& r = this->depRateRowsCache[row];
         int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRect(hDC, &alt, altBrushDep); }
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRectAlpha(hDC, alt, RGB(32, 32, 32), op); }
 
         RECT rwyRect = { wx + WIN_PAD,                                rowY, wx + WIN_PAD + COL_RWY,                   rowY + ROW_H };
         RECT cntRect = { wx + WIN_PAD + COL_RWY,                      rowY, wx + WIN_PAD + COL_RWY + COL_CNT,         rowY + ROW_H };
@@ -390,7 +414,6 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
         SetTextColor(hDC, r.spacingColor);
         DrawTextA(hDC, r.spacingStr.c_str(), -1, &spcRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
-    DeleteObject(altBrushDep);
     SelectObject(hDC, prevFontDep);
     DeleteObject(hdrFontDep);
     DeleteObject(dataFontDep);
@@ -403,6 +426,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     auto* settingsOut = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     if (!settingsOut->GetTwrOutboundVisible()) { return; }
     int fo = settingsOut->GetFontOffset();
+    int op = settingsOut->GetBgOpacity();
 
     const int TITLE_H = 13;
     const int HDR_H   = 17 + fo;
@@ -462,15 +486,11 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
 
-    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
+    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
-    auto hdrBrush   = CreateSolidBrush(RGB(40, 40, 40));
-    FillRect(hDC, &winRect,   bgBrush);
     FillRect(hDC, &titleRect, titleBrush);
-    FillRect(hDC, &hdrRect,   hdrBrush);
-    DeleteObject(bgBrush);
     DeleteObject(titleBrush);
-    DeleteObject(hdrBrush);
 
     if (xHovered)
     {
@@ -549,7 +569,6 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         }
     };
 
-    auto altBrushOut = CreateSolidBrush(RGB(32, 32, 32));
     int rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
     {
@@ -564,7 +583,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         }
 
         int rowY = rowTop;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRect(hDC, &alt, altBrushOut); }
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRectAlpha(hDC, alt, RGB(32, 32, 32), op); }
         int cx   = wx + PAD;
 
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
@@ -675,7 +694,6 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         cellTag(LDST, r.liveSpacing,                              DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
-    DeleteObject(altBrushOut);
 
     SelectObject(hDC, prevDataFont);
     DeleteObject(dataFont);
@@ -689,6 +707,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     auto* settingsIn = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     if (!settingsIn->GetTwrInboundVisible()) { return; }
     int fo = settingsIn->GetFontOffset();
+    int op = settingsIn->GetBgOpacity();
 
     const int TITLE_H      = 13;
     const int HDR_H        = 17 + fo;
@@ -751,15 +770,11 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
     RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
 
-    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
+    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
-    auto hdrBrush   = CreateSolidBrush(RGB(40, 40, 40));
-    FillRect(hDC, &winRect,   bgBrush);
     FillRect(hDC, &titleRect, titleBrush);
-    FillRect(hDC, &hdrRect,   hdrBrush);
-    DeleteObject(bgBrush);
     DeleteObject(titleBrush);
-    DeleteObject(hdrBrush);
 
     if (xHovered)
     {
@@ -836,7 +851,6 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         }
     };
 
-    auto altBrushIn = CreateSolidBrush(RGB(32, 32, 32));
     std::string lastRwyGroup;
     int rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
@@ -856,7 +870,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
         int rowY = rowTop;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRect(hDC, &alt, altBrushIn); }
+        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRectAlpha(hDC, alt, RGB(32, 32, 32), op); }
         int cx   = wx + PAD;
 
         // Plain clickable cell for non-tagInfo data (callsign, rwy group, wtc, groundspeed, gate).
@@ -963,7 +977,6 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         cellTagClickable(RWY,    r.arrRwy, r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
-    DeleteObject(altBrushIn);
 
     SelectObject(hDC, prevDataFont);
     DeleteObject(dataFont);
@@ -1174,9 +1187,9 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     const int OUTER_PAD = 6;        ///< Margin from the outer border to all content on every side
     const int CBX_S     = 9 + fo;   ///< Checkbox square size in pixels
     const int CBX_GAP   = 4;        ///< Gap between checkbox right edge and item label
-    const int MENU_W    = 150 * (14 + fo) / 14; ///< Menu width scaled with item font; right-aligned with the button
+    const int MENU_W    = 180 * (14 + fo) / 14; ///< Menu width scaled with item font; right-aligned with the button
 
-    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; };
+    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; bool hasBgButtons = false; };
 
     MenuRow rows[] = {
         { true,  "Windows",        false, false,                              -1 },
@@ -1190,7 +1203,8 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { true,  "Options",        false, false,                              -1 },
         { false, "Debug mode",     true,  base->GetDebug(),                    2 },
         { false, "Autostore FPLN", true,  settings->GetAutoRestore(),          3 },
-        { false, "Fonts",          false, false,                              -1, true },
+        { false, "Fonts",          false, false,                              -1, true  },
+        { false, "BG opacity",     false, false,                              -1, false, true },
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -1304,6 +1318,44 @@ void RadarScreen::DrawStartMenu(HDC hDC)
             AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|8", minusRect, false, "");
             AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|9", plusRect,  false, "");
         }
+        else if (row.hasBgButtons)
+        {
+            // BG opacity row: label + current value on the left, [−] [+] buttons on the right.
+            const int BTN_W = 14 + fo;
+            int bgOp = settings->GetBgOpacity();
+            std::string valStr = std::format("{}%", bgOp);
+
+            RECT minusRect = { mx + MENU_W - OUTER_PAD - BTN_W * 2 - 2, iy + (ITEM_H - BTN_W) / 2,
+                               mx + MENU_W - OUTER_PAD - BTN_W - 2,     iy + (ITEM_H + BTN_W) / 2 };
+            RECT plusRect  = { mx + MENU_W - OUTER_PAD - BTN_W,         iy + (ITEM_H - BTN_W) / 2,
+                               mx + MENU_W - OUTER_PAD,                  iy + (ITEM_H + BTN_W) / 2 };
+            bool minusHov = PtInRect(&minusRect, cursor) != 0;
+            bool plusHov  = PtInRect(&plusRect,  cursor) != 0;
+
+            for (auto [rect, hov] : { std::pair{minusRect, minusHov}, std::pair{plusRect, plusHov} })
+            {
+                auto btnBrush = CreateSolidBrush(hov ? RGB(45, 70, 115) : RGB(35, 35, 35));
+                FillRect(hDC, &rect, btnBrush);
+                DeleteObject(btnBrush);
+                auto btnBorder = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+                FrameRect(hDC, &rect, btnBorder);
+                DeleteObject(btnBorder);
+            }
+
+            SelectObject(hDC, itemFont);
+            std::string fullLabel = std::string("BG opacity ") + valStr;
+            RECT labelRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, minusRect.left - 4, iy + ITEM_H };
+            SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
+            DrawTextA(hDC, fullLabel.c_str(), -1, &labelRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            SelectObject(hDC, cbxFont);
+            SetTextColor(hDC, TAG_COLOR_WHITE);
+            DrawTextA(hDC, "-", -1, &minusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextA(hDC, "+", -1, &plusRect,  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|10", minusRect, false, "");
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|11", plusRect,  false, "");
+        }
         else
         {
             // Clickable item row — hover highlight and optional checkbox.
@@ -1367,6 +1419,7 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     auto* settingsWx = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     if (!settingsWx->GetWeatherVisible()) { return; }
     int fo = settingsWx->GetFontOffset();
+    int op = settingsWx->GetBgOpacity();
 
     const int TITLE_H = 13;
     const int DATA_H  = 36;
@@ -1428,11 +1481,9 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     RECT winRect   = { wx, wy, wx + WIN_W, wy + WIN_H   };
     RECT titleRect = { wx, wy, wx + WIN_W, wy + TITLE_H };
 
-    auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
+    FillRectAlpha(hDC, winRect, RGB(15, 15, 15), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
-    FillRect(hDC, &winRect,   bgBrush);
     FillRect(hDC, &titleRect, titleBrush);
-    DeleteObject(bgBrush);
     DeleteObject(titleBrush);
 
     if (xHovered)
@@ -1628,8 +1679,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
             else if (idx == 7) { settings->ToggleWeatherVisible(); }
-            else if (idx == 8) { settings->DecreaseFontOffset(); }
-            else if (idx == 9) { settings->IncreaseFontOffset(); }
+            else if (idx == 8)  { settings->DecreaseFontOffset(); }
+            else if (idx == 9)  { settings->IncreaseFontOffset(); }
+            else if (idx == 10) { settings->DecreaseBgOpacity(); }
+            else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
         // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows
         if (idx < 4) { this->startMenuOpen = false; }

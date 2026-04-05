@@ -24,6 +24,7 @@ class CFlowX_Settings : public CFlowX_Logging
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
     bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    int                            bgOpacity      = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
     bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from windowSettings.json
     int                            depRateWindowX = -1;     ///< Last-saved X position of the departure rate window; -1 = not yet positioned
     int                            depRateWindowY = -1;     ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
@@ -78,11 +79,17 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Constructs the settings layer, loading persisted settings and config.json on startup.
     CFlowX_Settings();
 
+    /// @brief Decreases the background opacity by 10 pp (floor 20%) and persists immediately.
+    void DecreaseBgOpacity() { this->bgOpacity = std::max(20, this->bgOpacity - 10); SaveWindowSettings(); }
+
     /// @brief Decreases the font size offset by one step (floor −5) and persists immediately.
     void DecreaseFontOffset() { this->fontOffset = std::max(-5, this->fontOffset - 1); SaveWindowSettings(); }
 
     /// @brief Returns the current auto-restore state.
     [[nodiscard]] bool GetAutoRestore() const { return this->autoRestore; }
+
+    /// @brief Returns the current background opacity in percent (20–100).
+    [[nodiscard]] int GetBgOpacity() const { return this->bgOpacity; }
 
     /// @brief Returns whether the DEP/H departure rate window is currently visible.
     [[nodiscard]] bool GetDepRateVisible() const { return this->depRateVisible; }
@@ -98,6 +105,9 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Returns whether the WX/ATIS window is currently visible.
     [[nodiscard]] bool GetWeatherVisible() const { return this->weatherVisible; }
+
+    /// @brief Increases the background opacity by 10 pp (ceiling 100%) and persists immediately.
+    void IncreaseBgOpacity() { this->bgOpacity = std::min(100, this->bgOpacity + 10); SaveWindowSettings(); }
 
     /// @brief Increases the font size offset by one step (ceiling +5) and persists immediately.
     void IncreaseFontOffset() { this->fontOffset = std::min(5, this->fontOffset + 1); SaveWindowSettings(); }
