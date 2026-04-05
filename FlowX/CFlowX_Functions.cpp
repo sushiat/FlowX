@@ -39,6 +39,21 @@ void CFlowX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
     }
 }
 
+/// @brief Clears the new-QNH flag from all aircraft that have it set in flight-strip annotation slot 8.
+void CFlowX_Functions::DismissQnh()
+{
+    for (EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectFirst(); fp.IsValid(); fp = this->FlightPlanSelectNext(fp))
+    {
+        std::string callSign = fp.GetCallsign();
+        std::string ann      = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+        if (!ann.empty() && ann[0] == 'Q')
+        {
+            this->flightStripAnnotation[callSign] = ann;
+            this->Func_ClearNewQnh(fp);
+        }
+    }
+}
+
 /// @brief Clears the 'Q' flag from flight-strip annotation slot 8 and syncs to other controllers.
 /// @param fp Currently selected flight plan.
 void CFlowX_Functions::Func_ClearNewQnh(EuroScopePlugIn::CFlightPlan& fp)

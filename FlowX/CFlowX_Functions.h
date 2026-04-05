@@ -69,6 +69,10 @@ class CFlowX_Functions : public CFlowX_CustomTags
     void Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp);
 
   public:
+    /// @brief Clears the new-QNH flag from all aircraft that have it set in flight-strip annotation slot 8.
+    /// @note Iterates all flight plans and calls Func_ClearNewQnh() for each with annotation slot 8 character 0 == 'Q'.
+    void DismissQnh();
+
     /// @brief Marks the flight strip annotation with the GND frequency, drops tracking, and removes the GND transfer square.
     /// @param callSign Callsign of the landed aircraft being handed to ground.
     /// @note Resolves the correct GND frequency via geoGndFreq polygons, falling back to the airport default.

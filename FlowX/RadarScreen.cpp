@@ -1199,6 +1199,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { false, "WX/ATIS",        true,  settings->GetWeatherVisible(),       7 },
         { true,  "Commands",       false, false,                              -1 },
         { false, "Redo CLR flags", false, false,                               0 },
+        { false, "Dismiss QNH",   false, false,                              12 },
         { false, "Save positions", false, false,                               1 },
         { true,  "Options",        false, false,                              -1 },
         { false, "Debug mode",     true,  base->GetDebug(),                    2 },
@@ -1666,6 +1667,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             {
                 static_cast<CFlowX_Timers*>(this->GetPlugIn())->SaveWindowPositions();
             }
+            else if (idx == 12) // Dismiss QNH
+            {
+                static_cast<CFlowX_Functions*>(this->GetPlugIn())->DismissQnh();
+            }
             else if (idx == 2) // Debug mode
             {
                 settings->ToggleDebug();
@@ -1684,8 +1689,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 10) { settings->DecreaseBgOpacity(); }
             else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
-        // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows
-        if (idx < 4) { this->startMenuOpen = false; }
+        // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows; close for all commands
+        if (idx < 4 || idx == 12) { this->startMenuOpen = false; }
         this->RequestRefresh();
         return;
     }
