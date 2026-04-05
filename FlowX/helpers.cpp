@@ -8,6 +8,9 @@
 #include "pch.h"
 
 #include "helpers.h"
+#include "nlohmann/json.hpp"
+
+using json = nlohmann::json;
 
 /// @brief Fetches the latest plugin version string from the remote version file.
 /// @return Version string read from the URL (e.g. "0.6.0").
@@ -38,6 +41,43 @@ std::string FetchVatsimData()
 
     InternetCloseHandle(open);
     InternetCloseHandle(init);
+
+    return result;
+}
+
+std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airports)
+{
+    auto j = json::parse(FetchVatsimData());
+
+    std::map<std::string, std::string> result;
+
+    for (auto& entry : j.at("atis"))
+    {
+        std::string cs = entry.value("callsign", "");
+        to_upper(cs);
+        std::string code = entry.value("atis_code", "");
+        if (code.empty())
+        {
+            continue;
+        }
+
+        for (const auto& icao : airports)
+        {
+            if (!cs.contains(icao))
+            {
+                continue;
+            }
+
+            // First match wins; a _D_ callsign overrides any earlier non-_D_ match
+            auto it = result.find(icao);
+            if (it == result.end() || cs.contains("_D_"))
+            {
+                result[icao] = code;
+            }
+
+            break; // each ATIS station matches at most one airport
+        }
+    }
 
     return result;
 }

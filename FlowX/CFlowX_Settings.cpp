@@ -569,7 +569,12 @@ void CFlowX_Settings::LoadConfig()
             for (auto& [rwyDesignator, json_rwy] : json_airport.at("runways").items())
             {
                 runway rwy{};
-                rwy.designator   = rwyDesignator;
+                rwy.designator = rwyDesignator;
+                {
+                    std::string digits = rwyDesignator;
+                    std::erase_if(digits, [](char c) { return !std::isdigit(c); });
+                    rwy.headingNumber = digits.empty() ? -1 : std::stoi(digits);
+                }
                 rwy.opposite     = json_rwy.value<std::string>("opposite", "");
                 rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
                 rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);

@@ -63,7 +63,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              airportQNH;                ///< Last known QNH string per airport ICAO (e.g. "Q1013").
     std::map<std::string, std::string>              airportRVR;                ///< Formatted RVR display string per airport ICAO; empty if no RVR in the latest METAR.
     std::map<std::string, std::string>              airportWind;               ///< Last known wind string per airport ICAO (e.g. "27015KT").
-    std::future<std::string>                        atisFuture;                ///< Async future carrying the raw VATSIM data JSON; invalid when no fetch is in progress.
+    std::future<std::map<std::string, std::string>> atisFuture;                ///< Worker-thread pre-parsed ATIS result (ICAO → atis_code); invalid when no fetch is in progress.
     std::map<std::string, std::string>              atisLetters;               ///< ICAO -> current ATIS letter for each configured airport; empty string if not yet received.
     std::set<std::string>                           atisUnacked;               ///< Airports where the ATIS letter changed since the user last acknowledged.
     bool                                            blinking = false;          ///< Toggles each timer tick; drives blinking tag colours.
@@ -78,6 +78,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     int                                             dep_sequenceCounter = 0;   ///< Global sequence counter incremented at each takeoff.
     std::map<std::string, int>                      dep_sequenceNumber;        ///< Callsign -> departure sequence number assigned at takeoff.
     std::map<std::string, std::string>              flightStripAnnotation;     ///< Callsign -> cached content of flight-strip annotation slot 8.
+    std::map<std::string, EuroScopePlugIn::CPosition> lastHpCheckPos;          ///< Callsign -> aircraft position at the last holding-point polygon test; used to skip redundant checks.
     std::set<std::string>                           gndTransfer_list;          ///< Callsigns of landed inbounds awaiting GND handoff (added at TTT removal, cleared on click/disconnect).
     std::set<std::string>                           gndTransfer_soundPlayed;   ///< Subset of gndTransfer_list where GS<50 was first detected; square is shown and sound has played.
     std::map<std::string, std::string>              groundStatus;              ///< Callsign -> last known ground status string.

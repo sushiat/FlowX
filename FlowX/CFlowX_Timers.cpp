@@ -434,53 +434,29 @@ void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
 /// Prefers _D_ callsigns when multiple ATIS stations match the same airport ICAO.
 void CFlowX_Timers::PollAtisLetters(int Counter)
 {
-    // Resolve a completed fetch
+    // Resolve a completed fetch — JSON was already parsed on the worker thread
     if (this->atisFuture.valid() && this->atisFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
     {
         try
         {
-            auto j = json::parse(this->atisFuture.get());
+            auto result = this->atisFuture.get(); // map<ICAO, atis_code>, built on worker
+
             for (auto& [icao, ap] : this->airports)
             {
                 std::string icaoUpper = icao;
                 to_upper(icaoUpper);
 
-                std::string best;   // atis_code from best-matching station
-                std::string bestCs; // callsign of best-matching station
-
-                for (auto& entry : j.at("atis"))
-                {
-                    std::string cs = entry.value("callsign", "");
-                    to_upper(cs);
-
-                    if (!cs.contains(icaoUpper))
-                    {
-                        continue;
-                    }
-
-                    std::string code = entry.value("atis_code", "");
-                    if (code.empty())
-                    {
-                        continue;
-                    }
-
-                    // First match wins; a _D_ match overrides any earlier non-_D_ match
-                    if (best.empty() || cs.contains("_D_"))
-                    {
-                        best   = code;
-                        bestCs = cs;
-                    }
-                }
-
                 auto it         = this->atisLetters.find(icao);
                 bool hadLetter  = (it != this->atisLetters.end() && !it->second.empty());
                 bool firstFetch = (it == this->atisLetters.end());
 
-                if (!best.empty())
+                auto resIt = result.find(icaoUpper);
+                if (resIt != result.end() && !resIt->second.empty())
                 {
+                    const std::string& best = resIt->second;
                     if (!hadLetter || it->second != best)
                     {
-                        this->LogDebugMessage("ATIS for " + icao + " changed to " + best + " (from " + bestCs + ")", "ATIS");
+                        this->LogDebugMessage("ATIS for " + icao + " changed to " + best, "ATIS");
                         this->atisUnacked.insert(icao);
                     }
                     this->atisLetters[icao] = best;
@@ -504,13 +480,20 @@ void CFlowX_Timers::PollAtisLetters(int Counter)
             this->LogMessage("ATIS fetch failed: " + std::string(e.what()), "ATIS");
         }
 
-        this->atisFuture = std::future<std::string>();
+        this->atisFuture = {};
     }
 
     // Launch a new fetch every 60 s; also fire at 15 s on first start when map is still empty
     if (!this->atisFuture.valid() && (Counter % 60 == 0 || (Counter == 15 && this->atisLetters.empty())))
     {
-        this->atisFuture = std::async(std::launch::async, FetchVatsimData);
+        std::vector<std::string> airportKeys;
+        for (auto& [icao, _] : this->airports)
+        {
+            std::string k = icao;
+            to_upper(k);
+            airportKeys.push_back(k);
+        }
+        this->atisFuture = std::async(std::launch::async, FetchAtisData, std::move(airportKeys));
     }
 }
 
@@ -1022,14 +1005,22 @@ void CFlowX_Timers::UpdateTWROutbound()
             auto rwyIt = airport->second.runways.find(rwy);
             if (rwyIt != airport->second.runways.end())
             {
-                for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
+                auto& cachedPos = this->lastHpCheckPos[callSign];
+                auto  curPos    = pos.GetPosition();
+                bool  moved     = (std::abs(curPos.m_Latitude  - cachedPos.m_Latitude)  > 0.0002 ||
+                                   std::abs(curPos.m_Longitude - cachedPos.m_Longitude) > 0.0002);
+                if (moved)
                 {
-                    if (PointInsidePolygon(static_cast<int>(hpData.lat.size()), hpData.lon.data(), hpData.lat.data(),
-                                           pos.GetPosition().m_Longitude,
-                                           pos.GetPosition().m_Latitude))
+                    cachedPos = curPos;
+                    for (auto& [hpName, hpData] : rwyIt->second.holdingPoints)
                     {
-                        this->flightStripAnnotation[callSign] =
-                            AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
+                        if (PointInsidePolygon(static_cast<int>(hpData.lat.size()), hpData.lon.data(), hpData.lat.data(),
+                                               curPos.m_Longitude,
+                                               curPos.m_Latitude))
+                        {
+                            this->flightStripAnnotation[callSign] =
+                                AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
+                        }
                     }
                 }
             }
@@ -1047,6 +1038,7 @@ void CFlowX_Timers::UpdateTWROutbound()
             this->twrSameSID_flightPlans.erase(callSign);
             this->dep_liveSpacing.erase(callSign);
             this->dep_sequenceNumber.erase(callSign);
+            this->lastHpCheckPos.erase(callSign);
         }
 
         // Check if the aircraft has departed and is further than 15nm away or more than 4 minutes have passed since takeoff
@@ -1065,6 +1057,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                     this->twrSameSID_flightPlans.erase(callSign);
                     this->dep_liveSpacing.erase(callSign);
                     this->dep_sequenceNumber.erase(callSign);
+                    this->lastHpCheckPos.erase(callSign);
                     continue;
                 }
 
@@ -1093,6 +1086,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->twrSameSID_flightPlans.erase(callSign);
                 this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
+                this->lastHpCheckPos.erase(callSign);
             }
         }
     }
@@ -1172,10 +1166,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                     this->ttt_runwayOccupied.insert(rwy.designator);
                 }
 
-                // ── Shared: runway heading number ──
-                std::string arrRwyDigits = rwy.designator;
-                std::erase_if(arrRwyDigits, [](char c) { return !std::isdigit(c); });
-                int arrRwyHdg = arrRwyDigits.empty() ? -1 : std::stoi(arrRwyDigits);
+                // ── Shared: runway heading number (pre-cached at config load) ──
+                int arrRwyHdg = rwy.headingNumber;
 
                 // ── (B) Main inbound tracking ──
                 auto   inboundIt       = this->ttt_inbound.find(callSign);

@@ -104,6 +104,7 @@ struct runway
 {
     std::vector<approachPath>            gpsApproachPaths = {}; ///< Non-straight-in GPS approach paths for early TTT detection; empty = straight-in only.
     std::string                         designator;         ///< Runway designator (e.g. "11")
+    int                                 headingNumber = -1; ///< Numeric heading extracted from the designator (e.g. "11L" → 11); -1 if unparseable.
     std::string                         opposite;           ///< Designator of the reciprocal runway (used for go-around detection)
     double                              thresholdLat = 0.0; ///< Runway threshold latitude
     double                              thresholdLon = 0.0; ///< Runway threshold longitude

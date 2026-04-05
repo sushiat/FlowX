@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <map>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -26,6 +27,12 @@ std::string FetchLatestVersion();
 /// @return Raw JSON string from VATSIM_DATA_URL, or throws on failure.
 /// @note Performs a synchronous WinInet HTTP request; call from a background thread.
 std::string FetchVatsimData();
+
+/// @brief Fetches and parses VATSIM ATIS data, returning only the airports in the given list.
+/// @param airports Upper-case ICAO codes to look for.
+/// @return Map of ICAO → atis_code; airports with no ATIS present are absent from the map.
+/// @note Performs an HTTP request and JSON parse entirely on the calling thread; call from a background thread.
+std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airports);
 
 /// @brief Base class for all plugin exceptions that can display a Win32 MessageBox.
 class flowxexception : public std::exception
