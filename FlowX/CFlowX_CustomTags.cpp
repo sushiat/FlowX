@@ -75,6 +75,24 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         return {};
     }();
 
+    // ── row.tttSeconds — TTT in whole seconds for the Approach Estimate bar ──
+    row.tttSeconds = [&]() -> int
+    {
+        if (isGoAround) { return -1; }
+        if (isFrozen)
+        {
+            const std::string& s     = state.frozenTttStr;
+            auto               colon = s.find(':');
+            if (colon == std::string::npos) { return -1; }
+            int mm = std::stoi(s.substr(0, colon));
+            int ss = std::stoi(s.substr(colon + 1));
+            return mm * 60 + ss;
+        }
+        int speed = rt.GetPosition().GetReportedGS();
+        if (speed <= 0) { return -1; }
+        return static_cast<int>((distToThreshold / speed) * 3600.0);
+    }();
+
     // ── row.nm (inboundNm) ──
     row.nm = [&]() -> tagInfo
     {

@@ -37,120 +37,129 @@ void RadarScreen::OnAsrContentToBeClosed()
 /// @param Controller The updated controller.
 void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Controller)
 {
-    std::string cs = Controller.GetCallsign();
-    std::transform(cs.begin(), cs.end(), cs.begin(), ::toupper);
-
-    std::string myCS = this->GetPlugIn()->ControllerMyself().GetCallsign();
-    std::transform(myCS.begin(), myCS.end(), myCS.begin(), ::toupper);
-
-    // Not interested in observers, non-controllers and my own call-sign
-    if (Controller.IsController() && Controller.GetRating() > 1 && cs != myCS)
+    try
     {
-        double      freq          = Controller.GetPrimaryFrequency();
-        std::string freqFormatted = std::format("{:.3f}", freq);
+        std::string cs = Controller.GetCallsign();
+        std::transform(cs.begin(), cs.end(), cs.begin(), ::toupper);
 
-        auto updateStation = [&](std::map<std::string, std::string>& stations, const char* label) {
-            auto it = stations.find(cs);
-            if (it == stations.end())
-            {
-                stations.emplace(cs, freqFormatted);
-                if (this->debug)
-                {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, label, (cs + " online (" + freqFormatted + ")").c_str(), true, true, true, false, false);
-                }
-            }
-            else if (it->second != freqFormatted)
-            {
-                if (this->debug)
-                {
-                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, label, (cs + " freq changed: " + it->second + " -> " + freqFormatted).c_str(), true, true, true, false, false);
-                }
-                it->second = freqFormatted;
-            }
-        };
+        std::string myCS = this->GetPlugIn()->ControllerMyself().GetCallsign();
+        std::transform(myCS.begin(), myCS.end(), myCS.begin(), ::toupper);
 
-        if (Controller.GetFacility() == 3)
+        // Not interested in observers, non-controllers and my own call-sign
+        if (Controller.IsController() && Controller.GetRating() > 1 && cs != myCS)
         {
-            updateStation(this->groundStations, "Ground");
-        }
-        if (Controller.GetFacility() == 4 && cs.find("ATIS") == std::string::npos)
-        {
-            updateStation(this->towerStations, "Tower");
-        }
-        if (Controller.GetFacility() == 5)
-        {
-            updateStation(this->approachStations, "Approach");
-        }
-        if (Controller.GetFacility() == 6)
-        {
-            updateStation(this->centerStations, "Center");
+            double      freq          = Controller.GetPrimaryFrequency();
+            std::string freqFormatted = std::format("{:.3f}", freq);
+
+            auto updateStation = [&](std::map<std::string, std::string>& stations, const char* label) {
+                auto it = stations.find(cs);
+                if (it == stations.end())
+                {
+                    stations.emplace(cs, freqFormatted);
+                    if (this->debug)
+                    {
+                        this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, label, (cs + " online (" + freqFormatted + ")").c_str(), true, true, true, false, false);
+                    }
+                }
+                else if (it->second != freqFormatted)
+                {
+                    if (this->debug)
+                    {
+                        this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, label, (cs + " freq changed: " + it->second + " -> " + freqFormatted).c_str(), true, true, true, false, false);
+                    }
+                    it->second = freqFormatted;
+                }
+            };
+
+            if (Controller.GetFacility() == 3)
+            {
+                updateStation(this->groundStations, "Ground");
+            }
+            if (Controller.GetFacility() == 4 && cs.find("ATIS") == std::string::npos)
+            {
+                updateStation(this->towerStations, "Tower");
+            }
+            if (Controller.GetFacility() == 5)
+            {
+                updateStation(this->approachStations, "Approach");
+            }
+            if (Controller.GetFacility() == 6)
+            {
+                updateStation(this->centerStations, "Center");
+            }
         }
     }
+    catch (const std::exception& e) { WriteExceptionToLog("OnControllerPositionUpdate", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnControllerPositionUpdate", "unknown exception"); }
 }
 
 /// @brief Removes the controller from the appropriate station set when they go offline.
 /// @param Controller The disconnected controller.
 void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller)
 {
-    std::string cs = Controller.GetCallsign();
-    std::transform(cs.begin(), cs.end(), cs.begin(), ::toupper);
-
-    // Not interested in observers and non-controllers
-    if (Controller.IsController() && Controller.GetRating() > 1)
+    try
     {
-        if (Controller.GetFacility() == 3)
+        std::string cs = Controller.GetCallsign();
+        std::transform(cs.begin(), cs.end(), cs.begin(), ::toupper);
+
+        // Not interested in observers and non-controllers
+        if (Controller.IsController() && Controller.GetRating() > 1)
         {
-            if (this->debug)
+            if (Controller.GetFacility() == 3)
             {
-                this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Ground", (cs + " disconnected").c_str(), true, true, true, false, false);
+                if (this->debug)
+                {
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Ground", (cs + " disconnected").c_str(), true, true, true, false, false);
+                }
+
+                if (this->groundStations.find(cs) != this->groundStations.end())
+                {
+                    this->groundStations.erase(cs);
+                }
             }
 
-            if (this->groundStations.find(cs) != this->groundStations.end())
+            if (Controller.GetFacility() == 4 && cs.find("ATIS") == std::string::npos)
             {
-                this->groundStations.erase(cs);
+                if (this->debug)
+                {
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Tower", (cs + " disconnected").c_str(), true, true, true, false, false);
+                }
+
+                if (this->towerStations.find(cs) != this->towerStations.end())
+                {
+                    this->towerStations.erase(cs);
+                }
+            }
+
+            if (Controller.GetFacility() == 5)
+            {
+                if (this->debug)
+                {
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " disconnected").c_str(), true, true, true, false, false);
+                }
+
+                if (this->approachStations.find(cs) != this->approachStations.end())
+                {
+                    this->approachStations.erase(cs);
+                }
+            }
+
+            if (Controller.GetFacility() == 6)
+            {
+                if (this->debug)
+                {
+                    this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " disconnected").c_str(), true, true, true, false, false);
+                }
+
+                if (this->centerStations.find(cs) != this->centerStations.end())
+                {
+                    this->centerStations.erase(cs);
+                }
             }
         }
-
-        if (Controller.GetFacility() == 4 && cs.find("ATIS") == std::string::npos)
-        {
-            if (this->debug)
-            {
-                this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Tower", (cs + " disconnected").c_str(), true, true, true, false, false);
-            }
-
-            if (this->towerStations.find(cs) != this->towerStations.end())
-            {
-                this->towerStations.erase(cs);
-            }
-        }
-
-        if (Controller.GetFacility() == 5)
-        {
-            if (this->debug)
-            {
-                this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Approach", (cs + " disconnected").c_str(), true, true, true, false, false);
-            }
-
-            if (this->approachStations.find(cs) != this->approachStations.end())
-            {
-                this->approachStations.erase(cs);
-            }
-        }
-
-        if (Controller.GetFacility() == 6)
-        {
-            if (this->debug)
-            {
-                this->GetPlugIn()->DisplayUserMessage(PLUGIN_NAME, "Center", (cs + " disconnected").c_str(), true, true, true, false, false);
-            }
-
-            if (this->centerStations.find(cs) != this->centerStations.end())
-            {
-                this->centerStations.erase(cs);
-            }
-        }
-
     }
+    catch (const std::exception& e) { WriteExceptionToLog("OnControllerDisconnect", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnControllerDisconnect", "unknown exception"); }
 }
 
 /// @brief Dispatches all custom drawing to the four extract draw helpers; no calculations here.
@@ -158,22 +167,28 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
 /// @param Phase EuroScope refresh phase; all drawing occurs during REFRESH_PHASE_AFTER_TAGS.
 void RadarScreen::OnRefresh(HDC hDC, int Phase)
 {
-    if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
+    try
     {
-        this->DrawDepartureInfoTag(hDC);
-        this->DrawGndTransferSquares(hDC);
-    }
+        if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
+        {
+            this->DrawDepartureInfoTag(hDC);
+            this->DrawGndTransferSquares(hDC);
+        }
 
-    if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
-    {
-        this->DrawDepRateWindow(hDC);
-        this->DrawTwrOutbound(hDC);
-        this->DrawTwrInbound(hDC);
-        this->DrawNapReminder(hDC);
-        this->DrawWeatherWindow(hDC);
-        this->DrawStartButton(hDC);
-        this->DrawStartMenu(hDC);
+        if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
+        {
+            this->DrawApproachEstimateWindow(hDC);
+            this->DrawDepRateWindow(hDC);
+            this->DrawTwrOutbound(hDC);
+            this->DrawTwrInbound(hDC);
+            this->DrawNapReminder(hDC);
+            this->DrawWeatherWindow(hDC);
+            this->DrawStartButton(hDC);
+            this->DrawStartMenu(hDC);
+        }
     }
+    catch (const std::exception& e) { WriteExceptionToLog("OnRefresh", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnRefresh", "unknown exception"); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +219,264 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
 
     DeleteObject(pen);
     DeleteObject(brush);
+}
+
+static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct); ///< Forward declaration — defined below DrawGndTransferSquares.
+
+/// @brief Draws the Approach Estimate window: two vertical bars with a 300→0 s scale between them.
+/// Left-side runways place their aircraft to the left of the left bar; right-side to the right of the right bar.
+/// Runway labels appear at the top corners of the header row. Ticks every 5 s (short) and 10 s (long); labels every 20 s.
+void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
+{
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settings->GetApproachEstVisible()) { return; }
+
+    const int fo        = settings->GetFontOffset();
+    const int op        = settings->GetBgOpacity();
+    const int TITLE_H   = 13;
+    const int HDR_H     = 14 + fo;  ///< Header row carrying the runway corner labels
+    const int RESIZE_SZ = 8;        ///< Size of the draggable resize square
+    const int X_BTN     = 11;       ///< Close button size
+    const int NUM_COL_W = 48;       ///< Fixed width of the numbers column between the two bars
+    const int TICK_LONG = 10;       ///< Tick length (px into number column) for every-10-s marks
+    const int TICK_SHORT= 8;        ///< Tick length for every-5-s (non-10-s) marks
+    const int AC_PAD    = 4;        ///< Gap between the bar line and aircraft label text
+
+    int WIN_W = this->approachEstWindowW;
+    int WIN_H = this->approachEstWindowH;
+
+    if (this->approachEstWindowPos.x == -1)
+    {
+        RECT clip;
+        GetClipBox(hDC, &clip);
+        this->approachEstWindowPos.x = clip.right  - WIN_W - 20;
+        this->approachEstWindowPos.y = (clip.top + clip.bottom) / 2 - WIN_H / 2;
+    }
+
+    int wx = this->approachEstWindowPos.x;
+    int wy = this->approachEstWindowPos.y;
+
+    // ── Geometry ──
+    // Two bars flank a fixed-width numbers column, centred in the window.
+    int barLx     = wx + (WIN_W - NUM_COL_W) / 2;
+    int barRx     = barLx + NUM_COL_W;
+    int numCenterX = barLx + NUM_COL_W / 2;
+
+    int barTop    = wy + TITLE_H + HDR_H + 4;
+    int barBottom = wy + WIN_H - RESIZE_SZ - 4;
+    if (barBottom <= barTop) { barBottom = barTop + 1; }
+
+    // Scale padding: inset the usable 300→0 range so aircraft text at the extremes stays readable.
+    // Top pad: small margin above the 300-s marker line.
+    // Bottom pad: enough for callsign + type below the 0-s marker line.
+    const int SCALE_PAD_TOP    = 34;
+    const int SCALE_PAD_BOTTOM = 34;
+    int scaleTop    = barTop    + SCALE_PAD_TOP;
+    int scaleBottom = barBottom - SCALE_PAD_BOTTOM;
+    if (scaleBottom <= scaleTop) { scaleBottom = scaleTop + 1; }
+    int barHeight = scaleBottom - scaleTop;
+
+    // ── Close button hover ──
+    RECT xRect    = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    HWND hwnd     = WindowFromDC(hDC);
+    POINT cursor;
+    GetCursorPos(&cursor);
+    if (hwnd) { ScreenToClient(hwnd, &cursor); }
+    bool xHovered = PtInRect(&xRect, cursor) != 0;
+
+    // ── Background ──
+    RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H           };
+    RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H         };
+    RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H };
+
+    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
+
+    auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
+    FillRect(hDC, &titleRect, titleBrush);
+    DeleteObject(titleBrush);
+
+    if (xHovered)
+    {
+        auto xBrush = CreateSolidBrush(RGB(180, 40, 40));
+        FillRect(hDC, &xRect, xBrush);
+        DeleteObject(xBrush);
+    }
+
+    auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+    FrameRect(hDC, &winRect, borderBrush);
+    DeleteObject(borderBrush);
+
+    SetBkMode(hDC, TRANSPARENT);
+
+    // ── Title bar ──
+    HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
+    SetTextColor(hDC, TAG_COLOR_WHITE);
+    DrawTextA(hDC, "APPROACH ESTIMATE", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(hDC, prevFont);
+    DeleteObject(titleFont);
+
+    RECT dragRect = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    AddScreenObject(SCREEN_OBJECT_APPROACH_EST_WIN, "APPROACH_EST", dragRect, true, "");
+    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE,        "approachEst",  xRect,    false, "");
+
+    // ── Runway corner labels — always from config, not from active inbounds ──
+    auto [leftLabel, rightLabel] = settings->GetEstimateBarLabels();
+
+    // ── Header row: runway labels at top corners ──
+    HFONT hdrFont = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    prevFont = (HFONT)SelectObject(hDC, hdrFont);
+    SetTextColor(hDC, TAG_COLOR_DEFAULT_GRAY);
+    if (!leftLabel.empty())
+    {
+        RECT lr = { wx + 3, wy + TITLE_H, wx + WIN_W / 2, wy + TITLE_H + HDR_H };
+        DrawTextA(hDC, leftLabel.c_str(), -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    }
+    if (!rightLabel.empty())
+    {
+        RECT rr = { wx + WIN_W / 2, wy + TITLE_H, wx + WIN_W - 3, wy + TITLE_H + HDR_H };
+        DrawTextA(hDC, rightLabel.c_str(), -1, &rr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    }
+    SelectObject(hDC, prevFont);
+    DeleteObject(hdrFont);
+
+    // ── Two vertical bars ──
+    auto barPen  = CreatePen(PS_SOLID, 1, TAG_COLOR_WHITE);
+    HGDIOBJ prevPen = SelectObject(hDC, barPen);
+    MoveToEx(hDC, barLx, barTop, nullptr); LineTo(hDC, barLx, barBottom);
+    MoveToEx(hDC, barRx, barTop, nullptr); LineTo(hDC, barRx, barBottom);
+    SelectObject(hDC, prevPen);
+    DeleteObject(barPen);
+
+    // ── Tick marks and labels ──
+    // Every 5 s: short tick inward from each bar; every 10 s: longer; labels every 20 s.
+    HFONT tickFont = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    prevFont = (HFONT)SelectObject(hDC, tickFont);
+    SetTextColor(hDC, TAG_COLOR_WHITE);
+    auto tickPen = CreatePen(PS_SOLID, 1, TAG_COLOR_WHITE);
+    prevPen = SelectObject(hDC, tickPen);
+
+    for (int t = 300; t >= 0; t -= 5)
+    {
+        int ty      = scaleTop + (300 - t) * barHeight / 300;
+        int tickLen = (t % 10 == 0) ? TICK_LONG : TICK_SHORT;
+
+        // Left bar: tick extends rightward (into numbers column)
+        MoveToEx(hDC, barLx, ty, nullptr);
+        LineTo(hDC, barLx + tickLen, ty);
+        // Right bar: tick extends leftward (into numbers column)
+        MoveToEx(hDC, barRx, ty, nullptr);
+        LineTo(hDC, barRx - tickLen, ty);
+
+        // Label every 20 s, centred in the numbers column
+        if (t % 20 == 0)
+        {
+            std::string lbl = std::to_string(t);
+            SIZE sz = {};
+            GetTextExtentPoint32A(hDC, lbl.c_str(), (int)lbl.size(), &sz);
+            TextOutA(hDC, numCenterX - sz.cx / 2, ty - sz.cy / 2, lbl.c_str(), (int)lbl.size());
+        }
+    }
+
+    SelectObject(hDC, prevPen);
+    DeleteObject(tickPen);
+    SelectObject(hDC, prevFont);
+    DeleteObject(tickFont);
+
+    // ── Aircraft labels ──
+    HFONT csFont = CreateFontA(-16 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT atFont = CreateFontA(-13 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                               ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    auto markerPen = CreatePen(PS_SOLID, 1, TAG_COLOR_GREEN);
+
+    for (const auto& row : this->twrInboundRowsCache)
+    {
+        if (row.tttSeconds < 0 || row.tttSeconds > 300) { continue; }
+        if (row.rwyGroup.empty()) { continue; }
+
+        std::string side = settings->GetRunwayEstimateBarSide(row.rwyGroup);
+        if (side != "left" && side != "right") { continue; }
+
+        int clampedTTT = std::clamp(row.tttSeconds, 0, 300);
+        int y          = scaleTop + (300 - clampedTTT) * barHeight / 300;
+        y              = std::clamp(y, scaleTop, scaleBottom);
+
+        // Horizontal marker line — same length as the 10-s tick (TICK_LONG), extending outward from the bar
+        prevPen = SelectObject(hDC, markerPen);
+        if (side == "left")
+        {
+            MoveToEx(hDC, barLx, y, nullptr);
+            LineTo(hDC, barLx - TICK_LONG, y);
+        }
+        else
+        {
+            MoveToEx(hDC, barRx, y, nullptr);
+            LineTo(hDC, barRx + TICK_LONG, y);
+        }
+        SelectObject(hDC, prevPen);
+
+        // Aircraft color: green by default; go-around = red, frozen = orange
+        COLORREF csColor = TAG_COLOR_GREEN;
+        if (row.isGoAround)    { csColor = TAG_COLOR_RED;    }
+        else if (row.isFrozen) { csColor = TAG_COLOR_ORANGE; }
+
+        // Callsign text — sits just below the marker line, adjacent to the bar
+        prevFont = (HFONT)SelectObject(hDC, csFont);
+        SetTextColor(hDC, csColor);
+        SIZE csSize = {};
+        GetTextExtentPoint32A(hDC, row.callsign.c_str(), (int)row.callsign.size(), &csSize);
+
+        // Callsign: starts just below the marker line
+        if (side == "left")
+        {
+            TextOutA(hDC, barLx - AC_PAD - csSize.cx, y + 1, row.callsign.c_str(), (int)row.callsign.size());
+        }
+        else
+        {
+            TextOutA(hDC, barRx + AC_PAD, y + 1, row.callsign.c_str(), (int)row.callsign.size());
+        }
+        SelectObject(hDC, prevFont);
+
+        // Aircraft type — dimmed, below the callsign
+        if (!row.aircraftType.empty())
+        {
+            prevFont = (HFONT)SelectObject(hDC, atFont);
+            SetTextColor(hDC, csColor);
+            SIZE atSize = {};
+            GetTextExtentPoint32A(hDC, row.aircraftType.c_str(), (int)row.aircraftType.size(), &atSize);
+            if (side == "left")
+            {
+                TextOutA(hDC, barLx - AC_PAD - atSize.cx, y + csSize.cy - 3, row.aircraftType.c_str(), (int)row.aircraftType.size());
+            }
+            else
+            {
+                TextOutA(hDC, barRx + AC_PAD, y + csSize.cy - 3, row.aircraftType.c_str(), (int)row.aircraftType.size());
+            }
+            SelectObject(hDC, prevFont);
+        }
+    }
+
+    DeleteObject(markerPen);
+    DeleteObject(csFont);
+    DeleteObject(atFont);
+
+    // ── Resize handle (draggable grey square, lower-right corner) ──
+    RECT resizeRect = { wx + WIN_W - RESIZE_SZ, wy + WIN_H - RESIZE_SZ, wx + WIN_W, wy + WIN_H };
+    auto resizeBrush = CreateSolidBrush(RGB(100, 100, 100));
+    FillRect(hDC, &resizeRect, resizeBrush);
+    DeleteObject(resizeBrush);
+    AddScreenObject(SCREEN_OBJECT_APPROACH_EST_RESIZE, "APPROACH_EST_RESIZE", resizeRect, true, "");
 }
 
 /// @brief Draws per-aircraft departure info overlays (text, SID dot, HP label, connector line).
@@ -1202,6 +1475,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
     MenuRow rows[] = {
         { true,  "Windows",        false, false,                              -1 },
+        { false, "Approach Est",   true,  settings->GetApproachEstVisible(),  16 },
         { false, "DEP/H",          true,  settings->GetDepRateVisible(),       4 },
         { false, "TWR Outbound",   true,  settings->GetTwrOutboundVisible(),   5 },
         { false, "TWR Inbound",    true,  settings->GetTwrInboundVisible(),    6 },
@@ -1559,41 +1833,46 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
 /// DrawNapReminder() redraws exactly when the hover state changes, not on every mouse-move event.
 void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area)
 {
-    if (ObjectType == SCREEN_OBJECT_NAP_WIN || ObjectType == SCREEN_OBJECT_NAP_ACK)
+    try
     {
-        if (ObjectType != this->napLastHoverType)
+        if (ObjectType == SCREEN_OBJECT_NAP_WIN || ObjectType == SCREEN_OBJECT_NAP_ACK)
         {
-            this->napLastHoverType = ObjectType;
-            this->RequestRefresh();
+            if (ObjectType != this->napLastHoverType)
+            {
+                this->napLastHoverType = ObjectType;
+                this->RequestRefresh();
+            }
         }
-    }
 
-    if (ObjectType == SCREEN_OBJECT_START_BTN)
-    {
-        if (ObjectType != this->startBtnLastHoverType)
+        if (ObjectType == SCREEN_OBJECT_START_BTN)
         {
-            this->startBtnLastHoverType = ObjectType;
-            this->RequestRefresh();
+            if (ObjectType != this->startBtnLastHoverType)
+            {
+                this->startBtnLastHoverType = ObjectType;
+                this->RequestRefresh();
+            }
         }
-    }
 
-    if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM)
-    {
-        if (ObjectType != this->startMenuLastHoverType)
+        if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM)
         {
-            this->startMenuLastHoverType = ObjectType;
-            this->RequestRefresh();
+            if (ObjectType != this->startMenuLastHoverType)
+            {
+                this->startMenuLastHoverType = ObjectType;
+                this->RequestRefresh();
+            }
         }
-    }
 
-    if (ObjectType == SCREEN_OBJECT_WIN_CLOSE)
-    {
-        if (ObjectType != this->winCloseLastHoverType)
+        if (ObjectType == SCREEN_OBJECT_WIN_CLOSE)
         {
-            this->winCloseLastHoverType = ObjectType;
-            this->RequestRefresh();
+            if (ObjectType != this->winCloseLastHoverType)
+            {
+                this->winCloseLastHoverType = ObjectType;
+                this->RequestRefresh();
+            }
         }
     }
+    catch (const std::exception& e) { WriteExceptionToLog("OnOverScreenObject", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnOverScreenObject", "unknown exception"); }
 }
 
 /// @brief Sets the pressed state when the mouse button goes down over the ACK or Start button.
@@ -1601,56 +1880,69 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 /// because EuroScope's radar target selection logic may consume the full press+release sequence.
 void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
-    if (this->debug) GetPlugIn()->DisplayUserMessage("FlowX", "GndXfr",
-        std::format("BtnDown type={} id={} btn={}", ObjectType, sObjectId, Button).c_str(), true, true, false, false, false);
-
-    if (ObjectType == SCREEN_OBJECT_NAP_ACK)
+    try
     {
-        this->napAckPressed = true;
-        this->RequestRefresh();
-    }
+        if (this->debug) GetPlugIn()->DisplayUserMessage("FlowX", "GndXfr",
+            std::format("BtnDown type={} id={} btn={}", ObjectType, sObjectId, Button).c_str(), true, true, false, false, false);
 
-    if (ObjectType == SCREEN_OBJECT_START_BTN)
-    {
-        this->startBtnPressed = true;
-        this->RequestRefresh();
-    }
+        if (ObjectType == SCREEN_OBJECT_NAP_ACK)
+        {
+            this->napAckPressed = true;
+            this->RequestRefresh();
+        }
 
-    if (ObjectType == SCREEN_OBJECT_GND_TRANSFER)
-    {
-        static_cast<CFlowX_Functions*>(this->GetPlugIn())->Func_GndTransfer(std::string(sObjectId));
-        this->RequestRefresh();
+        if (ObjectType == SCREEN_OBJECT_START_BTN)
+        {
+            this->startBtnPressed = true;
+            this->RequestRefresh();
+        }
+
+        if (ObjectType == SCREEN_OBJECT_GND_TRANSFER)
+        {
+            static_cast<CFlowX_Functions*>(this->GetPlugIn())->Func_GndTransfer(std::string(sObjectId));
+            this->RequestRefresh();
+        }
     }
+    catch (const std::exception& e) { WriteExceptionToLog("OnButtonDownScreenObject", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnButtonDownScreenObject", "unknown exception"); }
 }
 
 /// @brief Clears the pressed state when the mouse button is released.
 void RadarScreen::OnButtonUpScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
-    if (ObjectType == SCREEN_OBJECT_NAP_ACK)
+    try
     {
-        this->napAckPressed = false;
-        this->RequestRefresh();
-    }
+        if (ObjectType == SCREEN_OBJECT_NAP_ACK)
+        {
+            this->napAckPressed = false;
+            this->RequestRefresh();
+        }
 
-    if (ObjectType == SCREEN_OBJECT_START_BTN)
-    {
-        this->startBtnPressed = false;
-        this->RequestRefresh();
+        if (ObjectType == SCREEN_OBJECT_START_BTN)
+        {
+            this->startBtnPressed = false;
+            this->RequestRefresh();
+        }
     }
+    catch (const std::exception& e) { WriteExceptionToLog("OnButtonUpScreenObject", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnButtonUpScreenObject", "unknown exception"); }
 }
 
 /// @brief Starts the ACK blink animation on click; the window closes after it completes.
 /// Also handles Start button menu toggle, menu item selection, and window close buttons.
 void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
+    try
+    {
     if (ObjectType == SCREEN_OBJECT_WIN_CLOSE && Button == EuroScopePlugIn::BUTTON_LEFT)
     {
         std::string id(sObjectId);
         auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-        if      (id == "depRate") { settings->ToggleDepRateVisible(); }
-        else if (id == "twrOut")  { settings->ToggleTwrOutboundVisible(); }
-        else if (id == "twrIn")   { settings->ToggleTwrInboundVisible(); }
-        else if (id == "weather") { settings->ToggleWeatherVisible(); }
+        if      (id == "approachEst") { settings->ToggleApproachEstVisible(); }
+        else if (id == "depRate")    { settings->ToggleDepRateVisible(); }
+        else if (id == "twrOut")     { settings->ToggleTwrOutboundVisible(); }
+        else if (id == "twrIn")      { settings->ToggleTwrInboundVisible(); }
+        else if (id == "weather")    { settings->ToggleWeatherVisible(); }
         this->RequestRefresh();
         return;
     }
@@ -1695,6 +1987,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 13) { settings->ToggleUpdateCheck(); }
             else if (idx == 14) { settings->ToggleFlashOnMessage(); }
             else if (idx == 15) { settings->ToggleAutoParked(); }
+            else if (idx == 16) { settings->ToggleApproachEstVisible(); }
             else if (idx == 4) { settings->ToggleDepRateVisible(); }
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
@@ -1704,8 +1997,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 10) { settings->DecreaseBgOpacity(); }
             else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
-        // Keep menu open for window visibility toggles (idx 4-7) so the user can toggle multiple windows; close for all others
-        if (idx < 4 || idx == 12 || idx >= 13) { this->startMenuOpen = false; }
+        // Keep menu open for window visibility toggles (idx 4-7, 16) so the user can toggle multiple windows; close for all others
+        if (idx < 4 || idx == 12 || (idx >= 13 && idx != 16)) { this->startMenuOpen = false; }
 
         std::string clickSnd = GetPluginDirectory() + "\\click.wav";
         PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
@@ -1865,64 +2158,82 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
         this->RequestRefresh();
     }
+    }
+    catch (const std::exception& e) { WriteExceptionToLog("OnClickScreenObject", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnClickScreenObject", "unknown exception"); }
 }
 
 /// @brief Double-click handler: on the STS column, reverts LINEUP ground state back to TAXI.
 void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button)
 {
-    if (ObjectType != SCREEN_OBJECT_TWR_OUT_CELL || Button != EuroScopePlugIn::BUTTON_LEFT) { return; }
+    try
+    {
+        if (ObjectType != SCREEN_OBJECT_TWR_OUT_CELL || Button != EuroScopePlugIn::BUTTON_LEFT) { return; }
 
-    std::string id(sObjectId);
-    auto sep = id.find('|');
-    if (sep == std::string::npos) { return; }
-    std::string callsign = id.substr(0, sep);
-    std::string col      = id.substr(sep + 1);
+        std::string id(sObjectId);
+        auto sep = id.find('|');
+        if (sep == std::string::npos) { return; }
+        std::string callsign = id.substr(0, sep);
+        std::string col      = id.substr(sep + 1);
 
-    if (col != "STS") { return; }
+        if (col != "STS") { return; }
 
-    auto fp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-    if (!fp.IsValid()) { return; }
+        auto fp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+        if (!fp.IsValid()) { return; }
 
-    // Only revert when the aircraft is currently in LINEUP state
-    auto statusIt = std::ranges::find_if(this->twrOutboundRowsCache,
-        [&callsign](const TwrOutboundRowCache& r) { return r.callsign == callsign; });
-    if (statusIt == this->twrOutboundRowsCache.end()) { return; }
-    if (statusIt->status.tag != "LINE UP") { return; }
+        // Only revert when the aircraft is currently in LINEUP state
+        auto statusIt = std::ranges::find_if(this->twrOutboundRowsCache,
+            [&callsign](const TwrOutboundRowCache& r) { return r.callsign == callsign; });
+        if (statusIt == this->twrOutboundRowsCache.end()) { return; }
+        if (statusIt->status.tag != "LINE UP") { return; }
 
-    GetPlugIn()->SetASELAircraft(fp);
-    this->StartTagFunction(callsign.c_str(),
-        PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, statusIt->status.tag.c_str(),
-        PLUGIN_NAME, TAG_FUNC_REVERT_TO_TAXI, Pt, Area);
-    this->RequestRefresh();
+        GetPlugIn()->SetASELAircraft(fp);
+        this->StartTagFunction(callsign.c_str(),
+            PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, statusIt->status.tag.c_str(),
+            PLUGIN_NAME, TAG_FUNC_REVERT_TO_TAXI, Pt, Area);
+        this->RequestRefresh();
+    }
+    catch (const std::exception& e) { WriteExceptionToLog("OnDoubleClickScreenObject", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnDoubleClickScreenObject", "unknown exception"); }
 }
 
 /// @brief Updates the screen-pixel anchor for a departure overlay when the radar target moves.
 /// @param RadarTarget The target whose position has changed.
 void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget)
 {
-    auto depInfoIt = this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign());
-    if (RadarTarget.IsValid() && depInfoIt != this->radarTargetDepartureInfos.end())
+    try
     {
-        POINT screenPos = this->ConvertCoordFromPositionToPixel(RadarTarget.GetPosition().GetPosition());
-        screenPos.x -= 16;
-        screenPos.y += 3;
-        depInfoIt->second.pos = screenPos;
+        auto depInfoIt = this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign());
+        if (RadarTarget.IsValid() && depInfoIt != this->radarTargetDepartureInfos.end())
+        {
+            POINT screenPos = this->ConvertCoordFromPositionToPixel(RadarTarget.GetPosition().GetPosition());
+            screenPos.x -= 16;
+            screenPos.y += 3;
+            depInfoIt->second.pos = screenPos;
+        }
+        if (RadarTarget.IsValid())
+        {
+            static_cast<CFlowX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
+        }
     }
-    if (RadarTarget.IsValid())
-    {
-        static_cast<CFlowX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
-    }
+    catch (const std::exception& e) { WriteExceptionToLog("OnRadarTargetPositionUpdate", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnRadarTargetPositionUpdate", "unknown exception"); }
 }
 
 /// @brief Removes the departure overlay entry for a disconnecting flight plan.
 /// @param FlightPlan The disconnecting flight plan.
 void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 {
-    auto findCallSign = this->radarTargetDepartureInfos.find(FlightPlan.GetCallsign());
-    if (findCallSign != this->radarTargetDepartureInfos.end())
+    try
     {
-        this->radarTargetDepartureInfos.erase(findCallSign);
+        auto findCallSign = this->radarTargetDepartureInfos.find(FlightPlan.GetCallsign());
+        if (findCallSign != this->radarTargetDepartureInfos.end())
+        {
+            this->radarTargetDepartureInfos.erase(findCallSign);
+        }
     }
+    catch (const std::exception& e) { WriteExceptionToLog("RadarScreen::OnFlightPlanDisconnect", e.what()); }
+    catch (...)                      { WriteExceptionToLog("RadarScreen::OnFlightPlanDisconnect", "unknown exception"); }
 }
 
 /// @brief Accumulates drag offsets for departure overlays and resets the drag origin on mouse release.
@@ -1933,6 +2244,8 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
 /// @param Released True when the mouse button has been released.
 void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, bool Released)
 {
+    try
+    {
     auto dragWindow = [&](POINT& windowPos, POINT& lastDrag) {
         if (lastDrag.x == -1 || lastDrag.y == -1)
         {
@@ -1948,6 +2261,23 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
     };
 
     std::string objId(sObjectId);
+    if (objId == "APPROACH_EST")
+    {
+        dragWindow(this->approachEstWindowPos, this->approachEstLastDrag);
+        return;
+    }
+    if (objId == "APPROACH_EST_RESIZE")
+    {
+        if (this->approachEstResizeLastDrag.x == -1 || this->approachEstResizeLastDrag.y == -1)
+        {
+            this->approachEstResizeLastDrag = Pt;
+        }
+        this->approachEstWindowW = std::max(120, this->approachEstWindowW + (int)(Pt.x - this->approachEstResizeLastDrag.x));
+        this->approachEstWindowH = std::max(200, this->approachEstWindowH + (int)(Pt.y - this->approachEstResizeLastDrag.y));
+        this->approachEstResizeLastDrag = Pt;
+        if (Released) { this->approachEstResizeLastDrag = { -1, -1 }; }
+        return;
+    }
     if (objId == "DEPRATE")
     {
         dragWindow(this->depRateWindowPos, this->depRateLastDrag);
@@ -1993,4 +2323,7 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
             depInfo->second.lastDrag.y = -1;
         }
     }
+    }
+    catch (const std::exception& e) { WriteExceptionToLog("OnMoveScreenObject", e.what()); }
+    catch (...)                      { WriteExceptionToLog("OnMoveScreenObject", "unknown exception"); }
 }

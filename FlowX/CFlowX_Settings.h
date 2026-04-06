@@ -22,6 +22,11 @@ class CFlowX_Settings : public CFlowX_Logging
   protected:
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
+    bool                           approachEstVisible  = true;  ///< Whether the Approach Estimate window is visible; restored from windowSettings.json
+    int                            approachEstWindowH  = 380;   ///< Saved height of the Approach Estimate window; default 380
+    int                            approachEstWindowW  = 260;   ///< Saved width of the Approach Estimate window; default 260
+    int                            approachEstWindowX  = -1;    ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
+    int                            approachEstWindowY  = -1;    ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
     bool                           autoParked     = true;   ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
     bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     int                            bgOpacity      = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
@@ -72,6 +77,49 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Constructs the settings layer, loading persisted settings and config.json on startup.
     CFlowX_Settings();
 
+    /// @brief Returns the pre-built left/right runway label strings from config (e.g. {"16/34", "11/29"}).
+    /// Always reflects the full configured set regardless of which runways have active inbounds.
+    [[nodiscard]] std::pair<std::string, std::string> GetEstimateBarLabels() const
+    {
+        std::string left, right;
+        for (const auto& [icao, apt] : this->airports)
+        {
+            for (const auto& [des, rwy] : apt.runways)
+            {
+                auto append = [](std::string& s, const std::string& v) { if (!s.empty()) { s += '/'; } s += v; };
+                if      (rwy.estimateBarSide == "left")  { append(left,  des); }
+                else if (rwy.estimateBarSide == "right") { append(right, des); }
+            }
+        }
+        return { left, right };
+    }
+
+    /// @brief Returns the estimateBarSide config value ("left"/"right") for the given runway designator; empty string if not found.
+    [[nodiscard]] std::string GetRunwayEstimateBarSide(const std::string& designator) const
+    {
+        for (const auto& [icao, apt] : this->airports)
+        {
+            auto it = apt.runways.find(designator);
+            if (it != apt.runways.end()) { return it->second.estimateBarSide; }
+        }
+        return {};
+    }
+
+    /// @brief Returns whether the Approach Estimate window is currently visible.
+    [[nodiscard]] bool GetApproachEstVisible() const { return this->approachEstVisible; }
+
+    /// @brief Returns the saved height of the Approach Estimate window in pixels; 0 = not yet saved.
+    [[nodiscard]] int GetApproachEstH() const { return this->approachEstWindowH; }
+
+    /// @brief Returns the saved width of the Approach Estimate window in pixels; 0 = not yet saved.
+    [[nodiscard]] int GetApproachEstW() const { return this->approachEstWindowW; }
+
+    /// @brief Returns the saved X position of the Approach Estimate window; -1 = not yet saved.
+    [[nodiscard]] int GetApproachEstX() const { return this->approachEstWindowX; }
+
+    /// @brief Returns the saved Y position of the Approach Estimate window; -1 = not yet saved.
+    [[nodiscard]] int GetApproachEstY() const { return this->approachEstWindowY; }
+
     /// @brief Decreases the background opacity by 10 pp (floor 20%) and persists immediately.
     void DecreaseBgOpacity() { this->bgOpacity = std::max(20, this->bgOpacity - 10); SaveWindowSettings(); }
 
@@ -113,6 +161,9 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Increases the font size offset by one step (ceiling +5) and persists immediately.
     void IncreaseFontOffset() { this->fontOffset = std::min(5, this->fontOffset + 1); SaveWindowSettings(); }
+
+    /// @brief Toggles the Approach Estimate window visibility (does not affect the saved position).
+    void ToggleApproachEstVisible() { this->approachEstVisible = !this->approachEstVisible; }
 
     /// @brief Toggles the Auto Parked feature and persists immediately.
     void ToggleAutoParked() { this->autoParked = !this->autoParked; SaveWindowSettings(); }

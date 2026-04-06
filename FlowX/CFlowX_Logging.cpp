@@ -74,6 +74,15 @@ void CFlowX_Logging::LogDebugFileOnly(const std::string& message, const std::str
         }));
 }
 
+/// @brief Writes an exception report to debugLog.txt unconditionally and shows an alert in the EuroScope chat.
+/// @param context Name of the function where the exception was caught.
+/// @param what    Exception message text.
+void CFlowX_Logging::LogException(const std::string& context, const std::string& what)
+{
+    WriteExceptionToLog(context, what);
+    this->DisplayUserMessage(PLUGIN_NAME, "EXCEPTION", (context + ": " + what).c_str(), true, true, true, true, false);
+}
+
 /// @brief Displays a message only when debug mode is active.
 /// @param message Text to display.
 /// @param type Category label used as the sender name.

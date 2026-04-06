@@ -39,6 +39,12 @@ class CFlowX_Logging : public CFlowX_Base
     /// @param type Category label shown as the sender.
     void LogDebugMessage(const std::string& message, const std::string& type);
 
+    /// @brief Logs a caught exception to debugLog.txt unconditionally (regardless of debug mode) and
+    ///        displays an alert in the EuroScope chat window.
+    /// @param context Name of the function or handler where the exception was caught.
+    /// @param what    Exception message text.
+    void LogException(const std::string& context, const std::string& what);
+
     /// @brief Displays a message in the EuroScope chat window under the plugin name.
     /// @param message Text to display.
     /// @param type Category label shown as the sender (e.g. "Init", "Config").

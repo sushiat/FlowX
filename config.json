@@ -72,6 +72,7 @@
         },
         "runways": {
             "11": {
+                "estimateBarSide": "right",
                 "opposite": "29",
                 "thresholdElevationFt": 575,
                 "twrFreq": "119.4",
@@ -142,6 +143,7 @@
                 }
             },
             "16": {
+                "estimateBarSide": "left",
                 "opposite": "34",
                 "thresholdElevationFt": 597,
                 "twrFreq": "123.8",
@@ -202,6 +204,7 @@
                 }
             },
             "29": {
+                "estimateBarSide": "right",
                 "opposite": "11",
                 "thresholdElevationFt": 600,
                 "twrFreq": "119.4",
@@ -293,6 +296,7 @@
                 ]
             },
             "34": {
+                "estimateBarSide": "left",
                 "opposite": "16",
                 "thresholdElevationFt": 586,
                 "twrFreq": "123.8",

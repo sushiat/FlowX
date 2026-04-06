@@ -137,10 +137,6 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @param Counter The EuroScope timer counter passed from OnTimer.
     void PollAtisLetters(int Counter);
 
-    /// @brief Restores persisted window positions to screens that have not yet been positioned (pos == -1).
-    /// @note Position saving is now triggered explicitly via SaveWindowPositions().
-    void SaveAndRestoreWindowLocations();
-
     /// @brief Rebuilds adesCache for all correlated flight plans.
     /// For type-Y plans returns the last IFR waypoint (turquoise); all others return the destination ICAO.
     void UpdateAdesCache();

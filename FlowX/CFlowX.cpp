@@ -24,31 +24,36 @@ CFlowX::CFlowX()
 /// @return True if the command was handled; false otherwise.
 bool CFlowX::OnCompileCommand(const char* sCommandLine)
 {
-    std::vector<std::string> args = split(sCommandLine);
-
-    if (!args.empty() && starts_with(args[0], ".flowx"))
+    try
     {
-        if (args.size() == 1)
+        std::vector<std::string> args = split(sCommandLine);
+
+        if (!args.empty() && starts_with(args[0], ".flowx"))
         {
-            std::ostringstream msg;
-            msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: debugstats";
+            if (args.size() == 1)
+            {
+                std::ostringstream msg;
+                msg << "Version " << PLUGIN_VERSION << " loaded. Available commands: debugstats";
 
-            this->LogMessage(msg.str(), "Init");
+                this->LogMessage(msg.str(), "Init");
 
-            return true;
-        }
+                return true;
+            }
 
-        if (args[1] == "debugstats")
-        {
-            this->LogMessage(
-                std::format("posUpd={} (inbound={} outbound={}) | tagItem={} | timer={} | standLaunch={} standSkip={}",
-                    this->dbg_positionCalls, this->dbg_positionInbound, this->dbg_positionOutbound,
-                    this->dbg_tagItemCalls, this->dbg_timerTicks, this->dbg_standLaunches, this->dbg_standSkips),
-                "DebugStats");
+            if (args[1] == "debugstats")
+            {
+                this->LogMessage(
+                    std::format("posUpd={} (inbound={} outbound={}) | tagItem={} | timer={} | standLaunch={} standSkip={}",
+                        this->dbg_positionCalls, this->dbg_positionInbound, this->dbg_positionOutbound,
+                        this->dbg_tagItemCalls, this->dbg_timerTicks, this->dbg_standLaunches, this->dbg_standSkips),
+                    "DebugStats");
 
-            return true;
+                return true;
+            }
         }
     }
+    catch (const std::exception& e) { this->LogException("OnCompileCommand", e.what()); }
+    catch (...)                      { this->LogException("OnCompileCommand", "unknown exception"); }
 
     return false;
 }
@@ -58,6 +63,8 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
 /// @param dataType EuroScope constant indicating which assigned-data field changed.
 void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPlan fp, int dataType)
 {
+    try
+    {
     if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
     {
         std::string callSign = fp.GetCallsign();
@@ -95,12 +102,17 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
         std::string groundState      = fp.GetGroundState();
         this->groundStatus[callSign] = groundState;
     }
+    }
+    catch (const std::exception& e) { this->LogException("OnFlightPlanControllerAssignedDataUpdate", e.what()); }
+    catch (...)                      { this->LogException("OnFlightPlanControllerAssignedDataUpdate", "unknown exception"); }
 }
 
 /// @brief Removes the disconnecting aircraft from all departure and inbound state maps.
 /// @param FlightPlan The disconnecting flight plan.
 void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 {
+    try
+    {
     std::string callSign = FlightPlan.GetCallsign();
 
     // Capture a snapshot for auto-restore if the pilot reconnects within 90 seconds
@@ -171,6 +183,9 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
 
     this->standAssignment.erase(callSign);
+    }
+    catch (const std::exception& e) { this->LogException("OnFlightPlanDisconnect", e.what()); }
+    catch (...)                      { this->LogException("OnFlightPlanDisconnect", "unknown exception"); }
 }
 
 /// @brief Dispatches tag function callbacks to the appropriate Func_* method.
@@ -180,71 +195,76 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 /// @param Area Bounding rectangle of the tag cell.
 void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, RECT Area)
 {
-    EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectASEL();
-    if (!fp.IsValid())
+    try
     {
-        return;
-    }
+        EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectASEL();
+        if (!fp.IsValid())
+        {
+            return;
+        }
 
-    std::string dep = fp.GetFlightPlanData().GetOrigin();
-    to_upper(dep);
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
 
-    static const std::vector<int> noDepartureAirportCheckRequired = {TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP, TAG_FUNC_STAND_AUTO};
-    if (!this->airports.contains(dep) && std::ranges::find(noDepartureAirportCheckRequired, FunctionId) == noDepartureAirportCheckRequired.end())
-    {
-        return;
-    }
+        static const std::vector<int> noDepartureAirportCheckRequired = {TAG_FUNC_CLRD_TO_LAND, TAG_FUNC_MISSED_APP, TAG_FUNC_STAND_AUTO};
+        if (!this->airports.contains(dep) && std::ranges::find(noDepartureAirportCheckRequired, FunctionId) == noDepartureAirportCheckRequired.end())
+        {
+            return;
+        }
 
-    EuroScopePlugIn::CRadarTarget rt = fp.GetCorrelatedRadarTarget();
+        EuroScopePlugIn::CRadarTarget rt = fp.GetCorrelatedRadarTarget();
 
-    if (FunctionId == TAG_FUNC_ON_FREQ)
-    {
-        this->Func_OnFreq(fp, rt);
+        if (FunctionId == TAG_FUNC_ON_FREQ)
+        {
+            this->Func_OnFreq(fp, rt);
+        }
+        else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)
+        {
+            this->Func_ClearNewQnh(fp);
+        }
+        else if (FunctionId == TAG_FUNC_ASSIGN_HP)
+        {
+            this->Func_AssignHp(fp, Pt);
+        }
+        else if (FunctionId == TAG_FUNC_REQUEST_HP)
+        {
+            this->Func_RequestHp(fp, Pt);
+        }
+        else if (FunctionId == TAG_FUNC_HP_LISTSELECT)
+        {
+            this->Func_HpListselect(fp, sItemString);
+        }
+        else if (FunctionId == TAG_FUNC_LINE_UP)
+        {
+            Func_LineUp(fp);
+        }
+        else if (FunctionId == TAG_FUNC_REVERT_TO_TAXI)
+        {
+            Func_RevertToTaxi(fp);
+        }
+        else if (FunctionId == TAG_FUNC_TAKE_OFF)
+        {
+            Func_TakeOff(fp);
+        }
+        else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
+        {
+            this->Func_TransferNext(fp);
+        }
+        else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)
+        {
+            Func_ClrdToLand(fp, this->radarScreen);
+        }
+        else if (FunctionId == TAG_FUNC_MISSED_APP)
+        {
+            Func_MissedApp(fp, this->radarScreen);
+        }
+        else if (FunctionId == TAG_FUNC_STAND_AUTO)
+        {
+            Func_StandAuto(fp, this->radarScreen);
+        }
     }
-    else if (FunctionId == TAG_FUNC_CLEAR_NEWQNH)
-    {
-        this->Func_ClearNewQnh(fp);
-    }
-    else if (FunctionId == TAG_FUNC_ASSIGN_HP)
-    {
-        this->Func_AssignHp(fp, Pt);
-    }
-    else if (FunctionId == TAG_FUNC_REQUEST_HP)
-    {
-        this->Func_RequestHp(fp, Pt);
-    }
-    else if (FunctionId == TAG_FUNC_HP_LISTSELECT)
-    {
-        this->Func_HpListselect(fp, sItemString);
-    }
-    else if (FunctionId == TAG_FUNC_LINE_UP)
-    {
-        Func_LineUp(fp);
-    }
-    else if (FunctionId == TAG_FUNC_REVERT_TO_TAXI)
-    {
-        Func_RevertToTaxi(fp);
-    }
-    else if (FunctionId == TAG_FUNC_TAKE_OFF)
-    {
-        Func_TakeOff(fp);
-    }
-    else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
-    {
-        this->Func_TransferNext(fp);
-    }
-    else if (FunctionId == TAG_FUNC_CLRD_TO_LAND)
-    {
-        Func_ClrdToLand(fp, this->radarScreen);
-    }
-    else if (FunctionId == TAG_FUNC_MISSED_APP)
-    {
-        Func_MissedApp(fp, this->radarScreen);
-    }
-    else if (FunctionId == TAG_FUNC_STAND_AUTO)
-    {
-        Func_StandAuto(fp, this->radarScreen);
-    }
+    catch (const std::exception& e) { this->LogException("OnFunctionCall", e.what()); }
+    catch (...)                      { this->LogException("OnFunctionCall", "unknown exception"); }
 }
 
 /// @brief Dispatches tag item rendering to the appropriate Get*Tag method.
@@ -258,49 +278,54 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
 /// @param pFontSize Output for an optional font size override.
 void CFlowX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlugIn::CRadarTarget RadarTarget, int ItemCode, int TagData, char sItemString[16], int* pColorCode, COLORREF* pRGB, double* pFontSize)
 {
-    this->dbg_tagItemCalls++;
+    try
+    {
+        this->dbg_tagItemCalls++;
 
-    if (!FlightPlan.IsValid())
-    {
-        return;
-    }
+        if (!FlightPlan.IsValid())
+        {
+            return;
+        }
 
-    tagInfo tag;
-    if (ItemCode == TAG_ITEM_PS_HELPER)
-    {
-        tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_TAXIOUT)
-    {
-        tag = this->GetTaxiOutTag(FlightPlan, RadarTarget);
-    }
-    else if (ItemCode == TAG_ITEM_NEWQNH)
-    {
-        tag = this->GetNewQnhTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_SAMESID)
-    {
-        tag = this->GetSameSidTag(FlightPlan);
-    }
-    else if (ItemCode == TAG_ITEM_ADES)
-    {
-        tag = this->GetAdesTag(FlightPlan);
-    }
-    else
-    {
-        return;
-    } // all others displayed in custom windows only
+        tagInfo tag;
+        if (ItemCode == TAG_ITEM_PS_HELPER)
+        {
+            tag = this->GetPushStartHelperTag(FlightPlan, RadarTarget);
+        }
+        else if (ItemCode == TAG_ITEM_TAXIOUT)
+        {
+            tag = this->GetTaxiOutTag(FlightPlan, RadarTarget);
+        }
+        else if (ItemCode == TAG_ITEM_NEWQNH)
+        {
+            tag = this->GetNewQnhTag(FlightPlan);
+        }
+        else if (ItemCode == TAG_ITEM_SAMESID)
+        {
+            tag = this->GetSameSidTag(FlightPlan);
+        }
+        else if (ItemCode == TAG_ITEM_ADES)
+        {
+            tag = this->GetAdesTag(FlightPlan);
+        }
+        else
+        {
+            return;
+        } // all others displayed in custom windows only
 
-    strcpy_s(sItemString, 16, tag.tag.c_str());
-    if (tag.color == TAG_COLOR_DEFAULT_NONE)
-    {
-        *pColorCode = EuroScopePlugIn::TAG_COLOR_DEFAULT;
+        strcpy_s(sItemString, 16, tag.tag.c_str());
+        if (tag.color == TAG_COLOR_DEFAULT_NONE)
+        {
+            *pColorCode = EuroScopePlugIn::TAG_COLOR_DEFAULT;
+        }
+        else
+        {
+            *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+            *pRGB       = tag.color;
+        }
     }
-    else
-    {
-        *pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-        *pRGB       = tag.color;
-    }
+    catch (const std::exception& e) { this->LogException("OnGetTagItem", e.what()); }
+    catch (...)                      { this->LogException("OnGetTagItem", "unknown exception"); }
 }
 
 /// @brief Parses an incoming METAR for QNH changes and flags cleared ground aircraft at that airport.
@@ -308,6 +333,8 @@ void CFlowX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlug
 /// @param sFullMetar Full METAR string.
 void CFlowX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 {
+    try
+    {
     std::string station = sStation;
     to_upper(station);
 
@@ -486,33 +513,48 @@ void CFlowX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
             this->rvrUnacked.insert(station);
         }
     }
+    }
+    catch (const std::exception& e) { this->LogException("OnNewMetarReceived", e.what()); }
+    catch (...)                      { this->LogException("OnNewMetarReceived", "unknown exception"); }
 }
 
 /// @brief Creates the RadarScreen and immediately applies any persisted window positions so the
 ///        first OnRefresh draw sees the correct locations rather than triggering auto-placement.
 EuroScopePlugIn::CRadarScreen* CFlowX::OnRadarScreenCreated(const char* sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated)
 {
-    CFlowX_Base::OnRadarScreenCreated(sDisplayName, NeedRadarContent, GeoReferenced, CanBeSaved, CanBeCreated);
-    if (this->depRateWindowX != -1)
+    try
     {
-        this->radarScreen->depRateWindowPos = {this->depRateWindowX, this->depRateWindowY};
+        CFlowX_Base::OnRadarScreenCreated(sDisplayName, NeedRadarContent, GeoReferenced, CanBeSaved, CanBeCreated);
+        if (this->depRateWindowX != -1)
+        {
+            this->radarScreen->depRateWindowPos = {this->depRateWindowX, this->depRateWindowY};
+        }
+        if (this->twrOutboundWindowX != -1)
+        {
+            this->radarScreen->twrOutboundWindowPos = {this->twrOutboundWindowX, this->twrOutboundWindowY};
+        }
+        if (this->twrInboundWindowX != -1)
+        {
+            this->radarScreen->twrInboundWindowPos = {this->twrInboundWindowX, this->twrInboundWindowY};
+        }
+        if (this->napWindowX != -1)
+        {
+            this->radarScreen->napWindowPos = {this->napWindowX, this->napWindowY};
+        }
+        if (this->weatherWindowX != -1)
+        {
+            this->radarScreen->weatherWindowPos = {this->weatherWindowX, this->weatherWindowY};
+        }
+        if (this->approachEstWindowX != -1)
+        {
+            this->radarScreen->approachEstWindowPos = {this->approachEstWindowX, this->approachEstWindowY};
+            if (this->approachEstWindowW > 0) { this->radarScreen->approachEstWindowW = this->approachEstWindowW; }
+            if (this->approachEstWindowH > 0) { this->radarScreen->approachEstWindowH = this->approachEstWindowH; }
+        }
+        return this->radarScreen;
     }
-    if (this->twrOutboundWindowX != -1)
-    {
-        this->radarScreen->twrOutboundWindowPos = {this->twrOutboundWindowX, this->twrOutboundWindowY};
-    }
-    if (this->twrInboundWindowX != -1)
-    {
-        this->radarScreen->twrInboundWindowPos = {this->twrInboundWindowX, this->twrInboundWindowY};
-    }
-    if (this->napWindowX != -1)
-    {
-        this->radarScreen->napWindowPos = {this->napWindowX, this->napWindowY};
-    }
-    if (this->weatherWindowX != -1)
-    {
-        this->radarScreen->weatherWindowPos = {this->weatherWindowX, this->weatherWindowY};
-    }
+    catch (const std::exception& e) { this->LogException("OnRadarScreenCreated", e.what()); }
+    catch (...)                      { this->LogException("OnRadarScreenCreated", "unknown exception"); }
     return this->radarScreen;
 }
 
@@ -522,47 +564,51 @@ EuroScopePlugIn::CRadarScreen* CFlowX::OnRadarScreenCreated(const char* sDisplay
 ///       NAP check every 10 s; window positions saved every 5 s.
 void CFlowX::OnTimer(int Counter)
 {
-    this->dbg_timerTicks++;
-    this->blinking = !this->blinking;
-
-    if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready)
+    try
     {
-        this->CheckForUpdate();
-    }
+        this->dbg_timerTicks++;
+        this->blinking = !this->blinking;
 
-    if (Counter > 0 && Counter % 10 == 0)
-    {
-        this->CheckAirportNAPReminder();
-    }
+        if (this->updateCheck && this->latestVersion.valid() && this->latestVersion.wait_for(0ms) == std::future_status::ready)
+        {
+            this->CheckForUpdate();
+        }
 
-    if (Counter > 0 && Counter % 2 == 0)
-    {
-        this->UpdateTWROutbound();
-        this->UpdateTWRInbound();
-        this->CheckReconnects();
-    }
+        if (Counter > 0 && Counter % 10 == 0)
+        {
+            this->CheckAirportNAPReminder();
+        }
 
-    if (Counter > 0 && Counter % 4 == 0)
-    {
-        this->UpdateOccupiedStands();
-        this->CheckArrivedAtStand();
-    }
+        if (Counter > 0 && Counter % 2 == 0)
+        {
+            this->UpdateTWROutbound();
+            this->UpdateTWRInbound();
+            this->CheckReconnects();
+        }
 
-    // Rebuild tag cache and departure overlays every second (after state maps are current)
-    if (Counter > 0)
-    {
-        this->UpdateTagCache();
-        this->UpdateRadarTargetDepartureInfo();
-        this->DrainRedoFlagQueue();
-    }
+        if (Counter > 0 && Counter % 4 == 0)
+        {
+            this->UpdateOccupiedStands();
+            this->CheckArrivedAtStand();
+        }
 
-    if (Counter > 0 && Counter % 5 == 0)
-    {
-        this->SaveAndRestoreWindowLocations();
-        this->UpdateAdesCache();
-    }
+        // Rebuild tag cache and departure overlays every second (after state maps are current)
+        if (Counter > 0)
+        {
+            this->UpdateTagCache();
+            this->UpdateRadarTargetDepartureInfo();
+            this->DrainRedoFlagQueue();
+        }
 
-    this->PollAtisLetters(Counter);
+        if (Counter > 0 && Counter % 5 == 0)
+        {
+            this->UpdateAdesCache();
+        }
+
+        this->PollAtisLetters(Counter);
+    }
+    catch (const std::exception& e) { this->LogException("OnTimer", e.what()); }
+    catch (...)                      { this->LogException("OnTimer", "unknown exception"); }
 }
 
 /// Singleton plugin instance owned by the DLL.
@@ -572,11 +618,29 @@ static CFlowX* pPlugin;
 /// @param ppPlugInInstance Output pointer that receives the newly created plugin instance.
 void __declspec(dllexport) EuroScopePlugInInit(EuroScopePlugIn::CPlugIn** ppPlugInInstance)
 {
-    *ppPlugInInstance = pPlugin = new CFlowX();
+    try
+    {
+        *ppPlugInInstance = pPlugin = new CFlowX();
+    }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("EuroScopePlugInInit", e.what());
+        throw;
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("EuroScopePlugInInit", "unknown exception");
+        throw;
+    }
 }
 
 /// @brief DLL export called by EuroScope when the plugin is unloaded; deletes the singleton.
 void __declspec(dllexport) EuroScopePlugInExit(void)
 {
-    delete pPlugin;
+    try
+    {
+        delete pPlugin;
+    }
+    catch (const std::exception& e) { WriteExceptionToLog("EuroScopePlugInExit", e.what()); }
+    catch (...)                      { WriteExceptionToLog("EuroScopePlugInExit", "unknown exception"); }
 }

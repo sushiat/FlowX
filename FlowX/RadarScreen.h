@@ -79,6 +79,9 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @note Only draws during REFRESH_PHASE_AFTER_TAGS.
     void OnRefresh(HDC hDC, int Phase) override;
 
+    /// @brief Draws the Approach Estimate window showing inbound TTT on a vertical time bar, split by runway estimateBarSide.
+    void DrawApproachEstimateWindow(HDC hDC);
+
     /// @brief Draws departure info overlays (text, SID dot, HP label, connector line).
     void DrawDepartureInfoTag(HDC hDC);
 
@@ -107,6 +110,11 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     void DrawWeatherWindow(HDC hDC);
 
   public:
+    POINT                                         approachEstLastDrag       = {-1, -1}; ///< Previous drag cursor position for the Approach Estimate window; (-1,-1) when not dragging
+    POINT                                         approachEstResizeLastDrag = {-1, -1}; ///< Previous drag cursor position for the resize handle; (-1,-1) when not dragging
+    POINT                                         approachEstWindowPos      = {-1, -1}; ///< Top-left corner of the Approach Estimate window; (-1,-1) until first draw (auto-positioned)
+    int                                           approachEstWindowH        = 380;      ///< Current height of the Approach Estimate window in pixels
+    int                                           approachEstWindowW        = 260;      ///< Current width of the Approach Estimate window in pixels
     std::map<std::string, std::string>            approachStations;                ///< Callsign -> primary frequency string for online APP controllers (facility 5)
     std::map<std::string, std::string>            centerStations;                  ///< Callsign -> primary frequency string for online CTR controllers (facility 6)
     bool                                          debug;                           ///< When true, controller connect/disconnect events are logged to the chat window

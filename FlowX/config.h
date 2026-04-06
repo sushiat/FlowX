@@ -112,6 +112,7 @@ struct runway
     std::string                         goAroundFreq;       ///< Go-around frequency for this runway
     int                                 thresholdElevationFt = 0;  ///< Threshold elevation in feet (overrides airport fieldElevation for TTT altitude gates; 0 = use fieldElevation)
     int                                 widthMeters          = 0;  ///< Runway width in metres (from config "width")
+    std::string                         estimateBarSide;          ///< Which side of the approach estimate bar this runway's aircraft appear on ("left" or "right"); empty = omit from bar
     std::map<std::string, holdingPoint> holdingPoints = {}; ///< Named holding points on this runway
     std::map<std::string, int>          sidGroups     = {}; ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
     std::map<std::string, std::string>  sidColors     = {}; ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })

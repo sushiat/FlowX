@@ -183,7 +183,15 @@ void CFlowX_Settings::LoadWindowSettings()
             for (const auto& w : j["windowSettings"])
             {
                 std::string name = w.value("name", "");
-                if (name == "depRateWindow")
+                if (name == "approachEstWindow")
+                {
+                    this->approachEstWindowX = w.value("x", -1);
+                    this->approachEstWindowY = w.value("y", -1);
+                    this->approachEstWindowW = w.value("w", 180);
+                    this->approachEstWindowH = w.value("h", 380);
+                    this->approachEstVisible = w.value("visible", true);
+                }
+                else if (name == "depRateWindow")
                 {
                     this->depRateWindowX = w.value("x", -1);
                     this->depRateWindowY = w.value("y", -1);
@@ -246,6 +254,16 @@ void CFlowX_Settings::SaveWindowSettings()
             w["visible"] = vis;
             windows.push_back(w);
         };
+        {
+            json w;
+            w["name"]    = "approachEstWindow";
+            w["x"]       = this->approachEstWindowX;
+            w["y"]       = this->approachEstWindowY;
+            w["w"]       = this->approachEstWindowW;
+            w["h"]       = this->approachEstWindowH;
+            w["visible"] = this->approachEstVisible;
+            windows.push_back(w);
+        }
         addWin("depRateWindow",     this->depRateWindowX,     this->depRateWindowY,     this->depRateVisible);
         addWin("twrOutboundWindow", this->twrOutboundWindowX, this->twrOutboundWindowY, this->twrOutboundVisible);
         addWin("twrInboundWindow",  this->twrInboundWindowX,  this->twrInboundWindowY,  this->twrInboundVisible);
@@ -582,6 +600,7 @@ void CFlowX_Settings::LoadConfig()
                 rwy.goAroundFreq = json_rwy.value<std::string>("goAroundFreq", "");
                 rwy.thresholdElevationFt = json_rwy.value<int>("thresholdElevationFt", 0);
                 rwy.widthMeters          = json_rwy.value<int>("width", 0);
+                rwy.estimateBarSide      = json_rwy.value<std::string>("estimateBarSide", "");
 
                 for (auto& [groupKey, sids] : json_rwy["sidGroups"].items())
                 {

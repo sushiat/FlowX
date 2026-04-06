@@ -113,7 +113,9 @@ const int SCREEN_OBJECT_START_BTN       = 6691; ///< Start button anchored to th
 const int SCREEN_OBJECT_START_MENU_ITEM = 6692; ///< Clickable row inside the Start button popup menu
 const int SCREEN_OBJECT_WIN_CLOSE       = 6693; ///< Close (X) button on a custom window title bar
 const int SCREEN_OBJECT_GND_TRANSFER    = 6694; ///< Green square shown when a landed inbound is ready for GND handoff
-const int SCREEN_OBJECT_DEP_TAG_SID_DOT = 6695; ///< SID colour dot on a departure info overlay — click to freq-transfer (GND only)
+const int SCREEN_OBJECT_DEP_TAG_SID_DOT     = 6695; ///< SID colour dot on a departure info overlay — click to freq-transfer (GND only)
+const int SCREEN_OBJECT_APPROACH_EST_WIN    = 6696; ///< Approach Estimate window title bar (drag handle)
+const int SCREEN_OBJECT_APPROACH_EST_RESIZE = 6697; ///< Approach Estimate window resize handle (lower-right corner)
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop

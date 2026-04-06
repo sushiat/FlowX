@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <string>
 #include <sstream>
@@ -108,6 +110,23 @@ inline std::string GetPluginDirectory()
     std::string::size_type pos = std::string(buf).find_last_of("\\/");
 
     return std::string(buf).substr(0, pos);
+}
+
+/// @brief Appends an exception report to debugLog.txt unconditionally (does not require debug mode).
+/// @param context Name of the function or handler where the exception was caught.
+/// @param what    Exception message text.
+inline void WriteExceptionToLog(const std::string& context, const std::string& what)
+{
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    char ts[20];
+    sprintf_s(ts, sizeof(ts), "%04d-%02d-%02d %02d:%02d:%02d",
+              st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+    std::filesystem::path logPath = std::filesystem::path(GetPluginDirectory()) / "debugLog.txt";
+    std::ofstream         f(logPath, std::ios::app);
+    if (f)
+        f << ts << " [EXCEPTION in " << context << "] " << what << "\n";
 }
 
 /// @brief Splits a string into tokens using the given delimiter character.

@@ -497,29 +497,6 @@ void CFlowX_Timers::PollAtisLetters(int Counter)
     }
 }
 
-/// @brief Restores persisted window positions to screens that have not yet been positioned (pos == -1).
-void CFlowX_Timers::SaveAndRestoreWindowLocations()
-{
-    if (this->radarScreen == nullptr)
-    {
-        return;
-    }
-
-    auto restoreWindow = [](POINT& screenPos, int savedX, int savedY)
-    {
-        if (screenPos.x == -1 && savedX != -1 && savedY != -1)
-        {
-            screenPos = {savedX, savedY};
-        }
-    };
-
-    restoreWindow(this->radarScreen->depRateWindowPos, this->depRateWindowX, this->depRateWindowY);
-    restoreWindow(this->radarScreen->twrOutboundWindowPos, this->twrOutboundWindowX, this->twrOutboundWindowY);
-    restoreWindow(this->radarScreen->twrInboundWindowPos, this->twrInboundWindowX, this->twrInboundWindowY);
-    restoreWindow(this->radarScreen->napWindowPos, this->napWindowX, this->napWindowY);
-    restoreWindow(this->radarScreen->weatherWindowPos, this->weatherWindowX, this->weatherWindowY);
-}
-
 /// @brief Rebuilds adesCache for all correlated flight plans departing from a configured airport.
 /// For type-Y plans the tag shows the last IFR waypoint in turquoise;
 /// all other plan types show the destination ICAO using the EuroScope default colour.
@@ -1588,6 +1565,10 @@ void CFlowX_Timers::SaveWindowPositions()
 {
     if (this->radarScreen == nullptr) { return; }
 
+    this->approachEstWindowX = this->radarScreen->approachEstWindowPos.x;
+    this->approachEstWindowY = this->radarScreen->approachEstWindowPos.y;
+    this->approachEstWindowW = this->radarScreen->approachEstWindowW;
+    this->approachEstWindowH = this->radarScreen->approachEstWindowH;
     this->depRateWindowX    = this->radarScreen->depRateWindowPos.x;
     this->depRateWindowY    = this->radarScreen->depRateWindowPos.y;
     this->twrOutboundWindowX = this->radarScreen->twrOutboundWindowPos.x;
