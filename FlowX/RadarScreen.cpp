@@ -414,9 +414,9 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     for (const auto& row : this->twrInboundRowsCache)
     {
         if (row.tttSeconds < 0 || row.tttSeconds > 300) { continue; }
-        if (row.rwyGroup.empty()) { continue; }
+        if (row.rwy.empty()) { continue; }
 
-        std::string side = settings->GetRunwayEstimateBarSide(row.rwyGroup);
+        std::string side = settings->GetRunwayEstimateBarSide(row.rwy);
         if (side != "left" && side != "right") { continue; }
 
         int clampedTTT = std::clamp(row.tttSeconds, 0, 300);
@@ -1021,10 +1021,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
     const int SEP_H        = 12;    ///< Height of blank separator row between runway groups
     const int PAD     = 6;
-    // Column order: RWY_GRP (new), TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, RWY
+    // Column order: RWY, TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, ARW
     // Base widths at font size 17; scaled by (17+fo)/17:
     auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
-    const int RWY_GRP = cw(35);   //  new front column — runway group label
+    const int RWY     = cw(35);   //  front column — runway group label
     const int TTT     = cw(90);   //  "mm:ss" normally; "->nnn.nnn" (9 chars) on go-around
     const int CS      = cw(84);   // 12 chars
     const int NM      = cw(56);   //  8 chars
@@ -1033,8 +1033,8 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int ATYP    = cw(56);   //  8 chars
     const int GATE    = cw(35);   //  5 chars
     const int VACATE  = cw(49);   //  7 chars
-    const int RWY     = cw(49);   //  7 chars
-    const int WIN_W   = PAD + RWY_GRP + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + RWY + PAD;
+    const int ARW     = cw(49);   //  7 chars
+    const int WIN_W   = PAD + RWY + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + ARW + PAD;
     int numRows       = (int)this->twrInboundRowsCache.size();
 
     // Count separators and sum actual row heights
@@ -1044,8 +1044,8 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         std::string lastGrp;
         for (const auto& r : this->twrInboundRowsCache)
         {
-            if (!lastGrp.empty() && r.rwyGroup != lastGrp) { ++numSeps; }
-            lastGrp = r.rwyGroup;
+            if (!lastGrp.empty() && r.rwy != lastGrp) { ++numSeps; }
+            lastGrp = r.rwy;
             totalRowH += r.dimmed ? DIMMED_ROW_H : ROW_H;
         }
     }
@@ -1126,7 +1126,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             DrawTextA(hDC, label, -1, &r, flags);
             x += width;
         };
-        colHdr(RWY_GRP, "RWY");
+        colHdr(RWY,     "RWY");
         colHdr(TTT,     "TTT");
         colHdr(CS,      "C/S");
         colHdr(NM,      "NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
@@ -1135,7 +1135,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         colHdr(ATYP,    "ATYP");
         colHdr(GATE,    "Gate");
         colHdr(VACATE,  "Vacate");
-        colHdr(RWY,     "ARW",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(ARW,     "ARW",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
@@ -1157,7 +1157,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         }
     };
 
-    std::string lastRwyGroup;
+    std::string lastRwy;
     int rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
     {
@@ -1165,13 +1165,13 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         int rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
 
         // Insert a blank separator row between runway groups
-        if (!lastRwyGroup.empty() && r.rwyGroup != lastRwyGroup)
+        if (!lastRwy.empty() && r.rwy != lastRwy)
         {
             RECT sepRect = { wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H };
             FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
             rowTop += SEP_H;
         }
-        lastRwyGroup = r.rwyGroup;
+        lastRwy = r.rwy;
 
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
@@ -1271,7 +1271,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             cx += width;
         };
 
-        cellClickable(RWY_GRP, r.rwyGroup,                  r.callsignColor, r.callsign + "|RWYGRP");
+        cellClickable(RWY,     r.rwy,                  r.callsignColor, r.callsign + "|RWY");
         cellTagClickable(TTT,    r.ttt,    r.callsign + "|TTT");
         cellTagClickable(CS, { .tag     = r.callsign,
                                 .color   = r.isGoAround ? TAG_COLOR_WHITE
@@ -1287,7 +1287,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
         cellTagClickable(GATE,   r.gate,  r.callsign + "|GATE");
         cellTagClickable(VACATE, r.vacate, r.callsign + "|VACATE");
-        cellTagClickable(RWY,    r.arrRwy, r.callsign + "|RWY",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(ARW,    r.arrRwy, r.callsign + "|ARW",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
 
@@ -2154,7 +2154,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
         if (!rowPtr) { return; }
         const TwrInboundRowCache& r = *rowPtr;
 
-        if ((col == "TTT" || col == "RWYGRP") && Button == EuroScopePlugIn::BUTTON_LEFT)
+        if ((col == "TTT" || col == "RWY") && Button == EuroScopePlugIn::BUTTON_LEFT)
         {
             this->StartTagFunction(callsign.c_str(),
                 PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
@@ -2182,11 +2182,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     PLUGIN_NAME, TAG_FUNC_STAND_AUTO, Pt, Area);
             }
         }
-        else if (col == "RWY" && Button == EuroScopePlugIn::BUTTON_LEFT)
+        else if (col == "ARW" && Button == EuroScopePlugIn::BUTTON_LEFT)
         {
             this->StartTagFunction(callsign.c_str(),
                 PLUGIN_NAME, TAG_ITEM_ASSIGNED_ARR_RUNWAY, r.arrRwy.tag.c_str(),
-                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_TAKE_HANDOFF, Pt, Area);
+                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, Pt, Area);
         }
 
         this->RequestRefresh();

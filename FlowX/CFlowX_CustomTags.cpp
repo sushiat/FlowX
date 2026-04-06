@@ -1193,7 +1193,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                 row.callsignColor = callsignColor();
                 row.wtc           = fp.GetFlightPlanData().GetAircraftWtc();
                 row.groundSpeed   = rt.GetPosition().GetReportedGS();
-                row.rwyGroup      = designator;
+                row.rwy      = designator;
                 row.aircraftType  = fp.GetFlightPlanData().GetAircraftFPType();
                 {
                     auto standIt = this->standAssignment.find(callSign);

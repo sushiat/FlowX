@@ -68,7 +68,7 @@ struct TwrInboundRowCache
     bool        isGoAround    = false;               ///< True when the row is in active go-around state; drives the red CS background
     char        wtc           = ' ';                 ///< Aircraft weight turbulence category character
     int         groundSpeed   = 0;                   ///< Current ground speed in knots
-    std::string rwyGroup;                            ///< Runway designator this row belongs to (for group separators)
+    std::string rwy;                            ///< Runway designator this row belongs to (for group separators)
     std::string sortKey;                             ///< Full "rwy_mm:ss" string used for ordering (not displayed)
     int         tttSeconds    = -1;                  ///< TTT in seconds (distNm/GS×3600); -1 for go-arounds or no-speed data; frozen = parsed from frozenTttStr
     tagInfo     ttt;                                 ///< TAG_ITEM_TTT — display text has the "rwy_" prefix stripped
