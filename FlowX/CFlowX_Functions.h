@@ -78,7 +78,12 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @note Resolves the correct GND frequency via geoGndFreq polygons, falling back to the airport default.
     void Func_GndTransfer(const std::string& callSign);
 
-    /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.
-    /// @note Used to recover from flag corruption; operates on untracked and self-tracked aircraft only.
+    /// @brief Launches a background thread that drains the redo-flag ground-status queue at 150 ms intervals.
+    /// @note Called at the end of RedoFlags(); the queue is always populated only by RedoFlags().
+    void ProcessRedoFlagQueue();
+
+    /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft,
+    ///        then queues a throttled ground-status re-push for each cleared aircraft.
+    /// @note Used to recover from flag/state corruption; operates on untracked and self-tracked aircraft only.
     void RedoFlags();
 };

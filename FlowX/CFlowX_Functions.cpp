@@ -10,6 +10,9 @@
 
 #include "helpers.h"
 
+#include <chrono>
+#include <thread>
+
 /// @brief Opens a popup list of assignable holding points so the controller can assign one.
 /// @param fp Currently selected flight plan.
 /// @param Pt Screen position at which to anchor the popup.
@@ -471,9 +474,12 @@ void CFlowX_Functions::Func_GndTransfer(const std::string& callSign)
     if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
 }
 
-/// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft.
+/// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft,
+///        then queues a throttled ground-status re-push for each cleared aircraft.
 void CFlowX_Functions::RedoFlags()
 {
+    this->redoFlagQueue.clear();
+
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
@@ -495,10 +501,46 @@ void CFlowX_Functions::RedoFlags()
 
         if (pos.GetPressureAltitude() >= airport->second.fieldElevation + 50) { continue; }
 
-        if (fp.GetClearenceFlag() && this->radarScreen != nullptr)
+        if (!fp.GetClearenceFlag()) { continue; }
+
+        // Clearance flag pair: execute immediately (unchanged behaviour)
+        if (this->radarScreen != nullptr)
         {
             this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
             this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
         }
+
+        // Queue a ground-status re-push for throttled background dispatch
+        auto it = this->groundStatus.find(cs);
+        if (it != this->groundStatus.end() && !it->second.empty())
+        {
+            this->redoFlagQueue.push_back({ cs, it->second });
+        }
     }
+
+    this->ProcessRedoFlagQueue();
+}
+
+/// @brief Launches a background thread that dispatches queued ground-status pushes at 150 ms intervals.
+void CFlowX_Functions::ProcessRedoFlagQueue()
+{
+    if (this->redoFlagQueue.empty()) { return; }
+
+    if (this->redoFlagFuture.valid()) { this->redoFlagFuture.wait(); }
+
+    auto tasks = std::move(this->redoFlagQueue);
+
+    this->redoFlagFuture = std::async(std::launch::async, [this, tasks = std::move(tasks)]() {
+        for (const auto& task : tasks)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+            EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(task.callSign.c_str());
+            if (fp.IsValid())
+            {
+                std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+                fp.GetControllerAssignedData().SetScratchPadString(task.groundState.c_str());
+                fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+            }
+        }
+    });
 }

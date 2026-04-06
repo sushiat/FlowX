@@ -13,6 +13,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 /// @brief Spacing data captured at takeoff (prevCallSign) and TOC (remaining fields) for an outbound aircraft.
 /// Populated in two stages: prevCallSign is set at the airborne moment; snapshotTaken + all other fields
@@ -43,6 +44,13 @@ struct TTTInboundState
     bool        wasTrackedByMe     = false; ///< True if GetTrackingControllerIsMe() was true at go-around detection; gates tag-drop and handoff removal.
     int       approachPathIdx   = -1;   ///< Index into flightPlan.gpsApproachPaths; -1 if unused.
     int       approachSegIdx    = -1;   ///< Index of the last passed fix in the approach path; -1 if unused.
+};
+
+/// @brief A pending ground-status push in the redo-flags background drain.
+struct RedoFlagTask
+{
+    std::string callSign;
+    std::string groundState;
 };
 
 /// @brief Plugin layer that maintains per-aircraft state maps and drives periodic updates.
@@ -88,6 +96,8 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              groundStatus;              ///< Callsign -> last known ground status string.
     std::set<std::string>                           qnhUnacked;                ///< Airports where the QNH value changed since the user last acknowledged.
     std::map<std::string, reconnectSnapshot>        reconnect_pending;         ///< Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.
+    std::future<void>                               redoFlagFuture;            ///< Keeps the ground-status drain thread alive until complete.
+    std::vector<RedoFlagTask>                       redoFlagQueue;             ///< Tasks queued by RedoFlags() for background dispatch.
     std::set<std::string>                           rvrUnacked;                ///< Airports where the RVR changed since the user last acknowledged.
     std::map<std::string, std::string>              standAssignment;           ///< Callsign -> assigned stand (populated from Ground Radar scratch-pad).
     std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; updated from stand-occupancy worker thread.
