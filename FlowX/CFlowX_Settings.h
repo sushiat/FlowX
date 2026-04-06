@@ -22,6 +22,7 @@ class CFlowX_Settings : public CFlowX_Logging
   protected:
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
+    bool                           apprEstColors       = false; ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
     bool                           approachEstVisible  = true;  ///< Whether the Approach Estimate window is visible; restored from windowSettings.json
     int                            approachEstWindowH  = 380;   ///< Saved height of the Approach Estimate window; default 380
     int                            approachEstWindowW  = 260;   ///< Saved width of the Approach Estimate window; default 260
@@ -105,6 +106,9 @@ class CFlowX_Settings : public CFlowX_Logging
         return {};
     }
 
+    /// @brief Returns whether Approach Estimate colors mode is enabled.
+    [[nodiscard]] bool GetApprEstColors() const { return this->apprEstColors; }
+
     /// @brief Returns whether the Approach Estimate window is currently visible.
     [[nodiscard]] bool GetApproachEstVisible() const { return this->approachEstVisible; }
 
@@ -161,6 +165,9 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Increases the font size offset by one step (ceiling +5) and persists immediately.
     void IncreaseFontOffset() { this->fontOffset = std::min(5, this->fontOffset + 1); SaveWindowSettings(); }
+
+    /// @brief Toggles the Approach Estimate colors setting and persists it immediately.
+    void ToggleApprEstColors() { this->apprEstColors = !this->apprEstColors; SaveWindowSettings(); }
 
     /// @brief Toggles the Approach Estimate window visibility (does not affect the saved position).
     void ToggleApproachEstVisible() { this->approachEstVisible = !this->approachEstVisible; }

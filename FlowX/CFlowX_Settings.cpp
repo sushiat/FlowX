@@ -190,6 +190,7 @@ void CFlowX_Settings::LoadWindowSettings()
                     this->approachEstWindowW = w.value("w", 180);
                     this->approachEstWindowH = w.value("h", 380);
                     this->approachEstVisible = w.value("visible", true);
+                    this->apprEstColors      = w.value("apprEstColors", false);
                 }
                 else if (name == "depRateWindow")
                 {
@@ -261,7 +262,8 @@ void CFlowX_Settings::SaveWindowSettings()
             w["y"]       = this->approachEstWindowY;
             w["w"]       = this->approachEstWindowW;
             w["h"]       = this->approachEstWindowH;
-            w["visible"] = this->approachEstVisible;
+            w["visible"]       = this->approachEstVisible;
+            w["apprEstColors"] = this->apprEstColors;
             windows.push_back(w);
         }
         addWin("depRateWindow",     this->depRateWindowX,     this->depRateWindowY,     this->depRateVisible);

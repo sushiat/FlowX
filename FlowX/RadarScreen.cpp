@@ -398,6 +398,8 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     HFONT atFont = CreateFontA(-13 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    bool useColors = settings->GetApprEstColors();
+
     auto markerPen = CreatePen(PS_SOLID, 1, TAG_COLOR_GREEN);
 
     for (const auto& row : this->twrInboundRowsCache)
@@ -412,7 +414,33 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
         int y          = scaleTop + (300 - clampedTTT) * barHeight / 300;
         y              = std::clamp(y, scaleTop, scaleBottom);
 
-        // Horizontal marker line — same length as the 10-s tick (TICK_LONG), extending outward from the bar
+        // Determine colors — either always-green or inbound-list colors
+        COLORREF csColor   = TAG_COLOR_GREEN;
+        COLORREF bgColor   = TAG_COLOR_DEFAULT_NONE;
+        COLORREF textOnBg  = TAG_COLOR_GREEN;
+        if (useColors)
+        {
+            if (row.isGoAround)
+            {
+                csColor  = TAG_COLOR_WHITE;
+                bgColor  = TAG_BG_COLOR_RED;
+                textOnBg = TAG_COLOR_WHITE;
+            }
+            else if (row.isFrozen)
+            {
+                csColor  = TAG_COLOR_BLACK;
+                bgColor  = TAG_BG_COLOR_YELLOW;
+                textOnBg = TAG_COLOR_BLACK;
+            }
+            else
+            {
+                csColor  = row.callsignColor;
+                bgColor  = TAG_COLOR_DEFAULT_NONE;
+                textOnBg = row.callsignColor;
+            }
+        }
+
+        // Horizontal marker line — always green, same length as the 10-s tick (TICK_LONG)
         prevPen = SelectObject(hDC, markerPen);
         if (side == "left")
         {
@@ -426,43 +454,37 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
         }
         SelectObject(hDC, prevPen);
 
-        // Aircraft color: green by default; go-around = red, frozen = orange
-        COLORREF csColor = TAG_COLOR_GREEN;
-        if (row.isGoAround)    { csColor = TAG_COLOR_RED;    }
-        else if (row.isFrozen) { csColor = TAG_COLOR_ORANGE; }
-
         // Callsign text — sits just below the marker line, adjacent to the bar
         prevFont = (HFONT)SelectObject(hDC, csFont);
-        SetTextColor(hDC, csColor);
         SIZE csSize = {};
         GetTextExtentPoint32A(hDC, row.callsign.c_str(), (int)row.callsign.size(), &csSize);
+        int csX = (side == "left") ? barLx - AC_PAD - csSize.cx : barRx + AC_PAD;
+        int csY = y + 1;
 
-        // Callsign: starts just below the marker line
-        if (side == "left")
+        if (bgColor != TAG_COLOR_DEFAULT_NONE)
         {
-            TextOutA(hDC, barLx - AC_PAD - csSize.cx, y + 1, row.callsign.c_str(), (int)row.callsign.size());
+            RECT fillRect = { (LONG)(csX - 2), (LONG)(csY - 1), (LONG)(csX + csSize.cx + 2), (LONG)(csY + csSize.cy + 1) };
+            HBRUSH bgBrush = CreateSolidBrush(bgColor);
+            FillRect(hDC, &fillRect, bgBrush);
+            DeleteObject(bgBrush);
+            SetTextColor(hDC, textOnBg);
         }
         else
         {
-            TextOutA(hDC, barRx + AC_PAD, y + 1, row.callsign.c_str(), (int)row.callsign.size());
+            SetTextColor(hDC, csColor);
         }
+        TextOutA(hDC, csX, csY, row.callsign.c_str(), (int)row.callsign.size());
         SelectObject(hDC, prevFont);
 
-        // Aircraft type — dimmed, below the callsign
+        // Aircraft type — below the callsign, no background box
         if (!row.aircraftType.empty())
         {
             prevFont = (HFONT)SelectObject(hDC, atFont);
             SetTextColor(hDC, csColor);
             SIZE atSize = {};
             GetTextExtentPoint32A(hDC, row.aircraftType.c_str(), (int)row.aircraftType.size(), &atSize);
-            if (side == "left")
-            {
-                TextOutA(hDC, barLx - AC_PAD - atSize.cx, y + csSize.cy - 3, row.aircraftType.c_str(), (int)row.aircraftType.size());
-            }
-            else
-            {
-                TextOutA(hDC, barRx + AC_PAD, y + csSize.cy - 3, row.aircraftType.c_str(), (int)row.aircraftType.size());
-            }
+            int atX = (side == "left") ? barLx - AC_PAD - atSize.cx : barRx + AC_PAD;
+            TextOutA(hDC, atX, csY + csSize.cy - 3, row.aircraftType.c_str(), (int)row.aircraftType.size());
             SelectObject(hDC, prevFont);
         }
     }
@@ -1475,7 +1497,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
     MenuRow rows[] = {
         { true,  "Windows",        false, false,                              -1 },
-        { false, "Approach Est",   true,  settings->GetApproachEstVisible(),  16 },
+        { false, "Approach Estimate", true,  settings->GetApproachEstVisible(),  16 },
         { false, "DEP/H",          true,  settings->GetDepRateVisible(),       4 },
         { false, "TWR Outbound",   true,  settings->GetTwrOutboundVisible(),   5 },
         { false, "TWR Inbound",    true,  settings->GetTwrInboundVisible(),    6 },
@@ -1490,6 +1512,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { false, "Update check",      true,  settings->GetUpdateCheck(),           13 },
         { false, "Flash messages",    true,  settings->GetFlashOnMessage(),        14 },
         { false, "Auto Parked",       true,  settings->GetAutoParked(),            15 },
+        { false, "Appr Est Colors",   true,  settings->GetApprEstColors(),         17 },
         { false, "Fonts",             false, false,                                -1, true  },
         { false, "BG opacity",        false, false,                                -1, false, true },
     };
@@ -1988,6 +2011,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 14) { settings->ToggleFlashOnMessage(); }
             else if (idx == 15) { settings->ToggleAutoParked(); }
             else if (idx == 16) { settings->ToggleApproachEstVisible(); }
+            else if (idx == 17) { settings->ToggleApprEstColors(); }
             else if (idx == 4) { settings->ToggleDepRateVisible(); }
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
@@ -1998,7 +2022,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
         // Keep menu open for window visibility toggles (idx 4-7, 16) so the user can toggle multiple windows; close for all others
-        if (idx < 4 || idx == 12 || (idx >= 13 && idx != 16)) { this->startMenuOpen = false; }
+        if (idx < 4 || idx == 12 || (idx >= 13 && idx != 16 && idx != 17)) { this->startMenuOpen = false; }
 
         std::string clickSnd = GetPluginDirectory() + "\\click.wav";
         PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
