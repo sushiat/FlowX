@@ -64,9 +64,11 @@ std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airpor
 
     for (auto& entry : j["atis"])
     {
-        std::string cs = entry.value("callsign", "");
+        if (!entry.contains("callsign") || !entry["callsign"].is_string()) { continue; }
+        if (!entry.contains("atis_code") || !entry["atis_code"].is_string()) { continue; }
+        std::string cs   = entry["callsign"].get<std::string>();
         to_upper(cs);
-        std::string code = entry.value("atis_code", "");
+        std::string code = entry["atis_code"].get<std::string>();
         if (code.empty())
         {
             continue;
