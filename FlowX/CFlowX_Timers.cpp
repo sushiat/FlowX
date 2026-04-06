@@ -1416,8 +1416,8 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                                 if (st.frozenTick != 0)
                                 {
-                                    // Already frozen — check 5-second timeout
-                                    if ((GetTickCount64() - st.frozenTick) / 1000 >= 5)
+                                    // Already frozen — check 30-second timeout
+                                    if ((GetTickCount64() - st.frozenTick) / 1000 >= 30)
                                     {
                                         this->LogDebugMessage(callSign + " removed from TTT (frozen timeout) rwy=" + rwy.designator, "TTT");
                                         this->tttInbound.RemoveFpFromTheList(fp);
@@ -1425,7 +1425,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                         this->ttt_inbound.erase(callSign);
                                         this->ttt_callSigns.erase(callSign);
                                     }
-                                    // else: still within 5 s window — keep displaying
+                                    // else: still within 30 s window — keep displaying
                                 }
                                 else
                                 {
@@ -1490,7 +1490,14 @@ void CFlowX_Timers::UpdateTWRInbound()
                         {
                             // Active go-around: remove if unconfirmed after 60 s, tag dropped, or outgoing handoff initiated.
                             // tagDropped/handoffInitiated are only meaningful if I was tracking when the go-around was detected.
-                            const TTTInboundState& gaState     = inboundIt->second;
+                            // If I re-assume tracking after detection (e.g. approach handed back), treat that as confirmation:
+                            // suppress the 60-s timeout and re-enable the tag-drop / handoff-initiated guards.
+                            TTTInboundState& gaState           = inboundIt->second;
+                            if (!gaState.wasTrackedByMe && fp.GetTrackingControllerIsMe())
+                            {
+                                gaState.wasTrackedByMe    = true;
+                                gaState.goAroundConfirmed = true;
+                            }
                             bool unconfirmedTimeout            = !gaState.goAroundConfirmed
                                                                  && (GetTickCount64() - gaState.goAroundTick) / 1000 > 60;
                             bool tagDropped                    = gaState.wasTrackedByMe && !fp.GetTrackingControllerIsMe();

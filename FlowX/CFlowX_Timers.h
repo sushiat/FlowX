@@ -35,7 +35,7 @@ struct TTTInboundState
 {
     runway    flightPlan;                ///< Runway struct (designator, thresholds, approach paths, vacate points, etc.).
     double    distanceToRunway  = 0.0;  ///< NM to runway threshold; updated every position report.
-    ULONGLONG   frozenTick        = 0;     ///< Non-zero while in 5-second frozen-exit display; set to GetTickCount64() at cone exit.
+    ULONGLONG   frozenTick        = 0;     ///< Non-zero while in 30-second frozen-exit display; set to GetTickCount64() at cone exit.
     ULONGLONG   goAroundTick     = 0;     ///< 0 = no go-around detected; non-zero = tick at detection.
     std::string frozenTttStr;             ///< TTT string captured at freeze time (e.g. "02:12"); displayed as "?02:12?".
     bool        approachFixTracked = false; ///< True while tracking a non-straight-in RNP approach leg.

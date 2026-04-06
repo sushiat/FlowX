@@ -100,7 +100,7 @@ void CFlowX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
     fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
 }
 
-/// @brief Handles a missed approach: clears cleared-to-land state, takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
+/// @brief Handles a missed approach: immediately promotes the aircraft to go-around state in the TTT list, clears cleared-to-land, takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
 /// @param fp Currently selected flight plan.
 /// @param radarScreenInstance Active radar screen used to call the TopSky tag function.
 void CFlowX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance)
@@ -108,10 +108,22 @@ void CFlowX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScr
     std::string callSign = fp.GetCallsign();
     this->ttt_clearedToLand.erase(callSign);
 
-    // If the aircraft is in TTT go-around state, confirm it so the 60-second auto-removal timeout is suppressed.
+    // Promote to go-around state immediately (controller-initiated).
+    // If already detected: confirm it (suppress the 60-second auto-removal timeout).
+    // If not yet detected (or frozen): set goAroundTick now so the display switches to red immediately.
     auto inboundIt = this->ttt_inbound.find(callSign);
-    if (inboundIt != this->ttt_inbound.end() && inboundIt->second.goAroundTick != 0)
-        inboundIt->second.goAroundConfirmed = true;
+    if (inboundIt != this->ttt_inbound.end())
+    {
+        TTTInboundState& st = inboundIt->second;
+        if (st.goAroundTick == 0)
+        {
+            st.goAroundTick      = GetTickCount64();
+            st.frozenTick        = 0;
+            st.frozenTttStr      = {};
+            st.wasTrackedByMe    = true; // we are about to take tracking below
+        }
+        st.goAroundConfirmed = true;
+    }
 
     if (!fp.GetTrackingControllerIsMe())
     {

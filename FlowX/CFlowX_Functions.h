@@ -35,7 +35,7 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @param fp Currently selected flight plan.
     static void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
 
-    /// @brief Handles a missed approach: clears cleared-to-land state, takes tracking, assigns 5000 ft, and triggers TopSky highlight.
+    /// @brief Handles a missed approach: immediately promotes the aircraft to go-around state in the TTT list, clears cleared-to-land, takes tracking, assigns 5000 ft, and triggers TopSky highlight.
     /// @param fp Currently selected flight plan.
     /// @param radarScreenInstance Active radar screen used to invoke the TopSky tag function.
     void Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScreen* radarScreenInstance);

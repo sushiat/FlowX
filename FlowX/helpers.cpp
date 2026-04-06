@@ -47,11 +47,22 @@ std::string FetchVatsimData()
 
 std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airports)
 {
-    auto j = json::parse(FetchVatsimData());
-
     std::map<std::string, std::string> result;
 
-    for (auto& entry : j.at("atis"))
+    json j;
+    try
+    {
+        j = json::parse(FetchVatsimData());
+    }
+    catch (const std::exception&)
+    {
+        return result; // network error or malformed response — return empty, caller retries next cycle
+    }
+
+    if (!j.contains("atis") || !j["atis"].is_array())
+        return result;
+
+    for (auto& entry : j["atis"])
     {
         std::string cs = entry.value("callsign", "");
         to_upper(cs);

@@ -721,7 +721,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     // Base widths at font size 17; scaled by (17+fo)/17:
     auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
     const int RWY_GRP = cw(35);   //  new front column — runway group label
-    const int TTT     = cw(70);   //  "mm:ss" normally; "->nnn.nnn" (~9 chars) on go-around
+    const int TTT     = cw(90);   //  "mm:ss" normally; "->nnn.nnn" (9 chars) on go-around
     const int CS      = cw(84);   // 12 chars
     const int NM      = cw(56);   //  8 chars
     const int GS      = cw(35);   //  5 chars
