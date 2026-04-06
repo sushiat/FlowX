@@ -10,8 +10,6 @@
 
 #include "helpers.h"
 
-#include <chrono>
-#include <thread>
 
 /// @brief Opens a popup list of assignable holding points so the controller can assign one.
 /// @param fp Currently selected flight plan.
@@ -518,29 +516,20 @@ void CFlowX_Functions::RedoFlags()
         }
     }
 
-    this->ProcessRedoFlagQueue();
 }
 
-/// @brief Launches a background thread that dispatches queued ground-status pushes at 150 ms intervals.
-void CFlowX_Functions::ProcessRedoFlagQueue()
+/// @brief Drains one task from the redo-flag queue; called from OnTimer() at a 1 s cadence.
+void CFlowX_Functions::DrainRedoFlagQueue()
 {
     if (this->redoFlagQueue.empty()) { return; }
 
-    if (this->redoFlagFuture.valid()) { this->redoFlagFuture.wait(); }
-
-    auto tasks = std::move(this->redoFlagQueue);
-
-    this->redoFlagFuture = std::async(std::launch::async, [this, tasks = std::move(tasks)]() {
-        for (const auto& task : tasks)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(150));
-            EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(task.callSign.c_str());
-            if (fp.IsValid())
-            {
-                std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
-                fp.GetControllerAssignedData().SetScratchPadString(task.groundState.c_str());
-                fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
-            }
-        }
-    });
+    const auto& task = this->redoFlagQueue.front();
+    EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(task.callSign.c_str());
+    if (fp.IsValid())
+    {
+        std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+        fp.GetControllerAssignedData().SetScratchPadString(task.groundState.c_str());
+        fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+    }
+    this->redoFlagQueue.erase(this->redoFlagQueue.begin());
 }

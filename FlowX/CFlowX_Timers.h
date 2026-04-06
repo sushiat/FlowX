@@ -96,8 +96,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, std::string>              groundStatus;              ///< Callsign -> last known ground status string.
     std::set<std::string>                           qnhUnacked;                ///< Airports where the QNH value changed since the user last acknowledged.
     std::map<std::string, reconnectSnapshot>        reconnect_pending;         ///< Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.
-    std::future<void>                               redoFlagFuture;            ///< Keeps the ground-status drain thread alive until complete.
-    std::vector<RedoFlagTask>                       redoFlagQueue;             ///< Tasks queued by RedoFlags() for background dispatch.
+    std::vector<RedoFlagTask>                       redoFlagQueue;             ///< Tasks queued by RedoFlags() for main-thread dispatch via DrainRedoFlagQueue().
     std::set<std::string>                           rvrUnacked;                ///< Airports where the RVR changed since the user last acknowledged.
     std::map<std::string, std::string>              standAssignment;           ///< Callsign -> assigned stand (populated from Ground Radar scratch-pad).
     std::map<std::string, std::string>              standOccupancy;            ///< Stand name → callsign of the occupying or blocking aircraft; updated from stand-occupancy worker thread.

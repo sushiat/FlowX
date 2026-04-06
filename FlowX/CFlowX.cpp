@@ -553,6 +553,7 @@ void CFlowX::OnTimer(int Counter)
     {
         this->UpdateTagCache();
         this->UpdateRadarTargetDepartureInfo();
+        this->DrainRedoFlagQueue();
     }
 
     if (Counter > 0 && Counter % 5 == 0)
