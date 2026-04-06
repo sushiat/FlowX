@@ -470,6 +470,7 @@ void CFlowX_Functions::Func_GndTransfer(const std::string& callSign)
     this->gndTransfer_list.erase(callSign);
     this->gndTransfer_soundPlayed.erase(callSign);
     if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
+    if (this->radarScreen) { this->radarScreen->gndTransferSquareTimes.erase(callSign); }
 }
 
 /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft,

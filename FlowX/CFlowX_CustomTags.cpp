@@ -1210,7 +1210,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                         row.gate.color = occupied ? TAG_COLOR_RED : TAG_COLOR_WHITE;
                     }
                 }
-                row.dimmed = !isFirst;
+                row.dimmed = !isFirst && !row.isGoAround;
 
                 ComputeInboundCacheEntry(key, fp, rt, row);
 
@@ -1405,7 +1405,11 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
         rt.GetPosition().GetReportedGS() < 50)
     {
         this->gndTransfer_soundPlayed.insert(callSign);
-        if (this->radarScreen) this->radarScreen->gndTransferSquares.insert(callSign);
+        if (this->radarScreen)
+        {
+            this->radarScreen->gndTransferSquares.insert(callSign);
+            this->radarScreen->gndTransferSquareTimes[callSign] = GetTickCount64();
+        }
         std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "gndtransfer.wav";
         PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
     }

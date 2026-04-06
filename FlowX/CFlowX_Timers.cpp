@@ -1090,6 +1090,7 @@ void CFlowX_Timers::UpdateTWRInbound()
             this->gndTransfer_list.clear();
             this->gndTransfer_soundPlayed.clear();
             if (this->radarScreen) this->radarScreen->gndTransferSquares.clear();
+            if (this->radarScreen) this->radarScreen->gndTransferSquareTimes.clear();
         }
 
         return;
@@ -1513,6 +1514,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 this->gndTransfer_list.erase(callSign);
                                 this->gndTransfer_soundPlayed.erase(callSign);
                                 if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
+                                if (this->radarScreen) this->radarScreen->gndTransferSquareTimes.erase(callSign);
                                 this->LogDebugMessage(callSign + " added to TTT (go-around) rwy=" + rwy.designator
                                     + " dist=" + std::to_string(static_cast<int>(distance)) + "NM"
                                     + " alt=" + std::to_string(pressAlt) + "ft", "TTT");

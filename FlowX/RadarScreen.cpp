@@ -201,24 +201,33 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
     if (this->gndTransferSquares.empty()) { return; }
 
     SetBkMode(hDC, TRANSPARENT);
-    auto brush = CreateSolidBrush(TAG_COLOR_GREEN);
-    auto pen   = CreatePen(PS_SOLID, 1, TAG_COLOR_GREEN);
-    SelectObject(hDC, brush);
-    SelectObject(hDC, pen);
+    ULONGLONG now = GetTickCount64();
 
     for (const auto& callSign : this->gndTransferSquares)
     {
         EuroScopePlugIn::CRadarTarget rt = GetPlugIn()->RadarTargetSelect(callSign.c_str());
         if (!rt.IsValid() || !rt.GetPosition().IsValid()) { continue; }
 
+        ULONGLONG elapsedSec = this->gndTransferSquareTimes.contains(callSign)
+                             ? (now - this->gndTransferSquareTimes.at(callSign)) / 1000
+                             : 0;
+        COLORREF color = elapsedSec >= 30 ? TAG_COLOR_RED
+                       : elapsedSec >= 20 ? TAG_COLOR_YELLOW
+                                          : TAG_COLOR_GREEN;
+
+        auto brush = CreateSolidBrush(color);
+        auto pen   = CreatePen(PS_SOLID, 1, color);
+        SelectObject(hDC, brush);
+        SelectObject(hDC, pen);
+
         POINT pt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
         RECT  sq = { pt.x - 22, pt.y + 10, pt.x - 10, pt.y + 22 };
         Rectangle(hDC, sq.left, sq.top, sq.right, sq.bottom);
         AddScreenObject(SCREEN_OBJECT_GND_TRANSFER, callSign.c_str(), sq, true, "");
-    }
 
-    DeleteObject(pen);
-    DeleteObject(brush);
+        DeleteObject(pen);
+        DeleteObject(brush);
+    }
 }
 
 static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct); ///< Forward declaration — defined below DrawGndTransferSquares.
