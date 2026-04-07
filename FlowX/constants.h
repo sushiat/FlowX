@@ -66,7 +66,10 @@ const int TAG_FUNC_TRANSFER_NEXT  = 205; ///< Initiate handoff to the next contr
 const int TAG_FUNC_CLRD_TO_LAND   = 206; ///< Clear the inbound for landing and highlight in TopSky
 const int TAG_FUNC_MISSED_APP     = 207; ///< Handle missed approach: assign altitude and highlight
 const int TAG_FUNC_STAND_AUTO     = 208; ///< Trigger automatic stand assignment via Ground Radar
-const int TAG_FUNC_REVERT_TO_TAXI = 209; ///< Revert ground state from LINEUP back to TAXI
+const int TAG_FUNC_REVERT_TO_TAXI        = 209; ///< Revert ground state from LINEUP back to TAXI
+const int TAG_FUNC_ASSIGN_QUEUE_POS      = 210; ///< Open popup to assign departure queue position (1-based insert)
+const int TAG_FUNC_QUEUE_POS_LISTSELECT  = 211; ///< Callback when user selects a queue position from the popup
+const int TAG_FUNC_APPEND_QUEUE_POS      = 212; ///< Append aircraft to the end of the departure queue (right-click)
 /// @}
 
 /// @defgroup TagColors COLORREF constants used for tag colouring

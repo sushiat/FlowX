@@ -87,6 +87,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     int                                             dbg_tagItemCalls = 0;      ///< Total OnGetTagItem calls.
     int                                             dbg_timerTicks = 0;        ///< Total OnTimer calls.
     std::map<std::string, DepartureLiveSpacing>      dep_liveSpacing;           ///< Callsign -> spacing data for the current departure; populated in two stages (see DepartureLiveSpacing).
+    std::map<std::string, int>                      dep_queuePos;              ///< Callsign -> departure queue position (1-based); absent = not queued.
     int                                             dep_sequenceCounter = 0;   ///< Global sequence counter incremented at each takeoff.
     std::map<std::string, int>                      dep_sequenceNumber;        ///< Callsign -> departure sequence number assigned at takeoff.
     std::map<std::string, std::string>              flightStripAnnotation;     ///< Callsign -> cached content of flight-strip annotation slot 8.

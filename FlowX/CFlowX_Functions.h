@@ -12,10 +12,19 @@
 class CFlowX_Functions : public CFlowX_CustomTags
 {
   protected:
+    /// @brief Appends the aircraft to the end of the departure queue for its runway (right-click shortcut).
+    /// @param fp Currently selected flight plan.
+    void Func_AppendQueuePos(EuroScopePlugIn::CFlightPlan& fp);
+
     /// @brief Opens an "Assign HP" popup list of all assignable holding points for the selected flight plan.
     /// @param fp Currently selected flight plan.
     /// @param Pt Screen position at which to display the popup.
     void Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
+
+    /// @brief Opens a dynamic popup (positions 1 … max+1) to assign or insert a departure queue position.
+    /// @param fp Currently selected flight plan.
+    /// @param Pt Screen position at which to display the popup.
+    void Func_AssignQueuePos(EuroScopePlugIn::CFlightPlan& fp, POINT Pt);
 
     /// @brief Clears the new-QNH flag (character 'Q') from flight-strip annotation slot 8.
     /// @param fp Currently selected flight plan.
@@ -30,6 +39,11 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @param fp Currently selected flight plan.
     /// @param sItemString The holding-point name string chosen from the popup.
     void Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString);
+
+    /// @brief Callback invoked when the controller selects a position from the departure queue popup.
+    /// @param fp Currently selected flight plan.
+    /// @param sItemString The numeric position string chosen from the popup (e.g. "2").
+    void Func_QueuePosListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString);
 
     /// @brief Sets the LINEUP ground state on the flight plan via a scratch-pad toggle.
     /// @param fp Currently selected flight plan.
@@ -67,6 +81,15 @@ class CFlowX_Functions : public CFlowX_CustomTags
     /// @param fp Currently selected flight plan.
     /// @note Picks the SID-specific approach frequency when available; falls back to UNICOM if no station is online.
     void Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp);
+
+    /// @brief Removes an aircraft from the departure queue and shifts all same-runway positions down.
+    /// @param callSign Callsign to remove.
+    /// @param runway Departure runway designator used to scope the shift.
+    void RemoveFromDepartureQueue(const std::string& callSign, const std::string& runway);
+
+    /// @brief Scans dep_queuePos and removes any aircraft already in LINEUP or DEPA state.
+    /// @note Called periodically from OnTimer to handle queue updates from other controllers.
+    void SyncQueueWithGroundState();
 
   public:
     /// @brief Clears the new-QNH flag from all aircraft that have it set in flight-strip annotation slot 8.

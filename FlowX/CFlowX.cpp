@@ -114,6 +114,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
     try
     {
     std::string callSign = FlightPlan.GetCallsign();
+    std::string depRwy   = FlightPlan.GetFlightPlanData().GetDepartureRwy();
 
     // Capture a snapshot for auto-restore if the pilot reconnects within 90 seconds
     if (this->autoRestore)
@@ -177,6 +178,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 
     this->dep_liveSpacing.erase(callSign);
     this->dep_sequenceNumber.erase(callSign);
+    this->RemoveFromDepartureQueue(callSign, depRwy);
 
     this->gndTransfer_list.erase(callSign);
     this->gndTransfer_soundPlayed.erase(callSign);
@@ -235,9 +237,22 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
         {
             this->Func_HpListselect(fp, sItemString);
         }
+        else if (FunctionId == TAG_FUNC_ASSIGN_QUEUE_POS)
+        {
+            this->Func_AssignQueuePos(fp, Pt);
+        }
+        else if (FunctionId == TAG_FUNC_QUEUE_POS_LISTSELECT)
+        {
+            this->Func_QueuePosListselect(fp, sItemString);
+        }
+        else if (FunctionId == TAG_FUNC_APPEND_QUEUE_POS)
+        {
+            this->Func_AppendQueuePos(fp);
+        }
         else if (FunctionId == TAG_FUNC_LINE_UP)
         {
             Func_LineUp(fp);
+            this->RemoveFromDepartureQueue(fp.GetCallsign(), fp.GetFlightPlanData().GetDepartureRwy());
         }
         else if (FunctionId == TAG_FUNC_REVERT_TO_TAXI)
         {
@@ -246,6 +261,7 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
         else if (FunctionId == TAG_FUNC_TAKE_OFF)
         {
             Func_TakeOff(fp);
+            this->RemoveFromDepartureQueue(fp.GetCallsign(), fp.GetFlightPlanData().GetDepartureRwy());
         }
         else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
         {
@@ -585,6 +601,7 @@ void CFlowX::OnTimer(int Counter)
             this->UpdateTWROutbound();
             this->UpdateTWRInbound();
             this->CheckReconnects();
+            this->SyncQueueWithGroundState();
         }
 
         if (Counter > 0 && Counter % 4 == 0)

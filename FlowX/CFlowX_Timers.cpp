@@ -686,6 +686,11 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
         const auto& annotation                = this->flightStripAnnotation[callSign];
 
         std::string dep_info = cachedRow.depInfo.tag;
+        {
+            auto queueIt = this->dep_queuePos.find(callSign);
+            if (queueIt != this->dep_queuePos.end())
+                dep_info += "," + std::to_string(queueIt->second);
+        }
         if (isGnd)
         {
             bool transferred = false;
@@ -1087,6 +1092,7 @@ void CFlowX_Timers::UpdateTWRInbound()
             this->ttt_clearedToLand.clear();
             this->ttt_recentlyRemoved.clear();
             this->ttt_runwayOccupied.clear();
+            this->dep_queuePos.clear();
             this->gndTransfer_list.clear();
             this->gndTransfer_soundPlayed.clear();
             if (this->radarScreen) this->radarScreen->gndTransferSquares.clear();

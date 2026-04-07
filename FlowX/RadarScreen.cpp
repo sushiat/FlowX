@@ -750,12 +750,13 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int ATYP    = cw(56);   //  8 chars
     const int FREQ    = cw(105);  // 15 chars
     const int HP      = cw(28);   //  4 chars
+    const int QPOS    = cw(21);   //  3 chars  (queue position: "1"–"9", or "10")
     const int SPC     = cw(119);  // 17 chars
     const int TMR     = cw(56);   //  8 chars ("9:59"; extra left margin separates from Spacing)
     const int LDST    = cw(77);   // 11 chars (live distance to previous departure; extra left margin separates from T+)
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
     const int SEP_H   = 12;    ///< Height of blank separator row between sort groups
-    const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + SPC + TMR + LDST + PAD;
+    const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + QPOS + SPC + TMR + LDST + PAD;
     int numRows       = (int)this->twrOutboundRowsCache.size();
 
     int numSeps = 0;
@@ -851,6 +852,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         colHdr(ATYP, "ATYP");
         colHdr(FREQ, "Freq");
         colHdr(HP,   "HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(QPOS, "#",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(SPC,  "Spacing", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         colHdr(TMR,  "T+",      DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         colHdr(LDST, "dNM",     DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
@@ -995,6 +997,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         cellClickable(ATYP, r.aircraftType,         r.callsignColor, r.callsign + "|ATYP");
         cellTagClickable(FREQ, r.nextFreq, r.callsign + "|FREQ");
         cellTagClickable(HP,   r.hp,       r.callsign + "|HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(QPOS, r.queuePos, r.callsign + "|QPOS", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellTagClickable(SPC,  r.spacing,  r.callsign + "|SPC",  DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellTag(TMR,  r.timeSinceTakeoff,                         DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
         cellTag(LDST, r.liveSpacing,                              DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
@@ -2052,22 +2055,31 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
         this->RequestRefresh();
     }
 
-    if (ObjectType == SCREEN_OBJECT_DEP_TAG_SID_DOT && Button == EuroScopePlugIn::BUTTON_LEFT)
+    if (ObjectType == SCREEN_OBJECT_DEP_TAG_SID_DOT)
     {
         std::string id(sObjectId);
         auto sep = id.rfind('|');
         if (sep == std::string::npos) { return; }
         std::string callsign = id.substr(0, sep);
 
-        auto ctrl = this->GetPlugIn()->ControllerMyself();
-        if (!ctrl.IsController() || ctrl.GetFacility() != 3) { return; }
-
         auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
         if (aselFp.IsValid()) { GetPlugIn()->SetASELAircraft(aselFp); }
 
-        this->StartTagFunction(callsign.c_str(),
-            PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, "",
-            PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
+        if (Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            auto ctrl = this->GetPlugIn()->ControllerMyself();
+            if (!ctrl.IsController() || ctrl.GetFacility() != 3) { return; }
+
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, "",
+                PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
+        }
+        else if (Button == EuroScopePlugIn::BUTTON_RIGHT)
+        {
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_TWR_SORT, "",
+                PLUGIN_NAME, TAG_FUNC_APPEND_QUEUE_POS, Pt, Area);
+        }
 
         this->RequestRefresh();
         return;
@@ -2127,6 +2139,13 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_REQUEST_HP : TAG_FUNC_ASSIGN_HP;
             this->StartTagFunction(callsign.c_str(),
                 PLUGIN_NAME, TAG_ITEM_HP, r.hp.tag.c_str(),
+                PLUGIN_NAME, funcId, Pt, Area);
+        }
+        else if (col == "QPOS")
+        {
+            int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_APPEND_QUEUE_POS : TAG_FUNC_ASSIGN_QUEUE_POS;
+            this->StartTagFunction(callsign.c_str(),
+                PLUGIN_NAME, TAG_ITEM_TWR_SORT, r.queuePos.tag.c_str(),
                 PLUGIN_NAME, funcId, Pt, Area);
         }
 

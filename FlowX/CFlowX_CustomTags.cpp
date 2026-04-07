@@ -423,6 +423,14 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         return t;
     }();
 
+    // ── row.queuePos (departureQueuePosition) ──
+    {
+        auto it = this->dep_queuePos.find(callSign);
+        row.queuePos = (it != this->dep_queuePos.end())
+                     ? tagInfo{ .tag = std::to_string(it->second), .color = TAG_COLOR_WHITE }
+                     : tagInfo{};
+    }
+
     // ── row.spacing (takeoffSpacing) ──
     row.spacing = [&]() -> tagInfo
     {

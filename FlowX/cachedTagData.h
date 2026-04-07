@@ -36,6 +36,7 @@ struct TwrOutboundRowCache
     std::string aircraftType;                        ///< Aircraft type string (e.g. "B738") from GetAircraftFPType()
     tagInfo     nextFreq;                            ///< TAG_ITEM_TWR_NEXT_FREQ
     tagInfo     hp;                                  ///< TAG_ITEM_HP
+    tagInfo     queuePos;                            ///< Departure queue position (1-based); empty if not queued.
     tagInfo     spacing;                             ///< TAG_ITEM_TAKEOFF_SPACING
     tagInfo     liveSpacing;                         ///< Live current distance to the previous departure, updated on every position report.
     tagInfo     timeSinceTakeoff;                    ///< Elapsed time since takeoff roll start in "M:SS" format; empty while waiting

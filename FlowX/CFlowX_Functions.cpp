@@ -39,6 +39,106 @@ void CFlowX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
     }
 }
 
+/// @brief Appends the aircraft to the end of the departure queue for its runway.
+/// If already queued, the existing position is replaced with max+1.
+/// @param fp Currently selected flight plan.
+void CFlowX_Functions::Func_AppendQueuePos(EuroScopePlugIn::CFlightPlan& fp)
+{
+    std::string callSign = fp.GetCallsign();
+    std::string runway   = fp.GetFlightPlanData().GetDepartureRwy();
+    RemoveFromDepartureQueue(callSign, runway);
+
+    int maxPos = 0;
+    for (const auto& [cs, pos] : this->dep_queuePos)
+    {
+        auto other = this->FlightPlanSelect(cs.c_str());
+        if (other.IsValid() && std::string(other.GetFlightPlanData().GetDepartureRwy()) == runway)
+            maxPos = std::max(maxPos, pos);
+    }
+    this->dep_queuePos[callSign] = maxPos + 1;
+}
+
+/// @brief Opens a dynamic popup listing positions 1 … (max queued on same runway) + 1.
+/// Selecting a position inserts the aircraft at that slot, shifting others down.
+/// @param fp Currently selected flight plan.
+/// @param Pt Screen position at which to display the popup.
+void CFlowX_Functions::Func_AssignQueuePos(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
+{
+    std::string callSign = fp.GetCallsign();
+    std::string runway   = fp.GetFlightPlanData().GetDepartureRwy();
+
+    int maxPos = 0;
+    for (const auto& [cs, pos] : this->dep_queuePos)
+    {
+        if (cs == callSign) continue;
+        auto other = this->FlightPlanSelect(cs.c_str());
+        if (other.IsValid() && std::string(other.GetFlightPlanData().GetDepartureRwy()) == runway)
+            maxPos = std::max(maxPos, pos);
+    }
+    int listSize = maxPos + 1;
+
+    RECT area = { Pt.x, Pt.y, Pt.x + 50, Pt.y + listSize * 18 + 4 };
+    this->OpenPopupList(area, "Queue", 1);
+    for (int i = 1; i <= listSize; ++i)
+        this->AddPopupListElement(std::to_string(i).c_str(), "", TAG_FUNC_QUEUE_POS_LISTSELECT);
+}
+
+/// @brief Callback: inserts the aircraft at the selected queue position, shifting others down.
+/// @param fp Currently selected flight plan.
+/// @param sItemString Numeric string of the chosen position (e.g. "2").
+void CFlowX_Functions::Func_QueuePosListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
+{
+    std::string callSign  = fp.GetCallsign();
+    std::string runway    = fp.GetFlightPlanData().GetDepartureRwy();
+    int         targetPos = std::stoi(sItemString);
+
+    RemoveFromDepartureQueue(callSign, runway);
+
+    for (auto& [cs, pos] : this->dep_queuePos)
+    {
+        auto other = this->FlightPlanSelect(cs.c_str());
+        if (other.IsValid() && std::string(other.GetFlightPlanData().GetDepartureRwy()) == runway && pos >= targetPos)
+            ++pos;
+    }
+    this->dep_queuePos[callSign] = targetPos;
+}
+
+/// @brief Removes an aircraft from the departure queue and shifts same-runway positions down.
+/// @param callSign Callsign to remove.
+/// @param runway Departure runway designator used to scope the shift.
+void CFlowX_Functions::RemoveFromDepartureQueue(const std::string& callSign, const std::string& runway)
+{
+    auto it = this->dep_queuePos.find(callSign);
+    if (it == this->dep_queuePos.end()) return;
+    int removedPos = it->second;
+    this->dep_queuePos.erase(it);
+    for (auto& [cs, pos] : this->dep_queuePos)
+    {
+        auto other = this->FlightPlanSelect(cs.c_str());
+        if (other.IsValid() && std::string(other.GetFlightPlanData().GetDepartureRwy()) == runway && pos > removedPos)
+            --pos;
+    }
+}
+
+/// @brief Scans dep_queuePos and removes any aircraft already in LINEUP or DEPA ground state.
+/// Handles the case where another controller sets the state without going through the local click handler.
+void CFlowX_Functions::SyncQueueWithGroundState()
+{
+    if (this->dep_queuePos.empty()) return;
+
+    std::vector<std::pair<std::string, std::string>> toRemove;
+    for (const auto& [callSign, pos] : this->dep_queuePos)
+    {
+        auto fp = this->FlightPlanSelect(callSign.c_str());
+        if (!fp.IsValid()) { continue; }
+        std::string gs = fp.GetGroundState();
+        if (gs == "LINEUP" || gs == "DEPA")
+            toRemove.emplace_back(callSign, std::string(fp.GetFlightPlanData().GetDepartureRwy()));
+    }
+    for (const auto& [cs, rwy] : toRemove)
+        this->RemoveFromDepartureQueue(cs, rwy);
+}
+
 /// @brief Clears the new-QNH flag from all aircraft that have it set in flight-strip annotation slot 8.
 void CFlowX_Functions::DismissQnh()
 {
