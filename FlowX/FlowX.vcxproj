@@ -213,6 +213,7 @@
     <ClCompile Include="CFlowX_Timers.cpp" />
     <ClCompile Include="FlowX.cpp" />
     <ClCompile Include="helpers.cpp" />
+    <ClCompile Include="osm_taxiways.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -251,6 +252,7 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="helpers.h" />
+    <ClInclude Include="osm_taxiways.h" />
     <ClInclude Include="tagInfo.h" />
   </ItemGroup>
   <ItemGroup>

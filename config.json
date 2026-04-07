@@ -71,6 +71,7 @@
             "125.175": ["125.175", "129.050", "118.775", "134.675"]
         },
         "scratchpadClearExclusions": [".cs ", ".did", ".obacht", "/cs "],
+        "osmShowTaxilanes": false,
         "runways": {
             "11": {
                 "estimateBarSide": "right",

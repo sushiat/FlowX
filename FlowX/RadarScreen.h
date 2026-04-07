@@ -134,6 +134,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::string                                   napReminderAirport;              ///< ICAO code of the airport whose NAP reminder is currently active
     POINT                                         napWindowPos = {-1, -1};         ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
     std::map<std::string, depInfo>                radarTargetDepartureInfos;       ///< Callsign -> departure overlay data for aircraft currently shown on the radar
+    bool                                          showTaxiOverlay    = false;      ///< When true, taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
     int                                           startBtnLastHoverType  = -1;     ///< Last object type reported by OnOverScreenObject for the Start button; used to detect hover transitions
     bool                                          startBtnPressed    = false;      ///< True while the left mouse button is held down over the Start button
     int                                           startMenuLastHoverType = -1;     ///< Last object type reported by OnOverScreenObject for Start menu items; used to detect hover transitions

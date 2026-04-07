@@ -627,6 +627,7 @@ void CFlowX::OnTimer(int Counter)
         }
 
         this->PollAtisLetters(Counter);
+        this->PollOsmFuture();
     }
     catch (const std::exception& e) { this->LogException("OnTimer", e.what()); }
     catch (...)                      { this->LogException("OnTimer", "unknown exception"); }

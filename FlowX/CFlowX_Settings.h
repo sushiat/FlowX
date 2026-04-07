@@ -9,6 +9,7 @@
 #include "CFlowX_Logging.h"
 #include "config.h"
 #include "nlohmann/json.hpp"
+#include "osm_taxiways.h"
 #include <future>
 
 using json = nlohmann::json;
@@ -19,6 +20,9 @@ using json = nlohmann::json;
 /// Airport configuration is loaded from config.json at startup.
 class CFlowX_Settings : public CFlowX_Logging
 {
+  private:
+    std::future<OsmResult> osmFuture; ///< Async future for an in-flight OSM taxiway fetch or cache load
+
   protected:
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
@@ -71,6 +75,14 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @note Logs a message and returns early if the file cannot be read or parsed.
     void LoadConfig();
 
+    /// @brief Launches an async load of previously cached OSM taxiway data from disk.
+    /// @note Called once at startup; result is consumed by PollOsmFuture.
+    void StartOsmCacheLoad();
+
+    /// @brief Polls osmFuture; on completion moves data into osmData, annotates holding-point ways, and logs the result.
+    /// @note Called every timer tick from CFlowX::OnTimer.
+    void PollOsmFuture();
+
     /// @brief Loads plugin settings (global toggles and window positions) from settings.json in the plugin directory.
     /// @note Missing or malformed file is silently ignored; positions stay at -1 (auto-place).
     void LoadSettings();
@@ -79,6 +91,8 @@ class CFlowX_Settings : public CFlowX_Logging
     void SaveSettings();
 
   public:
+    OsmAirportData osmData; ///< Last successfully loaded OSM taxiway/taxilane data; ways annotated with Taxiway_HoldingPoint on load
+
     /// @brief Constructs the settings layer, loading persisted settings and config.json on startup.
     CFlowX_Settings();
 
@@ -151,6 +165,18 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Returns the current font size offset (positive = larger).
     [[nodiscard]] int GetFontOffset() const { return this->fontOffset; }
+
+    /// @brief Returns whether taxilane ways should be included in the OSM taxi overlay for the primary configured airport.
+    [[nodiscard]] bool GetOsmShowTaxilanes() const
+    {
+        return this->airports.empty() || this->airports.begin()->second.osmShowTaxilanes;
+    }
+
+    /// @brief Returns true while an OSM taxiway fetch or cache load is in progress.
+    [[nodiscard]] bool IsOsmBusy() const;
+
+    /// @brief Launches a background Overpass API fetch for LOWW taxiway/taxilane data; no-op if already busy.
+    void StartOsmFetch();
 
     /// @brief Returns whether the airborne audio alert is enabled.
     [[nodiscard]] bool GetSoundAirborne()     const { return this->soundAirborne; }

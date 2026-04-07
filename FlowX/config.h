@@ -137,4 +137,5 @@ struct airport
     std::map<std::string, std::vector<std::string>> appFreqFallbacks          = {};        ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
     std::map<std::string, runway>                   runways                   = {};        ///< Runway configurations keyed by designator
     std::vector<std::string>                        scratchpadClearExclusions = {};        ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
+    bool                                            osmShowTaxilanes          = true;      ///< When true, taxilane ways (aeroway=taxilane) are included in the OSM taxi overlay; false = taxiways only
 };

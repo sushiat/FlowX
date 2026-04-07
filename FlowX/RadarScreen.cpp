@@ -18,6 +18,7 @@
 #include <string>
 #include "constants.h"
 #include "helpers.h"
+#include "osm_taxiways.h"
 
 RadarScreen::RadarScreen()
 {
@@ -171,8 +172,108 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
     {
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
         {
+            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
             this->DrawDepartureInfoTag(hDC);
             this->DrawGndTransferSquares(hDC);
+
+            // Draw taxiway/taxilane overlay when enabled.
+            if (this->showTaxiOverlay && !settings->osmData.ways.empty())
+            {
+                const bool showLanes = settings->GetOsmShowTaxilanes();
+
+                // Pass 1 — draw polylines, one pen per way.
+                for (const auto& way : settings->osmData.ways)
+                {
+                    if (way.type == AerowayType::Taxilane && !showLanes) continue;
+
+                    const COLORREF col = (way.type == AerowayType::Taxiway_HoldingPoint) ? RGB(255,  80,  80)
+                                       : (way.type == AerowayType::Taxilane)             ? RGB(  0, 200, 255)
+                                                                                          : RGB(255, 220,   0);
+                    HPEN pen  = CreatePen(PS_SOLID, 2, col);
+                    HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
+
+                    bool first = true;
+                    for (const auto& gp : way.geometry)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = gp.lat;
+                        pos.m_Longitude = gp.lon;
+                        const POINT pt = ConvertCoordFromPositionToPixel(pos);
+                        if (first) { MoveToEx(hDC, pt.x, pt.y, nullptr); first = false; }
+                        else         LineTo(hDC, pt.x, pt.y);
+                    }
+
+                    SelectObject(hDC, prev);
+                    DeleteObject(pen);
+                }
+
+                // Pass 2 — draw name labels at 500 m intervals (first at 250 m).
+                HFONT labelFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                HFONT prevFont  = static_cast<HFONT>(SelectObject(hDC, labelFont));
+                SetBkMode(hDC, TRANSPARENT);
+
+                for (const auto& way : settings->osmData.ways)
+                {
+                    if (way.type == AerowayType::Taxilane && !showLanes) continue;
+                    if (way.geometry.size() < 2) continue;
+
+                    const std::string& lbl = way.ref.empty() ? way.name : way.ref;
+                    if (lbl.empty()) continue;
+
+                    const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint) ? RGB(255, 130, 130)
+                                           : (way.type == AerowayType::Taxilane)             ? RGB(150, 230, 255)
+                                                                                              : RGB(255, 240, 150);
+                    SetTextColor(hDC, textCol);
+
+                    double accum   = 0.0;
+                    double nextLbl = 250.0;
+                    bool   placed  = false;
+
+                    for (size_t k = 1; k < way.geometry.size(); ++k)
+                    {
+                        const auto& a = way.geometry[k - 1];
+                        const auto& b = way.geometry[k];
+                        const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
+                        const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
+                        const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
+                        const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
+                        const double h    = std::sin(dLat / 2) * std::sin(dLat / 2)
+                                          + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
+                        const double seg  = 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
+
+                        if (accum + seg >= nextLbl)
+                        {
+                            EuroScopePlugIn::CPosition pos;
+                            pos.m_Latitude  = b.lat;
+                            pos.m_Longitude = b.lon;
+                            const POINT pt = ConvertCoordFromPositionToPixel(pos);
+                            RECT tr = { pt.x - 15, pt.y - 6, pt.x + 15, pt.y + 6 };
+                            DrawTextA(hDC, lbl.c_str(), -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                            nextLbl += 500.0;
+                            placed   = true;
+                        }
+                        accum += seg;
+                    }
+
+                    // Way shorter than 250 m: one label at the middle node.
+                    if (!placed)
+                    {
+                        const size_t mid = way.geometry.size() / 2;
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = way.geometry[mid].lat;
+                        pos.m_Longitude = way.geometry[mid].lon;
+                        const POINT pt = ConvertCoordFromPositionToPixel(pos);
+                        RECT tr = { pt.x - 15, pt.y - 6, pt.x + 15, pt.y + 6 };
+                        DrawTextA(hDC, lbl.c_str(), -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    }
+                }
+
+                SelectObject(hDC, prevFont);
+                DeleteObject(labelFont);
+            }
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
@@ -1533,7 +1634,9 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     const int CBX_GAP   = 4;        ///< Gap between checkbox right edge and item label
     const int MENU_W    = 180 * (14 + fo) / 14; ///< Menu width scaled with item font; right-aligned with the button
 
-    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; bool hasBgButtons = false; };
+    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; bool hasBgButtons = false; bool disabled = false; };
+
+    const bool osmBusy = settings->IsOsmBusy();
 
     MenuRow rows[] = {
         { true,  "Windows",            false, false,                               -1 },
@@ -1561,6 +1664,9 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         { false, "Appr Est Colors",    true,  settings->GetApprEstColors(),        17 },
         { false, "Fonts",              false, false,                               -1, true  },
         { false, "BG opacity",         false, false,                               -1, false, true },
+        { true,  "TAXI",              false, false,                               -1 },
+        { false, "Update TAXI info",  false, false,                               22, false, false, osmBusy },
+        { false, "Show TAXI overlay", true,  this->showTaxiOverlay,               23 },
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -1715,7 +1821,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         else
         {
             // Clickable item row — hover highlight and optional checkbox.
-            bool rowHovered = PtInRect(&rowRect, cursor) != 0;
+            bool rowHovered = !row.disabled && PtInRect(&rowRect, cursor) != 0;
             if (rowHovered)
             {
                 auto hoverBrush = CreateSolidBrush(RGB(45, 70, 115));
@@ -1747,11 +1853,16 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
             SelectObject(hDC, itemFont);
             RECT textRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, mx + MENU_W - OUTER_PAD, iy + ITEM_H };
-            SetTextColor(hDC, rowHovered ? TAG_COLOR_WHITE : TAG_COLOR_LIST_GRAY);
+            SetTextColor(hDC, row.disabled  ? RGB(70, 70, 70)
+                            : rowHovered    ? TAG_COLOR_WHITE
+                                            : TAG_COLOR_LIST_GRAY);
             DrawTextA(hDC, row.label, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-            std::string objId = std::format("MENU|{}", row.itemIdx);
-            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, objId.c_str(), rowRect, false, row.label);
+            if (!row.disabled)
+            {
+                std::string objId = std::format("MENU|{}", row.itemIdx);
+                AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, objId.c_str(), rowRect, false, row.label);
+            }
         }
 
         iy += rh;
@@ -2062,6 +2173,14 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 19) { settings->ToggleSoundAirborne(); }
             else if (idx == 20) { settings->ToggleSoundGndTransfer(); }
             else if (idx == 21) { settings->ToggleSoundReadyTakeoff(); }
+            else if (idx == 22) // Update TAXI info
+            {
+                settings->StartOsmFetch();
+            }
+            else if (idx == 23) // Show TAXI overlay
+            {
+                this->showTaxiOverlay = !this->showTaxiOverlay;
+            }
             else if (idx == 4) { settings->ToggleDepRateVisible(); }
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
@@ -2071,8 +2190,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 10) { settings->DecreaseBgOpacity(); }
             else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
-        // Keep menu open for window toggles (4-7, 16) and notification toggles (19-21); close for all others
-        if (idx < 4 || idx == 12 || (idx >= 13 && idx != 16 && idx != 17 && idx < 19)) { this->startMenuOpen = false; }
+        // Keep menu open for window toggles (4-7, 16), notification toggles (19-21), and TAXI overlay toggle (23); close for all others
+        if (idx < 4 || idx == 12 || idx == 22 || (idx >= 13 && idx != 16 && idx != 17 && idx < 19)) { this->startMenuOpen = false; }
 
         std::string clickSnd = GetPluginDirectory() + "\\click.wav";
         PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);

@@ -8,8 +8,10 @@
 #include "pch.h"
 #include "CFlowX_Settings.h"
 #include "helpers.h"
+#include "osm_taxiways.h"
 #include <filesystem>
 #include <fstream>
+#include <chrono>
 #include <future>
 #include <semver/semver.hpp>
 
@@ -148,6 +150,64 @@ CFlowX_Settings::CFlowX_Settings()
     {
         this->latestVersion = std::async(FetchLatestVersion);
     }
+
+    this->StartOsmCacheLoad();
+}
+
+void CFlowX_Settings::StartOsmCacheLoad()
+{
+    this->LogDebugMessage("Loading taxiway cache from disk", "OSM");
+    this->osmFuture = std::async(std::launch::async, loadCachedTaxiways);
+}
+
+void CFlowX_Settings::StartOsmFetch()
+{
+    if (this->IsOsmBusy()) return;
+    this->LogDebugMessage("Starting Overpass API fetch", "OSM");
+    this->osmFuture = std::async(std::launch::async, fetchLOWWTaxiways);
+}
+
+bool CFlowX_Settings::IsOsmBusy() const
+{
+    return this->osmFuture.valid() &&
+           this->osmFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready;
+}
+
+void CFlowX_Settings::PollOsmFuture()
+{
+    if (!this->osmFuture.valid()) return;
+    if (this->osmFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) return;
+
+    auto result = this->osmFuture.get();
+    if (!result.has_value())
+    {
+        this->LogDebugMessage(std::format("Failed: {}", result.error()), "OSM");
+        return;
+    }
+
+    this->osmData = std::move(result.value());
+
+    // Annotate any taxiway whose ref or name matches a configured holding point.
+    for (auto& way : this->osmData.ways)
+    {
+        for (const auto& [icao, apt] : this->airports)
+        {
+            bool matched = false;
+            for (const auto& [rwyName, rwy] : apt.runways)
+            {
+                if ((!way.ref.empty()  && rwy.holdingPoints.contains(way.ref)) ||
+                    (!way.name.empty() && rwy.holdingPoints.contains(way.name)))
+                {
+                    way.type = AerowayType::Taxiway_HoldingPoint;
+                    matched  = true;
+                    break;
+                }
+            }
+            if (matched) break;
+        }
+    }
+
+    this->LogDebugMessage(std::format("Loaded {} ways", this->osmData.ways.size()), "OSM");
 }
 
 /// @brief Loads plugin settings (global toggles and window positions) from settings.json in the plugin directory.
@@ -487,6 +547,7 @@ void CFlowX_Settings::LoadConfig()
 
         if (json_airport.contains("scratchpadClearExclusions"))
             ap.scratchpadClearExclusions = json_airport["scratchpadClearExclusions"].get<std::vector<std::string>>();
+        ap.osmShowTaxilanes = json_airport.value("osmShowTaxilanes", true);
 
         json json_geoGnds;
         try
