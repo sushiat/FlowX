@@ -172,4 +172,10 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @brief Clears all unacknowledged change flags for the given airport ICAO.
     /// @note Called from RadarScreen when the user clicks the WX/ATIS window row.
     void AckWeather(const std::string& icao);
+
+    /// @brief Returns the callsign→stand assignment map (populated from Ground Radar scratch-pad).
+    [[nodiscard]] const std::map<std::string, std::string>& GetStandAssignment() const
+    {
+        return this->standAssignment;
+    }
 };

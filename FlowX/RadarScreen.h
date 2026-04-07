@@ -15,6 +15,7 @@
 #include "constants.h"
 #include "EuroScope/EuroScopePlugIn.h"
 #include "cachedTagData.h"
+#include "taxi_graph.h"
 
 /// @brief Per-aircraft departure information rendered as an on-screen overlay near the radar target.
 struct depInfo
@@ -116,40 +117,51 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     POINT                                         approachEstWindowPos      = {-1, -1}; ///< Top-left corner of the Approach Estimate window; (-1,-1) until first draw (auto-positioned)
     int                                           approachEstWindowH        = 380;      ///< Current height of the Approach Estimate window in pixels
     int                                           approachEstWindowW        = 260;      ///< Current width of the Approach Estimate window in pixels
-    std::map<std::string, std::string>            approachStations;                ///< Callsign -> primary frequency string for online APP controllers (facility 5)
-    std::map<std::string, std::string>            centerStations;                  ///< Callsign -> primary frequency string for online CTR controllers (facility 6)
-    bool                                          debug;                           ///< When true, controller connect/disconnect events are logged to the chat window
-    POINT                                         depRateLastDrag = {-1, -1};      ///< Previous drag cursor position for the departure rate window; (-1,-1) when not dragging
-    std::map<std::string, std::vector<ULONGLONG>> depRateLog;                      ///< Runway designator -> list of takeoff timestamps (GetTickCount64 ms) used for per-hour departure rate counting
-    std::vector<DepRateRowCache>                  depRateRowsCache;                ///< Cached per-runway rows for the DEP/H window; rebuilt every second by UpdateTagCache()
-    POINT                                         depRateWindowPos = {-1, -1};     ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
-    std::set<std::string>                         gndTransferSquares;              ///< Callsigns for which a GND-transfer green square is currently shown on the radar
-    std::map<std::string, ULONGLONG>              gndTransferSquareTimes;          ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
-    std::map<std::string, std::string>            groundStations;                  ///< Callsign -> primary frequency string for online GND controllers (facility 3)
-    ULONGLONG                                     napAckClickTick   = 0;           ///< Tick (GetTickCount64) at which the ACK button was clicked; 0 when not animating
-    bool                                          napAckPressed     = false;       ///< True while the left mouse button is held down over the ACK button
-    POINT                                         napLastDrag       = {-1, -1};    ///< Previous drag cursor position for the NAP reminder window
-    int                                           napLastHoverType  = -1;          ///< Last object type reported by OnOverScreenObject for NAP objects; used to detect enter/leave transitions
-    bool                                          napReminderActive = false;       ///< True while the NAP reminder window should be visible
-    std::string                                   napReminderAirport;              ///< ICAO code of the airport whose NAP reminder is currently active
-    POINT                                         napWindowPos = {-1, -1};         ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
-    std::map<std::string, depInfo>                radarTargetDepartureInfos;       ///< Callsign -> departure overlay data for aircraft currently shown on the radar
-    bool                                          showTaxiOverlay    = false;      ///< When true, taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
-    int                                           startBtnLastHoverType  = -1;     ///< Last object type reported by OnOverScreenObject for the Start button; used to detect hover transitions
-    bool                                          startBtnPressed    = false;      ///< True while the left mouse button is held down over the Start button
-    int                                           startMenuLastHoverType = -1;     ///< Last object type reported by OnOverScreenObject for Start menu items; used to detect hover transitions
-    bool                                          startMenuOpen      = false;      ///< True while the Start button popup menu is visible
-    std::map<std::string, std::string>            towerStations;                   ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)
-    POINT                                         twrInboundLastDrag = {-1, -1};   ///< Previous drag cursor position for the TWR Inbound window
-    std::vector<TwrInboundRowCache>               twrInboundRowsCache;             ///< Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates)
-    POINT                                         twrInboundWindowPos = {-1, -1};  ///< Top-left corner of the TWR Inbound window; (-1,-1) until first draw
-    POINT                                         twrOutboundLastDrag = {-1, -1};  ///< Previous drag cursor position for the TWR Outbound window
-    std::vector<TwrOutboundRowCache>              twrOutboundRowsCache;            ///< Cached per-aircraft rows for the TWR Outbound window; rebuilt every second by UpdateTagCache()
-    POINT                                         twrOutboundWindowPos = {-1, -1}; ///< Top-left corner of the TWR Outbound window; (-1,-1) until first draw
-    int                                           winCloseLastHoverType = -1;       ///< Last object type reported by OnOverScreenObject for window close buttons; used to detect enter/leave transitions
-    POINT                                         weatherLastDrag      = {-1, -1}; ///< Previous drag cursor position for the WX/ATIS window
-    std::vector<WeatherRowCache>                  weatherRowsCache;                ///< Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache()
-    POINT                                         weatherWindowPos = {-1, -1};     ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw
+    std::map<std::string, std::string>            approachStations;                     ///< Callsign -> primary frequency string for online APP controllers (facility 5)
+    std::map<std::string, std::string>            centerStations;                       ///< Callsign -> primary frequency string for online CTR controllers (facility 6)
+    bool                                          debug;                                ///< When true, controller connect/disconnect events are logged to the chat window
+    POINT                                         depRateLastDrag = {-1, -1};           ///< Previous drag cursor position for the departure rate window; (-1,-1) when not dragging
+    std::map<std::string, std::vector<ULONGLONG>> depRateLog;                           ///< Runway designator -> list of takeoff timestamps (GetTickCount64 ms) used for per-hour departure rate counting
+    std::vector<DepRateRowCache>                  depRateRowsCache;                     ///< Cached per-runway rows for the DEP/H window; rebuilt every second by UpdateTagCache()
+    POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
+    std::set<std::string>                         gndTransferSquares;                   ///< Callsigns for which a GND-transfer green square is currently shown on the radar
+    std::map<std::string, ULONGLONG>              gndTransferSquareTimes;               ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
+    std::map<std::string, std::string>            groundStations;                       ///< Callsign -> primary frequency string for online GND controllers (facility 3)
+    ULONGLONG                                     napAckClickTick   = 0;                ///< Tick (GetTickCount64) at which the ACK button was clicked; 0 when not animating
+    bool                                          napAckPressed     = false;            ///< True while the left mouse button is held down over the ACK button
+    POINT                                         napLastDrag       = {-1, -1};         ///< Previous drag cursor position for the NAP reminder window
+    int                                           napLastHoverType  = -1;               ///< Last object type reported by OnOverScreenObject for NAP objects; used to detect enter/leave transitions
+    bool                                          napReminderActive = false;            ///< True while the NAP reminder window should be visible
+    std::string                                   napReminderAirport;                   ///< ICAO code of the airport whose NAP reminder is currently active
+    POINT                                         napWindowPos = {-1, -1};              ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
+    std::map<std::string, depInfo>                radarTargetDepartureInfos;            ///< Callsign -> departure overlay data for aircraft currently shown on the radar
+    bool                                          showTaxiLabels         = false;       ///< When true, taxiway name labels are drawn over the TAXI network overlay
+    bool                                          showTaxiOverlay        = false;       ///< When true, taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
+    bool                                          showTaxiRoutes         = false;       ///< When true, all assigned taxi routes are drawn persistently, clipped to the remaining portion
+    int                                           startBtnLastHoverType  = -1;          ///< Last object type reported by OnOverScreenObject for the Start button; used to detect hover transitions
+    bool                                          startBtnPressed        = false;       ///< True while the left mouse button is held down over the Start button
+    int                                           startMenuLastHoverType = -1;          ///< Last object type reported by OnOverScreenObject for Start menu items; used to detect hover transitions
+    bool                                          startMenuOpen          = false;       ///< True while the Start button popup menu is visible
+    std::map<std::string, TaxiRoute>              taxiAssigned;                         ///< Callsign -> controller-confirmed taxi route (green); auto-removed 2 s after assignment
+    std::map<std::string, TaxiRoute>              taxiTracked;                          ///< Callsign -> persistent taxi route for "Show routes" display; cleared on disconnect or re-assignment
+    std::map<std::string, ULONGLONG>              taxiAssignedTimes;                    ///< Tick (GetTickCount64 ms) when each confirmed taxi route was last assigned
+    GeoPoint                                      taxiCursorSnap;                       ///< Current snapped cursor geo-position; updated every OnRefresh frame during planning mode
+    TaxiRoute                                     taxiGreenPreview;                     ///< Current green preview route recomputed each frame from origin through waypoints to cursor snap
+    POINT                                         taxiOriginPx = {-1, -1};              ///< Screen pixel where right-click activated planning; used for accept-suggestion proximity test
+    std::string                                   taxiPlanActive;                       ///< Callsign currently being planned; empty when not in planning mode
+    std::map<std::string, TaxiRoute>              taxiSuggested;                        ///< Callsign -> auto-calculated suggested route (yellow); computed on planning activation
+    std::vector<GeoPoint>                         taxiWaypoints;                        ///< Mandatory via-points added by middle-click; route recalculated through all in order
+    std::map<std::string, std::string>            towerStations;                        ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)
+    POINT                                         twrInboundLastDrag = {-1, -1};        ///< Previous drag cursor position for the TWR Inbound window
+    std::vector<TwrInboundRowCache>               twrInboundRowsCache;                  ///< Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates)
+    POINT                                         twrInboundWindowPos = {-1, -1};       ///< Top-left corner of the TWR Inbound window; (-1,-1) until first draw
+    POINT                                         twrOutboundLastDrag = {-1, -1};       ///< Previous drag cursor position for the TWR Outbound window
+    std::vector<TwrOutboundRowCache>              twrOutboundRowsCache;                 ///< Cached per-aircraft rows for the TWR Outbound window; rebuilt every second by UpdateTagCache()
+    POINT                                         twrOutboundWindowPos  = {-1, -1};     ///< Top-left corner of the TWR Outbound window; (-1,-1) until first draw
+    int                                           winCloseLastHoverType = -1;           ///< Last object type reported by OnOverScreenObject for window close buttons; used to detect enter/leave transitions
+    POINT                                         weatherLastDrag       = {-1, -1};     ///< Previous drag cursor position for the WX/ATIS window
+    std::vector<WeatherRowCache>                  weatherRowsCache;                     ///< Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache()
+    POINT                                         weatherWindowPos = {-1, -1};          ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw
 
     /// @brief Constructs a RadarScreen with debug mode off.
     RadarScreen();

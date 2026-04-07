@@ -98,16 +98,10 @@ Within every class, order members: `private` → `protected` → `public`.
 
 Within each access section: variables first (grouped, no blank lines between them), then a blank line, then functions (with doc-comment blocks; blank lines between functions). Both groups sorted alphabetically.
 
-Variable declarations use **3-column alignment** (columns computed per access section):
-- **Col 1 — Definition** (`type name`): right-padded to the length of the longest `type name` in the section.
-- **Col 2 — Assignment** (`= value;` or `;`): starts one column past Col 1. Variables with an initializer get `= value;` here; variables without one get `;` immediately after their name (no pre-padding), then fill with spaces to Col 3.
-- **Col 3 — Documentation** (`///<`): starts 2 columns past the end of the longest full declaration (`type name = value;`) in the section.
+Variable declarations use 3-column alignment (type, assignment, `///<` doc comment). After adding or modifying members, run clang-format to apply alignment automatically:
 
-```cpp
-// Example — longest definition is `airports` (43 chars), longest assignment is `= false;` (8 chars):
-    std::map<std::string, airport> airports;          ///< Airport configurations keyed by ICAO code
-    bool autoRestore                        = false;  ///< Whether auto-restore is enabled
-    int depRateWindowX                      = -1;     ///< Last-saved X position; -1 = not yet positioned
-    std::future<std::string> latestVersion;           ///< Async future for version fetch
-    bool updateCheck;                                 ///< Whether update check is enabled
 ```
+"C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\Llvm\bin\clang-format.exe" -i <file>
+```
+
+The `.clang-format` at the repo root configures `AlignConsecutiveDeclarations`, `AlignConsecutiveAssignments`, and `AlignTrailingComments` to produce the correct 3-column layout.

@@ -9,6 +9,7 @@
 #include "CFlowX_Settings.h"
 #include "helpers.h"
 #include "osm_taxiways.h"
+#include "taxi_graph.h"
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -173,6 +174,15 @@ void CFlowX_Settings::RefreshActiveRunways()
     }
 }
 
+void CFlowX_Settings::RebuildTaxiGraph()
+{
+    if (this->osmData.ways.empty() || this->airports.empty()) return;
+    const auto& ap = this->airports.begin()->second;
+    this->osmGraph.Build(this->osmData, ap);
+    this->LogDebugMessage(
+        std::format("TaxiGraph built: {} nodes", this->osmGraph.NodeCount()), "TAXI");
+}
+
 void CFlowX_Settings::StartOsmCacheLoad()
 {
     this->LogDebugMessage("Loading taxiway cache from disk", "OSM");
@@ -282,6 +292,8 @@ void CFlowX_Settings::PollOsmFuture()
 
         SaveOsmCache(this->osmData);
     }
+
+    this->RebuildTaxiGraph();
 }
 
 /// @brief Loads plugin settings (global toggles and window positions) from settings.json in the plugin directory.

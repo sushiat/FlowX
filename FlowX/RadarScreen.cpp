@@ -53,7 +53,8 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
             double      freq          = Controller.GetPrimaryFrequency();
             std::string freqFormatted = std::format("{:.3f}", freq);
 
-            auto updateStation = [&](std::map<std::string, std::string>& stations, const char* label) {
+            auto updateStation = [&](std::map<std::string, std::string>& stations, const char* label)
+            {
                 auto it = stations.find(cs);
                 if (it == stations.end())
                 {
@@ -91,8 +92,14 @@ void RadarScreen::OnControllerPositionUpdate(EuroScopePlugIn::CController Contro
             }
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnControllerPositionUpdate", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnControllerPositionUpdate", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnControllerPositionUpdate", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnControllerPositionUpdate", "unknown exception");
+    }
 }
 
 /// @brief Removes the controller from the appropriate station set when they go offline.
@@ -160,8 +167,14 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
             }
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnControllerDisconnect", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnControllerDisconnect", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnControllerDisconnect", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnControllerDisconnect", "unknown exception");
+    }
 }
 
 /// @brief Dispatches all custom drawing to the four extract draw helpers; no calculations here.
@@ -175,19 +188,21 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         {
             auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
 
-            // Draw taxiway/taxilane overlay when enabled.
-            if (this->showTaxiOverlay &&
+            // Draw taxiway/taxilane overlay when enabled (before planning routes so routes paint on top).
+            if ((this->showTaxiOverlay || this->showTaxiLabels) &&
                 (!settings->osmData.ways.empty() || !settings->osmData.holdingPositions.empty()))
             {
                 // Pass 1 — draw polylines, one pen per way.
+                if (this->showTaxiOverlay)
                 for (const auto& way : settings->osmData.ways)
                 {
-                    const COLORREF col = (way.type == AerowayType::Taxiway_HoldingPoint)  ? RGB(255,  80,  80)
-                                       : (way.type == AerowayType::Taxiway_Intersection) ? RGB( 80, 150, 255)
-                                       : (way.type == AerowayType::Taxilane)             ? RGB(  0, 200, 255)
-                                                                                          : RGB(255, 220,   0);
-                    HPEN pen  = CreatePen(PS_SOLID, 2, col);
-                    HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
+                    const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
+                                          : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
+                                          : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
+                                          : (way.type == AerowayType::Runway)               ? RGB(180, 180, 180)
+                                                                                            : RGB(255, 220, 0);
+                    HPEN           pen  = CreatePen(PS_SOLID, 2, col);
+                    HPEN           prev = static_cast<HPEN>(SelectObject(hDC, pen));
 
                     bool first = true;
                     for (const auto& gp : way.geometry)
@@ -195,136 +210,296 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         EuroScopePlugIn::CPosition pos;
                         pos.m_Latitude  = gp.lat;
                         pos.m_Longitude = gp.lon;
-                        const POINT pt = ConvertCoordFromPositionToPixel(pos);
-                        if (first) { MoveToEx(hDC, pt.x, pt.y, nullptr); first = false; }
-                        else         LineTo(hDC, pt.x, pt.y);
+                        const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                        if (first)
+                        {
+                            MoveToEx(hDC, pt.x, pt.y, nullptr);
+                            first = false;
+                        }
+                        else
+                            LineTo(hDC, pt.x, pt.y);
                     }
 
                     SelectObject(hDC, prev);
                     DeleteObject(pen);
                 }
 
-                // Pass 2 — draw name labels at 500 m intervals (first at 250 m).
-                // Intersection labels are drawn only once per unique ref/name.
-                HFONT labelFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-                HFONT prevFont  = static_cast<HFONT>(SelectObject(hDC, labelFont));
-                SetBkMode(hDC, TRANSPARENT);
-
-                // Draws text centred at pt on a white background rectangle with 2 px padding.
-                auto drawLabel = [&](POINT pt, const std::string& text, COLORREF col)
+                // Pass 2+3 — labels and holding position nodes; gated on showTaxiLabels.
+                if (this->showTaxiLabels)
                 {
-                    RECT m = { 0, 0, 200, 30 };
-                    DrawTextA(hDC, text.c_str(), -1, &m, DT_CALCRECT | DT_SINGLELINE);
-                    const int hw = (m.right  - m.left) / 2 + 2;
-                    const int hh = (m.bottom - m.top)  / 2 + 1;
-                    RECT bg = { pt.x - hw, pt.y - hh, pt.x + hw, pt.y + hh };
-                    auto br = CreateSolidBrush(RGB(255, 255, 255));
-                    FillRect(hDC, &bg, br);
-                    DeleteObject(br);
-                    SetTextColor(hDC, col);
-                    DrawTextA(hDC, text.c_str(), -1, &bg, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                };
+                    // Intersection labels are drawn only once per unique ref/name.
+                    HFONT labelFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                    HFONT prevFont  = static_cast<HFONT>(SelectObject(hDC, labelFont));
+                    SetBkMode(hDC, TRANSPARENT);
 
-                std::set<std::string> drawnIsxLabels;
-                std::set<std::string> drawnHpLabels;
-
-                for (const auto& way : settings->osmData.ways)
-                {
-                    if (way.geometry.size() < 2) continue;
-
-                    const std::string& lbl = way.ref.empty() ? way.name : way.ref;
-                    if (lbl.empty()) continue;
-
-                    // Skip duplicate intersection labels.
-                    if (way.type == AerowayType::Taxiway_Intersection)
+                    // Draws text centred at pt on a white background rectangle with 2 px padding.
+                    auto drawLabel = [&](POINT pt, const std::string& text, COLORREF col)
                     {
-                        if (drawnIsxLabels.contains(lbl)) continue;
-                        drawnIsxLabels.insert(lbl);
+                        RECT m = {0, 0, 200, 30};
+                        DrawTextA(hDC, text.c_str(), -1, &m, DT_CALCRECT | DT_SINGLELINE);
+                        const int hw = (m.right - m.left) / 2 + 2;
+                        const int hh = (m.bottom - m.top) / 2 + 1;
+                        RECT      bg = {pt.x - hw, pt.y - hh, pt.x + hw, pt.y + hh};
+                        auto      br = CreateSolidBrush(RGB(255, 255, 255));
+                        FillRect(hDC, &bg, br);
+                        DeleteObject(br);
+                        SetTextColor(hDC, col);
+                        DrawTextA(hDC, text.c_str(), -1, &bg, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    };
+
+                    std::set<std::string> drawnIsxLabels;
+                    std::set<std::string> drawnHpLabels;
+
+                    for (const auto& way : settings->osmData.ways)
+                    {
+                        if (way.geometry.size() < 2)
+                            continue;
+
+                        // Runways don't need per-segment labels in the overlay.
+                        if (way.type == AerowayType::Runway)
+                            continue;
+
+                        const std::string& lbl = way.ref.empty() ? way.name : way.ref;
+                        if (lbl.empty())
+                            continue;
+
+                        // Skip duplicate intersection labels.
+                        if (way.type == AerowayType::Taxiway_Intersection)
+                        {
+                            if (drawnIsxLabels.contains(lbl))
+                                continue;
+                            drawnIsxLabels.insert(lbl);
+                        }
+
+                        // Skip duplicate holding-point labels.
+                        if (way.type == AerowayType::Taxiway_HoldingPoint)
+                        {
+                            if (drawnHpLabels.contains(lbl))
+                                continue;
+                            drawnHpLabels.insert(lbl);
+                        }
+
+                        const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(200, 60, 60)
+                                                 : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 120, 220)
+                                                 : (way.type == AerowayType::Taxilane)             ? RGB(0, 160, 210)
+                                                                                                   : RGB(180, 140, 0);
+
+                        double accum   = 0.0;
+                        double nextLbl = 250.0;
+                        bool   placed  = false;
+
+                        for (size_t k = 1; k < way.geometry.size(); ++k)
+                        {
+                            const auto&  a    = way.geometry[k - 1];
+                            const auto&  b    = way.geometry[k];
+                            const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
+                            const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
+                            const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
+                            const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
+                            const double h    = std::sin(dLat / 2) * std::sin(dLat / 2) + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
+                            const double seg  = 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
+
+                            if (accum + seg >= nextLbl)
+                            {
+                                EuroScopePlugIn::CPosition pos;
+                                pos.m_Latitude  = b.lat;
+                                pos.m_Longitude = b.lon;
+                                drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
+                                nextLbl += 500.0;
+                                placed = true;
+                            }
+                            accum += seg;
+                        }
+
+                        // Way shorter than 250 m: one label at the middle node.
+                        if (!placed)
+                        {
+                            const size_t               mid = way.geometry.size() / 2;
+                            EuroScopePlugIn::CPosition pos;
+                            pos.m_Latitude  = way.geometry[mid].lat;
+                            pos.m_Longitude = way.geometry[mid].lon;
+                            drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
+                        }
                     }
 
-                    // Skip duplicate holding-point labels.
-                    if (way.type == AerowayType::Taxiway_HoldingPoint)
+                    // Pass 3 — draw holding position nodes as filled orange circles with a designator label.
+                    if (!settings->osmData.holdingPositions.empty())
                     {
-                        if (drawnHpLabels.contains(lbl)) continue;
-                        drawnHpLabels.insert(lbl);
-                    }
+                        HPEN   hpPen       = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));
+                        HBRUSH hpBrush     = CreateSolidBrush(RGB(255, 140, 0));
+                        HPEN   prevHpPen   = static_cast<HPEN>(SelectObject(hDC, hpPen));
+                        HBRUSH prevHpBrush = static_cast<HBRUSH>(SelectObject(hDC, hpBrush));
 
-                    const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)  ? RGB(200,  60,  60)
-                                           : (way.type == AerowayType::Taxiway_Intersection)  ? RGB( 60, 120, 220)
-                                           : (way.type == AerowayType::Taxilane)              ? RGB(  0, 160, 210)
-                                                                                               : RGB(180, 140,   0);
-
-                    double accum   = 0.0;
-                    double nextLbl = 250.0;
-                    bool   placed  = false;
-
-                    for (size_t k = 1; k < way.geometry.size(); ++k)
-                    {
-                        const auto& a = way.geometry[k - 1];
-                        const auto& b = way.geometry[k];
-                        const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
-                        const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
-                        const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
-                        const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
-                        const double h    = std::sin(dLat / 2) * std::sin(dLat / 2)
-                                          + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
-                        const double seg  = 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
-
-                        if (accum + seg >= nextLbl)
+                        for (const auto& hp : settings->osmData.holdingPositions)
                         {
                             EuroScopePlugIn::CPosition pos;
-                            pos.m_Latitude  = b.lat;
-                            pos.m_Longitude = b.lon;
-                            drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
-                            nextLbl += 500.0;
-                            placed   = true;
+                            pos.m_Latitude  = hp.pos.lat;
+                            pos.m_Longitude = hp.pos.lon;
+                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                            Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
+
+                            const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
+                            if (!lbl.empty())
+                                drawLabel({pt.x + 13, pt.y}, lbl, RGB(160, 80, 0));
                         }
-                        accum += seg;
+
+                        SelectObject(hDC, prevHpBrush);
+                        SelectObject(hDC, prevHpPen);
+                        DeleteObject(hpBrush);
+                        DeleteObject(hpPen);
                     }
 
-                    // Way shorter than 250 m: one label at the middle node.
-                    if (!placed)
-                    {
-                        const size_t mid = way.geometry.size() / 2;
-                        EuroScopePlugIn::CPosition pos;
-                        pos.m_Latitude  = way.geometry[mid].lat;
-                        pos.m_Longitude = way.geometry[mid].lon;
-                        drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
-                    }
+                    SelectObject(hDC, prevFont);
+                    DeleteObject(labelFont);
                 }
-
-                // Pass 3 — draw holding position nodes as filled orange circles with a designator label.
-                if (!settings->osmData.holdingPositions.empty())
-                {
-                    HPEN   hpPen  = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));
-                    HBRUSH hpBrush = CreateSolidBrush(RGB(255, 140, 0));
-                    HPEN   prevHpPen  = static_cast<HPEN>  (SelectObject(hDC, hpPen));
-                    HBRUSH prevHpBrush = static_cast<HBRUSH>(SelectObject(hDC, hpBrush));
-
-                    for (const auto& hp : settings->osmData.holdingPositions)
-                    {
-                        EuroScopePlugIn::CPosition pos;
-                        pos.m_Latitude  = hp.pos.lat;
-                        pos.m_Longitude = hp.pos.lon;
-                        const POINT pt = ConvertCoordFromPositionToPixel(pos);
-                        Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
-
-                        const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
-                        if (!lbl.empty())
-                            drawLabel({ pt.x + 13, pt.y }, lbl, RGB(160, 80, 0));
-                    }
-
-                    SelectObject(hDC, prevHpBrush);
-                    SelectObject(hDC, prevHpPen);
-                    DeleteObject(hpBrush);
-                    DeleteObject(hpPen);
-                }
-
-                SelectObject(hDC, prevFont);
-                DeleteObject(labelFont);
             }
+
+            // Draw confirmed taxi routes; prune entries older than 2 s.
+            if (!this->taxiAssigned.empty())
+            {
+                const ULONGLONG          now = GetTickCount64();
+                std::vector<std::string> toErase;
+                for (const auto& [cs, _] : this->taxiAssigned)
+                {
+                    auto tIt = this->taxiAssignedTimes.find(cs);
+                    if (tIt == this->taxiAssignedTimes.end() || now - tIt->second >= 2000)
+                        toErase.push_back(cs);
+                }
+                for (const auto& cs : toErase)
+                {
+                    this->taxiAssigned.erase(cs);
+                    this->taxiAssignedTimes.erase(cs);
+                }
+
+                HPEN pen  = CreatePen(PS_SOLID, 3, RGB(80, 220, 80));
+                HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
+                for (const auto& [cs, route] : this->taxiAssigned)
+                {
+                    if (!route.valid || route.polyline.empty())
+                        continue;
+                    bool first = true;
+                    for (const auto& gp : route.polyline)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = gp.lat;
+                        pos.m_Longitude = gp.lon;
+                        POINT pt        = ConvertCoordFromPositionToPixel(pos);
+                        if (first)
+                        {
+                            MoveToEx(hDC, pt.x, pt.y, nullptr);
+                            first = false;
+                        }
+                        else
+                            LineTo(hDC, pt.x, pt.y);
+                    }
+                }
+                SelectObject(hDC, prev);
+                DeleteObject(pen);
+            }
+
+            // Draw persistent tracked routes (remaining portion from current aircraft position).
+            if (this->showTaxiRoutes && !this->taxiTracked.empty())
+            {
+                HPEN pen  = CreatePen(PS_SOLID, 2, RGB(80, 220, 80));
+                HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
+
+                for (const auto& [cs, route] : this->taxiTracked)
+                {
+                    if (!route.valid || route.polyline.size() < 2)
+                        continue;
+                    auto rt = GetPlugIn()->RadarTargetSelect(cs.c_str());
+                    if (!rt.IsValid() || !rt.GetPosition().IsValid())
+                        continue;
+
+                    // Find the polyline node closest to the aircraft in screen space.
+                    const POINT acPt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
+                    size_t closestIdx  = 0;
+                    long   closestDist = LONG_MAX;
+                    for (size_t i = 0; i < route.polyline.size(); ++i)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = route.polyline[i].lat;
+                        pos.m_Longitude = route.polyline[i].lon;
+                        const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                        const long  dx  = pt.x - acPt.x;
+                        const long  dy  = pt.y - acPt.y;
+                        const long  dSq = dx * dx + dy * dy;
+                        if (dSq < closestDist)
+                        {
+                            closestDist = dSq;
+                            closestIdx  = i;
+                        }
+                    }
+
+                    // Draw from aircraft pixel position through the remaining polyline nodes.
+                    MoveToEx(hDC, acPt.x, acPt.y, nullptr);
+                    for (size_t i = closestIdx; i < route.polyline.size(); ++i)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = route.polyline[i].lat;
+                        pos.m_Longitude = route.polyline[i].lon;
+                        const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                        LineTo(hDC, pt.x, pt.y);
+                    }
+                }
+
+                SelectObject(hDC, prev);
+                DeleteObject(pen);
+            }
+
+            // Draw planning mode: yellow suggestion + green preview + via-point markers.
+            if (!this->taxiPlanActive.empty())
+            {
+                auto drawRoute = [&](const TaxiRoute& route, COLORREF col, int width)
+                {
+                    if (!route.valid || route.polyline.empty())
+                        return;
+                    HPEN pen   = CreatePen(PS_SOLID, width, col);
+                    HPEN prev  = static_cast<HPEN>(SelectObject(hDC, pen));
+                    bool first = true;
+                    for (const auto& gp : route.polyline)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = gp.lat;
+                        pos.m_Longitude = gp.lon;
+                        POINT pt        = ConvertCoordFromPositionToPixel(pos);
+                        if (first)
+                        {
+                            MoveToEx(hDC, pt.x, pt.y, nullptr);
+                            first = false;
+                        }
+                        else
+                            LineTo(hDC, pt.x, pt.y);
+                    }
+                    SelectObject(hDC, prev);
+                    DeleteObject(pen);
+                };
+
+                auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
+                if (sugIt != this->taxiSuggested.end())
+                    drawRoute(sugIt->second, RGB(255, 220, 0), 2);        // yellow suggestion
+                drawRoute(this->taxiGreenPreview, RGB(100, 255, 100), 3); // green preview
+
+                // Draw via-point markers as small cyan squares.
+                for (const auto& wp : this->taxiWaypoints)
+                {
+                    EuroScopePlugIn::CPosition wpos;
+                    wpos.m_Latitude  = wp.lat;
+                    wpos.m_Longitude = wp.lon;
+                    POINT  pt        = ConvertCoordFromPositionToPixel(wpos);
+                    HPEN   wpen      = CreatePen(PS_SOLID, 1, RGB(0, 220, 220));
+                    HBRUSH wbrush    = CreateSolidBrush(RGB(0, 220, 220));
+                    SelectObject(hDC, wpen);
+                    SelectObject(hDC, wbrush);
+                    Rectangle(hDC, pt.x - 4, pt.y - 4, pt.x + 4, pt.y + 4);
+                    DeleteObject(wbrush);
+                    DeleteObject(wpen);
+                }
+
+            }
+
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
@@ -333,6 +508,25 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
             this->DrawDepartureInfoTag(hDC);
             this->DrawGndTransferSquares(hDC);
+
+            // Register invisible hit areas on ground aircraft for taxi planning (right-click to plan).
+            // Skip during active planning so the full-screen TAXI_PLANNING overlay catches all clicks.
+            if (settings->osmGraph.IsBuilt() && this->taxiPlanActive.empty())
+            {
+                for (auto rt = GetPlugIn()->RadarTargetSelectFirst(); rt.IsValid();
+                     rt      = GetPlugIn()->RadarTargetSelectNext(rt))
+                {
+                    auto fp = rt.GetCorrelatedFlightPlan();
+                    if (!fp.IsValid())
+                        continue;
+                    if (rt.GetPosition().GetReportedGS() > 50)
+                        continue;
+
+                    POINT pt   = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
+                    RECT  area = {pt.x - 10, pt.y - 10, pt.x + 10, pt.y + 10};
+                    AddScreenObject(SCREEN_OBJECT_TAXI_TARGET, fp.GetCallsign(), area, false, "");
+                }
+            }
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
@@ -345,10 +539,25 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             this->DrawWeatherWindow(hDC);
             this->DrawStartButton(hDC);
             this->DrawStartMenu(hDC);
+
+            // Register the full-screen planning overlay last (after all other objects) so it
+            // catches clicks regardless of what DEP_TAG, GND_TRANSFER, or window objects sit on top.
+            if (!this->taxiPlanActive.empty())
+            {
+                RECT clip{};
+                GetClipBox(hDC, &clip);
+                AddScreenObject(SCREEN_OBJECT_TAXI_PLANNING, this->taxiPlanActive.c_str(), clip, false, "");
+            }
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnRefresh", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnRefresh", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnRefresh", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnRefresh", "unknown exception");
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -358,7 +567,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 /// @brief Draws a green filled square near each landed inbound awaiting GND handoff; registers each as a clickable screen object.
 void RadarScreen::DrawGndTransferSquares(HDC hDC)
 {
-    if (this->gndTransferSquares.empty()) { return; }
+    if (this->gndTransferSquares.empty())
+    {
+        return;
+    }
 
     SetBkMode(hDC, TRANSPARENT);
     ULONGLONG now = GetTickCount64();
@@ -366,14 +578,17 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
     for (const auto& callSign : this->gndTransferSquares)
     {
         EuroScopePlugIn::CRadarTarget rt = GetPlugIn()->RadarTargetSelect(callSign.c_str());
-        if (!rt.IsValid() || !rt.GetPosition().IsValid()) { continue; }
+        if (!rt.IsValid() || !rt.GetPosition().IsValid())
+        {
+            continue;
+        }
 
         ULONGLONG elapsedSec = this->gndTransferSquareTimes.contains(callSign)
-                             ? (now - this->gndTransferSquareTimes.at(callSign)) / 1000
-                             : 0;
-        COLORREF color = elapsedSec >= 35 ? TAG_COLOR_RED
-                       : elapsedSec >= 25 ? TAG_COLOR_YELLOW
-                                          : TAG_COLOR_GREEN;
+                                   ? (now - this->gndTransferSquareTimes.at(callSign)) / 1000
+                                   : 0;
+        COLORREF  color      = elapsedSec >= 35   ? TAG_COLOR_RED
+                               : elapsedSec >= 25 ? TAG_COLOR_YELLOW
+                                                  : TAG_COLOR_GREEN;
 
         auto brush = CreateSolidBrush(color);
         auto pen   = CreatePen(PS_SOLID, 1, color);
@@ -381,7 +596,7 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
         SelectObject(hDC, pen);
 
         POINT pt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
-        RECT  sq = { pt.x - 22, pt.y + 10, pt.x - 10, pt.y + 22 };
+        RECT  sq = {pt.x - 22, pt.y + 10, pt.x - 10, pt.y + 22};
         Rectangle(hDC, sq.left, sq.top, sq.right, sq.bottom);
         AddScreenObject(SCREEN_OBJECT_GND_TRANSFER, callSign.c_str(), sq, true, "");
 
@@ -398,18 +613,21 @@ static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacity
 void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
 {
     auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settings->GetApproachEstVisible()) { return; }
+    if (!settings->GetApproachEstVisible())
+    {
+        return;
+    }
 
-    const int fo        = settings->GetFontOffset();
-    const int op        = settings->GetBgOpacity();
-    const int TITLE_H   = 13;
-    const int HDR_H     = 14 + fo;  ///< Header row carrying the runway corner labels
-    const int RESIZE_SZ = 8;        ///< Size of the draggable resize square
-    const int X_BTN     = 11;       ///< Close button size
-    const int NUM_COL_W = 48;       ///< Fixed width of the numbers column between the two bars
-    const int TICK_LONG = 10;       ///< Tick length (px into number column) for every-10-s marks
-    const int TICK_SHORT= 8;        ///< Tick length for every-5-s (non-10-s) marks
-    const int AC_PAD    = 4;        ///< Gap between the bar line and aircraft label text
+    const int fo         = settings->GetFontOffset();
+    const int op         = settings->GetBgOpacity();
+    const int TITLE_H    = 13;
+    const int HDR_H      = 14 + fo; ///< Header row carrying the runway corner labels
+    const int RESIZE_SZ  = 8;       ///< Size of the draggable resize square
+    const int X_BTN      = 11;      ///< Close button size
+    const int NUM_COL_W  = 48;      ///< Fixed width of the numbers column between the two bars
+    const int TICK_LONG  = 10;      ///< Tick length (px into number column) for every-10-s marks
+    const int TICK_SHORT = 8;       ///< Tick length for every-5-s (non-10-s) marks
+    const int AC_PAD     = 4;       ///< Gap between the bar line and aircraft label text
 
     int WIN_W = this->approachEstWindowW;
     int WIN_H = this->approachEstWindowH;
@@ -418,7 +636,7 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     {
         RECT clip;
         GetClipBox(hDC, &clip);
-        this->approachEstWindowPos.x = clip.right  - WIN_W - 20;
+        this->approachEstWindowPos.x = clip.right - WIN_W - 20;
         this->approachEstWindowPos.y = (clip.top + clip.bottom) / 2 - WIN_H / 2;
     }
 
@@ -427,39 +645,48 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
 
     // ── Geometry ──
     // Two bars flank a fixed-width numbers column, centred in the window.
-    int barLx     = wx + (WIN_W - NUM_COL_W) / 2;
-    int barRx     = barLx + NUM_COL_W;
+    int barLx      = wx + (WIN_W - NUM_COL_W) / 2;
+    int barRx      = barLx + NUM_COL_W;
     int numCenterX = barLx + NUM_COL_W / 2;
 
     int barTop    = wy + TITLE_H + HDR_H + 4;
     int barBottom = wy + WIN_H - RESIZE_SZ - 4;
-    if (barBottom <= barTop) { barBottom = barTop + 1; }
+    if (barBottom <= barTop)
+    {
+        barBottom = barTop + 1;
+    }
 
     // Scale padding: inset the usable 300→0 range so aircraft text at the extremes stays readable.
     // Top pad: small margin above the 300-s marker line.
     // Bottom pad: enough for callsign + type below the 0-s marker line.
     const int SCALE_PAD_TOP    = 34;
     const int SCALE_PAD_BOTTOM = 34;
-    int scaleTop    = barTop    + SCALE_PAD_TOP;
-    int scaleBottom = barBottom - SCALE_PAD_BOTTOM;
-    if (scaleBottom <= scaleTop) { scaleBottom = scaleTop + 1; }
+    int       scaleTop         = barTop + SCALE_PAD_TOP;
+    int       scaleBottom      = barBottom - SCALE_PAD_BOTTOM;
+    if (scaleBottom <= scaleTop)
+    {
+        scaleBottom = scaleTop + 1;
+    }
     int barHeight = scaleBottom - scaleTop;
 
     // ── Close button hover ──
-    RECT xRect    = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
-    HWND hwnd     = WindowFromDC(hDC);
+    RECT  xRect = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
+    HWND  hwnd  = WindowFromDC(hDC);
     POINT cursor;
     GetCursorPos(&cursor);
-    if (hwnd) { ScreenToClient(hwnd, &cursor); }
+    if (hwnd)
+    {
+        ScreenToClient(hwnd, &cursor);
+    }
     bool xHovered = PtInRect(&xRect, cursor) != 0;
 
     // ── Background ──
-    RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H           };
-    RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H         };
-    RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H };
+    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
+    RECT hdrRect   = {wx, wy + TITLE_H, wx + WIN_W, wy + TITLE_H + HDR_H};
 
-    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
-    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
+    FillRectAlpha(hDC, winRect, RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect, RGB(40, 40, 40), op);
 
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     FillRect(hDC, &titleRect, titleBrush);
@@ -489,9 +716,9 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
 
-    RECT dragRect = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    RECT dragRect = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_APPROACH_EST_WIN, "APPROACH_EST", dragRect, true, "");
-    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE,        "approachEst",  xRect,    false, "");
+    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "approachEst", xRect, false, "");
 
     // ── Runway corner labels — always from config, not from active inbounds ──
     auto [leftLabel, rightLabel] = settings->GetEstimateBarLabels();
@@ -500,26 +727,28 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     HFONT hdrFont = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    prevFont = (HFONT)SelectObject(hDC, hdrFont);
+    prevFont      = (HFONT)SelectObject(hDC, hdrFont);
     SetTextColor(hDC, TAG_COLOR_DEFAULT_GRAY);
     if (!leftLabel.empty())
     {
-        RECT lr = { wx + 3, wy + TITLE_H, wx + WIN_W / 2, wy + TITLE_H + HDR_H };
+        RECT lr = {wx + 3, wy + TITLE_H, wx + WIN_W / 2, wy + TITLE_H + HDR_H};
         DrawTextA(hDC, leftLabel.c_str(), -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
     if (!rightLabel.empty())
     {
-        RECT rr = { wx + WIN_W / 2, wy + TITLE_H, wx + WIN_W - 3, wy + TITLE_H + HDR_H };
+        RECT rr = {wx + WIN_W / 2, wy + TITLE_H, wx + WIN_W - 3, wy + TITLE_H + HDR_H};
         DrawTextA(hDC, rightLabel.c_str(), -1, &rr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     SelectObject(hDC, prevFont);
     DeleteObject(hdrFont);
 
     // ── Two vertical bars ──
-    auto barPen  = CreatePen(PS_SOLID, 1, TAG_COLOR_WHITE);
+    auto    barPen  = CreatePen(PS_SOLID, 1, TAG_COLOR_WHITE);
     HGDIOBJ prevPen = SelectObject(hDC, barPen);
-    MoveToEx(hDC, barLx, barTop, nullptr); LineTo(hDC, barLx, barBottom);
-    MoveToEx(hDC, barRx, barTop, nullptr); LineTo(hDC, barRx, barBottom);
+    MoveToEx(hDC, barLx, barTop, nullptr);
+    LineTo(hDC, barLx, barBottom);
+    MoveToEx(hDC, barRx, barTop, nullptr);
+    LineTo(hDC, barRx, barBottom);
     SelectObject(hDC, prevPen);
     DeleteObject(barPen);
 
@@ -528,10 +757,10 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     HFONT tickFont = CreateFontA(-14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    prevFont = (HFONT)SelectObject(hDC, tickFont);
+    prevFont       = (HFONT)SelectObject(hDC, tickFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     auto tickPen = CreatePen(PS_SOLID, 1, TAG_COLOR_WHITE);
-    prevPen = SelectObject(hDC, tickPen);
+    prevPen      = SelectObject(hDC, tickPen);
 
     for (int t = 300; t >= 0; t -= 5)
     {
@@ -549,7 +778,7 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
         if (t % 20 == 0)
         {
             std::string lbl = std::to_string(t);
-            SIZE sz = {};
+            SIZE        sz  = {};
             GetTextExtentPoint32A(hDC, lbl.c_str(), (int)lbl.size(), &sz);
             TextOutA(hDC, numCenterX - sz.cx / 2, ty - sz.cy / 2, lbl.c_str(), (int)lbl.size());
         }
@@ -561,32 +790,41 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     DeleteObject(tickFont);
 
     // ── Aircraft labels ──
-    HFONT csFont = CreateFontA(-16 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                               ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT atFont = CreateFontA(-13 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                               ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                               DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    bool useColors = settings->GetApprEstColors();
+    HFONT csFont    = CreateFontA(-16 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT atFont    = CreateFontA(-13 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    bool  useColors = settings->GetApprEstColors();
 
     auto markerPen = CreatePen(PS_SOLID, 1, TAG_COLOR_GREEN);
 
     for (const auto& row : this->twrInboundRowsCache)
     {
-        if (row.tttSeconds < 0 || row.tttSeconds > 300) { continue; }
-        if (row.rwy.empty()) { continue; }
+        if (row.tttSeconds < 0 || row.tttSeconds > 300)
+        {
+            continue;
+        }
+        if (row.rwy.empty())
+        {
+            continue;
+        }
 
         std::string side = settings->GetRunwayEstimateBarSide(row.rwy);
-        if (side != "left" && side != "right") { continue; }
+        if (side != "left" && side != "right")
+        {
+            continue;
+        }
 
         int clampedTTT = std::clamp(row.tttSeconds, 0, 300);
         int y          = scaleTop + (300 - clampedTTT) * barHeight / 300;
         y              = std::clamp(y, scaleTop, scaleBottom);
 
         // Determine colors — either always-green or inbound-list colors
-        COLORREF csColor   = TAG_COLOR_GREEN;
-        COLORREF bgColor   = TAG_COLOR_DEFAULT_NONE;
-        COLORREF textOnBg  = TAG_COLOR_GREEN;
+        COLORREF csColor  = TAG_COLOR_GREEN;
+        COLORREF bgColor  = TAG_COLOR_DEFAULT_NONE;
+        COLORREF textOnBg = TAG_COLOR_GREEN;
         if (useColors)
         {
             if (row.isGoAround)
@@ -624,7 +862,7 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
         SelectObject(hDC, prevPen);
 
         // Callsign text — sits just below the marker line, adjacent to the bar
-        prevFont = (HFONT)SelectObject(hDC, csFont);
+        prevFont    = (HFONT)SelectObject(hDC, csFont);
         SIZE csSize = {};
         GetTextExtentPoint32A(hDC, row.callsign.c_str(), (int)row.callsign.size(), &csSize);
         int csX = (side == "left") ? barLx - AC_PAD - csSize.cx : barRx + AC_PAD;
@@ -632,8 +870,8 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
 
         if (bgColor != TAG_COLOR_DEFAULT_NONE)
         {
-            RECT fillRect = { (LONG)(csX - 2), (LONG)(csY - 1), (LONG)(csX + csSize.cx + 2), (LONG)(csY + csSize.cy + 1) };
-            HBRUSH bgBrush = CreateSolidBrush(bgColor);
+            RECT   fillRect = {(LONG)(csX - 2), (LONG)(csY - 1), (LONG)(csX + csSize.cx + 2), (LONG)(csY + csSize.cy + 1)};
+            HBRUSH bgBrush  = CreateSolidBrush(bgColor);
             FillRect(hDC, &fillRect, bgBrush);
             DeleteObject(bgBrush);
             SetTextColor(hDC, textOnBg);
@@ -663,7 +901,7 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     DeleteObject(atFont);
 
     // ── Resize handle (draggable grey square, lower-right corner) ──
-    RECT resizeRect = { wx + WIN_W - RESIZE_SZ, wy + WIN_H - RESIZE_SZ, wx + WIN_W, wy + WIN_H };
+    RECT resizeRect  = {wx + WIN_W - RESIZE_SZ, wy + WIN_H - RESIZE_SZ, wx + WIN_W, wy + WIN_H};
     auto resizeBrush = CreateSolidBrush(RGB(100, 100, 100));
     FillRect(hDC, &resizeRect, resizeBrush);
     DeleteObject(resizeBrush);
@@ -677,7 +915,10 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
 
     for (auto& [cs, info] : this->radarTargetDepartureInfos)
     {
-        if (info.pos.x <= -1 || info.pos.y <= -1) { continue; }
+        if (info.pos.x <= -1 || info.pos.y <= -1)
+        {
+            continue;
+        }
 
         SetTextColor(hDC, info.dep_color);
         SIZE textSize;
@@ -701,7 +942,7 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
             info.pos.x - textSize.cx + info.dragX + 2,
             info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 2,
             info.pos.x - textSize.cx + info.dragX + 14,
-            info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 14 };
+            info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 14};
         Ellipse(hDC, dotRect.left, dotRect.top, dotRect.right, dotRect.bottom);
         DeleteObject(sidBrush);
         DeleteObject(sidPen);
@@ -722,28 +963,28 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
         if (area.right <= info.pos.x + 16)
             LineTo(hDC, area.right, area.top + (area.bottom - area.top) / 2);
         else
-            LineTo(hDC, area.left,  area.top + (area.bottom - area.top) / 2);
+            LineTo(hDC, area.left, area.top + (area.bottom - area.top) / 2);
         DeleteObject(pen);
 
         if (info.queue_pos > 0)
         {
-            std::string seqStr    = std::to_string(info.queue_pos);
-            HFONT seqFont = CreateFontA(-20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-            HFONT prevSeqFont = (HFONT)SelectObject(hDC, seqFont);
-            SIZE seqSize = {};
+            std::string seqStr      = std::to_string(info.queue_pos);
+            HFONT       seqFont     = CreateFontA(-20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT       prevSeqFont = (HFONT)SelectObject(hDC, seqFont);
+            SIZE        seqSize     = {};
             GetTextExtentPoint32A(hDC, seqStr.c_str(), (int)seqStr.length(), &seqSize);
-            constexpr int PAD     = 3;
-            constexpr int GAP     = 14; // distance from radar target dot to bottom of background box
-            int targetX = info.pos.x + 16;
-            int targetY = info.pos.y - 3;
-            int boxLeft   = targetX - seqSize.cx / 2 - PAD;
-            int boxTop    = targetY - GAP - seqSize.cy - PAD * 2;
-            int boxRight  = targetX + seqSize.cx / 2 + PAD + (seqSize.cx % 2 == 0 ? 0 : 1);
-            int boxBottom = targetY - GAP;
-            RECT bgRect   = { boxLeft, boxTop, boxRight, boxBottom };
-            auto bgBrush  = CreateSolidBrush(RGB(50, 50, 50));
+            constexpr int PAD       = 3;
+            constexpr int GAP       = 14; // distance from radar target dot to bottom of background box
+            int           targetX   = info.pos.x + 16;
+            int           targetY   = info.pos.y - 3;
+            int           boxLeft   = targetX - seqSize.cx / 2 - PAD;
+            int           boxTop    = targetY - GAP - seqSize.cy - PAD * 2;
+            int           boxRight  = targetX + seqSize.cx / 2 + PAD + (seqSize.cx % 2 == 0 ? 0 : 1);
+            int           boxBottom = targetY - GAP;
+            RECT          bgRect    = {boxLeft, boxTop, boxRight, boxBottom};
+            auto          bgBrush   = CreateSolidBrush(RGB(50, 50, 50));
             FillRect(hDC, &bgRect, bgBrush);
             DeleteObject(bgBrush);
             SetTextColor(hDC, info.dep_color);
@@ -762,9 +1003,12 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
 /// At 100% falls back to a plain FillRect. Otherwise uses AlphaBlend (Msimg32).
 static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct)
 {
-    int w = rect.right  - rect.left;
+    int w = rect.right - rect.left;
     int h = rect.bottom - rect.top;
-    if (w <= 0 || h <= 0) { return; }
+    if (w <= 0 || h <= 0)
+    {
+        return;
+    }
     if (opacityPct >= 100)
     {
         auto brush = CreateSolidBrush(color);
@@ -775,11 +1019,11 @@ static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacity
     HDC     memDC  = CreateCompatibleDC(hDC);
     HBITMAP bmp    = CreateCompatibleBitmap(hDC, w, h);
     HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, bmp);
-    RECT    local  = { 0, 0, w, h };
+    RECT    local  = {0, 0, w, h};
     auto    brush  = CreateSolidBrush(color);
     FillRect(memDC, &local, brush);
     DeleteObject(brush);
-    BLENDFUNCTION bf = { AC_SRC_OVER, 0, static_cast<BYTE>(opacityPct * 255 / 100), 0 };
+    BLENDFUNCTION bf = {AC_SRC_OVER, 0, static_cast<BYTE>(opacityPct * 255 / 100), 0};
     AlphaBlend(hDC, rect.left, rect.top, w, h, memDC, 0, 0, w, h, bf);
     SelectObject(memDC, oldBmp);
     DeleteObject(bmp);
@@ -790,7 +1034,10 @@ static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacity
 void RadarScreen::DrawDepRateWindow(HDC hDC)
 {
     auto* settingsDep = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settingsDep->GetDepRateVisible()) { return; }
+    if (!settingsDep->GetDepRateVisible())
+    {
+        return;
+    }
     int fo = settingsDep->GetFontOffset();
     int op = settingsDep->GetBgOpacity();
 
@@ -799,21 +1046,22 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     const int ROW_H   = 15 + fo;
     const int WIN_PAD = 6;
     // Base column widths at font size 12; scaled by (12+fo)/12:
-    auto cw = [&](int base) -> int { return base * (12 + fo) / 12; };
+    auto cw = [&](int base) -> int
+    { return base * (12 + fo) / 12; };
     const int COL_RWY = cw(35);
     const int COL_CNT = cw(20);
     const int COL_GAP = 6;
     const int COL_SPC = cw(56);
     const int WIN_W   = WIN_PAD + COL_RWY + COL_CNT + COL_GAP + COL_SPC + WIN_PAD;
-    const int X_BTN   = 11;  ///< Width and height of the title-bar close button
-    int numRows       = (int)this->depRateRowsCache.size();
+    const int X_BTN   = 11; ///< Width and height of the title-bar close button
+    int       numRows = (int)this->depRateRowsCache.size();
     const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + WIN_PAD / 2;
 
     if (this->depRateWindowPos.x == -1)
     {
         RECT clip;
         GetClipBox(hDC, &clip);
-        this->depRateWindowPos.x = clip.right  - WIN_W - 20;
+        this->depRateWindowPos.x = clip.right - WIN_W - 20;
         this->depRateWindowPos.y = clip.bottom - WIN_H - 20;
     }
 
@@ -821,20 +1069,23 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     int wy = this->depRateWindowPos.y;
 
     // Close button rect (inside title bar, inset 1 px from border)
-    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    RECT xRect                  = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     this->winCloseLastHoverType = -1;
-    HWND  hwndDep = WindowFromDC(hDC);
+    HWND  hwndDep               = WindowFromDC(hDC);
     POINT cursorDep;
     GetCursorPos(&cursorDep);
-    if (hwndDep) { ScreenToClient(hwndDep, &cursorDep); }
+    if (hwndDep)
+    {
+        ScreenToClient(hwndDep, &cursorDep);
+    }
     bool xHovered = PtInRect(&xRect, cursorDep) != 0;
 
-    RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H            };
-    RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
-    RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
+    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
+    RECT hdrRect   = {wx, wy + TITLE_H, wx + WIN_W, wy + TITLE_H + HDR_H};
 
-    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
-    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
+    FillRectAlpha(hDC, winRect, RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect, RGB(40, 40, 40), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     FillRect(hDC, &titleRect, titleBrush);
     DeleteObject(titleBrush);
@@ -856,7 +1107,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
+    HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "Departures", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
@@ -864,7 +1115,7 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    RECT dragRect = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    RECT dragRect = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", dragRect, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "depRate", xRect, false, "");
 
@@ -879,13 +1130,13 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     // Column headers
     SetTextColor(hDC, TAG_COLOR_WHITE);
     {
-        int colY0 = wy + TITLE_H;
-        int splitX = wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP;
-        RECT rwyHdr = { wx + WIN_PAD, colY0, wx + WIN_PAD + COL_RWY,         colY0 + HDR_H };
-        RECT cntHdr = { wx + WIN_PAD + COL_RWY, colY0, splitX,               colY0 + HDR_H };
-        RECT spcHdr = { splitX,       colY0, wx + WIN_W - WIN_PAD,            colY0 + HDR_H };
-        DrawTextA(hDC, "RWY", -1, &rwyHdr, DT_LEFT  | DT_VCENTER | DT_SINGLELINE);
-        DrawTextA(hDC, "#",   -1, &cntHdr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        int  colY0  = wy + TITLE_H;
+        int  splitX = wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP;
+        RECT rwyHdr = {wx + WIN_PAD, colY0, wx + WIN_PAD + COL_RWY, colY0 + HDR_H};
+        RECT cntHdr = {wx + WIN_PAD + COL_RWY, colY0, splitX, colY0 + HDR_H};
+        RECT spcHdr = {splitX, colY0, wx + WIN_W - WIN_PAD, colY0 + HDR_H};
+        DrawTextA(hDC, "RWY", -1, &rwyHdr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        DrawTextA(hDC, "#", -1, &cntHdr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         DrawTextA(hDC, "AVG", -1, &spcHdr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
 
@@ -893,18 +1144,22 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     SelectObject(hDC, dataFontDep);
     for (int row = 0; row < numRows; ++row)
     {
-        const auto& r = this->depRateRowsCache[row];
-        int rowY = wy + TITLE_H + HDR_H + row * ROW_H;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H }; FillRectAlpha(hDC, alt, RGB(32, 32, 32), op); }
+        const auto& r    = this->depRateRowsCache[row];
+        int         rowY = wy + TITLE_H + HDR_H + row * ROW_H;
+        if (row % 2 == 1)
+        {
+            RECT alt = {wx + 1, rowY, wx + WIN_W - 1, rowY + ROW_H};
+            FillRectAlpha(hDC, alt, RGB(32, 32, 32), op);
+        }
 
-        RECT rwyRect = { wx + WIN_PAD,                                rowY, wx + WIN_PAD + COL_RWY,                   rowY + ROW_H };
-        RECT cntRect = { wx + WIN_PAD + COL_RWY,                      rowY, wx + WIN_PAD + COL_RWY + COL_CNT,         rowY + ROW_H };
-        RECT spcRect = { wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP, rowY, wx + WIN_W - WIN_PAD,                     rowY + ROW_H };
+        RECT rwyRect = {wx + WIN_PAD, rowY, wx + WIN_PAD + COL_RWY, rowY + ROW_H};
+        RECT cntRect = {wx + WIN_PAD + COL_RWY, rowY, wx + WIN_PAD + COL_RWY + COL_CNT, rowY + ROW_H};
+        RECT spcRect = {wx + WIN_PAD + COL_RWY + COL_CNT + COL_GAP, rowY, wx + WIN_W - WIN_PAD, rowY + ROW_H};
 
         SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
-        DrawTextA(hDC, r.runway.c_str(),     -1, &rwyRect, DT_LEFT  | DT_VCENTER | DT_SINGLELINE);
+        DrawTextA(hDC, r.runway.c_str(), -1, &rwyRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         SetTextColor(hDC, r.countColor);
-        DrawTextA(hDC, r.countStr.c_str(),   -1, &cntRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        DrawTextA(hDC, r.countStr.c_str(), -1, &cntRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         SetTextColor(hDC, r.spacingColor);
         DrawTextA(hDC, r.spacingStr.c_str(), -1, &spcRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
@@ -918,7 +1173,10 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
 void RadarScreen::DrawTwrOutbound(HDC hDC)
 {
     auto* settingsOut = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settingsOut->GetTwrOutboundVisible()) { return; }
+    if (!settingsOut->GetTwrOutboundVisible())
+    {
+        return;
+    }
     int fo = settingsOut->GetFontOffset();
     int op = settingsOut->GetBgOpacity();
 
@@ -928,30 +1186,34 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int PAD     = 6;
     // Original list column order and widths in chars (base widths at font size 17; scaled by (17+fo)/17):
     // C/S=12, STS=12, DEP?=10, RWY=4, SID=11, WTC=4, ATYP=8, Freq=15, HP=4, Spacing=17, dNM=8
-    auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
-    const int CS      = cw(84);   // 12 chars
-    const int STS     = cw(84);   // 12 chars
-    const int DEP     = cw(70);   // 10 chars
-    const int RWY     = cw(35);   //  4 chars (widened: "RWY" label needs more than 4×7px)
-    const int SID     = cw(77);   // 11 chars
-    const int WTC     = cw(28);   //  4 chars
-    const int ATYP    = cw(56);   //  8 chars
-    const int FREQ    = cw(105);  // 15 chars
-    const int HP      = cw(28);   //  4 chars
-    const int QPOS    = cw(21);   //  3 chars  (queue position: "1"–"9", or "10")
-    const int SPC     = cw(119);  // 17 chars
-    const int TMR     = cw(56);   //  8 chars ("9:59"; extra left margin separates from Spacing)
-    const int LDST    = cw(77);   // 11 chars (live distance to previous departure; extra left margin separates from T+)
+    auto cw = [&](int base) -> int
+    { return base * (17 + fo) / 17; };
+    const int CS           = cw(84);    // 12 chars
+    const int STS          = cw(84);    // 12 chars
+    const int DEP          = cw(70);    // 10 chars
+    const int RWY          = cw(35);    //  4 chars (widened: "RWY" label needs more than 4×7px)
+    const int SID          = cw(77);    // 11 chars
+    const int WTC          = cw(28);    //  4 chars
+    const int ATYP         = cw(56);    //  8 chars
+    const int FREQ         = cw(105);   // 15 chars
+    const int HP           = cw(28);    //  4 chars
+    const int QPOS         = cw(21);    //  3 chars  (queue position: "1"–"9", or "10")
+    const int SPC          = cw(119);   // 17 chars
+    const int TMR          = cw(56);    //  8 chars ("9:59"; extra left margin separates from Spacing)
+    const int LDST         = cw(77);    // 11 chars (live distance to previous departure; extra left margin separates from T+)
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
-    const int SEP_H   = 12;    ///< Height of blank separator row between sort groups
-    const int WIN_W   = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + QPOS + SPC + TMR + LDST + PAD;
-    int numRows       = (int)this->twrOutboundRowsCache.size();
+    const int SEP_H        = 12;        ///< Height of blank separator row between sort groups
+    const int WIN_W        = PAD + CS + STS + DEP + RWY + SID + WTC + ATYP + FREQ + HP + QPOS + SPC + TMR + LDST + PAD;
+    int       numRows      = (int)this->twrOutboundRowsCache.size();
 
-    int numSeps = 0;
+    int numSeps   = 0;
     int totalRowH = 0;
     for (const auto& r : this->twrOutboundRowsCache)
     {
-        if (r.groupSeparatorAbove) { ++numSeps; }
+        if (r.groupSeparatorAbove)
+        {
+            ++numSeps;
+        }
         totalRowH += r.dimmed ? DIMMED_ROW_H : ROW_H;
     }
 
@@ -968,21 +1230,24 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     int wx = this->twrOutboundWindowPos.x;
     int wy = this->twrOutboundWindowPos.y;
 
-    const int X_BTN = 11;
-    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    const int X_BTN             = 11;
+    RECT      xRect             = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     this->winCloseLastHoverType = -1;
-    HWND  hwndOut = WindowFromDC(hDC);
+    HWND  hwndOut               = WindowFromDC(hDC);
     POINT cursorOut;
     GetCursorPos(&cursorOut);
-    if (hwndOut) { ScreenToClient(hwndOut, &cursorOut); }
+    if (hwndOut)
+    {
+        ScreenToClient(hwndOut, &cursorOut);
+    }
     bool xHovered = PtInRect(&xRect, cursorOut) != 0;
 
-    RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H            };
-    RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
-    RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
+    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
+    RECT hdrRect   = {wx, wy + TITLE_H, wx + WIN_W, wy + TITLE_H + HDR_H};
 
-    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
-    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
+    FillRectAlpha(hDC, winRect, RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect, RGB(40, 40, 40), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     FillRect(hDC, &titleRect, titleBrush);
     DeleteObject(titleBrush);
@@ -1004,7 +1269,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
+    HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Outbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
@@ -1012,38 +1277,38 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    RECT dragRectOut = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    RECT dragRectOut = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_TWR_OUT_WIN, "TWROUT", dragRectOut, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrOut", xRect, false, "");
 
     // Column headers — smaller font
-    HFONT hdrFont = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT hdrFont      = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                     DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevDataFont = (HFONT)SelectObject(hDC, hdrFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     {
-        int x = wx + PAD;
-        int colY0 = wy + TITLE_H;
+        int  x      = wx + PAD;
+        int  colY0  = wy + TITLE_H;
         auto colHdr = [&](int width, const char* label, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT r = { x, colY0, x + width, colY0 + HDR_H };
+            RECT r = {x, colY0, x + width, colY0 + HDR_H};
             DrawTextA(hDC, label, -1, &r, flags);
             x += width;
         };
-        colHdr(CS,   "C/S");
-        colHdr(STS,  "STS");
-        colHdr(DEP,  "DEP?");
-        colHdr(RWY,  "RWY",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        colHdr(SID,  "SID");
-        colHdr(WTC,  "W",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(CS, "C/S");
+        colHdr(STS, "STS");
+        colHdr(DEP, "DEP?");
+        colHdr(RWY, "RWY", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(SID, "SID");
+        colHdr(WTC, "W", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         colHdr(ATYP, "ATYP");
         colHdr(FREQ, "Freq");
-        colHdr(HP,   "HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        colHdr(QPOS, "#",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        colHdr(SPC,  "Spacing", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-        colHdr(TMR,  "T+",      DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
-        colHdr(LDST, "dNM",     DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        colHdr(HP, "HP", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(QPOS, "#", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(SPC, "Spacing", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        colHdr(TMR, "T+", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        colHdr(LDST, "dNM", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
@@ -1055,32 +1320,42 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     HFONT dimFont  = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    prevDataFont = (HFONT)SelectObject(hDC, dataFont);
-    auto wtcColor = [](char wtc) -> COLORREF {
-        switch (wtc) {
-            case 'L': return TAG_COLOR_TURQ;
-            case 'H': return TAG_COLOR_ORANGE;
-            case 'J': return TAG_COLOR_RED;
-            default:  return TAG_COLOR_LIST_GRAY;
+    prevDataFont   = (HFONT)SelectObject(hDC, dataFont);
+    auto wtcColor  = [](char wtc) -> COLORREF
+    {
+        switch (wtc)
+        {
+        case 'L':
+            return TAG_COLOR_TURQ;
+        case 'H':
+            return TAG_COLOR_ORANGE;
+        case 'J':
+            return TAG_COLOR_RED;
+        default:
+            return TAG_COLOR_LIST_GRAY;
         }
     };
 
     int rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
     {
-        const auto& r = this->twrOutboundRowsCache[row];
-        int rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
+        const auto& r    = this->twrOutboundRowsCache[row];
+        int         rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
 
         if (r.groupSeparatorAbove)
         {
-            RECT sepRect = { wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H };
+            RECT sepRect = {wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H};
             FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
             rowTop += SEP_H;
         }
 
         int rowY = rowTop;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRectAlpha(hDC, alt, RGB(32, 32, 32), op); }
-        int cx   = wx + PAD;
+        if (row % 2 == 1)
+        {
+            RECT alt = {wx + 1, rowY, wx + WIN_W - 1, rowY + rowH};
+            FillRectAlpha(hDC, alt, RGB(32, 32, 32), op);
+        }
+        int cx = wx + PAD;
 
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
@@ -1088,7 +1363,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         auto cellClickable = [&](int width, const std::string& text, COLORREF color,
                                  const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+            RECT rect = {cx, rowY, cx + width, rowY + rowH};
             SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             AddScreenObject(SCREEN_OBJECT_TWR_OUT_CELL, objId.c_str(), rect, false, "");
@@ -1100,7 +1375,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         // on top of the normal row background, then text is redrawn on top of the fill.
         auto cellTag = [&](int width, const tagInfo& t, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+            RECT rect = {cx, rowY, cx + width, rowY + rowH};
 
             int   delta    = std::clamp(t.fontDelta, -4, 4);
             bool  styled   = t.bold || delta != 0;
@@ -1108,10 +1383,10 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             if (styled)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
-                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
-                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                                           ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                           DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
             }
 
@@ -1119,27 +1394,31 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             {
                 SIZE textSize = {};
                 GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
-                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
-                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
-                             :                       rect.left;
-                int textTop  = rect.top + (rowH - textSize.cy) / 2;
-                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
-                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
-                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                int    textLeft = (flags & DT_RIGHT)    ? rect.right - textSize.cx
+                                  : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                                                        : rect.left;
+                int    textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT   fillRect = {(LONG)(textLeft - 3), std::max(rect.top, (LONG)(textTop - 1)),
+                                   (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1))};
+                HBRUSH brush    = CreateSolidBrush(t.bgColor);
                 FillRect(hDC, &fillRect, brush);
                 DeleteObject(brush);
             }
 
             SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
             DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
-            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            if (styled)
+            {
+                SelectObject(hDC, r.dimmed ? dimFont : dataFont);
+                DeleteObject(cellFont);
+            }
             cx += width;
         };
 
         auto cellTagClickable = [&](int width, const tagInfo& t, const std::string& objId,
                                     UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+            RECT rect = {cx, rowY, cx + width, rowY + rowH};
 
             int   delta    = std::clamp(t.fontDelta, -4, 4);
             bool  styled   = t.bold || delta != 0;
@@ -1147,10 +1426,10 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             if (styled)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
-                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
-                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                                           ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                           DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
             }
 
@@ -1158,37 +1437,41 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             {
                 SIZE textSize = {};
                 GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
-                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
-                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
-                             :                       rect.left;
-                int textTop  = rect.top + (rowH - textSize.cy) / 2;
-                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
-                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
-                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                int    textLeft = (flags & DT_RIGHT)    ? rect.right - textSize.cx
+                                  : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                                                        : rect.left;
+                int    textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT   fillRect = {(LONG)(textLeft - 3), std::max(rect.top, (LONG)(textTop - 1)),
+                                   (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1))};
+                HBRUSH brush    = CreateSolidBrush(t.bgColor);
                 FillRect(hDC, &fillRect, brush);
                 DeleteObject(brush);
             }
 
             SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
             DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
-            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            if (styled)
+            {
+                SelectObject(hDC, r.dimmed ? dimFont : dataFont);
+                DeleteObject(cellFont);
+            }
             AddScreenObject(SCREEN_OBJECT_TWR_OUT_CELL, objId.c_str(), rect, false, "");
             cx += width;
         };
 
-        cellClickable(CS,   r.callsign,             r.callsignColor, r.callsign + "|CS");
-        cellTagClickable(STS,  r.status,   r.callsign + "|STS");
-        cellTagClickable(DEP,  r.depInfo,  r.callsign + "|DEP");
-        cellTagClickable(RWY,  r.rwy,      r.callsign + "|RWY",  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cellTagClickable(SID,  r.sameSid,  r.callsign + "|SID");
-        cellTagClickable(WTC, { .tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0 }, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(ATYP, r.aircraftType,         r.callsignColor, r.callsign + "|ATYP");
+        cellClickable(CS, r.callsign, r.callsignColor, r.callsign + "|CS");
+        cellTagClickable(STS, r.status, r.callsign + "|STS");
+        cellTagClickable(DEP, r.depInfo, r.callsign + "|DEP");
+        cellTagClickable(RWY, r.rwy, r.callsign + "|RWY", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(SID, r.sameSid, r.callsign + "|SID");
+        cellTagClickable(WTC, {.tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0}, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(ATYP, r.aircraftType, r.callsignColor, r.callsign + "|ATYP");
         cellTagClickable(FREQ, r.nextFreq, r.callsign + "|FREQ");
-        cellTagClickable(HP,   r.hp,       r.callsign + "|HP",   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(HP, r.hp, r.callsign + "|HP", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         cellTagClickable(QPOS, r.queuePos, r.callsign + "|QPOS", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cellTagClickable(SPC,  r.spacing,  r.callsign + "|SPC",  DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cellTag(TMR,  r.timeSinceTakeoff,                         DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cellTag(LDST, r.liveSpacing,                              DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(SPC, r.spacing, r.callsign + "|SPC", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        cellTag(TMR, r.timeSinceTakeoff, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        cellTag(LDST, r.liveSpacing, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
 
@@ -1202,7 +1485,10 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 void RadarScreen::DrawTwrInbound(HDC hDC)
 {
     auto* settingsIn = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settingsIn->GetTwrInboundVisible()) { return; }
+    if (!settingsIn->GetTwrInboundVisible())
+    {
+        return;
+    }
     int fo = settingsIn->GetFontOffset();
     int op = settingsIn->GetBgOpacity();
 
@@ -1210,23 +1496,24 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int HDR_H        = 17 + fo;
     const int ROW_H        = 19 + fo;
     const int DIMMED_ROW_H = ROW_H - 3; ///< Reduced row height for dimmed rows (matches font size reduction 17→14)
-    const int SEP_H        = 12;    ///< Height of blank separator row between runway groups
-    const int PAD     = 6;
+    const int SEP_H        = 12;        ///< Height of blank separator row between runway groups
+    const int PAD          = 6;
     // Column order: RWY, TTT, C/S, NM, SPD, WTC, ATYP, Gate, Vacate, ARW
     // Base widths at font size 17; scaled by (17+fo)/17:
-    auto cw = [&](int base) -> int { return base * (17 + fo) / 17; };
-    const int RWY     = cw(35);   //  front column — runway group label
-    const int TTT     = cw(90);   //  "mm:ss" normally; "->nnn.nnn" (9 chars) on go-around
-    const int CS      = cw(84);   // 12 chars
-    const int NM      = cw(56);   //  8 chars
-    const int GS      = cw(35);   //  5 chars
-    const int WTC     = cw(28);   //  4 chars
-    const int ATYP    = cw(56);   //  8 chars
-    const int GATE    = cw(35);   //  5 chars
-    const int VACATE  = cw(49);   //  7 chars
-    const int ARW     = cw(49);   //  7 chars
+    auto cw = [&](int base) -> int
+    { return base * (17 + fo) / 17; };
+    const int RWY     = cw(35); //  front column — runway group label
+    const int TTT     = cw(90); //  "mm:ss" normally; "->nnn.nnn" (9 chars) on go-around
+    const int CS      = cw(84); // 12 chars
+    const int NM      = cw(56); //  8 chars
+    const int GS      = cw(35); //  5 chars
+    const int WTC     = cw(28); //  4 chars
+    const int ATYP    = cw(56); //  8 chars
+    const int GATE    = cw(35); //  5 chars
+    const int VACATE  = cw(49); //  7 chars
+    const int ARW     = cw(49); //  7 chars
     const int WIN_W   = PAD + RWY + TTT + CS + NM + GS + WTC + ATYP + GATE + VACATE + ARW + PAD;
-    int numRows       = (int)this->twrInboundRowsCache.size();
+    int       numRows = (int)this->twrInboundRowsCache.size();
 
     // Count separators and sum actual row heights
     int numSeps   = 0;
@@ -1235,7 +1522,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         std::string lastGrp;
         for (const auto& r : this->twrInboundRowsCache)
         {
-            if (!lastGrp.empty() && r.rwy != lastGrp) { ++numSeps; }
+            if (!lastGrp.empty() && r.rwy != lastGrp)
+            {
+                ++numSeps;
+            }
             lastGrp = r.rwy;
             totalRowH += r.dimmed ? DIMMED_ROW_H : ROW_H;
         }
@@ -1254,21 +1544,24 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     int wx = this->twrInboundWindowPos.x;
     int wy = this->twrInboundWindowPos.y;
 
-    const int X_BTN = 11;
-    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    const int X_BTN             = 11;
+    RECT      xRect             = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     this->winCloseLastHoverType = -1;
-    HWND  hwndIn = WindowFromDC(hDC);
+    HWND  hwndIn                = WindowFromDC(hDC);
     POINT cursorIn;
     GetCursorPos(&cursorIn);
-    if (hwndIn) { ScreenToClient(hwndIn, &cursorIn); }
+    if (hwndIn)
+    {
+        ScreenToClient(hwndIn, &cursorIn);
+    }
     bool xHovered = PtInRect(&xRect, cursorIn) != 0;
 
-    RECT winRect   = { wx, wy,            wx + WIN_W, wy + WIN_H            };
-    RECT titleRect = { wx, wy,            wx + WIN_W, wy + TITLE_H          };
-    RECT hdrRect   = { wx, wy + TITLE_H,  wx + WIN_W, wy + TITLE_H + HDR_H  };
+    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
+    RECT hdrRect   = {wx, wy + TITLE_H, wx + WIN_W, wy + TITLE_H + HDR_H};
 
-    FillRectAlpha(hDC, winRect,  RGB(15, 15, 15), op);
-    FillRectAlpha(hDC, hdrRect,  RGB(40, 40, 40), op);
+    FillRectAlpha(hDC, winRect, RGB(15, 15, 15), op);
+    FillRectAlpha(hDC, hdrRect, RGB(40, 40, 40), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
     FillRect(hDC, &titleRect, titleBrush);
     DeleteObject(titleBrush);
@@ -1290,7 +1583,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prevFont = (HFONT)SelectObject(hDC, titleFont);
+    HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Inbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     // Close button text
@@ -1298,35 +1591,35 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    RECT dragRectIn = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    RECT dragRectIn = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_TWR_IN_WIN, "TWRIN", dragRectIn, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrIn", xRect, false, "");
 
     // Column headers — smaller font
-    HFONT hdrFont = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT hdrFont      = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                     DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevDataFont = (HFONT)SelectObject(hDC, hdrFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     {
-        int x = wx + PAD;
-        int colY0 = wy + TITLE_H;
+        int  x      = wx + PAD;
+        int  colY0  = wy + TITLE_H;
         auto colHdr = [&](int width, const char* label, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT r = { x, colY0, x + width, colY0 + HDR_H };
+            RECT r = {x, colY0, x + width, colY0 + HDR_H};
             DrawTextA(hDC, label, -1, &r, flags);
             x += width;
         };
-        colHdr(RWY,     "RWY");
-        colHdr(TTT,     "TTT");
-        colHdr(CS,      "C/S");
-        colHdr(NM,      "NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        colHdr(GS,      "GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        colHdr(WTC,     "W",      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        colHdr(ATYP,    "ATYP");
-        colHdr(GATE,    "Gate");
-        colHdr(VACATE,  "Vacate");
-        colHdr(ARW,     "ARW",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(RWY, "RWY");
+        colHdr(TTT, "TTT");
+        colHdr(CS, "C/S");
+        colHdr(NM, "NM", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        colHdr(GS, "GS", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        colHdr(WTC, "W", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        colHdr(ATYP, "ATYP");
+        colHdr(GATE, "Gate");
+        colHdr(VACATE, "Vacate");
+        colHdr(ARW, "ARW", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
     SelectObject(hDC, prevDataFont);
     DeleteObject(hdrFont);
@@ -1338,27 +1631,33 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     HFONT dimFont  = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    prevDataFont = (HFONT)SelectObject(hDC, dataFont);
-    auto wtcColor = [](char wtc) -> COLORREF {
-        switch (wtc) {
-            case 'L': return TAG_COLOR_TURQ;
-            case 'H': return TAG_COLOR_ORANGE;
-            case 'J': return TAG_COLOR_RED;
-            default:  return TAG_COLOR_LIST_GRAY;
+    prevDataFont   = (HFONT)SelectObject(hDC, dataFont);
+    auto wtcColor  = [](char wtc) -> COLORREF
+    {
+        switch (wtc)
+        {
+        case 'L':
+            return TAG_COLOR_TURQ;
+        case 'H':
+            return TAG_COLOR_ORANGE;
+        case 'J':
+            return TAG_COLOR_RED;
+        default:
+            return TAG_COLOR_LIST_GRAY;
         }
     };
 
     std::string lastRwy;
-    int rowTop = wy + TITLE_H + HDR_H;
+    int         rowTop = wy + TITLE_H + HDR_H;
     for (int row = 0; row < numRows; ++row)
     {
-        const auto& r = this->twrInboundRowsCache[row];
-        int rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
+        const auto& r    = this->twrInboundRowsCache[row];
+        int         rowH = r.dimmed ? DIMMED_ROW_H : ROW_H;
 
         // Insert a blank separator row between runway groups
         if (!lastRwy.empty() && r.rwy != lastRwy)
         {
-            RECT sepRect = { wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H };
+            RECT sepRect = {wx + 1, rowTop, wx + WIN_W - 1, rowTop + SEP_H};
             FillRect(hDC, &sepRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
             rowTop += SEP_H;
         }
@@ -1367,14 +1666,18 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         SelectObject(hDC, r.dimmed ? dimFont : dataFont);
 
         int rowY = rowTop;
-        if (row % 2 == 1) { RECT alt = { wx + 1, rowY, wx + WIN_W - 1, rowY + rowH }; FillRectAlpha(hDC, alt, RGB(32, 32, 32), op); }
-        int cx   = wx + PAD;
+        if (row % 2 == 1)
+        {
+            RECT alt = {wx + 1, rowY, wx + WIN_W - 1, rowY + rowH};
+            FillRectAlpha(hDC, alt, RGB(32, 32, 32), op);
+        }
+        int cx = wx + PAD;
 
         // Plain clickable cell for non-tagInfo data (callsign, rwy group, wtc, groundspeed, gate).
         auto cellClickable = [&](int width, const std::string& text, COLORREF color,
                                  const std::string& objId, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+            RECT rect = {cx, rowY, cx + width, rowY + rowH};
             SetTextColor(hDC, color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : color);
             DrawTextA(hDC, text.c_str(), -1, &rect, flags);
             AddScreenObject(SCREEN_OBJECT_TWR_IN_CELL, objId.c_str(), rect, false, "");
@@ -1386,7 +1689,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         // on top of the normal row background, then text is redrawn on top of the fill.
         auto cellTag = [&](int width, const tagInfo& t, UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+            RECT rect = {cx, rowY, cx + width, rowY + rowH};
 
             int   delta    = std::clamp(t.fontDelta, -4, 4);
             bool  styled   = t.bold || delta != 0;
@@ -1394,10 +1697,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             if (styled)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
-                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
-                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                                           ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                           DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
             }
 
@@ -1405,27 +1708,31 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             {
                 SIZE textSize = {};
                 GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
-                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
-                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
-                             :                       rect.left;
-                int textTop  = rect.top + (rowH - textSize.cy) / 2;
-                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
-                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
-                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                int    textLeft = (flags & DT_RIGHT)    ? rect.right - textSize.cx
+                                  : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                                                        : rect.left;
+                int    textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT   fillRect = {(LONG)(textLeft - 3), std::max(rect.top, (LONG)(textTop - 1)),
+                                   (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1))};
+                HBRUSH brush    = CreateSolidBrush(t.bgColor);
                 FillRect(hDC, &fillRect, brush);
                 DeleteObject(brush);
             }
 
             SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
             DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
-            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            if (styled)
+            {
+                SelectObject(hDC, r.dimmed ? dimFont : dataFont);
+                DeleteObject(cellFont);
+            }
             cx += width;
         };
 
         auto cellTagClickable = [&](int width, const tagInfo& t, const std::string& objId,
                                     UINT flags = DT_LEFT | DT_VCENTER | DT_SINGLELINE)
         {
-            RECT rect = { cx, rowY, cx + width, rowY + rowH };
+            RECT rect = {cx, rowY, cx + width, rowY + rowH};
 
             int   delta    = std::clamp(t.fontDelta, -4, 4);
             bool  styled   = t.bold || delta != 0;
@@ -1433,10 +1740,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             if (styled)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
-                cellFont = CreateFontA(baseSize - delta, 0, 0, 0,
+                cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
                                        t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
-                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                       DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+                                           ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                           DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
             }
 
@@ -1444,41 +1751,42 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             {
                 SIZE textSize = {};
                 GetTextExtentPoint32A(hDC, t.tag.c_str(), (int)t.tag.size(), &textSize);
-                int textLeft = (flags & DT_RIGHT)  ? rect.right - textSize.cx
-                             : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
-                             :                       rect.left;
-                int textTop  = rect.top + (rowH - textSize.cy) / 2;
-                RECT fillRect = { (LONG)(textLeft - 3),          std::max(rect.top,    (LONG)(textTop - 1)),
-                                  (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1)) };
-                HBRUSH brush = CreateSolidBrush(t.bgColor);
+                int    textLeft = (flags & DT_RIGHT)    ? rect.right - textSize.cx
+                                  : (flags & DT_CENTER) ? rect.left + (width - textSize.cx) / 2
+                                                        : rect.left;
+                int    textTop  = rect.top + (rowH - textSize.cy) / 2;
+                RECT   fillRect = {(LONG)(textLeft - 3), std::max(rect.top, (LONG)(textTop - 1)),
+                                   (LONG)(textLeft + textSize.cx + 3), std::min(rect.bottom, (LONG)(textTop + textSize.cy + 1))};
+                HBRUSH brush    = CreateSolidBrush(t.bgColor);
                 FillRect(hDC, &fillRect, brush);
                 DeleteObject(brush);
             }
 
             SetTextColor(hDC, t.color == TAG_COLOR_DEFAULT_GRAY ? TAG_COLOR_LIST_GRAY : t.color);
             DrawTextA(hDC, t.tag.c_str(), -1, &rect, flags);
-            if (styled) { SelectObject(hDC, r.dimmed ? dimFont : dataFont); DeleteObject(cellFont); }
+            if (styled)
+            {
+                SelectObject(hDC, r.dimmed ? dimFont : dataFont);
+                DeleteObject(cellFont);
+            }
             AddScreenObject(SCREEN_OBJECT_TWR_IN_CELL, objId.c_str(), rect, false, "");
             cx += width;
         };
 
-        cellClickable(RWY,     r.rwy,                  r.callsignColor, r.callsign + "|RWY");
-        cellTagClickable(TTT,    r.ttt,    r.callsign + "|TTT");
-        cellTagClickable(CS, { .tag     = r.callsign,
-                                .color   = r.isGoAround ? TAG_COLOR_WHITE
-                                         : r.isFrozen   ? TAG_COLOR_BLACK
-                                         :                r.callsignColor,
-                                .bgColor = r.isGoAround ? TAG_BG_COLOR_RED
-                                         : r.isFrozen   ? TAG_BG_COLOR_YELLOW
-                                         :                TAG_COLOR_DEFAULT_NONE },
+        cellClickable(RWY, r.rwy, r.callsignColor, r.callsign + "|RWY");
+        cellTagClickable(TTT, r.ttt, r.callsign + "|TTT");
+        cellTagClickable(CS, {.tag = r.callsign, .color = r.isGoAround ? TAG_COLOR_WHITE : r.isFrozen ? TAG_COLOR_BLACK
+                                                                                                      : r.callsignColor,
+                              .bgColor = r.isGoAround ? TAG_BG_COLOR_RED : r.isFrozen ? TAG_BG_COLOR_YELLOW
+                                                                                      : TAG_COLOR_DEFAULT_NONE},
                          r.callsign + "|CS");
-        cellTagClickable(NM,     r.nm,     r.callsign + "|NM",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(GS,    std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS",     DT_RIGHT  | DT_VCENTER | DT_SINGLELINE);
-        cellTagClickable(WTC, { .tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0 }, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        cellClickable(ATYP,  r.aircraftType,                r.callsignColor, r.callsign + "|ATYP");
-        cellTagClickable(GATE,   r.gate,  r.callsign + "|GATE");
+        cellTagClickable(NM, r.nm, r.callsign + "|NM", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(GS, std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(WTC, {.tag = std::string(1, r.wtc), .color = wtcColor(r.wtc), .bold = (r.wtc != 'M' && r.wtc != ' '), .fontDelta = (r.wtc != 'M' && r.wtc != ' ') ? 1 : 0}, r.callsign + "|WTC", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellClickable(ATYP, r.aircraftType, r.callsignColor, r.callsign + "|ATYP");
+        cellTagClickable(GATE, r.gate, r.callsign + "|GATE");
         cellTagClickable(VACATE, r.vacate, r.callsign + "|VACATE");
-        cellTagClickable(ARW,    r.arrRwy, r.callsign + "|ARW",    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        cellTagClickable(ARW, r.arrRwy, r.callsign + "|ARW", DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         rowTop += rowH;
     }
 
@@ -1492,7 +1800,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 /// frequently. GetCursorPos() then reflects the live cursor position accurately at each draw.
 void RadarScreen::DrawNapReminder(HDC hDC)
 {
-    if (!this->napReminderActive) { return; }
+    if (!this->napReminderActive)
+    {
+        return;
+    }
 
     const int TITLE_H = 20;
     const int MSG_H   = 40;
@@ -1505,19 +1816,19 @@ void RadarScreen::DrawNapReminder(HDC hDC)
     {
         RECT clip;
         GetClipBox(hDC, &clip);
-        this->napWindowPos.x = clip.right  / 2 - WIN_W / 2;
+        this->napWindowPos.x = clip.right / 2 - WIN_W / 2;
         this->napWindowPos.y = clip.bottom / 2 - WIN_H / 2;
     }
 
     int wx = this->napWindowPos.x;
     int wy = this->napWindowPos.y;
 
-    RECT winRect  = { wx,       wy,                    wx + WIN_W, wy + WIN_H                    };
-    RECT titleRect= { wx,       wy,                    wx + WIN_W, wy + TITLE_H                  };
-    RECT bodyRect = { wx + PAD, wy + TITLE_H,          wx + WIN_W - PAD, wy + TITLE_H + MSG_H    };
-    RECT btnRect  = { wx + PAD, wy + TITLE_H + MSG_H,  wx + WIN_W - PAD, wy + TITLE_H + MSG_H + BTN_H - 4 };
+    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
+    RECT bodyRect  = {wx + PAD, wy + TITLE_H, wx + WIN_W - PAD, wy + TITLE_H + MSG_H};
+    RECT btnRect   = {wx + PAD, wy + TITLE_H + MSG_H, wx + WIN_W - PAD, wy + TITLE_H + MSG_H + BTN_H - 4};
     // Drag zone covers title+body (does NOT overlap btnRect so ES fires separate OnOverScreenObject per area)
-    RECT dragRect = { wx,       wy,                    wx + WIN_W, wy + TITLE_H + MSG_H          };
+    RECT dragRect = {wx, wy, wx + WIN_W, wy + TITLE_H + MSG_H};
 
     // Reset hover tracking each frame so the next window entry always counts as a transition.
     this->napLastHoverType = -1;
@@ -1544,17 +1855,20 @@ void RadarScreen::DrawNapReminder(HDC hDC)
 
     // Hover: read live cursor position. RequestRefresh() from OnOverScreenObject (or the blink loop)
     // ensures this runs at event rate, so the cursor position is always current.
-    HWND hwnd = WindowFromDC(hDC);
+    HWND  hwnd = WindowFromDC(hDC);
     POINT cursorPt;
     GetCursorPos(&cursorPt);
-    if (hwnd) { ScreenToClient(hwnd, &cursorPt); }
+    if (hwnd)
+    {
+        ScreenToClient(hwnd, &cursorPt);
+    }
     // During blink napAckPressed drives the colour; GetCursorPos hover is irrelevant then
     bool ackHovered = (this->napAckClickTick == 0) && PtInRect(&btnRect, cursorPt) != 0;
 
     // Background
     auto bgBrush    = CreateSolidBrush(RGB(15, 15, 15));
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
-    FillRect(hDC, &winRect,   bgBrush);
+    FillRect(hDC, &winRect, bgBrush);
     FillRect(hDC, &titleRect, titleBrush);
     DeleteObject(bgBrush);
     DeleteObject(titleBrush);
@@ -1569,7 +1883,7 @@ void RadarScreen::DrawNapReminder(HDC hDC)
     HFONT titleFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prev = (HFONT)SelectObject(hDC, titleFont);
+    HFONT prev      = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "Night SID Reminder", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prev);
@@ -1580,7 +1894,7 @@ void RadarScreen::DrawNapReminder(HDC hDC)
     HFONT msgFont = CreateFontA(-20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    prev = (HFONT)SelectObject(hDC, msgFont);
+    prev          = (HFONT)SelectObject(hDC, msgFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     std::string msg = "NAP procedure for " + this->napReminderAirport + "?";
     DrawTextA(hDC, msg.c_str(), -1, &bodyRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -1588,13 +1902,13 @@ void RadarScreen::DrawNapReminder(HDC hDC)
     DeleteObject(msgFont);
 
     // ACK button — three visual states: normal / hover / pressed
-    COLORREF btnBg     = this->napAckPressed ? RGB( 90, 175,  90)
-                       : ackHovered          ? RGB( 60, 130,  60)
-                                             : RGB( 35,  90,  35);
+    COLORREF btnBg     = this->napAckPressed ? RGB(90, 175, 90)
+                         : ackHovered        ? RGB(60, 130, 60)
+                                             : RGB(35, 90, 35);
     COLORREF btnBorder = this->napAckPressed ? RGB(200, 255, 200)
-                       : ackHovered          ? RGB(120, 200, 120)
-                                             : RGB( 80, 150,  80);
-    auto btnBrush  = CreateSolidBrush(btnBg);
+                         : ackHovered        ? RGB(120, 200, 120)
+                                             : RGB(80, 150, 80);
+    auto     btnBrush  = CreateSolidBrush(btnBg);
     FillRect(hDC, &btnRect, btnBrush);
     DeleteObject(btnBrush);
 
@@ -1605,7 +1919,7 @@ void RadarScreen::DrawNapReminder(HDC hDC)
     HFONT btnFont = CreateFontA(-17, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    prev = (HFONT)SelectObject(hDC, btnFont);
+    prev          = (HFONT)SelectObject(hDC, btnFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "ACK", -1, &btnRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prev);
@@ -1630,9 +1944,9 @@ void RadarScreen::DrawStartButton(HDC hDC)
     bool chatOpen = (chat.bottom > chat.top);
     int  bottom   = chatOpen ? chat.top : clip.bottom;
     int  bx       = clip.right - BTN_W;
-    int  by       = bottom     - BTN_H;
+    int  by       = bottom - BTN_H;
 
-    RECT btnRect = { bx, by, bx + BTN_W, by + BTN_H };
+    RECT btnRect = {bx, by, bx + BTN_W, by + BTN_H};
 
     // Reset hover tracking each frame so every new mouse-enter counts as a fresh transition.
     this->startBtnLastHoverType = -1;
@@ -1641,16 +1955,19 @@ void RadarScreen::DrawStartButton(HDC hDC)
     HWND  hwnd = WindowFromDC(hDC);
     POINT cursor;
     GetCursorPos(&cursor);
-    if (hwnd) { ScreenToClient(hwnd, &cursor); }
+    if (hwnd)
+    {
+        ScreenToClient(hwnd, &cursor);
+    }
     bool hovered = PtInRect(&btnRect, cursor) != 0;
 
     // Background — three visual states: normal / hover / pressed
-    COLORREF bgColor     = this->startBtnPressed ? RGB( 70, 110, 170)
-                         : hovered               ? RGB( 50,  85, 135)
-                                                 : RGB( 30,  55,  95);
+    COLORREF bgColor     = this->startBtnPressed ? RGB(70, 110, 170)
+                           : hovered             ? RGB(50, 85, 135)
+                                                 : RGB(30, 55, 95);
     COLORREF borderColor = this->startBtnPressed ? RGB(180, 210, 255)
-                         : hovered               ? RGB(120, 160, 220)
-                                                 : RGB( 80, 120, 180);
+                           : hovered             ? RGB(120, 160, 220)
+                                                 : RGB(80, 120, 180);
 
     auto bgBrush = CreateSolidBrush(bgColor);
     FillRect(hDC, &btnRect, bgBrush);
@@ -1679,60 +1996,78 @@ void RadarScreen::DrawStartButton(HDC hDC)
 /// Sections: Windows (window show/hide toggles), Commands (actions), Options (plugin toggles).
 void RadarScreen::DrawStartMenu(HDC hDC)
 {
-    if (!this->startMenuOpen) { return; }
+    if (!this->startMenuOpen)
+    {
+        return;
+    }
 
-    const int BTN_H     = 20;  ///< Must match DrawStartButton::BTN_H (fixed)
-    auto* base     = static_cast<CFlowX_Base*>(this->GetPlugIn());
-    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    const int BTN_H     = 20; ///< Must match DrawStartButton::BTN_H (fixed)
+    auto*     base      = static_cast<CFlowX_Base*>(this->GetPlugIn());
+    auto*     settings  = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     const int fo        = settings->GetFontOffset();
-    const int HEADER_H  = 16 + fo;  ///< Height of a section header row
-    const int ITEM_H    = 20 + fo;  ///< Height of a clickable item row
-    const int GAP_H     = 10;       ///< Spacer height inserted above each section header after the first
-    const int OUTER_PAD = 6;        ///< Margin from the outer border to all content on every side
-    const int CBX_S     = 9 + fo;   ///< Checkbox square size in pixels
-    const int CBX_GAP   = 4;        ///< Gap between checkbox right edge and item label
+    const int HEADER_H  = 16 + fo;              ///< Height of a section header row
+    const int ITEM_H    = 20 + fo;              ///< Height of a clickable item row
+    const int GAP_H     = 10;                   ///< Spacer height inserted above each section header after the first
+    const int OUTER_PAD = 6;                    ///< Margin from the outer border to all content on every side
+    const int CBX_S     = 9 + fo;               ///< Checkbox square size in pixels
+    const int CBX_GAP   = 4;                    ///< Gap between checkbox right edge and item label
     const int MENU_W    = 180 * (14 + fo) / 14; ///< Menu width scaled with item font; right-aligned with the button
 
-    struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; bool hasBgButtons = false; bool disabled = false; };
+    struct MenuRow
+    {
+        bool        isHeader;
+        const char* label;
+        bool        hasCheckbox;
+        bool        checked;
+        int         itemIdx;
+        bool        hasFontButtons = false;
+        bool        hasBgButtons   = false;
+        bool        disabled       = false;
+    };
 
     const bool osmBusy = settings->IsOsmBusy();
 
     MenuRow rows[] = {
-        { true,  "Windows",            false, false,                               -1 },
-        { false, "Approach Estimate",  true,  settings->GetApproachEstVisible(),   16 },
-        { false, "DEP/H",              true,  settings->GetDepRateVisible(),        4 },
-        { false, "TWR Outbound",       true,  settings->GetTwrOutboundVisible(),    5 },
-        { false, "TWR Inbound",        true,  settings->GetTwrInboundVisible(),     6 },
-        { false, "WX/ATIS",            true,  settings->GetWeatherVisible(),        7 },
-        { true,  "Commands",           false, false,                               -1 },
-        { false, "Redo CLR flags",     false, false,                                0 },
-        { false, "Dismiss QNH",        false, false,                               12 },
-        { false, "Save positions",     false, false,                                1 },
-        { true,  "Assists",            false, false,                               -1 },
-        { false, "Auto-Restore FPLN",  true,  settings->GetAutoRestore(),           3 },
-        { false, "Auto PARK",          true,  settings->GetAutoParked(),           15 },
-        { false, "Auto-Clear Scratch", true,  settings->GetAutoScratchpadClear(),  18 },
-        { true,  "Notifications",      false, false,                               -1 },
-        { false, "Airborne",           true,  settings->GetSoundAirborne(),        19 },
-        { false, "GND Transfer",       true,  settings->GetSoundGndTransfer(),     20 },
-        { false, "Ready T/O",          true,  settings->GetSoundReadyTakeoff(),    21 },
-        { true,  "Options",            false, false,                               -1 },
-        { false, "Debug mode",         true,  base->GetDebug(),                     2 },
-        { false, "Update check",       true,  settings->GetUpdateCheck(),          13 },
-        { false, "Flash messages",     true,  settings->GetFlashOnMessage(),       14 },
-        { false, "Appr Est Colors",    true,  settings->GetApprEstColors(),        17 },
-        { false, "Fonts",              false, false,                               -1, true  },
-        { false, "BG opacity",         false, false,                               -1, false, true },
-        { true,  "TAXI",              false, false,                               -1 },
-        { false, "Update TAXI info",  false, false,                               22, false, false, osmBusy },
-        { false, "Show TAXI overlay", true,  this->showTaxiOverlay,               23 },
+        {true, "Windows", false, false, -1},
+        {false, "Approach Estimate", true, settings->GetApproachEstVisible(), 16},
+        {false, "DEP/H", true, settings->GetDepRateVisible(), 4},
+        {false, "TWR Outbound", true, settings->GetTwrOutboundVisible(), 5},
+        {false, "TWR Inbound", true, settings->GetTwrInboundVisible(), 6},
+        {false, "WX/ATIS", true, settings->GetWeatherVisible(), 7},
+        {true, "Commands", false, false, -1},
+        {false, "Redo CLR flags", false, false, 0},
+        {false, "Dismiss QNH", false, false, 12},
+        {false, "Save positions", false, false, 1},
+        {true, "Assists", false, false, -1},
+        {false, "Auto-Restore FPLN", true, settings->GetAutoRestore(), 3},
+        {false, "Auto PARK", true, settings->GetAutoParked(), 15},
+        {false, "Auto-Clear Scratch", true, settings->GetAutoScratchpadClear(), 18},
+        {true, "Notifications", false, false, -1},
+        {false, "Airborne", true, settings->GetSoundAirborne(), 19},
+        {false, "GND Transfer", true, settings->GetSoundGndTransfer(), 20},
+        {false, "Ready T/O", true, settings->GetSoundReadyTakeoff(), 21},
+        {true, "Options", false, false, -1},
+        {false, "Debug mode", true, base->GetDebug(), 2},
+        {false, "Update check", true, settings->GetUpdateCheck(), 13},
+        {false, "Flash messages", true, settings->GetFlashOnMessage(), 14},
+        {false, "Appr Est Colors", true, settings->GetApprEstColors(), 17},
+        {false, "Fonts", false, false, -1, true},
+        {false, "BG opacity", false, false, -1, false, true},
+        {true, "TAXI", false, false, -1},
+        {false, "Update TAXI info", false, false, 22, false, false, osmBusy},
+        {false, "Show TAXI network", true, this->showTaxiOverlay, 23},
+        {false, "Show TAXI labels",  true, this->showTaxiLabels,  24},
+        {false, "Show TAXI routes",  true, this->showTaxiRoutes,  25},
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
     // Compute total menu height: outer padding at bottom only (top header sits flush with the border), gaps before non-first headers, row heights.
     int MENU_H = OUTER_PAD;
     for (auto [i, row] : std::views::enumerate(rows))
-        { MENU_H += (row.isHeader && i > 0) ? GAP_H + HEADER_H : row.isHeader ? HEADER_H : ITEM_H; }
+    {
+        MENU_H += (row.isHeader && i > 0) ? GAP_H + HEADER_H : row.isHeader ? HEADER_H
+                                                                            : ITEM_H;
+    }
 
     // Mirror DrawStartButton's anchor logic exactly.
     RECT clip;
@@ -1745,10 +2080,13 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
     // Hover detection — reset each frame so every enter counts as a fresh transition.
     this->startMenuLastHoverType = -1;
-    HWND  hwnd = WindowFromDC(hDC);
+    HWND  hwnd                   = WindowFromDC(hDC);
     POINT cursor;
     GetCursorPos(&cursor);
-    if (hwnd) { ScreenToClient(hwnd, &cursor); }
+    if (hwnd)
+    {
+        ScreenToClient(hwnd, &cursor);
+    }
 
     // Auto-close if the cursor moves more than 100 px away from the menu in any direction.
     const int CLOSE_DIST = 200;
@@ -1761,7 +2099,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     }
 
     // Overall background and border.
-    RECT menuRect = { mx, my, mx + MENU_W, my + MENU_H };
+    RECT menuRect = {mx, my, mx + MENU_W, my + MENU_H};
     auto bgBrush  = CreateSolidBrush(RGB(15, 15, 15));
     FillRect(hDC, &menuRect, bgBrush);
     DeleteObject(bgBrush);
@@ -1777,45 +2115,48 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     HFONT cbxFont    = CreateFontA(-11 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prev = (HFONT)SelectObject(hDC, itemFont);
+    HFONT prev       = (HFONT)SelectObject(hDC, itemFont);
 
     int iy = my;
     for (auto [i, row] : std::views::enumerate(rows))
     {
         int  rh      = row.isHeader ? HEADER_H : ITEM_H;
-        RECT rowRect = { mx, iy, mx + MENU_W, iy + rh }; // rowRect for headers is updated after gap advance below
+        RECT rowRect = {mx, iy, mx + MENU_W, iy + rh}; // rowRect for headers is updated after gap advance below
 
         if (row.isHeader)
         {
             // Gap spacer above every section header except the first.
-            if (i > 0) { iy += GAP_H; }
+            if (i > 0)
+            {
+                iy += GAP_H;
+            }
 
             // Section header — blue title-bar background, inset by 1 so it doesn't paint over the border.
-            rowRect = { mx + 1, iy, mx + MENU_W - 1, iy + HEADER_H };
+            rowRect       = {mx + 1, iy, mx + MENU_W - 1, iy + HEADER_H};
             auto hdrBrush = CreateSolidBrush(RGB(30, 55, 95));
             FillRect(hDC, &rowRect, hdrBrush);
             DeleteObject(hdrBrush);
 
             SelectObject(hDC, headerFont);
             SetTextColor(hDC, TAG_COLOR_WHITE);
-            RECT textRect = { mx + OUTER_PAD, iy, mx + MENU_W - OUTER_PAD, iy + HEADER_H };
+            RECT textRect = {mx + OUTER_PAD, iy, mx + MENU_W - OUTER_PAD, iy + HEADER_H};
             DrawTextA(hDC, row.label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
         else if (row.hasFontButtons)
         {
             // Fonts row: label + current offset value on the left, [−] [+] buttons on the right.
-            const int BTN_W = 14 + fo;
-            int fo = settings->GetFontOffset();
+            const int   BTN_W  = 14 + fo;
+            int         fo     = settings->GetFontOffset();
             std::string valStr = (fo > 0) ? std::format("+{}", fo) : std::format("{}", fo);
 
-            RECT minusRect = { mx + MENU_W - OUTER_PAD - BTN_W * 2 - 2, iy + (ITEM_H - BTN_W) / 2,
-                               mx + MENU_W - OUTER_PAD - BTN_W - 2,     iy + (ITEM_H + BTN_W) / 2 };
-            RECT plusRect  = { mx + MENU_W - OUTER_PAD - BTN_W,         iy + (ITEM_H - BTN_W) / 2,
-                               mx + MENU_W - OUTER_PAD,                  iy + (ITEM_H + BTN_W) / 2 };
-            bool minusHov = PtInRect(&minusRect, cursor) != 0;
-            bool plusHov  = PtInRect(&plusRect,  cursor) != 0;
+            RECT minusRect = {mx + MENU_W - OUTER_PAD - BTN_W * 2 - 2, iy + (ITEM_H - BTN_W) / 2,
+                              mx + MENU_W - OUTER_PAD - BTN_W - 2, iy + (ITEM_H + BTN_W) / 2};
+            RECT plusRect  = {mx + MENU_W - OUTER_PAD - BTN_W, iy + (ITEM_H - BTN_W) / 2,
+                              mx + MENU_W - OUTER_PAD, iy + (ITEM_H + BTN_W) / 2};
+            bool minusHov  = PtInRect(&minusRect, cursor) != 0;
+            bool plusHov   = PtInRect(&plusRect, cursor) != 0;
 
-            for (auto [rect, hov] : { std::pair{minusRect, minusHov}, std::pair{plusRect, plusHov} })
+            for (auto [rect, hov] : {std::pair{minusRect, minusHov}, std::pair{plusRect, plusHov}})
             {
                 auto btnBrush = CreateSolidBrush(hov ? RGB(45, 70, 115) : RGB(35, 35, 35));
                 FillRect(hDC, &rect, btnBrush);
@@ -1827,33 +2168,33 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
             SelectObject(hDC, itemFont);
             std::string fullLabel = std::string("Fonts ") + valStr;
-            RECT labelRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, minusRect.left - 4, iy + ITEM_H };
+            RECT        labelRect = {mx + OUTER_PAD + CBX_S + CBX_GAP, iy, minusRect.left - 4, iy + ITEM_H};
             SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
             DrawTextA(hDC, fullLabel.c_str(), -1, &labelRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             SelectObject(hDC, cbxFont);
             SetTextColor(hDC, TAG_COLOR_WHITE);
             DrawTextA(hDC, "-", -1, &minusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            DrawTextA(hDC, "+", -1, &plusRect,  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextA(hDC, "+", -1, &plusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
             AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|8", minusRect, false, "");
-            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|9", plusRect,  false, "");
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|9", plusRect, false, "");
         }
         else if (row.hasBgButtons)
         {
             // BG opacity row: label + current value on the left, [−] [+] buttons on the right.
-            const int BTN_W = 14 + fo;
-            int bgOp = settings->GetBgOpacity();
+            const int   BTN_W  = 14 + fo;
+            int         bgOp   = settings->GetBgOpacity();
             std::string valStr = std::format("{}%", bgOp);
 
-            RECT minusRect = { mx + MENU_W - OUTER_PAD - BTN_W * 2 - 2, iy + (ITEM_H - BTN_W) / 2,
-                               mx + MENU_W - OUTER_PAD - BTN_W - 2,     iy + (ITEM_H + BTN_W) / 2 };
-            RECT plusRect  = { mx + MENU_W - OUTER_PAD - BTN_W,         iy + (ITEM_H - BTN_W) / 2,
-                               mx + MENU_W - OUTER_PAD,                  iy + (ITEM_H + BTN_W) / 2 };
-            bool minusHov = PtInRect(&minusRect, cursor) != 0;
-            bool plusHov  = PtInRect(&plusRect,  cursor) != 0;
+            RECT minusRect = {mx + MENU_W - OUTER_PAD - BTN_W * 2 - 2, iy + (ITEM_H - BTN_W) / 2,
+                              mx + MENU_W - OUTER_PAD - BTN_W - 2, iy + (ITEM_H + BTN_W) / 2};
+            RECT plusRect  = {mx + MENU_W - OUTER_PAD - BTN_W, iy + (ITEM_H - BTN_W) / 2,
+                              mx + MENU_W - OUTER_PAD, iy + (ITEM_H + BTN_W) / 2};
+            bool minusHov  = PtInRect(&minusRect, cursor) != 0;
+            bool plusHov   = PtInRect(&plusRect, cursor) != 0;
 
-            for (auto [rect, hov] : { std::pair{minusRect, minusHov}, std::pair{plusRect, plusHov} })
+            for (auto [rect, hov] : {std::pair{minusRect, minusHov}, std::pair{plusRect, plusHov}})
             {
                 auto btnBrush = CreateSolidBrush(hov ? RGB(45, 70, 115) : RGB(35, 35, 35));
                 FillRect(hDC, &rect, btnBrush);
@@ -1865,17 +2206,17 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 
             SelectObject(hDC, itemFont);
             std::string fullLabel = std::string("BG opacity ") + valStr;
-            RECT labelRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, minusRect.left - 4, iy + ITEM_H };
+            RECT        labelRect = {mx + OUTER_PAD + CBX_S + CBX_GAP, iy, minusRect.left - 4, iy + ITEM_H};
             SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
             DrawTextA(hDC, fullLabel.c_str(), -1, &labelRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             SelectObject(hDC, cbxFont);
             SetTextColor(hDC, TAG_COLOR_WHITE);
             DrawTextA(hDC, "-", -1, &minusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            DrawTextA(hDC, "+", -1, &plusRect,  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextA(hDC, "+", -1, &plusRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
             AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|10", minusRect, false, "");
-            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|11", plusRect,  false, "");
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, "MENU|11", plusRect, false, "");
         }
         else
         {
@@ -1892,9 +2233,9 @@ void RadarScreen::DrawStartMenu(HDC hDC)
             {
                 int  cy      = iy + (ITEM_H - CBX_S) / 2;
                 int  cx      = mx + OUTER_PAD;
-                RECT boxRect = { cx, cy, cx + CBX_S, cy + CBX_S };
+                RECT boxRect = {cx, cy, cx + CBX_S, cy + CBX_S};
 
-                auto boxBrush  = CreateSolidBrush(row.checked ? RGB(30, 55, 95) : RGB(25, 25, 25));
+                auto boxBrush = CreateSolidBrush(row.checked ? RGB(30, 55, 95) : RGB(25, 25, 25));
                 FillRect(hDC, &boxRect, boxBrush);
                 DeleteObject(boxBrush);
 
@@ -1911,10 +2252,10 @@ void RadarScreen::DrawStartMenu(HDC hDC)
             }
 
             SelectObject(hDC, itemFont);
-            RECT textRect = { mx + OUTER_PAD + CBX_S + CBX_GAP, iy, mx + MENU_W - OUTER_PAD, iy + ITEM_H };
-            SetTextColor(hDC, row.disabled  ? RGB(70, 70, 70)
-                            : rowHovered    ? TAG_COLOR_WHITE
-                                            : TAG_COLOR_LIST_GRAY);
+            RECT textRect = {mx + OUTER_PAD + CBX_S + CBX_GAP, iy, mx + MENU_W - OUTER_PAD, iy + ITEM_H};
+            SetTextColor(hDC, row.disabled ? RGB(70, 70, 70)
+                              : rowHovered ? TAG_COLOR_WHITE
+                                           : TAG_COLOR_LIST_GRAY);
             DrawTextA(hDC, row.label, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             if (!row.disabled)
@@ -1943,18 +2284,21 @@ void RadarScreen::DrawStartMenu(HDC hDC)
 void RadarScreen::DrawWeatherWindow(HDC hDC)
 {
     auto* settingsWx = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settingsWx->GetWeatherVisible()) { return; }
+    if (!settingsWx->GetWeatherVisible())
+    {
+        return;
+    }
     int fo = settingsWx->GetFontOffset();
     int op = settingsWx->GetBgOpacity();
 
     const int TITLE_H = 13;
     const int DATA_H  = 36;
-    const int RVR_H   = 26;   ///< Tighter row height for the RVR line
+    const int RVR_H   = 26; ///< Tighter row height for the RVR line
     const int WIN_PAD = 8;
-    const int X_BTN   = 11;   ///< Width and height of the title-bar close button
+    const int X_BTN   = 11; ///< Width and height of the title-bar close button
 
-    static const WeatherRowCache emptyRow{ "", "-", TAG_COLOR_DEFAULT_GRAY, "-", TAG_COLOR_DEFAULT_GRAY, "?", TAG_COLOR_DEFAULT_GRAY };
-    const auto& r = this->weatherRowsCache.empty() ? emptyRow : this->weatherRowsCache[0];
+    static const WeatherRowCache emptyRow{"", "-", TAG_COLOR_DEFAULT_GRAY, "-", TAG_COLOR_DEFAULT_GRAY, "?", TAG_COLOR_DEFAULT_GRAY};
+    const auto&                  r = this->weatherRowsCache.empty() ? emptyRow : this->weatherRowsCache[0];
 
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -1965,47 +2309,50 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
 
     // Measure content widths with the data font before drawing any background
     HFONT prev = (HFONT)SelectObject(hDC, dataFont);
-    SIZE spaceSize, qnhSize, atisSize, rvrSize;
-    GetTextExtentPoint32A(hDC, " ",          1,                  &spaceSize);
-    GetTextExtentPoint32A(hDC, r.qnh.c_str(),  (int)r.qnh.size(), &qnhSize);
+    SIZE  spaceSize, qnhSize, atisSize, rvrSize;
+    GetTextExtentPoint32A(hDC, " ", 1, &spaceSize);
+    GetTextExtentPoint32A(hDC, r.qnh.c_str(), (int)r.qnh.size(), &qnhSize);
     GetTextExtentPoint32A(hDC, r.atis.c_str(), (int)r.atis.size(), &atisSize);
-    GetTextExtentPoint32A(hDC, r.rvr.c_str(),  (int)r.rvr.size(),  &rvrSize);
+    GetTextExtentPoint32A(hDC, r.rvr.c_str(), (int)r.rvr.size(), &rvrSize);
 
     // Wind is drawn in two parts (direction + speed) with a half-space gap between them
     const int   halfGap   = spaceSize.cx / 2;
     std::string windDir   = (r.wind.size() >= 3) ? r.wind.substr(0, 3) : r.wind;
-    std::string windSpeed = (r.wind.size() >  3) ? r.wind.substr(3)    : "";
-    SIZE windDirSize, windSpeedSize;
-    GetTextExtentPoint32A(hDC, windDir.c_str(),   (int)windDir.size(),   &windDirSize);
+    std::string windSpeed = (r.wind.size() > 3) ? r.wind.substr(3) : "";
+    SIZE        windDirSize, windSpeedSize;
+    GetTextExtentPoint32A(hDC, windDir.c_str(), (int)windDir.size(), &windDirSize);
     GetTextExtentPoint32A(hDC, windSpeed.c_str(), (int)windSpeed.size(), &windSpeedSize);
     int windTotalW = windDirSize.cx + halfGap + windSpeedSize.cx;
 
-    bool hasRVR  = !r.rvr.empty();
-    int line1W   = windTotalW + spaceSize.cx + qnhSize.cx + spaceSize.cx + atisSize.cx;
-    int WIN_W    = WIN_PAD + (line1W > rvrSize.cx ? line1W : rvrSize.cx) + WIN_PAD;
-    int WIN_H    = TITLE_H + DATA_H + (hasRVR ? RVR_H : 0) + WIN_PAD / 2;
+    bool hasRVR = !r.rvr.empty();
+    int  line1W = windTotalW + spaceSize.cx + qnhSize.cx + spaceSize.cx + atisSize.cx;
+    int  WIN_W  = WIN_PAD + (line1W > rvrSize.cx ? line1W : rvrSize.cx) + WIN_PAD;
+    int  WIN_H  = TITLE_H + DATA_H + (hasRVR ? RVR_H : 0) + WIN_PAD / 2;
 
     if (this->weatherWindowPos.x == -1)
     {
         RECT clip;
         GetClipBox(hDC, &clip);
         this->weatherWindowPos.x = clip.right - WIN_W - 20;
-        this->weatherWindowPos.y = clip.top   + 20;
+        this->weatherWindowPos.y = clip.top + 20;
     }
 
     int wx = this->weatherWindowPos.x;
     int wy = this->weatherWindowPos.y;
 
-    RECT xRect = { wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN };
+    RECT xRect                  = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     this->winCloseLastHoverType = -1;
-    HWND  hwndWx = WindowFromDC(hDC);
+    HWND  hwndWx                = WindowFromDC(hDC);
     POINT cursorWx;
     GetCursorPos(&cursorWx);
-    if (hwndWx) { ScreenToClient(hwndWx, &cursorWx); }
+    if (hwndWx)
+    {
+        ScreenToClient(hwndWx, &cursorWx);
+    }
     bool xHovered = PtInRect(&xRect, cursorWx) != 0;
 
-    RECT winRect   = { wx, wy, wx + WIN_W, wy + WIN_H   };
-    RECT titleRect = { wx, wy, wx + WIN_W, wy + TITLE_H };
+    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
 
     FillRectAlpha(hDC, winRect, RGB(15, 15, 15), op);
     auto titleBrush = CreateSolidBrush(RGB(30, 55, 95));
@@ -2031,7 +2378,7 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     // Close button text
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    RECT dragRectWx = { wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H };
+    RECT dragRectWx = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_WEATHER_WIN, "WXATIS", dragRectWx, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "weather", xRect, false, "");
 
@@ -2039,17 +2386,18 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     int textY = wy + TITLE_H + (DATA_H - spaceSize.cy) / 2;
     int x     = wx + WIN_PAD;
 
-    auto drawField = [&](const std::string& text, COLORREF color, int w) {
+    auto drawField = [&](const std::string& text, COLORREF color, int w)
+    {
         SetTextColor(hDC, color);
         TextOutA(hDC, x, textY, text.c_str(), (int)text.size());
         x += w + spaceSize.cx;
     };
 
     SetTextColor(hDC, r.windColor);
-    TextOutA(hDC, x, textY, windDir.c_str(),   (int)windDir.size());
+    TextOutA(hDC, x, textY, windDir.c_str(), (int)windDir.size());
     TextOutA(hDC, x + windDirSize.cx + halfGap, textY, windSpeed.c_str(), (int)windSpeed.size());
     x += windTotalW + spaceSize.cx;
-    drawField(r.qnh,  r.qnhColor,  qnhSize.cx);
+    drawField(r.qnh, r.qnhColor, qnhSize.cx);
     drawField(r.atis, r.atisColor, atisSize.cx);
 
     if (hasRVR)
@@ -2060,7 +2408,7 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
         TextOutA(hDC, x, textY, r.rvr.c_str(), (int)r.rvr.size());
     }
 
-    RECT clickRect = { wx, wy + TITLE_H, wx + WIN_W, wy + WIN_H };
+    RECT clickRect = {wx, wy + TITLE_H, wx + WIN_W, wy + WIN_H};
     AddScreenObject(SCREEN_OBJECT_WEATHER_ROW, r.icao.c_str(), clickRect, false, "");
 
     SelectObject(hDC, prev);
@@ -2109,9 +2457,43 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                 this->RequestRefresh();
             }
         }
+
+        // Taxi planning: update cursor snap and recompute preview on every mouse move.
+        if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && !this->taxiPlanActive.empty())
+        {
+            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+            if (settings->osmGraph.IsBuilt())
+            {
+                EuroScopePlugIn::CPosition rawPos = this->ConvertCoordFromPixelToPosition(Pt);
+                GeoPoint                   raw{rawPos.m_Latitude, rawPos.m_Longitude};
+
+                const TaxiRoute& sug = this->taxiSuggested.count(this->taxiPlanActive)
+                                           ? this->taxiSuggested.at(this->taxiPlanActive)
+                                           : TaxiRoute{};
+                this->taxiCursorSnap = settings->osmGraph.SnapForPlanning(raw, sug);
+
+                auto rt = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+                if (rt.IsValid())
+                {
+                    EuroScopePlugIn::CPosition rpos    = rt.GetPosition().GetPosition();
+                    GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
+                    const double               heading = rt.GetPosition().GetReportedHeadingTrueNorth();
+                    this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
+                        origin, this->taxiWaypoints, this->taxiCursorSnap,
+                        0.0, settings->GetActiveDepRunways(), heading);
+                }
+                this->RequestRefresh();
+            }
+        }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnOverScreenObject", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnOverScreenObject", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnOverScreenObject", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnOverScreenObject", "unknown exception");
+    }
 }
 
 /// @brief Sets the pressed state when the mouse button goes down over the ACK or Start button.
@@ -2121,8 +2503,9 @@ void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId
 {
     try
     {
-        if (this->debug) GetPlugIn()->DisplayUserMessage("FlowX", "GndXfr",
-            std::format("BtnDown type={} id={} btn={}", ObjectType, sObjectId, Button).c_str(), true, true, false, false, false);
+        if (this->debug)
+            GetPlugIn()->DisplayUserMessage("FlowX", "GndXfr",
+                                            std::format("BtnDown type={} id={} btn={}", ObjectType, sObjectId, Button).c_str(), true, true, false, false, false);
 
         if (ObjectType == SCREEN_OBJECT_NAP_ACK)
         {
@@ -2142,8 +2525,14 @@ void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId
             this->RequestRefresh();
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnButtonDownScreenObject", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnButtonDownScreenObject", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnButtonDownScreenObject", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnButtonDownScreenObject", "unknown exception");
+    }
 }
 
 /// @brief Clears the pressed state when the mouse button is released.
@@ -2163,8 +2552,14 @@ void RadarScreen::OnButtonUpScreenObject(int ObjectType, const char* sObjectId, 
             this->RequestRefresh();
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnButtonUpScreenObject", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnButtonUpScreenObject", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnButtonUpScreenObject", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnButtonUpScreenObject", "unknown exception");
+    }
 }
 
 /// @brief Starts the ACK blink animation on click; the window closes after it completes.
@@ -2173,262 +2568,500 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 {
     try
     {
-    if (ObjectType == SCREEN_OBJECT_WIN_CLOSE && Button == EuroScopePlugIn::BUTTON_LEFT)
-    {
-        std::string id(sObjectId);
-        auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-        if      (id == "approachEst") { settings->ToggleApproachEstVisible(); }
-        else if (id == "depRate")    { settings->ToggleDepRateVisible(); }
-        else if (id == "twrOut")     { settings->ToggleTwrOutboundVisible(); }
-        else if (id == "twrIn")      { settings->ToggleTwrInboundVisible(); }
-        else if (id == "weather")    { settings->ToggleWeatherVisible(); }
-        this->RequestRefresh();
-        return;
-    }
-
-    if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
-    {
-        this->startMenuOpen = !this->startMenuOpen;
-        this->RequestRefresh();
-        return;
-    }
-
-    if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM && Button == EuroScopePlugIn::BUTTON_LEFT)
-    {
-        std::string id(sObjectId);
-        auto sep = id.find('|');
-        int idx  = -1;
-        if (sep != std::string::npos)
+        // ── Taxi planning interactions ────────────────────────────────────────────────
+        if (ObjectType == SCREEN_OBJECT_TAXI_TARGET && Button == EuroScopePlugIn::BUTTON_RIGHT)
         {
-            idx = std::stoi(id.substr(sep + 1));
             auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-            if (idx == 0) // Redo CLR flags
+            if (!settings->osmGraph.IsBuilt())
             {
-                static_cast<CFlowX_Functions*>(this->GetPlugIn())->RedoFlags();
+                return;
             }
-            else if (idx == 1) // Save positions
+
+            std::string callsign(sObjectId);
+            auto        rt = GetPlugIn()->RadarTargetSelect(callsign.c_str());
+            if (!rt.IsValid())
             {
-                static_cast<CFlowX_Timers*>(this->GetPlugIn())->SaveWindowPositions();
+                return;
             }
-            else if (idx == 12) // Dismiss QNH
+
+            this->taxiPlanActive = callsign;
+            this->taxiWaypoints.clear();
+            this->taxiOriginPx     = Pt;
+            this->taxiGreenPreview = {};
+
+            EuroScopePlugIn::CPosition rpos = rt.GetPosition().GetPosition();
+            GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
+
+            // Determine whether this is an inbound or departure aircraft.
+            // An inbound has our airport as its destination; a departure has it as origin.
+            GeoPoint    dest{0.0, 0.0};
+            std::string ourIcao;
+            if (!settings->GetAirports().empty())
+                ourIcao = settings->GetAirports().begin()->first; // e.g. "LOWW"
+
+            auto        fp          = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+            bool        isInbound   = false;
+            if (fp.IsValid())
             {
-                static_cast<CFlowX_Functions*>(this->GetPlugIn())->DismissQnh();
+                std::string arrAirport = fp.GetFlightPlanData().GetDestination();
+                to_upper(arrAirport);
+                isInbound = (!ourIcao.empty() && arrAirport == ourIcao);
             }
-            else if (idx == 2) // Debug mode
+
+            if (isInbound)
             {
-                settings->ToggleDebug();
-                this->debug = static_cast<CFlowX_Base*>(this->GetPlugIn())->GetDebug();
-            }
-            else if (idx == 3) // Autostore FPLN
-            {
-                settings->ToggleAutoRestore();
-            }
-            else if (idx == 13) { settings->ToggleUpdateCheck(); }
-            else if (idx == 14) { settings->ToggleFlashOnMessage(); }
-            else if (idx == 15) { settings->ToggleAutoParked(); }
-            else if (idx == 16) { settings->ToggleApproachEstVisible(); }
-            else if (idx == 17) { settings->ToggleApprEstColors(); }
-            else if (idx == 18) { settings->ToggleAutoScratchpadClear(); }
-            else if (idx == 19) { settings->ToggleSoundAirborne(); }
-            else if (idx == 20) { settings->ToggleSoundGndTransfer(); }
-            else if (idx == 21) { settings->ToggleSoundReadyTakeoff(); }
-            else if (idx == 22) // Update TAXI info
-            {
-                settings->StartOsmFetch();
-            }
-            else if (idx == 23) // Show TAXI overlay
-            {
-                this->showTaxiOverlay = !this->showTaxiOverlay;
-            }
-            else if (idx == 4) { settings->ToggleDepRateVisible(); }
-            else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
-            else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
-            else if (idx == 7) { settings->ToggleWeatherVisible(); }
-            else if (idx == 8)  { settings->DecreaseFontOffset(); }
-            else if (idx == 9)  { settings->IncreaseFontOffset(); }
-            else if (idx == 10) { settings->DecreaseBgOpacity(); }
-            else if (idx == 11) { settings->IncreaseBgOpacity(); }
-        }
-        // Keep menu open for window toggles (4-7, 16), notification toggles (19-21), and TAXI overlay toggle (23); close for all others
-        if (idx < 4 || idx == 12 || idx == 22 || (idx >= 13 && idx != 16 && idx != 17 && idx < 19)) { this->startMenuOpen = false; }
-
-        std::string clickSnd = GetPluginDirectory() + "\\click.wav";
-        PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
-
-        this->RequestRefresh();
-        return;
-    }
-
-    if (ObjectType == SCREEN_OBJECT_NAP_ACK && this->napAckClickTick == 0)
-    {
-        this->napAckClickTick = GetTickCount64();
-        this->RequestRefresh();
-    }
-
-    if (ObjectType == SCREEN_OBJECT_WEATHER_ROW)
-    {
-        static_cast<CFlowX_Timers*>(this->GetPlugIn())->AckWeather(std::string(sObjectId));
-        this->RequestRefresh();
-    }
-
-    if (ObjectType == SCREEN_OBJECT_DEP_TAG_SID_DOT)
-    {
-        std::string id(sObjectId);
-        auto sep = id.rfind('|');
-        if (sep == std::string::npos) { return; }
-        std::string callsign = id.substr(0, sep);
-
-        auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-        if (aselFp.IsValid()) { GetPlugIn()->SetASELAircraft(aselFp); }
-
-        if (Button == EuroScopePlugIn::BUTTON_LEFT)
-        {
-            auto ctrl = this->GetPlugIn()->ControllerMyself();
-            if (!ctrl.IsController() || ctrl.GetFacility() != 3) { return; }
-
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, "",
-                PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
-        }
-        else if (Button == EuroScopePlugIn::BUTTON_RIGHT)
-        {
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_TWR_SORT, "",
-                PLUGIN_NAME, TAG_FUNC_APPEND_QUEUE_POS, Pt, Area);
-        }
-
-        this->RequestRefresh();
-        return;
-    }
-
-    if (ObjectType == SCREEN_OBJECT_TWR_OUT_CELL)
-    {
-        std::string id(sObjectId);
-        auto sep = id.find('|');
-        if (sep == std::string::npos) { return; }
-        std::string callsign = id.substr(0, sep);
-        std::string col      = id.substr(sep + 1);
-
-        // Select the aircraft as ASEL (mirrors what clicking any tag item does in the default lists)
-        auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-        if (aselFp.IsValid()) { GetPlugIn()->SetASELAircraft(aselFp); }
-
-        // Locate the cached row so we can pass the current item string to StartTagFunction
-        const TwrOutboundRowCache* rowPtr = nullptr;
-        for (const auto& r : this->twrOutboundRowsCache)
-        {
-            if (r.callsign == callsign) { rowPtr = &r; break; }
-        }
-        if (!rowPtr) { return; }
-        const TwrOutboundRowCache& r = *rowPtr;
-
-        if (col == "STS")
-        {
-            int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_TAKE_OFF : TAG_FUNC_LINE_UP;
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, r.status.tag.c_str(),
-                PLUGIN_NAME, funcId, Pt, Area);
-        }
-        else if (col == "FREQ")
-        {
-            if (Button == EuroScopePlugIn::BUTTON_LEFT)
-            {
-                this->StartTagFunction(callsign.c_str(),
-                    PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, r.nextFreq.tag.c_str(),
-                    PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
-            }
-        }
-        else if (col == "RWY" && Button == EuroScopePlugIn::BUTTON_LEFT)
-        {
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, r.rwy.tag.c_str(),
-                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, Pt, Area);
-        }
-        else if (col == "SID" && Button == EuroScopePlugIn::BUTTON_LEFT)
-        {
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_SAMESID, r.sameSid.tag.c_str(),
-                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_SID, Pt, Area);
-        }
-        else if (col == "HP")
-        {
-            int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_REQUEST_HP : TAG_FUNC_ASSIGN_HP;
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_HP, r.hp.tag.c_str(),
-                PLUGIN_NAME, funcId, Pt, Area);
-        }
-        else if (col == "QPOS")
-        {
-            int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_APPEND_QUEUE_POS : TAG_FUNC_ASSIGN_QUEUE_POS;
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_TWR_SORT, r.queuePos.tag.c_str(),
-                PLUGIN_NAME, funcId, Pt, Area);
-        }
-
-        this->RequestRefresh();
-    }
-
-    if (ObjectType == SCREEN_OBJECT_TWR_IN_CELL)
-    {
-        std::string id(sObjectId);
-        auto sep = id.find('|');
-        if (sep == std::string::npos) { return; }
-        std::string callsign = id.substr(0, sep);
-        std::string col      = id.substr(sep + 1);
-
-        // Select the aircraft as ASEL
-        auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-        if (aselFp.IsValid()) { GetPlugIn()->SetASELAircraft(aselFp); }
-
-        // Locate the cached row for item strings
-        const TwrInboundRowCache* rowPtr = nullptr;
-        for (const auto& r : this->twrInboundRowsCache)
-        {
-            if (r.callsign == callsign) { rowPtr = &r; break; }
-        }
-        if (!rowPtr) { return; }
-        const TwrInboundRowCache& r = *rowPtr;
-
-        if ((col == "TTT" || col == "RWY") && Button == EuroScopePlugIn::BUTTON_LEFT)
-        {
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
-                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_TAKE_HANDOFF, Pt, Area);
-        }
-        else if (col == "CS")
-        {
-            int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_MISSED_APP : TAG_FUNC_CLRD_TO_LAND;
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
-                PLUGIN_NAME, funcId, Pt, Area);
-        }
-        else if (col == "GATE")
-        {
-            if (Button == EuroScopePlugIn::BUTTON_LEFT)
-            {
-                this->StartTagFunction(callsign.c_str(),
-                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.tag.c_str(),
-                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_FUNC_STAND_MENU, Pt, Area);
+                // Route to assigned stand centroid if available.
+                auto* timers     = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                auto  standIt    = timers->GetStandAssignment().find(callsign);
+                if (standIt != timers->GetStandAssignment().end())
+                {
+                    const std::string standKey = ourIcao + ":" + standIt->second;
+                    dest = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
+                }
+                // If no stand assigned or centroid not found, dest stays {0,0} → no suggested route.
             }
             else
             {
-                this->StartTagFunction(callsign.c_str(),
-                    GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.tag.c_str(),
-                    PLUGIN_NAME, TAG_FUNC_STAND_AUTO, Pt, Area);
+                // Departure: route to best HP on active runway.
+                if (!settings->GetAirports().empty())
+                    dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(),
+                                                              settings->GetAirports().begin()->second);
             }
-        }
-        else if (col == "ARW" && Button == EuroScopePlugIn::BUTTON_LEFT)
-        {
-            this->StartTagFunction(callsign.c_str(),
-                PLUGIN_NAME, TAG_ITEM_ASSIGNED_ARR_RUNWAY, r.arrRwy.tag.c_str(),
-                nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, Pt, Area);
+
+            if (dest.lat == 0.0 && dest.lon == 0.0)
+                dest = origin; // fallback: no destination found
+
+            const double heading              = rt.GetPosition().GetReportedHeadingTrueNorth();
+            this->taxiSuggested[callsign]    = settings->osmGraph.FindRoute(
+                origin, dest, 0.0, settings->GetActiveDepRunways(), heading);
+            this->taxiGreenPreview = this->taxiSuggested[callsign];
+
+            if (settings->GetDebug())
+                settings->LogDebugMessage("Taxi planning started for " + callsign, "TAXI");
+
+            this->RequestRefresh();
+            return;
         }
 
-        this->RequestRefresh();
+        if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            const int  dx         = Pt.x - this->taxiOriginPx.x;
+            const int  dy         = Pt.y - this->taxiOriginPx.y;
+            const bool nearOrigin = (dx * dx + dy * dy) <= 20 * 20;
+
+            TaxiRoute finalRoute = nearOrigin
+                                       ? this->taxiSuggested[this->taxiPlanActive]
+                                       : this->taxiGreenPreview;
+
+            if (finalRoute.valid)
+            {
+                this->taxiAssigned[this->taxiPlanActive]      = finalRoute;
+                this->taxiAssignedTimes[this->taxiPlanActive] = GetTickCount64();
+                this->taxiTracked[this->taxiPlanActive]       = finalRoute; // persistent for Show routes
+                auto* settings                                = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                if (settings->GetDebug())
+                    settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
+            }
+
+            this->taxiPlanActive.clear();
+            this->taxiWaypoints.clear();
+            this->taxiGreenPreview = {};
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && Button == EuroScopePlugIn::BUTTON_MIDDLE)
+        {
+            this->taxiWaypoints.push_back(this->taxiCursorSnap);
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && Button == EuroScopePlugIn::BUTTON_RIGHT)
+        {
+            this->taxiSuggested.erase(this->taxiPlanActive);
+            this->taxiPlanActive.clear();
+            this->taxiWaypoints.clear();
+            this->taxiGreenPreview = {};
+            this->RequestRefresh();
+            return;
+        }
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        if (ObjectType == SCREEN_OBJECT_WIN_CLOSE && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            std::string id(sObjectId);
+            auto*       settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+            if (id == "approachEst")
+            {
+                settings->ToggleApproachEstVisible();
+            }
+            else if (id == "depRate")
+            {
+                settings->ToggleDepRateVisible();
+            }
+            else if (id == "twrOut")
+            {
+                settings->ToggleTwrOutboundVisible();
+            }
+            else if (id == "twrIn")
+            {
+                settings->ToggleTwrInboundVisible();
+            }
+            else if (id == "weather")
+            {
+                settings->ToggleWeatherVisible();
+            }
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            this->startMenuOpen = !this->startMenuOpen;
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            std::string id(sObjectId);
+            auto        sep = id.find('|');
+            int         idx = -1;
+            if (sep != std::string::npos)
+            {
+                idx            = std::stoi(id.substr(sep + 1));
+                auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                if (idx == 0) // Redo CLR flags
+                {
+                    static_cast<CFlowX_Functions*>(this->GetPlugIn())->RedoFlags();
+                }
+                else if (idx == 1) // Save positions
+                {
+                    static_cast<CFlowX_Timers*>(this->GetPlugIn())->SaveWindowPositions();
+                }
+                else if (idx == 12) // Dismiss QNH
+                {
+                    static_cast<CFlowX_Functions*>(this->GetPlugIn())->DismissQnh();
+                }
+                else if (idx == 2) // Debug mode
+                {
+                    settings->ToggleDebug();
+                    this->debug = static_cast<CFlowX_Base*>(this->GetPlugIn())->GetDebug();
+                }
+                else if (idx == 3) // Autostore FPLN
+                {
+                    settings->ToggleAutoRestore();
+                }
+                else if (idx == 13)
+                {
+                    settings->ToggleUpdateCheck();
+                }
+                else if (idx == 14)
+                {
+                    settings->ToggleFlashOnMessage();
+                }
+                else if (idx == 15)
+                {
+                    settings->ToggleAutoParked();
+                }
+                else if (idx == 16)
+                {
+                    settings->ToggleApproachEstVisible();
+                }
+                else if (idx == 17)
+                {
+                    settings->ToggleApprEstColors();
+                }
+                else if (idx == 18)
+                {
+                    settings->ToggleAutoScratchpadClear();
+                }
+                else if (idx == 19)
+                {
+                    settings->ToggleSoundAirborne();
+                }
+                else if (idx == 20)
+                {
+                    settings->ToggleSoundGndTransfer();
+                }
+                else if (idx == 21)
+                {
+                    settings->ToggleSoundReadyTakeoff();
+                }
+                else if (idx == 22) // Update TAXI info
+                {
+                    settings->StartOsmFetch();
+                }
+                else if (idx == 23) // Show TAXI network
+                {
+                    this->showTaxiOverlay = !this->showTaxiOverlay;
+                }
+                else if (idx == 24) // Show TAXI labels
+                {
+                    this->showTaxiLabels = !this->showTaxiLabels;
+                }
+                else if (idx == 25) // Show TAXI routes
+                {
+                    this->showTaxiRoutes = !this->showTaxiRoutes;
+                }
+                else if (idx == 4)
+                {
+                    settings->ToggleDepRateVisible();
+                }
+                else if (idx == 5)
+                {
+                    settings->ToggleTwrOutboundVisible();
+                }
+                else if (idx == 6)
+                {
+                    settings->ToggleTwrInboundVisible();
+                }
+                else if (idx == 7)
+                {
+                    settings->ToggleWeatherVisible();
+                }
+                else if (idx == 8)
+                {
+                    settings->DecreaseFontOffset();
+                }
+                else if (idx == 9)
+                {
+                    settings->IncreaseFontOffset();
+                }
+                else if (idx == 10)
+                {
+                    settings->DecreaseBgOpacity();
+                }
+                else if (idx == 11)
+                {
+                    settings->IncreaseBgOpacity();
+                }
+            }
+            // Keep menu open for window toggles (4-7, 16), notification toggles (19-21), and TAXI toggles (23-24); close for all others
+            if (idx < 4 || idx == 12 || idx == 22 || (idx >= 13 && idx != 16 && idx != 17 && idx < 19))
+            {
+                this->startMenuOpen = false;
+            }
+
+            std::string clickSnd = GetPluginDirectory() + "\\click.wav";
+            PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_NAP_ACK && this->napAckClickTick == 0)
+        {
+            this->napAckClickTick = GetTickCount64();
+            this->RequestRefresh();
+        }
+
+        if (ObjectType == SCREEN_OBJECT_WEATHER_ROW)
+        {
+            static_cast<CFlowX_Timers*>(this->GetPlugIn())->AckWeather(std::string(sObjectId));
+            this->RequestRefresh();
+        }
+
+        if (ObjectType == SCREEN_OBJECT_DEP_TAG_SID_DOT)
+        {
+            std::string id(sObjectId);
+            auto        sep = id.rfind('|');
+            if (sep == std::string::npos)
+            {
+                return;
+            }
+            std::string callsign = id.substr(0, sep);
+
+            auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+            if (aselFp.IsValid())
+            {
+                GetPlugIn()->SetASELAircraft(aselFp);
+            }
+
+            if (Button == EuroScopePlugIn::BUTTON_LEFT)
+            {
+                auto ctrl = this->GetPlugIn()->ControllerMyself();
+                if (!ctrl.IsController() || ctrl.GetFacility() != 3)
+                {
+                    return;
+                }
+
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, "",
+                                       PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
+            }
+            else if (Button == EuroScopePlugIn::BUTTON_RIGHT)
+            {
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_TWR_SORT, "",
+                                       PLUGIN_NAME, TAG_FUNC_APPEND_QUEUE_POS, Pt, Area);
+            }
+
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_TWR_OUT_CELL)
+        {
+            std::string id(sObjectId);
+            auto        sep = id.find('|');
+            if (sep == std::string::npos)
+            {
+                return;
+            }
+            std::string callsign = id.substr(0, sep);
+            std::string col      = id.substr(sep + 1);
+
+            // Select the aircraft as ASEL (mirrors what clicking any tag item does in the default lists)
+            auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+            if (aselFp.IsValid())
+            {
+                GetPlugIn()->SetASELAircraft(aselFp);
+            }
+
+            // Locate the cached row so we can pass the current item string to StartTagFunction
+            const TwrOutboundRowCache* rowPtr = nullptr;
+            for (const auto& r : this->twrOutboundRowsCache)
+            {
+                if (r.callsign == callsign)
+                {
+                    rowPtr = &r;
+                    break;
+                }
+            }
+            if (!rowPtr)
+            {
+                return;
+            }
+            const TwrOutboundRowCache& r = *rowPtr;
+
+            if (col == "STS")
+            {
+                int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_TAKE_OFF : TAG_FUNC_LINE_UP;
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, r.status.tag.c_str(),
+                                       PLUGIN_NAME, funcId, Pt, Area);
+            }
+            else if (col == "FREQ")
+            {
+                if (Button == EuroScopePlugIn::BUTTON_LEFT)
+                {
+                    this->StartTagFunction(callsign.c_str(),
+                                           PLUGIN_NAME, TAG_ITEM_TWR_NEXT_FREQ, r.nextFreq.tag.c_str(),
+                                           PLUGIN_NAME, TAG_FUNC_TRANSFER_NEXT, Pt, Area);
+                }
+            }
+            else if (col == "RWY" && Button == EuroScopePlugIn::BUTTON_LEFT)
+            {
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_ASSIGNED_RUNWAY, r.rwy.tag.c_str(),
+                                       nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, Pt, Area);
+            }
+            else if (col == "SID" && Button == EuroScopePlugIn::BUTTON_LEFT)
+            {
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_SAMESID, r.sameSid.tag.c_str(),
+                                       nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_SID, Pt, Area);
+            }
+            else if (col == "HP")
+            {
+                int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_REQUEST_HP : TAG_FUNC_ASSIGN_HP;
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_HP, r.hp.tag.c_str(),
+                                       PLUGIN_NAME, funcId, Pt, Area);
+            }
+            else if (col == "QPOS")
+            {
+                int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_APPEND_QUEUE_POS : TAG_FUNC_ASSIGN_QUEUE_POS;
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_TWR_SORT, r.queuePos.tag.c_str(),
+                                       PLUGIN_NAME, funcId, Pt, Area);
+            }
+
+            this->RequestRefresh();
+        }
+
+        if (ObjectType == SCREEN_OBJECT_TWR_IN_CELL)
+        {
+            std::string id(sObjectId);
+            auto        sep = id.find('|');
+            if (sep == std::string::npos)
+            {
+                return;
+            }
+            std::string callsign = id.substr(0, sep);
+            std::string col      = id.substr(sep + 1);
+
+            // Select the aircraft as ASEL
+            auto aselFp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+            if (aselFp.IsValid())
+            {
+                GetPlugIn()->SetASELAircraft(aselFp);
+            }
+
+            // Locate the cached row for item strings
+            const TwrInboundRowCache* rowPtr = nullptr;
+            for (const auto& r : this->twrInboundRowsCache)
+            {
+                if (r.callsign == callsign)
+                {
+                    rowPtr = &r;
+                    break;
+                }
+            }
+            if (!rowPtr)
+            {
+                return;
+            }
+            const TwrInboundRowCache& r = *rowPtr;
+
+            if ((col == "TTT" || col == "RWY") && Button == EuroScopePlugIn::BUTTON_LEFT)
+            {
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
+                                       nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_TAKE_HANDOFF, Pt, Area);
+            }
+            else if (col == "CS")
+            {
+                int funcId = (Button == EuroScopePlugIn::BUTTON_RIGHT) ? TAG_FUNC_MISSED_APP : TAG_FUNC_CLRD_TO_LAND;
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_TTT, r.ttt.tag.c_str(),
+                                       PLUGIN_NAME, funcId, Pt, Area);
+            }
+            else if (col == "GATE")
+            {
+                if (Button == EuroScopePlugIn::BUTTON_LEFT)
+                {
+                    this->StartTagFunction(callsign.c_str(),
+                                           GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.tag.c_str(),
+                                           GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_FUNC_STAND_MENU, Pt, Area);
+                }
+                else
+                {
+                    this->StartTagFunction(callsign.c_str(),
+                                           GROUNDRADAR_PLUGIN_NAME, GROUNDRADAR_TAG_TYPE_ASSIGNED_STAND, r.gate.tag.c_str(),
+                                           PLUGIN_NAME, TAG_FUNC_STAND_AUTO, Pt, Area);
+                }
+            }
+            else if (col == "ARW" && Button == EuroScopePlugIn::BUTTON_LEFT)
+            {
+                this->StartTagFunction(callsign.c_str(),
+                                       PLUGIN_NAME, TAG_ITEM_ASSIGNED_ARR_RUNWAY, r.arrRwy.tag.c_str(),
+                                       nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_ASSIGNED_RUNWAY, Pt, Area);
+            }
+
+            this->RequestRefresh();
+        }
     }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnClickScreenObject", e.what());
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnClickScreenObject", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnClickScreenObject", "unknown exception"); }
+    catch (...)
+    {
+        WriteExceptionToLog("OnClickScreenObject", "unknown exception");
+    }
 }
 
 /// @brief Double-click handler: on the STS column, reverts LINEUP ground state back to TAXI.
@@ -2436,33 +3069,58 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
 {
     try
     {
-        if (ObjectType != SCREEN_OBJECT_TWR_OUT_CELL || Button != EuroScopePlugIn::BUTTON_LEFT) { return; }
+        if (ObjectType != SCREEN_OBJECT_TWR_OUT_CELL || Button != EuroScopePlugIn::BUTTON_LEFT)
+        {
+            return;
+        }
 
         std::string id(sObjectId);
-        auto sep = id.find('|');
-        if (sep == std::string::npos) { return; }
+        auto        sep = id.find('|');
+        if (sep == std::string::npos)
+        {
+            return;
+        }
         std::string callsign = id.substr(0, sep);
         std::string col      = id.substr(sep + 1);
 
-        if (col != "STS") { return; }
+        if (col != "STS")
+        {
+            return;
+        }
 
         auto fp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-        if (!fp.IsValid()) { return; }
+        if (!fp.IsValid())
+        {
+            return;
+        }
 
         // Only revert when the aircraft is currently in LINEUP state
         auto statusIt = std::ranges::find_if(this->twrOutboundRowsCache,
-            [&callsign](const TwrOutboundRowCache& r) { return r.callsign == callsign; });
-        if (statusIt == this->twrOutboundRowsCache.end()) { return; }
-        if (statusIt->status.tag != "LINE UP") { return; }
+                                             [&callsign](const TwrOutboundRowCache& r)
+                                             { return r.callsign == callsign; });
+        if (statusIt == this->twrOutboundRowsCache.end())
+        {
+            return;
+        }
+        if (statusIt->status.tag != "LINE UP")
+        {
+            return;
+        }
 
         GetPlugIn()->SetASELAircraft(fp);
         this->StartTagFunction(callsign.c_str(),
-            PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, statusIt->status.tag.c_str(),
-            PLUGIN_NAME, TAG_FUNC_REVERT_TO_TAXI, Pt, Area);
+                               PLUGIN_NAME, TAG_ITEM_GND_STATE_EXPANDED, statusIt->status.tag.c_str(),
+                               PLUGIN_NAME, TAG_FUNC_REVERT_TO_TAXI, Pt, Area);
         this->RequestRefresh();
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnDoubleClickScreenObject", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnDoubleClickScreenObject", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnDoubleClickScreenObject", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnDoubleClickScreenObject", "unknown exception");
+    }
 }
 
 /// @brief Updates the screen-pixel anchor for a departure overlay when the radar target moves.
@@ -2484,8 +3142,14 @@ void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget Rada
             static_cast<CFlowX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnRadarTargetPositionUpdate", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnRadarTargetPositionUpdate", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnRadarTargetPositionUpdate", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("OnRadarTargetPositionUpdate", "unknown exception");
+    }
 }
 
 /// @brief Removes the departure overlay entry for a disconnecting flight plan.
@@ -2494,14 +3158,32 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
 {
     try
     {
-        auto findCallSign = this->radarTargetDepartureInfos.find(FlightPlan.GetCallsign());
+        std::string cs = FlightPlan.GetCallsign();
+
+        auto findCallSign = this->radarTargetDepartureInfos.find(cs);
         if (findCallSign != this->radarTargetDepartureInfos.end())
-        {
             this->radarTargetDepartureInfos.erase(findCallSign);
+
+        // Clear taxi planning state for disconnecting aircraft.
+        this->taxiAssigned.erase(cs);
+        this->taxiAssignedTimes.erase(cs);
+        this->taxiTracked.erase(cs);
+        this->taxiSuggested.erase(cs);
+        if (this->taxiPlanActive == cs)
+        {
+            this->taxiPlanActive.clear();
+            this->taxiWaypoints.clear();
+            this->taxiGreenPreview = {};
         }
     }
-    catch (const std::exception& e) { WriteExceptionToLog("RadarScreen::OnFlightPlanDisconnect", e.what()); }
-    catch (...)                      { WriteExceptionToLog("RadarScreen::OnFlightPlanDisconnect", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("RadarScreen::OnFlightPlanDisconnect", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("RadarScreen::OnFlightPlanDisconnect", "unknown exception");
+    }
 }
 
 /// @brief Accumulates drag offsets for departure overlays and resets the drag origin on mouse release.
@@ -2514,84 +3196,94 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
 {
     try
     {
-    auto dragWindow = [&](POINT& windowPos, POINT& lastDrag) {
-        if (lastDrag.x == -1 || lastDrag.y == -1)
+        auto dragWindow = [&](POINT& windowPos, POINT& lastDrag)
         {
+            if (lastDrag.x == -1 || lastDrag.y == -1)
+            {
+                lastDrag = Pt;
+            }
+            windowPos.x += Pt.x - lastDrag.x;
+            windowPos.y += Pt.y - lastDrag.y;
             lastDrag = Pt;
-        }
-        windowPos.x += Pt.x - lastDrag.x;
-        windowPos.y += Pt.y - lastDrag.y;
-        lastDrag = Pt;
-        if (Released)
-        {
-            lastDrag = { -1, -1 };
-        }
-    };
+            if (Released)
+            {
+                lastDrag = {-1, -1};
+            }
+        };
 
-    std::string objId(sObjectId);
-    if (objId == "APPROACH_EST")
-    {
-        dragWindow(this->approachEstWindowPos, this->approachEstLastDrag);
-        return;
-    }
-    if (objId == "APPROACH_EST_RESIZE")
-    {
-        if (this->approachEstResizeLastDrag.x == -1 || this->approachEstResizeLastDrag.y == -1)
+        std::string objId(sObjectId);
+        if (objId == "APPROACH_EST")
         {
+            dragWindow(this->approachEstWindowPos, this->approachEstLastDrag);
+            return;
+        }
+        if (objId == "APPROACH_EST_RESIZE")
+        {
+            if (this->approachEstResizeLastDrag.x == -1 || this->approachEstResizeLastDrag.y == -1)
+            {
+                this->approachEstResizeLastDrag = Pt;
+            }
+            this->approachEstWindowW        = std::max(120, this->approachEstWindowW + (int)(Pt.x - this->approachEstResizeLastDrag.x));
+            this->approachEstWindowH        = std::max(200, this->approachEstWindowH + (int)(Pt.y - this->approachEstResizeLastDrag.y));
             this->approachEstResizeLastDrag = Pt;
+            if (Released)
+            {
+                this->approachEstResizeLastDrag = {-1, -1};
+            }
+            return;
         }
-        this->approachEstWindowW = std::max(120, this->approachEstWindowW + (int)(Pt.x - this->approachEstResizeLastDrag.x));
-        this->approachEstWindowH = std::max(200, this->approachEstWindowH + (int)(Pt.y - this->approachEstResizeLastDrag.y));
-        this->approachEstResizeLastDrag = Pt;
-        if (Released) { this->approachEstResizeLastDrag = { -1, -1 }; }
-        return;
-    }
-    if (objId == "DEPRATE")
-    {
-        dragWindow(this->depRateWindowPos, this->depRateLastDrag);
-        return;
-    }
-    if (objId == "TWROUT")
-    {
-        dragWindow(this->twrOutboundWindowPos, this->twrOutboundLastDrag);
-        return;
-    }
-    if (objId == "TWRIN")
-    {
-        dragWindow(this->twrInboundWindowPos, this->twrInboundLastDrag);
-        return;
-    }
-    if (objId == "NAPWIN")
-    {
-        dragWindow(this->napWindowPos, this->napLastDrag);
-        return;
-    }
-    if (objId == "WXATIS")
-    {
-        dragWindow(this->weatherWindowPos, this->weatherLastDrag);
-        return;
-    }
-
-    auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));
-    if (depInfo != this->radarTargetDepartureInfos.end())
-    {
-        if (depInfo->second.lastDrag.x == -1 || depInfo->second.lastDrag.y == -1)
+        if (objId == "DEPRATE")
         {
+            dragWindow(this->depRateWindowPos, this->depRateLastDrag);
+            return;
+        }
+        if (objId == "TWROUT")
+        {
+            dragWindow(this->twrOutboundWindowPos, this->twrOutboundLastDrag);
+            return;
+        }
+        if (objId == "TWRIN")
+        {
+            dragWindow(this->twrInboundWindowPos, this->twrInboundLastDrag);
+            return;
+        }
+        if (objId == "NAPWIN")
+        {
+            dragWindow(this->napWindowPos, this->napLastDrag);
+            return;
+        }
+        if (objId == "WXATIS")
+        {
+            dragWindow(this->weatherWindowPos, this->weatherLastDrag);
+            return;
+        }
+
+        auto depInfo = this->radarTargetDepartureInfos.find(std::string(sObjectId));
+        if (depInfo != this->radarTargetDepartureInfos.end())
+        {
+            if (depInfo->second.lastDrag.x == -1 || depInfo->second.lastDrag.y == -1)
+            {
+                depInfo->second.lastDrag = Pt;
+            }
+
+            depInfo->second.dragX += Pt.x - depInfo->second.lastDrag.x;
+            depInfo->second.dragY += Pt.y - depInfo->second.lastDrag.y;
+
             depInfo->second.lastDrag = Pt;
-        }
 
-        depInfo->second.dragX += Pt.x - depInfo->second.lastDrag.x;
-        depInfo->second.dragY += Pt.y - depInfo->second.lastDrag.y;
-
-        depInfo->second.lastDrag = Pt;
-
-        if (Released)
-        {
-            depInfo->second.lastDrag.x = -1;
-            depInfo->second.lastDrag.y = -1;
+            if (Released)
+            {
+                depInfo->second.lastDrag.x = -1;
+                depInfo->second.lastDrag.y = -1;
+            }
         }
     }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("OnMoveScreenObject", e.what());
     }
-    catch (const std::exception& e) { WriteExceptionToLog("OnMoveScreenObject", e.what()); }
-    catch (...)                      { WriteExceptionToLog("OnMoveScreenObject", "unknown exception"); }
+    catch (...)
+    {
+        WriteExceptionToLog("OnMoveScreenObject", "unknown exception");
+    }
 }
