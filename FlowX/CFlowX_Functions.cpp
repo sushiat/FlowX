@@ -624,7 +624,9 @@ void CFlowX_Functions::DrainRedoFlagQueue()
 {
     if (this->redoFlagQueue.empty()) { return; }
 
-    const auto& task = this->redoFlagQueue.front();
+    const RedoFlagTask task = this->redoFlagQueue.front();
+    this->redoFlagQueue.erase(this->redoFlagQueue.begin());
+
     EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(task.callSign.c_str());
     if (fp.IsValid())
     {
@@ -632,5 +634,4 @@ void CFlowX_Functions::DrainRedoFlagQueue()
         fp.GetControllerAssignedData().SetScratchPadString(task.groundState.c_str());
         fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
     }
-    this->redoFlagQueue.erase(this->redoFlagQueue.begin());
 }

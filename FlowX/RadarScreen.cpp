@@ -565,6 +565,34 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
             LineTo(hDC, area.left,  area.top + (area.bottom - area.top) / 2);
         DeleteObject(pen);
 
+        if (info.queue_pos > 0)
+        {
+            std::string seqStr    = std::to_string(info.queue_pos);
+            HFONT seqFont = CreateFontA(-20, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                        ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+            HFONT prevSeqFont = (HFONT)SelectObject(hDC, seqFont);
+            SIZE seqSize = {};
+            GetTextExtentPoint32A(hDC, seqStr.c_str(), (int)seqStr.length(), &seqSize);
+            constexpr int PAD     = 3;
+            constexpr int GAP     = 14; // distance from radar target dot to bottom of background box
+            int targetX = info.pos.x + 16;
+            int targetY = info.pos.y - 3;
+            int boxLeft   = targetX - seqSize.cx / 2 - PAD;
+            int boxTop    = targetY - GAP - seqSize.cy - PAD * 2;
+            int boxRight  = targetX + seqSize.cx / 2 + PAD + (seqSize.cx % 2 == 0 ? 0 : 1);
+            int boxBottom = targetY - GAP;
+            RECT bgRect   = { boxLeft, boxTop, boxRight, boxBottom };
+            auto bgBrush  = CreateSolidBrush(RGB(50, 50, 50));
+            FillRect(hDC, &bgRect, bgBrush);
+            DeleteObject(bgBrush);
+            SetTextColor(hDC, info.dep_color);
+            SetBkMode(hDC, TRANSPARENT);
+            TextOutA(hDC, boxLeft + PAD, boxTop + PAD, seqStr.c_str(), (int)seqStr.length());
+            SelectObject(hDC, prevSeqFont);
+            DeleteObject(seqFont);
+        }
+
         AddScreenObject(SCREEN_OBJECT_DEP_TAG, cs.c_str(), area, true, "");
         AddScreenObject(SCREEN_OBJECT_DEP_TAG_SID_DOT, (cs + "|SID_DOT").c_str(), dotRect, false, "");
     }

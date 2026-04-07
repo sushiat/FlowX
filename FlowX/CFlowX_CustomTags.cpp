@@ -1122,6 +1122,43 @@ void CFlowX_CustomTags::UpdateTagCache()
 
             ComputeOutboundCacheEntry(fp, rt, row);
 
+            // Takeoff-ready reminder: sound fires 5 s after depInfo becomes "OK" for a lined-up
+            // aircraft that was actively waiting (had a non-"OK" depInfo while in LINEUP).
+            // Suppressed when LINEUP is given with depInfo already "OK" — no waiting occurred.
+            if (row.status.tag == "LINE UP")
+            {
+                if (row.depInfo.tag == "OK")
+                {
+                    if (this->readyTakeoff_wasWaiting.contains(callSign))
+                    {
+                        if (!this->readyTakeoff_okTick.contains(callSign))
+                            this->readyTakeoff_okTick[callSign] = GetTickCount64();
+
+                        if ((GetTickCount64() - this->readyTakeoff_okTick.at(callSign)) / 1000 >= 5 &&
+                            !this->readyTakeoff_soundPlayed.contains(callSign))
+                        {
+                            this->readyTakeoff_soundPlayed.insert(callSign);
+                            std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "readyTakeoff.wav";
+                            PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+                        }
+                    }
+                }
+                else
+                {
+                    // Non-"OK" while lined up — mark as waiting so the next "OK" triggers the sound.
+                    this->readyTakeoff_wasWaiting.insert(callSign);
+                    this->readyTakeoff_okTick.erase(callSign);
+                    this->readyTakeoff_soundPlayed.erase(callSign);
+                }
+            }
+            else
+            {
+                // State left LINEUP (e.g., DEPA given or reverted) — reset for any future episode.
+                this->readyTakeoff_wasWaiting.erase(callSign);
+                this->readyTakeoff_okTick.erase(callSign);
+                this->readyTakeoff_soundPlayed.erase(callSign);
+            }
+
             // Also dim group D (departed + not tracking by me, including transfer-from-me-initiated)
             row.dimmed |= row.status.tag.contains("DEP") && row.callsignColor != TAG_COLOR_WHITE;
 

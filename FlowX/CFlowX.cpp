@@ -182,6 +182,9 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 
     this->gndTransfer_list.erase(callSign);
     this->gndTransfer_soundPlayed.erase(callSign);
+    this->readyTakeoff_wasWaiting.erase(callSign);
+    this->readyTakeoff_okTick.erase(callSign);
+    this->readyTakeoff_soundPlayed.erase(callSign);
     if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
     if (this->radarScreen) this->radarScreen->gndTransferSquareTimes.erase(callSign);
 

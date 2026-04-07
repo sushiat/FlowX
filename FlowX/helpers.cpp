@@ -54,8 +54,9 @@ std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airpor
     {
         j = json::parse(FetchVatsimData());
     }
-    catch (const std::exception&)
+    catch (const std::exception& e)
     {
+        WriteExceptionToLog("FetchAtisData", e.what());
         return result; // network error or malformed response — return empty, caller retries next cycle
     }
 

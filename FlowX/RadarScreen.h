@@ -22,6 +22,7 @@ struct depInfo
     std::string dep_info  = std::string(""); ///< Departure status text (SID, T-flag, etc.)
     POINT       pos       = {-1, -1};        ///< Screen position anchor (set from radar target pixel position)
     COLORREF    dep_color = TAG_COLOR_TURQ;  ///< Colour of the departure info text
+    int         queue_pos = 0;               ///< Departure queue position (1-based); 0 = not queued, drawn above the radar target.
     POINT       lastDrag  = {-1, -1};        ///< Previous drag position; { -1,-1 } when not dragging
     int         dragX     = 0;               ///< Accumulated horizontal drag offset in pixels
     int         dragY     = 0;               ///< Accumulated vertical drag offset in pixels

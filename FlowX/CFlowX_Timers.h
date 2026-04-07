@@ -96,6 +96,9 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::set<std::string>                           gndTransfer_soundPlayed;   ///< Subset of gndTransfer_list where GS<50 was first detected; square is shown and sound has played.
     std::map<std::string, std::string>              groundStatus;              ///< Callsign -> last known ground status string.
     std::set<std::string>                           qnhUnacked;                ///< Airports where the QNH value changed since the user last acknowledged.
+    std::map<std::string, ULONGLONG>               readyTakeoff_okTick;       ///< Tick when depInfo first became "OK" for a lined-up aircraft; used for the 5 s takeoff-ready reminder.
+    std::set<std::string>                           readyTakeoff_soundPlayed;  ///< Callsigns where the takeoff-ready sound has already fired for the current "OK" episode; reset when depInfo or state changes.
+    std::set<std::string>                           readyTakeoff_wasWaiting;   ///< Callsigns that had a non-"OK" depInfo while in LINEUP; gate that prevents firing when LINEUP was given with depInfo already "OK".
     std::map<std::string, reconnectSnapshot>        reconnect_pending;         ///< Callsign -> snapshot captured at disconnect, retained for up to 90 s for auto-restore on quick reconnect.
     std::vector<RedoFlagTask>                       redoFlagQueue;             ///< Tasks queued by RedoFlags() for main-thread dispatch via DrainRedoFlagQueue().
     std::set<std::string>                           rvrUnacked;                ///< Airports where the RVR changed since the user last acknowledged.

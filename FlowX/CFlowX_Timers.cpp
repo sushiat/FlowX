@@ -686,10 +686,11 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
         const auto& annotation                = this->flightStripAnnotation[callSign];
 
         std::string dep_info = cachedRow.depInfo.tag;
+        int         queuePos = 0;
         {
             auto queueIt = this->dep_queuePos.find(callSign);
             if (queueIt != this->dep_queuePos.end())
-                dep_info += "," + std::to_string(queueIt->second);
+                queuePos = queueIt->second;
         }
         if (isGnd)
         {
@@ -714,6 +715,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
             depInfo di;
             di.dep_info  = dep_info;
             di.dep_color = cachedRow.depInfo.color;
+            di.queue_pos = queuePos;
             di.pos       = {-1, -1};
             di.dragX     = 0;
             di.dragY     = 0;
@@ -727,6 +729,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
         {
             findIt->second.dep_info  = dep_info;
             findIt->second.dep_color = cachedRow.depInfo.color;
+            findIt->second.queue_pos = queuePos;
             findIt->second.hp_info   = cachedRow.hp.tag;
             findIt->second.hp_color  = cachedRow.hp.color;
             findIt->second.sid_color = cachedRow.sameSid.color;
@@ -772,6 +775,10 @@ void CFlowX_Timers::CheckArrivedAtStand()
         std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
         fp.GetControllerAssignedData().SetScratchPadString("PARK");
         fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+
+        this->gndTransfer_list.erase(callSign);
+        this->gndTransfer_soundPlayed.erase(callSign);
+        if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
 
         this->LogDebugMessage(callSign + " auto-PARK at stand " + standIt->second, "GND");
     }
@@ -945,6 +952,9 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->twrSameSID_flightPlans.erase(callSign);
                 this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
+                this->readyTakeoff_wasWaiting.erase(callSign);
+                this->readyTakeoff_okTick.erase(callSign);
+                this->readyTakeoff_soundPlayed.erase(callSign);
             }
 
             continue;
@@ -960,6 +970,9 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->twrSameSID_flightPlans.erase(callSign);
                 this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
+                this->readyTakeoff_wasWaiting.erase(callSign);
+                this->readyTakeoff_okTick.erase(callSign);
+                this->readyTakeoff_soundPlayed.erase(callSign);
             }
 
             continue;
@@ -1021,6 +1034,9 @@ void CFlowX_Timers::UpdateTWROutbound()
             this->dep_liveSpacing.erase(callSign);
             this->dep_sequenceNumber.erase(callSign);
             this->lastHpCheckPos.erase(callSign);
+            this->readyTakeoff_wasWaiting.erase(callSign);
+            this->readyTakeoff_okTick.erase(callSign);
+            this->readyTakeoff_soundPlayed.erase(callSign);
         }
 
         // Check if the aircraft has departed and is further than 15nm away or more than 4 minutes have passed since takeoff
@@ -1040,6 +1056,9 @@ void CFlowX_Timers::UpdateTWROutbound()
                     this->dep_liveSpacing.erase(callSign);
                     this->dep_sequenceNumber.erase(callSign);
                     this->lastHpCheckPos.erase(callSign);
+                    this->readyTakeoff_wasWaiting.erase(callSign);
+                    this->readyTakeoff_okTick.erase(callSign);
+                    this->readyTakeoff_soundPlayed.erase(callSign);
                     continue;
                 }
 
@@ -1069,6 +1088,9 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
                 this->lastHpCheckPos.erase(callSign);
+                this->readyTakeoff_wasWaiting.erase(callSign);
+                this->readyTakeoff_okTick.erase(callSign);
+                this->readyTakeoff_soundPlayed.erase(callSign);
             }
         }
     }
