@@ -32,7 +32,7 @@ If applicable, add logs to help analyze your problem.
  - ...
 
 **EuroScope plugins:**
- - DelHel version: [e.g. 0.0.1]
+ - FlowX version: [e.g. 0.0.1]
  - [relevant plugins]
  - ...
 

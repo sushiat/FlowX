@@ -11,16 +11,7 @@
                 "lon": [16.533667, 16.567444, 16.570472, 16.536750]
             }
         },
-        "twrFreq": "123.8",
-        "rwyTwrFreq": {
-            "11": {
-                "freq": "119.4"
-            },
-            "29": {
-                "freq": "119.4"
-            }
-        },
-        "ctrStations": ["LOVV_E", "LOVV_N", "LOVV_CTR", "LOVV_C_"],
+        "ctrStations": ["129.200", "134.440", "134.350", "132.600", "132.160", "135.635", "119.880"],
         "taxiOutStands": {
             "bstands": {
                 "lat": [48.120075, 48.119410, 48.121754, 48.122101],
@@ -73,57 +64,68 @@
                 "IMVO3A", "IRGO1A", "ODSU1A", "OSMO1A"
             ]
         },
+        "appFreqFallbacks": {
+            "134.675": ["134.675", "129.050", "118.775", "125.175"],
+            "118.775": ["118.775", "125.175", "134.675", "129.050"],
+            "129.050": ["129.050", "125.175", "134.675", "118.775"],
+            "125.175": ["125.175", "129.050", "118.775", "134.675"]
+        },
+        "scratchpadClearExclusions": [".cs ", ".did", ".obacht", "/cs "],
         "runways": {
             "11": {
+                "estimateBarSide": "right",
                 "opposite": "29",
+                "thresholdElevationFt": 575,
+                "twrFreq": "119.4",
+                "goAroundFreq": "125.175",
+                "width": 45,
                 "threshold": { "lat": 48.122766803767036, "lon": 16.53361062366087 },
                 "sidGroups": {
-                    "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
-                    "OSPEN": 2, "RUPET": 2,
-                    "STEIN": 3, "ARSIN": 3,
-                    "KOXER": 4, "ADAMA": 4,
-                    "MEDIX": 5, "LUGEM": 5, "IRGO": 5, "IMVO": 5, "ODSU": 5, "OSMO": 5,
-                    "SOVIL": 6
+                    "1": ["LANUX", "BUWUT", "LEDVA"],
+                    "2": ["OSPEN", "RUPET"],
+                    "3": ["STEIN", "ARSIN"],
+                    "4": ["KOXER", "ADAMA"],
+                    "5": ["MEDIX", "LUGEM", "IRGO", "IMVO", "ODSU", "OSMO"],
+                    "6": ["SOVIL"]
                 },
                 "sidColors": {
-                    "LANUX": "green", "BUWUT": "green", "LEDVA": "green",
-                    "OSPEN": "orange", "RUPET": "orange",
-                    "STEIN": "turq", "ARSIN": "turq",
-                    "KOXER": "purple", "ADAMA": "purple",
-                    "MEDIX": "red", "LUGEM": "red",
-                    "IRGO": "orange", "IMVO": "orange", "ODSU": "orange", "OSMO": "orange"
+                    "green":  ["LANUX", "BUWUT", "LEDVA"],
+                    "orange": ["OSPEN", "RUPET", "IRGO", "IMVO", "ODSU", "OSMO"],
+                    "turq":   ["STEIN", "ARSIN"],
+                    "purple": ["KOXER", "ADAMA"],
+                    "red":    ["MEDIX", "LUGEM"]
                 },
                 "holdingPoints": {
                     "A12": {
-                        "index": 1, "sameAs": "A11",
+                        "assignable": true, "sameAs": "A11",
                         "polygon": {
                             "lon": [16.533506042225728, 16.534412628870438, 16.53472912953339, 16.53421950982186],
                             "lat": [48.123124385103026, 48.12283432967016, 48.12391934344905, 48.1241377757948]
                         }
                     },
                     "A11": {
-                        "index": 2,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.534761316041482, 16.535496241309684, 16.536102420545497, 16.53547478363762],
                             "lat": [48.122683929911986, 48.122476234283916, 48.12350754223812, 48.12367584400152]
                         }
                     },
                     "A10": {
-                        "index": 3,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.539262062766852, 16.54024375126379, 16.54077482864738, 16.539878970838696],
                             "lat": [48.12122646179901, 48.120932814575376, 48.122028611512825, 48.12225063288102]
                         }
                     },
                     "A9": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.544417268490587, 16.54728723212918, 16.546654230803284, 16.54508245632458],
                             "lat": [48.11955766374615, 48.118680269653105, 48.12015571562148, 48.12046727282223]
                         }
                     },
                     "A7": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.5502949260553, 16.55391082964335, 16.554021387846582, 16.55095827527469],
                             "lat": [48.11764919470844, 48.116524680359404, 48.11764919470844, 48.118613044560995]
@@ -132,64 +134,69 @@
                 },
                 "vacatePoints": {
                     "A3": {
-                        "minGap": 5,
+                        "minGap": 5.5,
                         "stands": ["F04","F08","F12","F16","F22","F26","F32","F36","F42","F44","F46","F48","F50","G16","G26","G36","H*","K*"]
                     },
                     "A4": {
-                        "minGap": 3,
+                        "minGap": 4,
                         "stands": ["E*","F*","H*","K*"]
                     }
                 }
             },
             "16": {
+                "estimateBarSide": "left",
                 "opposite": "34",
+                "thresholdElevationFt": 597,
+                "twrFreq": "123.8",
+                "goAroundFreq": "129.050",
+                "width": 45,
                 "threshold": { "lat": 48.119602230239316, "lon": 16.57825221198715 },
                 "sidGroups": {
-                    "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
-                    "MEDIX": 2, "LUGEM": 2,
-                    "OSPEN": 3, "RUPET": 3,
-                    "STEIN": 4, "ARSIN": 4,
-                    "KOXER": 5, "ADAMA": 5,
-                    "SOVIL": 6
+                    "1": ["LANUX", "BUWUT", "LEDVA"],
+                    "2": ["MEDIX", "LUGEM"],
+                    "3": ["OSPEN", "RUPET"],
+                    "4": ["STEIN", "ARSIN"],
+                    "5": ["KOXER", "ADAMA"],
+                    "6": ["SOVIL"]
                 },
                 "sidColors": {
-                    "LANUX": "green", "BUWUT": "green", "LEDVA": "green",
-                    "MEDIX": "red", "LUGEM": "red",
-                    "OSPEN": "orange", "RUPET": "orange",
-                    "STEIN": "turq", "ARSIN": "turq",
-                    "KOXER": "purple", "ADAMA": "purple"
+                    "green":  ["LANUX", "BUWUT", "LEDVA"],
+                    "red":    ["MEDIX", "LUGEM"],
+                    "orange": ["OSPEN", "RUPET"],
+                    "turq":   ["STEIN", "ARSIN"],
+                    "purple": ["KOXER", "ADAMA"]
                 },
                 "holdingPoints": {
                     "B1": {
-                        "index": 1, "sameAs": "B2",
+                        "assignable": true, "sameAs": "B2",
                         "polygon": {
                             "lon": [16.576179185170687, 16.577895798935828, 16.577691951051214, 16.576125540990525],
                             "lat": [48.119518510356244, 48.11924992171454, 48.119837233722585, 48.12008791363267]
                         }
                     },
                     "B2": {
-                        "index": 2,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.576806822078563, 16.578437605155443, 16.578180113090674, 16.576592245357922],
                             "lat": [48.11829373475215, 48.11803230225993, 48.11870915898957, 48.11883092062948]
                         }
                     },
                     "B4": {
-                        "index": 3,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.57980561496776, 16.58195824821892, 16.581776152354777, 16.579799111544045],
                             "lat": [48.110527790794244, 48.109533392525634, 48.11016303558523, 48.110940308446594]
                         }
                     },
                     "B5": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.580601483468982, 16.582357407873253, 16.582487476347644, 16.580516938960628],
                             "lat": [48.10851538448417, 48.10729079094436, 48.10786400857423, 48.10909727331532]
                         }
                     },
                     "B7": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.58227286336878, 16.584191373366036, 16.584165359671157, 16.582344401029694],
                             "lat": [48.104524491682014, 48.10366894985964, 48.10427260775143, 48.104928371959815]
@@ -198,61 +205,64 @@
                 }
             },
             "29": {
+                "estimateBarSide": "right",
                 "opposite": "11",
+                "thresholdElevationFt": 600,
+                "twrFreq": "119.4",
+                "goAroundFreq": "118.775",
+                "width": 45,
                 "threshold": { "lat": 48.109137371047005, "lon": 16.57538568208911 },
                 "sidGroups": {
-                    "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
-                    "IRGO": 1, "IMVO": 1, "ODSU": 1, "OSMO": 1, "OTGA": 1,
-                    "MEDIX": 2, "LUGEM": 2, "UMSU": 2, "UNGU": 2, "VABG": 2,
-                    "OSPEN": 3, "RUPET": 3, "EMKO": 3, "EWUK": 3,
-                    "STEIN": 4, "ARSIN": 4, "KOXER": 4, "ADAMA": 4, "AGMI": 4, "ASPI": 4,
-                    "SOVIL": 5
+                    "1": ["LANUX", "BUWUT", "LEDVA", "IRGO", "IMVO", "ODSU", "OSMO", "OTGA"],
+                    "2": ["MEDIX", "LUGEM", "UMSU", "UNGU", "VABG"],
+                    "3": ["OSPEN", "RUPET", "EMKO", "EWUK"],
+                    "4": ["STEIN", "ARSIN", "KOXER", "ADAMA", "AGMI", "ASPI"],
+                    "5": ["SOVIL"]
                 },
                 "sidColors": {
-                    "LANUX": "green", "BUWUT": "green", "LEDVA": "green",
-                    "IRGO": "green", "IMVO": "green", "ODSU": "green", "OSMO": "green", "OTGA": "green",
-                    "MEDIX": "purple", "LUGEM": "purple", "UMSU": "purple", "UNGU": "purple", "VABG": "purple",
-                    "OSPEN": "orange", "RUPET": "orange", "EMKO": "orange", "EWUK": "orange",
-                    "STEIN": "turq", "ARSIN": "turq", "KOXER": "turq", "ADAMA": "turq", "AGMI": "turq", "ASPI": "turq"
+                    "green":  ["LANUX", "BUWUT", "LEDVA", "IRGO", "IMVO", "ODSU", "OSMO", "OTGA"],
+                    "purple": ["MEDIX", "LUGEM", "UMSU", "UNGU", "VABG"],
+                    "orange": ["OSPEN", "RUPET", "EMKO", "EWUK"],
+                    "turq":   ["STEIN", "ARSIN", "KOXER", "ADAMA", "AGMI", "ASPI"]
                 },
                 "holdingPoints": {
                     "A1": {
-                        "index": 1, "sameAs": "A2",
+                        "assignable": true, "sameAs": "A2",
                         "polygon": {
                             "lon": [16.575017166000304, 16.57587010846486, 16.576755237437506, 16.575939845899068],
                             "lat": [48.10963587193707, 48.10939230478594, 48.11054207487674, 48.11067101945089]
                         }
                     },
                     "A2": {
-                        "index": 2,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.574126672609637, 16.574802589279663, 16.575521421293814, 16.574850869041803],
                             "lat": [48.10991525636538, 48.10969676354447, 48.11066385587193, 48.11092890762859]
                         }
                     },
                     "A3": {
-                        "index": 3,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.5707470892528, 16.571814608437997, 16.572565626960245, 16.57168586240561],
                             "lat": [48.110968307129184, 48.110710419149186, 48.1116022762453, 48.11187448657303]
                         }
                     },
                     "A4": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.564658474791777, 16.567287039619643, 16.568107795576104, 16.567292404037662],
                             "lat": [48.11312806818993, 48.11213236874584, 48.11324626144721, 48.11343966800904]
                         }
                     },
                     "A6": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.55801808013691, 16.560827559183743, 16.561581956335207, 16.55922771694874],
                             "lat": [48.11520333876569, 48.114222056963136, 48.11520333876569, 48.11592409133777]
                         }
                     },
                     "A8": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.548848252668353, 16.551156968088797, 16.551748779647273, 16.549999358666724],
                             "lat": [48.11817746343429, 48.11736122447819, 48.118429279218226, 48.11895027347323]
@@ -264,57 +274,80 @@
                         "minGap": 5,
                         "stands": ["GAC","A3*","A4*","A5*","A6*"]
                     }
-                }
+                },
+                "gpsApproachPaths": [
+                    {
+                        "name": "RNP N",
+                        "fixes": [
+                            { "name": "WW008", "lat": 48.311261, "lon": 16.528883, "altitude": 3600, "altOffsetBelow": 500, "altOffsetAbove": 1614, "detectionRadiusNm": 0.3, "iafHeading": 139 },
+                            { "name": "WW006", "lat": 48.263956, "lon": 16.579958, "altitude": 3600, "altOffsetBelow": 500, "altOffsetAbove": 500,  "legType": "straight", "legLengthNm": 3.5 },
+                            { "name": "WW004", "lat": 48.212519, "lon": 16.577550, "altitude": 2549, "altOffsetBelow": 400, "altOffsetAbove": 400,  "legType": "arcRight", "legLengthNm": 3.3 },
+                            { "name": "WW002", "lat": 48.206067, "lon": 16.569667, "altitude": 2390, "altOffsetBelow": 300, "altOffsetAbove": 300,  "legType": "straight", "legLengthNm": 0.5 },
+                            { "name": "WW001", "lat": 48.167869, "lon": 16.557797, "altitude": 1626, "altOffsetBelow": 200, "altOffsetAbove": 200,  "legType": "arcLeft",  "legLengthNm": 2.4 }
+                        ]
+                    },
+                    {
+                        "name": "RNP E",
+                        "fixes": [
+                            { "name": "WW005", "lat": 48.205858, "lon": 16.718783, "altitude": 3300, "altOffsetBelow": 500, "altOffsetAbove": 1628, "detectionRadiusNm": 0.3, "iafHeading": 279 },
+                            { "name": "WW003", "lat": 48.220333, "lon": 16.634269, "altitude": 3300, "altOffsetBelow": 400, "altOffsetAbove": 400,  "legType": "straight", "legLengthNm": 3.5 },
+                            { "name": "WW001", "lat": 48.167869, "lon": 16.557797, "altitude": 1626, "altOffsetBelow": 200, "altOffsetAbove": 200,  "legType": "arcLeft",  "legLengthNm": 5.3 }
+                        ]
+                    }
+                ]
             },
             "34": {
+                "estimateBarSide": "left",
                 "opposite": "16",
+                "thresholdElevationFt": 586,
+                "twrFreq": "123.8",
+                "goAroundFreq": "125.175",
+                "width": 45,
                 "threshold": { "lat": 48.088822783854226, "lon": 16.5912652809662 },
                 "sidGroups": {
-                    "LANUX": 1, "BUWUT": 1, "LEDVA": 1,
-                    "STEIN": 2, "ARSIN": 2, "RUPET": 2, "OSPEN": 2,
-                    "IRGO": 2, "IMVO": 2, "ODSU": 2, "OSMO": 2, "OTGA": 2,
-                    "KOXER": 3, "ADAMA": 3,
-                    "MEDIX": 4, "LUGEM": 4, "EMKO": 4, "EWUK": 4,
-                    "SOVIL": 5
+                    "1": ["LANUX", "BUWUT", "LEDVA"],
+                    "2": ["STEIN", "ARSIN", "RUPET", "OSPEN", "IRGO", "IMVO", "ODSU", "OSMO", "OTGA"],
+                    "3": ["KOXER", "ADAMA"],
+                    "4": ["MEDIX", "LUGEM", "EMKO", "EWUK"],
+                    "5": ["SOVIL"]
                 },
                 "sidColors": {
-                    "LANUX": "green", "BUWUT": "green", "LEDVA": "green",
-                    "STEIN": "turq", "ARSIN": "turq", "RUPET": "turq", "OSPEN": "turq",
-                    "IRGO": "turq", "IMVO": "turq", "ODSU": "turq", "OSMO": "turq", "OTGA": "turq",
-                    "KOXER": "purple", "ADAMA": "purple",
-                    "MEDIX": "red", "LUGEM": "red", "EMKO": "red", "EWUK": "red"
+                    "green":  ["LANUX", "BUWUT", "LEDVA"],
+                    "turq":   ["STEIN", "ARSIN", "RUPET", "OSPEN", "IRGO", "IMVO", "ODSU", "OSMO", "OTGA"],
+                    "purple": ["KOXER", "ADAMA"],
+                    "red":    ["MEDIX", "LUGEM", "EMKO", "EWUK"]
                 },
                 "holdingPoints": {
                     "B12": {
-                        "index": 1, "sameAs": "B11",
+                        "assignable": true, "sameAs": "B11",
                         "polygon": {
                             "lon": [16.58845903017965, 16.591316815971858, 16.59029435236105, 16.588126729506136],
                             "lat": [48.08739391988782, 48.087598820037584, 48.08936434250654, 48.08886918274589]
                         }
                     },
                     "B11": {
-                        "index": 2,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.587344778760706, 16.590568793988357, 16.590123547293025, 16.586979998335615],
                             "lat": [48.08897443323162, 48.08936859485416, 48.090328903252, 48.08997058132015]
                         }
                     },
                     "B10": {
-                        "index": 3,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.58429723570477, 16.587451396208735, 16.586228752549466, 16.58309410231666],
                             "lat": [48.096111232527555, 48.09661942262088, 48.09958159310501, 48.09920807367939]
                         }
                     },
                     "B8": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.583679410447537, 16.58554589305504, 16.5847004479715, 16.58284697221144],
                             "lat": [48.10110604549481, 48.101279769383865, 48.10351641201675, 48.10326886606825]
                         }
                     },
                     "B6": {
-                        "index": 4, "assignable": true,
+                        "assignable": true,
                         "polygon": {
                             "lon": [16.58241774624248, 16.58376395495242, 16.58296403383492, 16.581286150515286],
                             "lat": [48.10515800240615, 48.1053143416084, 48.107042726654754, 48.10670834513769]

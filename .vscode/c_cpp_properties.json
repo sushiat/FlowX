@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/FlowX",
+                "${workspaceFolder}/include",
+                "${default}"
+            ],
+            "defines": [
+                "WIN32",
+                "_WINDOWS",
+                "_USRDLL"
+            ],
+            "cppStandard": "c++23",
+            "intelliSenseMode": "windows-msvc-x64"
+        }
+    ],
+    "version": 4
+}
