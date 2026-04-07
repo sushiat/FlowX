@@ -1138,8 +1138,11 @@ void CFlowX_CustomTags::UpdateTagCache()
                             !this->readyTakeoff_soundPlayed.contains(callSign))
                         {
                             this->readyTakeoff_soundPlayed.insert(callSign);
-                            std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "readyTakeoff.wav";
-                            PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+                            if (this->GetSoundReadyTakeoff())
+                            {
+                                std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "readyTakeoff.wav";
+                                PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+                            }
                         }
                     }
                 }
@@ -1455,8 +1458,11 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
             this->radarScreen->gndTransferSquares.insert(callSign);
             this->radarScreen->gndTransferSquareTimes[callSign] = GetTickCount64();
         }
-        std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "gndtransfer.wav";
-        PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+        if (this->GetSoundGndTransfer())
+        {
+            std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "gndtransfer.wav";
+            PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+        }
     }
 
     // Skip the ES API call for aircraft with no role in either list.

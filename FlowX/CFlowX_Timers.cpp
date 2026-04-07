@@ -343,6 +343,7 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 
         this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
 
+        if (this->GetSoundAirborne())
         {
             std::filesystem::path wavPath = std::filesystem::path(GetPluginDirectory()) / "airbourne.wav";
             PlaySoundA(wavPath.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
@@ -1583,14 +1584,14 @@ void CFlowX_Timers::UpdateTWRInbound()
     }
 }
 
-/// @brief Records today's UTC date as the last NAP acknowledgement date and persists it to windowSettings.json.
+/// @brief Records today's UTC date as the last NAP acknowledgement date and persists it to settings.
 void CFlowX_Timers::AckNapReminder()
 {
     this->napLastDismissedDate = UtcDateString();
-    this->SaveWindowSettings();
+    this->SaveSettings();
 }
 
-/// @brief Syncs on-screen window positions into the settings layer and writes windowSettings.json.
+/// @brief Syncs on-screen window positions into the settings layer and persists them.
 void CFlowX_Timers::SaveWindowPositions()
 {
     if (this->radarScreen == nullptr) { return; }
@@ -1610,7 +1611,7 @@ void CFlowX_Timers::SaveWindowPositions()
     this->weatherWindowX    = this->radarScreen->weatherWindowPos.x;
     this->weatherWindowY    = this->radarScreen->weatherWindowPos.y;
 
-    this->SaveWindowSettings();
+    this->SaveSettings();
 }
 
 /// @brief Clears all unacknowledged change flags for the given airport.

@@ -139,7 +139,7 @@ static std::string compactJson(const nlohmann::json& j, int depth = 0)
 
 CFlowX_Settings::CFlowX_Settings()
 {
-    this->LoadWindowSettings();
+    this->LoadSettings();
     this->LoadConfig();
     this->LoadAircraftData();
     this->LoadGroundRadarStands();
@@ -150,13 +150,13 @@ CFlowX_Settings::CFlowX_Settings()
     }
 }
 
-/// @brief Loads window positions and global UI settings from windowSettings.json in the plugin directory.
-void CFlowX_Settings::LoadWindowSettings()
+/// @brief Loads plugin settings (global toggles and window positions) from settings.json in the plugin directory.
+void CFlowX_Settings::LoadSettings()
 {
     try
     {
         std::filesystem::path path(GetPluginDirectory());
-        path.append("windowSettings.json");
+        path.append("settings.json");
 
         std::ifstream ifs(path);
         if (!ifs.is_open())
@@ -168,13 +168,17 @@ void CFlowX_Settings::LoadWindowSettings()
 
         if (j.contains("global"))
         {
-            this->autoParked       = j["global"].value("autoParked",      true);
-            this->autoRestore      = j["global"].value("autoRestore",     false);
+            this->autoParked          = j["global"].value("autoParked",          true);
+            this->autoScratchpadClear = j["global"].value("autoScratchpadClear", false);
+            this->autoRestore         = j["global"].value("autoRestore",         false);
             this->bgOpacity        = j["global"].value("bgOpacity",       100);
             this->debug            = j["global"].value("debug",           false);
             this->flashOnMessage   = j["global"].value("flashOnMessage",  false);
-            this->fontOffset       = j["global"].value("fontOffset",      0);
-            this->updateCheck      = j["global"].value("updateCheck",     true);
+            this->fontOffset        = j["global"].value("fontOffset",        0);
+            this->soundAirborne     = j["global"].value("soundAirborne",     true);
+            this->soundGndTransfer  = j["global"].value("soundGndTransfer",  true);
+            this->soundReadyTakeoff = j["global"].value("soundReadyTakeoff", true);
+            this->updateCheck       = j["global"].value("updateCheck",       true);
         }
         if (this->debug) { this->LogDebugSessionStart(); }
 
@@ -231,19 +235,23 @@ void CFlowX_Settings::LoadWindowSettings()
     }
 }
 
-/// @brief Writes window positions and global UI settings to windowSettings.json in the plugin directory.
-void CFlowX_Settings::SaveWindowSettings()
+/// @brief Writes plugin settings (global toggles and window positions) to settings.json in the plugin directory.
+void CFlowX_Settings::SaveSettings()
 {
     try
     {
         json j;
-        j["global"]["autoParked"]     = this->autoParked;
-        j["global"]["autoRestore"]    = this->autoRestore;
+        j["global"]["autoParked"]          = this->autoParked;
+        j["global"]["autoScratchpadClear"] = this->autoScratchpadClear;
+        j["global"]["autoRestore"]         = this->autoRestore;
         j["global"]["bgOpacity"]      = this->bgOpacity;
         j["global"]["debug"]          = this->debug;
         j["global"]["flashOnMessage"] = this->flashOnMessage;
-        j["global"]["fontOffset"]     = this->fontOffset;
-        j["global"]["updateCheck"]    = this->updateCheck;
+        j["global"]["fontOffset"]        = this->fontOffset;
+        j["global"]["soundAirborne"]     = this->soundAirborne;
+        j["global"]["soundGndTransfer"]  = this->soundGndTransfer;
+        j["global"]["soundReadyTakeoff"] = this->soundReadyTakeoff;
+        j["global"]["updateCheck"]       = this->updateCheck;
 
         json windows = json::array();
         auto addWin = [&](const char* name, int x, int y, bool vis)
@@ -281,7 +289,7 @@ void CFlowX_Settings::SaveWindowSettings()
         j["windowSettings"] = windows;
 
         std::filesystem::path path(GetPluginDirectory());
-        path.append("windowSettings.json");
+        path.append("settings.json");
 
         std::ofstream ofs(path);
         ofs << j.dump(4);
@@ -476,6 +484,9 @@ void CFlowX_Settings::LoadConfig()
 
         auto ctrStations{json_airport["ctrStations"].get<std::vector<std::string>>()};
         ap.ctrStations = ctrStations;
+
+        if (json_airport.contains("scratchpadClearExclusions"))
+            ap.scratchpadClearExclusions = json_airport["scratchpadClearExclusions"].get<std::vector<std::string>>();
 
         json json_geoGnds;
         try

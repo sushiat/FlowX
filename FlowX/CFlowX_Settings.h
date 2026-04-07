@@ -15,7 +15,7 @@ using json = nlohmann::json;
 
 /// @brief Plugin layer responsible for persisting settings and loading the airport configuration.
 ///
-/// All user preferences and window positions are stored in windowSettings.json in the plugin directory.
+/// All user preferences and window positions are stored in settings.json in the plugin directory.
 /// Airport configuration is loaded from config.json at startup.
 class CFlowX_Settings : public CFlowX_Logging
 {
@@ -23,31 +23,35 @@ class CFlowX_Settings : public CFlowX_Logging
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
     bool                           apprEstColors       = false; ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
-    bool                           approachEstVisible  = true;  ///< Whether the Approach Estimate window is visible; restored from windowSettings.json
+    bool                           approachEstVisible  = true;  ///< Whether the Approach Estimate window is visible; restored from settings.json
     int                            approachEstWindowH  = 380;   ///< Saved height of the Approach Estimate window; default 380
     int                            approachEstWindowW  = 260;   ///< Saved width of the Approach Estimate window; default 260
     int                            approachEstWindowX  = -1;    ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
     int                            approachEstWindowY  = -1;    ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
-    bool                           autoParked     = true;   ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
-    bool                           autoRestore    = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    bool                           autoParked          = true;   ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
+    bool                           autoScratchpadClear = false;  ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
+    bool                           autoRestore         = false;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     int                            bgOpacity      = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
-    bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from windowSettings.json
+    bool                           depRateVisible  = true;  ///< Whether the DEP/H departure rate window is visible; restored from settings.json
     int                            depRateWindowX = -1;     ///< Last-saved X position of the departure rate window; -1 = not yet positioned
     int                            depRateWindowY = -1;     ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
     int                            fontOffset         = 0;  ///< Font size offset for all custom-window data fonts; positive = larger
     std::map<std::string, grStand> grStands;                ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
     std::future<std::string>       latestVersion;           ///< Async future holding the fetched latest version string
     std::string                    napLastDismissedDate;    ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
-    int                            napWindowX         = -1; ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
-    int                            napWindowY         = -1; ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
-    bool                           twrInboundVisible  = true;  ///< Whether the TWR Inbound window is visible; restored from windowSettings.json
+    int                            napWindowX          = -1;    ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
+    int                            napWindowY          = -1;    ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
+    bool                           soundAirborne       = true;  ///< Whether the airborne audio alert is enabled
+    bool                           soundGndTransfer    = true;  ///< Whether the GND transfer audio alert is enabled
+    bool                           soundReadyTakeoff   = true;  ///< Whether the ready-for-takeoff audio alert is enabled
+    bool                           twrInboundVisible   = true;  ///< Whether the TWR Inbound window is visible; restored from settings.json
     int                            twrInboundWindowX  = -1; ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
     int                            twrInboundWindowY  = -1; ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
-    bool                           twrOutboundVisible = true;  ///< Whether the TWR Outbound window is visible; restored from windowSettings.json
+    bool                           twrOutboundVisible = true;  ///< Whether the TWR Outbound window is visible; restored from settings.json
     int                            twrOutboundWindowX = -1; ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
     int                            twrOutboundWindowY = -1; ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
     bool                           updateCheck    = true;   ///< Whether the background update check is enabled
-    bool                           weatherVisible     = true;  ///< Whether the WX/ATIS window is visible; restored from windowSettings.json
+    bool                           weatherVisible     = true;  ///< Whether the WX/ATIS window is visible; restored from settings.json
     int                            weatherWindowX = -1;     ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
     int                            weatherWindowY = -1;     ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
 
@@ -67,12 +71,12 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @note Logs a message and returns early if the file cannot be read or parsed.
     void LoadConfig();
 
-    /// @brief Loads window positions and global UI settings from windowSettings.json in the plugin directory.
+    /// @brief Loads plugin settings (global toggles and window positions) from settings.json in the plugin directory.
     /// @note Missing or malformed file is silently ignored; positions stay at -1 (auto-place).
-    void LoadWindowSettings();
+    void LoadSettings();
 
-    /// @brief Writes window positions and global UI settings to windowSettings.json in the plugin directory.
-    void SaveWindowSettings();
+    /// @brief Writes plugin settings (global toggles and window positions) to settings.json in the plugin directory.
+    void SaveSettings();
 
   public:
     /// @brief Constructs the settings layer, loading persisted settings and config.json on startup.
@@ -125,16 +129,19 @@ class CFlowX_Settings : public CFlowX_Logging
     [[nodiscard]] int GetApproachEstY() const { return this->approachEstWindowY; }
 
     /// @brief Decreases the background opacity by 10 pp (floor 20%) and persists immediately.
-    void DecreaseBgOpacity() { this->bgOpacity = std::max(20, this->bgOpacity - 10); SaveWindowSettings(); }
+    void DecreaseBgOpacity() { this->bgOpacity = std::max(20, this->bgOpacity - 10); SaveSettings(); }
 
     /// @brief Decreases the font size offset by one step (floor −5) and persists immediately.
-    void DecreaseFontOffset() { this->fontOffset = std::max(-5, this->fontOffset - 1); SaveWindowSettings(); }
+    void DecreaseFontOffset() { this->fontOffset = std::max(-5, this->fontOffset - 1); SaveSettings(); }
 
     /// @brief Returns whether Auto Parked is enabled.
     [[nodiscard]] bool GetAutoParked() const { return this->autoParked; }
 
     /// @brief Returns the current auto-restore state.
     [[nodiscard]] bool GetAutoRestore() const { return this->autoRestore; }
+
+    /// @brief Returns whether auto-clear scratchpad on lineup/takeoff click is enabled.
+    [[nodiscard]] bool GetAutoScratchpadClear() const { return this->autoScratchpadClear; }
 
     /// @brief Returns the current background opacity in percent (20–100).
     [[nodiscard]] int GetBgOpacity() const { return this->bgOpacity; }
@@ -144,6 +151,15 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Returns the current font size offset (positive = larger).
     [[nodiscard]] int GetFontOffset() const { return this->fontOffset; }
+
+    /// @brief Returns whether the airborne audio alert is enabled.
+    [[nodiscard]] bool GetSoundAirborne()     const { return this->soundAirborne; }
+
+    /// @brief Returns whether the GND transfer audio alert is enabled.
+    [[nodiscard]] bool GetSoundGndTransfer()  const { return this->soundGndTransfer; }
+
+    /// @brief Returns whether the ready-for-takeoff audio alert is enabled.
+    [[nodiscard]] bool GetSoundReadyTakeoff() const { return this->soundReadyTakeoff; }
 
     /// @brief Returns whether the TWR Inbound window is currently visible.
     [[nodiscard]] bool GetTwrInboundVisible() const { return this->twrInboundVisible; }
@@ -161,31 +177,43 @@ class CFlowX_Settings : public CFlowX_Logging
     [[nodiscard]] bool GetUpdateCheck() const { return this->updateCheck; }
 
     /// @brief Increases the background opacity by 10 pp (ceiling 100%) and persists immediately.
-    void IncreaseBgOpacity() { this->bgOpacity = std::min(100, this->bgOpacity + 10); SaveWindowSettings(); }
+    void IncreaseBgOpacity() { this->bgOpacity = std::min(100, this->bgOpacity + 10); SaveSettings(); }
 
     /// @brief Increases the font size offset by one step (ceiling +5) and persists immediately.
-    void IncreaseFontOffset() { this->fontOffset = std::min(5, this->fontOffset + 1); SaveWindowSettings(); }
+    void IncreaseFontOffset() { this->fontOffset = std::min(5, this->fontOffset + 1); SaveSettings(); }
 
     /// @brief Toggles the Approach Estimate colors setting and persists it immediately.
-    void ToggleApprEstColors() { this->apprEstColors = !this->apprEstColors; SaveWindowSettings(); }
+    void ToggleApprEstColors() { this->apprEstColors = !this->apprEstColors; SaveSettings(); }
 
     /// @brief Toggles the Approach Estimate window visibility (does not affect the saved position).
     void ToggleApproachEstVisible() { this->approachEstVisible = !this->approachEstVisible; }
 
     /// @brief Toggles the Auto Parked feature and persists immediately.
-    void ToggleAutoParked() { this->autoParked = !this->autoParked; SaveWindowSettings(); }
+    void ToggleAutoParked() { this->autoParked = !this->autoParked; SaveSettings(); }
 
     /// @brief Toggles the auto-restore setting and persists it immediately.
-    void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveWindowSettings(); }
+    void ToggleAutoRestore() { this->autoRestore = !this->autoRestore; SaveSettings(); }
+
+    /// @brief Toggles the auto-clear scratchpad setting and persists it immediately.
+    void ToggleAutoScratchpadClear() { this->autoScratchpadClear = !this->autoScratchpadClear; SaveSettings(); }
 
     /// @brief Toggles the debug-mode setting and persists it immediately.
-    void ToggleDebug() { this->debug = !this->debug; SaveWindowSettings(); if (this->debug) { this->LogDebugSessionStart(); } }
+    void ToggleDebug() { this->debug = !this->debug; SaveSettings(); if (this->debug) { this->LogDebugSessionStart(); } }
 
     /// @brief Toggles the flash-on-message setting and persists it immediately.
-    void ToggleFlashOnMessage() { this->flashOnMessage = !this->flashOnMessage; SaveWindowSettings(); }
+    void ToggleFlashOnMessage() { this->flashOnMessage = !this->flashOnMessage; SaveSettings(); }
+
+    /// @brief Toggles the airborne audio alert and persists immediately.
+    void ToggleSoundAirborne()     { this->soundAirborne     = !this->soundAirborne;     SaveSettings(); }
+
+    /// @brief Toggles the GND transfer audio alert and persists immediately.
+    void ToggleSoundGndTransfer()  { this->soundGndTransfer  = !this->soundGndTransfer;  SaveSettings(); }
+
+    /// @brief Toggles the ready-for-takeoff audio alert and persists immediately.
+    void ToggleSoundReadyTakeoff() { this->soundReadyTakeoff = !this->soundReadyTakeoff; SaveSettings(); }
 
     /// @brief Toggles the update check setting and persists it immediately.
-    void ToggleUpdateCheck() { this->updateCheck = !this->updateCheck; SaveWindowSettings(); }
+    void ToggleUpdateCheck() { this->updateCheck = !this->updateCheck; SaveSettings(); }
 
     /// @brief Toggles the DEP/H departure rate window visibility (does not affect the saved position).
     void ToggleDepRateVisible() { this->depRateVisible = !this->depRateVisible; }

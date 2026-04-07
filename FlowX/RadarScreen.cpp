@@ -211,8 +211,8 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
         ULONGLONG elapsedSec = this->gndTransferSquareTimes.contains(callSign)
                              ? (now - this->gndTransferSquareTimes.at(callSign)) / 1000
                              : 0;
-        COLORREF color = elapsedSec >= 30 ? TAG_COLOR_RED
-                       : elapsedSec >= 20 ? TAG_COLOR_YELLOW
+        COLORREF color = elapsedSec >= 35 ? TAG_COLOR_RED
+                       : elapsedSec >= 25 ? TAG_COLOR_YELLOW
                                           : TAG_COLOR_GREEN;
 
         auto brush = CreateSolidBrush(color);
@@ -1536,25 +1536,31 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     struct MenuRow { bool isHeader; const char* label; bool hasCheckbox; bool checked; int itemIdx; bool hasFontButtons = false; bool hasBgButtons = false; };
 
     MenuRow rows[] = {
-        { true,  "Windows",        false, false,                              -1 },
-        { false, "Approach Estimate", true,  settings->GetApproachEstVisible(),  16 },
-        { false, "DEP/H",          true,  settings->GetDepRateVisible(),       4 },
-        { false, "TWR Outbound",   true,  settings->GetTwrOutboundVisible(),   5 },
-        { false, "TWR Inbound",    true,  settings->GetTwrInboundVisible(),    6 },
-        { false, "WX/ATIS",        true,  settings->GetWeatherVisible(),       7 },
-        { true,  "Commands",       false, false,                              -1 },
-        { false, "Redo CLR flags", false, false,                               0 },
-        { false, "Dismiss QNH",   false, false,                              12 },
-        { false, "Save positions", false, false,                               1 },
-        { true,  "Options",           false, false,                                 -1 },
-        { false, "Debug mode",        true,  base->GetDebug(),                     2 },
-        { false, "Auto-Restore FPLN", true,  settings->GetAutoRestore(),            3 },
-        { false, "Update check",      true,  settings->GetUpdateCheck(),           13 },
-        { false, "Flash messages",    true,  settings->GetFlashOnMessage(),        14 },
-        { false, "Auto Parked",       true,  settings->GetAutoParked(),            15 },
-        { false, "Appr Est Colors",   true,  settings->GetApprEstColors(),         17 },
-        { false, "Fonts",             false, false,                                -1, true  },
-        { false, "BG opacity",        false, false,                                -1, false, true },
+        { true,  "Windows",            false, false,                               -1 },
+        { false, "Approach Estimate",  true,  settings->GetApproachEstVisible(),   16 },
+        { false, "DEP/H",              true,  settings->GetDepRateVisible(),        4 },
+        { false, "TWR Outbound",       true,  settings->GetTwrOutboundVisible(),    5 },
+        { false, "TWR Inbound",        true,  settings->GetTwrInboundVisible(),     6 },
+        { false, "WX/ATIS",            true,  settings->GetWeatherVisible(),        7 },
+        { true,  "Commands",           false, false,                               -1 },
+        { false, "Redo CLR flags",     false, false,                                0 },
+        { false, "Dismiss QNH",        false, false,                               12 },
+        { false, "Save positions",     false, false,                                1 },
+        { true,  "Assists",            false, false,                               -1 },
+        { false, "Auto-Restore FPLN",  true,  settings->GetAutoRestore(),           3 },
+        { false, "Auto PARK",          true,  settings->GetAutoParked(),           15 },
+        { false, "Auto-Clear Scratch", true,  settings->GetAutoScratchpadClear(),  18 },
+        { true,  "Notifications",      false, false,                               -1 },
+        { false, "Airborne",           true,  settings->GetSoundAirborne(),        19 },
+        { false, "GND Transfer",       true,  settings->GetSoundGndTransfer(),     20 },
+        { false, "Ready T/O",          true,  settings->GetSoundReadyTakeoff(),    21 },
+        { true,  "Options",            false, false,                               -1 },
+        { false, "Debug mode",         true,  base->GetDebug(),                     2 },
+        { false, "Update check",       true,  settings->GetUpdateCheck(),          13 },
+        { false, "Flash messages",     true,  settings->GetFlashOnMessage(),       14 },
+        { false, "Appr Est Colors",    true,  settings->GetApprEstColors(),        17 },
+        { false, "Fonts",              false, false,                               -1, true  },
+        { false, "BG opacity",         false, false,                               -1, false, true },
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -1580,7 +1586,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     if (hwnd) { ScreenToClient(hwnd, &cursor); }
 
     // Auto-close if the cursor moves more than 100 px away from the menu in any direction.
-    const int CLOSE_DIST = 100;
+    const int CLOSE_DIST = 200;
     if (cursor.x < mx - CLOSE_DIST || cursor.x > mx + MENU_W + CLOSE_DIST ||
         cursor.y < my - CLOSE_DIST || cursor.y > my + MENU_H + CLOSE_DIST)
     {
@@ -2052,6 +2058,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 15) { settings->ToggleAutoParked(); }
             else if (idx == 16) { settings->ToggleApproachEstVisible(); }
             else if (idx == 17) { settings->ToggleApprEstColors(); }
+            else if (idx == 18) { settings->ToggleAutoScratchpadClear(); }
+            else if (idx == 19) { settings->ToggleSoundAirborne(); }
+            else if (idx == 20) { settings->ToggleSoundGndTransfer(); }
+            else if (idx == 21) { settings->ToggleSoundReadyTakeoff(); }
             else if (idx == 4) { settings->ToggleDepRateVisible(); }
             else if (idx == 5) { settings->ToggleTwrOutboundVisible(); }
             else if (idx == 6) { settings->ToggleTwrInboundVisible(); }
@@ -2061,8 +2071,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (idx == 10) { settings->DecreaseBgOpacity(); }
             else if (idx == 11) { settings->IncreaseBgOpacity(); }
         }
-        // Keep menu open for window visibility toggles (idx 4-7, 16) so the user can toggle multiple windows; close for all others
-        if (idx < 4 || idx == 12 || (idx >= 13 && idx != 16 && idx != 17)) { this->startMenuOpen = false; }
+        // Keep menu open for window toggles (4-7, 16) and notification toggles (19-21); close for all others
+        if (idx < 4 || idx == 12 || (idx >= 13 && idx != 16 && idx != 17 && idx < 19)) { this->startMenuOpen = false; }
 
         std::string clickSnd = GetPluginDirectory() + "\\click.wav";
         PlaySoundA(clickSnd.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
