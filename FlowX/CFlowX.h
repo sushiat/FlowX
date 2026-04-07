@@ -30,6 +30,9 @@ class CFlowX : public CFlowX_Functions
     /// @brief Constructs the main plugin object and initialises override flags to false.
     CFlowX();
 
+    /// @brief Called when the runway activity dialog is confirmed; refreshes activeDepRunways / activeArrRunways.
+    void OnAirportRunwayActivityChanged() override;
+
     /// @brief Processes `.flowx` chat commands entered in the EuroScope message area.
     /// @param sCommandLine Full command line string entered by the user.
     /// @return True if the command was recognised and handled; false otherwise.

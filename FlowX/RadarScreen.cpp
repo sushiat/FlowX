@@ -14,6 +14,7 @@
 #include "CFlowX_Timers.h"
 
 #include <algorithm>
+#include <set>
 #include <mmsystem.h>
 #include <string>
 #include "constants.h"
@@ -165,29 +166,24 @@ void RadarScreen::OnControllerDisconnect(EuroScopePlugIn::CController Controller
 
 /// @brief Dispatches all custom drawing to the four extract draw helpers; no calculations here.
 /// @param hDC GDI device context for drawing.
-/// @param Phase EuroScope refresh phase; all drawing occurs during REFRESH_PHASE_AFTER_TAGS.
+/// @param Phase EuroScope refresh phase.
 void RadarScreen::OnRefresh(HDC hDC, int Phase)
 {
     try
     {
-        if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
+        if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
         {
             auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
 
-            this->DrawDepartureInfoTag(hDC);
-            this->DrawGndTransferSquares(hDC);
-
             // Draw taxiway/taxilane overlay when enabled.
-            if (this->showTaxiOverlay && !settings->osmData.ways.empty())
+            if (this->showTaxiOverlay &&
+                (!settings->osmData.ways.empty() || !settings->osmData.holdingPositions.empty()))
             {
-                const bool showLanes = settings->GetOsmShowTaxilanes();
-
                 // Pass 1 — draw polylines, one pen per way.
                 for (const auto& way : settings->osmData.ways)
                 {
-                    if (way.type == AerowayType::Taxilane && !showLanes) continue;
-
-                    const COLORREF col = (way.type == AerowayType::Taxiway_HoldingPoint) ? RGB(255,  80,  80)
+                    const COLORREF col = (way.type == AerowayType::Taxiway_HoldingPoint)  ? RGB(255,  80,  80)
+                                       : (way.type == AerowayType::Taxiway_Intersection) ? RGB( 80, 150, 255)
                                        : (way.type == AerowayType::Taxilane)             ? RGB(  0, 200, 255)
                                                                                           : RGB(255, 220,   0);
                     HPEN pen  = CreatePen(PS_SOLID, 2, col);
@@ -209,24 +205,56 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 }
 
                 // Pass 2 — draw name labels at 500 m intervals (first at 250 m).
-                HFONT labelFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                // Intersection labels are drawn only once per unique ref/name.
+                HFONT labelFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                              ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 HFONT prevFont  = static_cast<HFONT>(SelectObject(hDC, labelFont));
                 SetBkMode(hDC, TRANSPARENT);
 
+                // Draws text centred at pt on a white background rectangle with 2 px padding.
+                auto drawLabel = [&](POINT pt, const std::string& text, COLORREF col)
+                {
+                    RECT m = { 0, 0, 200, 30 };
+                    DrawTextA(hDC, text.c_str(), -1, &m, DT_CALCRECT | DT_SINGLELINE);
+                    const int hw = (m.right  - m.left) / 2 + 2;
+                    const int hh = (m.bottom - m.top)  / 2 + 1;
+                    RECT bg = { pt.x - hw, pt.y - hh, pt.x + hw, pt.y + hh };
+                    auto br = CreateSolidBrush(RGB(255, 255, 255));
+                    FillRect(hDC, &bg, br);
+                    DeleteObject(br);
+                    SetTextColor(hDC, col);
+                    DrawTextA(hDC, text.c_str(), -1, &bg, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                };
+
+                std::set<std::string> drawnIsxLabels;
+                std::set<std::string> drawnHpLabels;
+
                 for (const auto& way : settings->osmData.ways)
                 {
-                    if (way.type == AerowayType::Taxilane && !showLanes) continue;
                     if (way.geometry.size() < 2) continue;
 
                     const std::string& lbl = way.ref.empty() ? way.name : way.ref;
                     if (lbl.empty()) continue;
 
-                    const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint) ? RGB(255, 130, 130)
-                                           : (way.type == AerowayType::Taxilane)             ? RGB(150, 230, 255)
-                                                                                              : RGB(255, 240, 150);
-                    SetTextColor(hDC, textCol);
+                    // Skip duplicate intersection labels.
+                    if (way.type == AerowayType::Taxiway_Intersection)
+                    {
+                        if (drawnIsxLabels.contains(lbl)) continue;
+                        drawnIsxLabels.insert(lbl);
+                    }
+
+                    // Skip duplicate holding-point labels.
+                    if (way.type == AerowayType::Taxiway_HoldingPoint)
+                    {
+                        if (drawnHpLabels.contains(lbl)) continue;
+                        drawnHpLabels.insert(lbl);
+                    }
+
+                    const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)  ? RGB(200,  60,  60)
+                                           : (way.type == AerowayType::Taxiway_Intersection)  ? RGB( 60, 120, 220)
+                                           : (way.type == AerowayType::Taxilane)              ? RGB(  0, 160, 210)
+                                                                                               : RGB(180, 140,   0);
 
                     double accum   = 0.0;
                     double nextLbl = 250.0;
@@ -249,9 +277,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                             EuroScopePlugIn::CPosition pos;
                             pos.m_Latitude  = b.lat;
                             pos.m_Longitude = b.lon;
-                            const POINT pt = ConvertCoordFromPositionToPixel(pos);
-                            RECT tr = { pt.x - 15, pt.y - 6, pt.x + 15, pt.y + 6 };
-                            DrawTextA(hDC, lbl.c_str(), -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                            drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
                             nextLbl += 500.0;
                             placed   = true;
                         }
@@ -265,15 +291,48 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         EuroScopePlugIn::CPosition pos;
                         pos.m_Latitude  = way.geometry[mid].lat;
                         pos.m_Longitude = way.geometry[mid].lon;
-                        const POINT pt = ConvertCoordFromPositionToPixel(pos);
-                        RECT tr = { pt.x - 15, pt.y - 6, pt.x + 15, pt.y + 6 };
-                        DrawTextA(hDC, lbl.c_str(), -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                        drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
                     }
+                }
+
+                // Pass 3 — draw holding position nodes as filled orange circles with a designator label.
+                if (!settings->osmData.holdingPositions.empty())
+                {
+                    HPEN   hpPen  = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));
+                    HBRUSH hpBrush = CreateSolidBrush(RGB(255, 140, 0));
+                    HPEN   prevHpPen  = static_cast<HPEN>  (SelectObject(hDC, hpPen));
+                    HBRUSH prevHpBrush = static_cast<HBRUSH>(SelectObject(hDC, hpBrush));
+
+                    for (const auto& hp : settings->osmData.holdingPositions)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = hp.pos.lat;
+                        pos.m_Longitude = hp.pos.lon;
+                        const POINT pt = ConvertCoordFromPositionToPixel(pos);
+                        Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
+
+                        const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
+                        if (!lbl.empty())
+                            drawLabel({ pt.x + 13, pt.y }, lbl, RGB(160, 80, 0));
+                    }
+
+                    SelectObject(hDC, prevHpBrush);
+                    SelectObject(hDC, prevHpPen);
+                    DeleteObject(hpBrush);
+                    DeleteObject(hpPen);
                 }
 
                 SelectObject(hDC, prevFont);
                 DeleteObject(labelFont);
             }
+        }
+
+        if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
+        {
+            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
+            this->DrawDepartureInfoTag(hDC);
+            this->DrawGndTransferSquares(hDC);
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)

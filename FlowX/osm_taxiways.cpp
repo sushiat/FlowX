@@ -10,6 +10,7 @@
 #include "helpers.h"
 #include "nlohmann/json.hpp"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -26,6 +27,7 @@ static constexpr const char* OVERPASS_QUERY =
     "(\n"
     "  way[\"aeroway\"=\"taxiway\"](around:6500,48.1103,16.5697);\n"
     "  way[\"aeroway\"=\"taxilane\"](around:6500,48.1103,16.5697);\n"
+    "  node[\"aeroway\"=\"holding_position\"](around:6500,48.1103,16.5697);\n"
     ");\n"
     "out geom;";
 
@@ -56,47 +58,92 @@ static OsmResult ParseOsmJson(const std::string& raw)
         const auto j = json::parse(raw);
         OsmAirportData data;
 
-        const json* arr = nullptr;
-        if      (j.contains("ways"))     arr = &j.at("ways");
-        else if (j.contains("elements")) arr = &j.at("elements");
-        else return std::unexpected(std::string("JSON missing 'ways'/'elements' key"));
-
-        for (const auto& el : *arr)
+        if (j.contains("elements"))
         {
-            OsmWay way;
-            way.id = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
+            // Overpass format — ways and nodes arrive together in the elements array.
+            for (const auto& el : j.at("elements"))
+            {
+                const std::string elType = el.value("type", std::string{});
 
-            if (el.contains("tags"))
-            {
-                // Overpass format — aeroway type lives inside the tags object
-                const auto& tags = el.at("tags");
-                const std::string aeroway = tags.value("aeroway", std::string{});
-                if      (aeroway == "taxiway")  way.type = AerowayType::Taxiway;
-                else if (aeroway == "taxilane") way.type = AerowayType::Taxilane;
-                else                            way.type = AerowayType::Unknown;
-                way.ref  = tags.value("ref",  std::string{});
-                way.name = tags.value("name", std::string{});
+                if (elType == "node")
+                {
+                    OsmHoldingPosition hp;
+                    hp.id  = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
+                    hp.pos = { el.value("lat", 0.0), el.value("lon", 0.0) };
+                    if (el.contains("tags"))
+                    {
+                        const auto& tags = el.at("tags");
+                        hp.ref  = tags.value("ref",  std::string{});
+                        hp.name = tags.value("name", std::string{});
+                    }
+                    data.holdingPositions.push_back(std::move(hp));
+                }
+                else // "way" or untyped
+                {
+                    OsmWay way;
+                    way.id = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
+                    if (el.contains("tags"))
+                    {
+                        const auto& tags = el.at("tags");
+                        const std::string aeroway = tags.value("aeroway", std::string{});
+                        if      (aeroway == "taxiway")  way.type = AerowayType::Taxiway;
+                        else if (aeroway == "taxilane") way.type = AerowayType::Taxilane;
+                        else                            way.type = AerowayType::Unknown;
+                        way.ref  = tags.value("ref",  std::string{});
+                        way.name = tags.value("name", std::string{});
+                    }
+                    if (el.contains("geometry"))
+                    {
+                        for (const auto& gp : el.at("geometry"))
+                            way.geometry.push_back({ gp.value("lat", 0.0), gp.value("lon", 0.0) });
+                    }
+                    if (!way.geometry.empty())
+                        data.ways.push_back(std::move(way));
+                }
             }
-            else
+        }
+        else if (j.contains("ways"))
+        {
+            // Cache format — ways and holding positions are stored in separate arrays.
+            for (const auto& el : j.at("ways"))
             {
-                // Cache format — type/ref/name are top-level fields
+                OsmWay way;
+                way.id = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
                 const std::string typeStr = el.value("type", std::string{});
-                if      (typeStr == "taxiway")  way.type = AerowayType::Taxiway;
-                else if (typeStr == "taxilane") way.type = AerowayType::Taxilane;
-                else                            way.type = AerowayType::Unknown;
+                if      (typeStr == "taxiway")               way.type = AerowayType::Taxiway;
+                else if (typeStr == "taxilane")              way.type = AerowayType::Taxilane;
+                else if (typeStr == "taxiway_holdingpoint")  way.type = AerowayType::Taxiway_HoldingPoint;
+                else if (typeStr == "taxiway_intersection")  way.type = AerowayType::Taxiway_Intersection;
+                else                                         way.type = AerowayType::Unknown;
                 way.ref  = el.value("ref",  std::string{});
                 way.name = el.value("name", std::string{});
+                if (el.contains("geometry"))
+                {
+                    for (const auto& gp : el.at("geometry"))
+                        way.geometry.push_back({ gp.value("lat", 0.0), gp.value("lon", 0.0) });
+                }
+                if (!way.geometry.empty())
+                    data.ways.push_back(std::move(way));
             }
 
-            if (el.contains("geometry"))
+            if (j.contains("holdingPositions"))
             {
-                for (const auto& gp : el.at("geometry"))
-                    way.geometry.push_back({ gp.value("lat", 0.0), gp.value("lon", 0.0) });
+                for (const auto& el : j.at("holdingPositions"))
+                {
+                    OsmHoldingPosition hp;
+                    hp.id   = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
+                    hp.ref  = el.value("ref",  std::string{});
+                    hp.name = el.value("name", std::string{});
+                    hp.pos  = { el.value("lat", 0.0), el.value("lon", 0.0) };
+                    data.holdingPositions.push_back(std::move(hp));
+                }
             }
-
-            if (!way.geometry.empty())
-                data.ways.push_back(std::move(way));
         }
+        else
+        {
+            return std::unexpected(std::string("JSON missing 'ways'/'elements' key"));
+        }
+        data.preAnnotated = j.value("annotated", false);
         return data;
     }
     catch (const std::exception& ex)
@@ -105,19 +152,22 @@ static OsmResult ParseOsmJson(const std::string& raw)
     }
 }
 
-/// @brief Serialises OsmAirportData to the cache JSON file in the plugin directory.
-static void SaveCache(const OsmAirportData& data)
+void SaveOsmCache(const OsmAirportData& data)
 {
     try
     {
         json j;
+        j["annotated"]    = true;
         auto& waysArr = j["ways"] = json::array();
         for (const auto& w : data.ways)
         {
             json wj;
             wj["id"]   = w.id;
-            wj["type"] = (w.type == AerowayType::Taxiway)  ? "taxiway"
-                       : (w.type == AerowayType::Taxilane) ? "taxilane" : "unknown";
+            wj["type"] = (w.type == AerowayType::Taxiway_HoldingPoint)  ? "taxiway_holdingpoint"
+                       : (w.type == AerowayType::Taxiway_Intersection)  ? "taxiway_intersection"
+                       : (w.type == AerowayType::Taxiway)               ? "taxiway"
+                       : (w.type == AerowayType::Taxilane)              ? "taxilane"
+                                                                        : "unknown";
             wj["ref"]  = w.ref;
             wj["name"] = w.name;
             auto& geom = wj["geometry"] = json::array();
@@ -126,11 +176,41 @@ static void SaveCache(const OsmAirportData& data)
             waysArr.push_back(std::move(wj));
         }
 
+        auto& hpArr = j["holdingPositions"] = json::array();
+        for (const auto& hp : data.holdingPositions)
+        {
+            json hj;
+            hj["id"]   = hp.id;
+            hj["ref"]  = hp.ref;
+            hj["name"] = hp.name;
+            hj["lat"]  = hp.pos.lat;
+            hj["lon"]  = hp.pos.lon;
+            hpArr.push_back(std::move(hj));
+        }
+
         const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
         std::ofstream f(path);
         if (f) f << j.dump(2);
     }
-    catch (...) {} // best-effort; the fetch result is still returned to the caller
+    catch (...) {} // best-effort
+}
+
+double WayLengthM(const OsmWay& way)
+{
+    double total = 0.0;
+    for (size_t k = 1; k < way.geometry.size(); ++k)
+    {
+        const auto& a = way.geometry[k - 1];
+        const auto& b = way.geometry[k];
+        const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
+        const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
+        const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
+        const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
+        const double h    = std::sin(dLat / 2) * std::sin(dLat / 2)
+                          + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
+        total += 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
+    }
+    return total;
 }
 
 OsmResult fetchLOWWTaxiways()
@@ -194,10 +274,7 @@ OsmResult fetchLOWWTaxiways()
     InternetCloseHandle(hConn);
     InternetCloseHandle(hNet);
 
-    auto result = ParseOsmJson(response);
-    if (result.has_value())
-        SaveCache(result.value());
-    return result;
+    return ParseOsmJson(response);
 }
 
 OsmResult loadCachedTaxiways()

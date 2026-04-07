@@ -11,6 +11,7 @@
 #include "nlohmann/json.hpp"
 #include "osm_taxiways.h"
 #include <future>
+#include <set>
 
 using json = nlohmann::json;
 
@@ -24,6 +25,8 @@ class CFlowX_Settings : public CFlowX_Logging
     std::future<OsmResult> osmFuture; ///< Async future for an in-flight OSM taxiway fetch or cache load
 
   protected:
+    std::set<std::string>          activeArrRunways;        ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
+    std::set<std::string>          activeDepRunways;        ///< Runway designators currently active for departures (e.g. "16", "29"); refreshed by RefreshActiveRunways.
     std::map<std::string, double>  aircraftWingspans;       ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
     std::map<std::string, airport> airports;                ///< Airport configurations keyed by ICAO code
     bool                           apprEstColors       = false; ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
@@ -74,6 +77,10 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Parses config.json from the plugin directory and populates the @c airports map.
     /// @note Logs a message and returns early if the file cannot be read or parsed.
     void LoadConfig();
+
+    /// @brief Reads active runway designators from the EuroScope sector file and stores them in activeDepRunways / activeArrRunways.
+    /// @note Call at startup and from OnAirportRunwayActivityChanged.
+    void RefreshActiveRunways();
 
     /// @brief Launches an async load of previously cached OSM taxiway data from disk.
     /// @note Called once at startup; result is consumed by PollOsmFuture.
@@ -165,12 +172,6 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Returns the current font size offset (positive = larger).
     [[nodiscard]] int GetFontOffset() const { return this->fontOffset; }
-
-    /// @brief Returns whether taxilane ways should be included in the OSM taxi overlay for the primary configured airport.
-    [[nodiscard]] bool GetOsmShowTaxilanes() const
-    {
-        return this->airports.empty() || this->airports.begin()->second.osmShowTaxilanes;
-    }
 
     /// @brief Returns true while an OSM taxiway fetch or cache load is in progress.
     [[nodiscard]] bool IsOsmBusy() const;

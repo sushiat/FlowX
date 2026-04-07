@@ -19,6 +19,12 @@ CFlowX::CFlowX()
 {
 }
 
+/// @brief Called when the runway activity dialog is confirmed; refreshes active runway sets.
+void CFlowX::OnAirportRunwayActivityChanged()
+{
+    this->RefreshActiveRunways();
+}
+
 /// @brief Processes `.flowx` chat commands.
 /// @param sCommandLine Full command line string.
 /// @return True if the command was handled; false otherwise.

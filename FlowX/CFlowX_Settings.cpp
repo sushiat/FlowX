@@ -13,6 +13,7 @@
 #include <fstream>
 #include <chrono>
 #include <future>
+#include <unordered_set>
 #include <semver/semver.hpp>
 
 /// @brief Returns true if every element of the JSON array is a scalar (not object/array).
@@ -151,7 +152,25 @@ CFlowX_Settings::CFlowX_Settings()
         this->latestVersion = std::async(FetchLatestVersion);
     }
 
+    this->RefreshActiveRunways();
     this->StartOsmCacheLoad();
+}
+
+void CFlowX_Settings::RefreshActiveRunways()
+{
+    this->activeDepRunways.clear();
+    this->activeArrRunways.clear();
+
+    auto el = SectorFileElementSelectFirst(EuroScopePlugIn::SECTOR_ELEMENT_RUNWAY);
+    while (el.IsValid())
+    {
+        for (int i = 0; i <= 1; ++i)
+        {
+            if (el.IsElementActive(true,  i)) this->activeDepRunways.insert(el.GetRunwayName(i));
+            if (el.IsElementActive(false, i)) this->activeArrRunways.insert(el.GetRunwayName(i));
+        }
+        el = SectorFileElementSelectNext(el, EuroScopePlugIn::SECTOR_ELEMENT_RUNWAY);
+    }
 }
 
 void CFlowX_Settings::StartOsmCacheLoad()
@@ -187,27 +206,82 @@ void CFlowX_Settings::PollOsmFuture()
 
     this->osmData = std::move(result.value());
 
-    // Annotate any taxiway whose ref or name matches a configured holding point.
-    for (auto& way : this->osmData.ways)
+    if (this->osmData.preAnnotated)
     {
+        this->LogDebugMessage(
+            std::format("Loaded {} ways, {} holding positions from cache (pre-annotated)",
+                        this->osmData.ways.size(), this->osmData.holdingPositions.size()), "OSM");
+    }
+    else
+    {
+        // Pass 1: annotate any taxiway whose ref or name matches a configured holding point.
+        for (auto& way : this->osmData.ways)
+        {
+            for (const auto& [icao, apt] : this->airports)
+            {
+                bool matched = false;
+                for (const auto& [rwyName, rwy] : apt.runways)
+                {
+                    if ((!way.ref.empty()  && rwy.holdingPoints.contains(way.ref)) ||
+                        (!way.name.empty() && rwy.holdingPoints.contains(way.name)))
+                    {
+                        way.type = AerowayType::Taxiway_HoldingPoint;
+                        matched  = true;
+                        break;
+                    }
+                }
+                if (matched) break;
+            }
+        }
+
+        // Build lookup sets from the first configured airport that has OSM lists.
+        std::unordered_set<std::string> cfgTaxiways, cfgTaxilanes, cfgIntersections;
         for (const auto& [icao, apt] : this->airports)
         {
-            bool matched = false;
-            for (const auto& [rwyName, rwy] : apt.runways)
+            if (!apt.taxiWays.empty() || !apt.taxiLanes.empty() || !apt.taxiIntersections.empty())
             {
-                if ((!way.ref.empty()  && rwy.holdingPoints.contains(way.ref)) ||
-                    (!way.name.empty() && rwy.holdingPoints.contains(way.name)))
-                {
-                    way.type = AerowayType::Taxiway_HoldingPoint;
-                    matched  = true;
-                    break;
-                }
+                cfgTaxiways.insert(apt.taxiWays.begin(), apt.taxiWays.end());
+                cfgTaxilanes.insert(apt.taxiLanes.begin(), apt.taxiLanes.end());
+                cfgIntersections.insert(apt.taxiIntersections.begin(), apt.taxiIntersections.end());
+                break;
             }
-            if (matched) break;
         }
-    }
 
-    this->LogDebugMessage(std::format("Loaded {} ways", this->osmData.ways.size()), "OSM");
+        // Pass 2: classify by config lists; ways not in any list are removed.
+        // Holding-point ways already annotated in Pass 1 keep their type.
+        auto keyOf = [](const OsmWay& w) -> const std::string& { return w.ref.empty() ? w.name : w.ref; };
+        {
+            std::vector<OsmWay> kept;
+            kept.reserve(this->osmData.ways.size());
+            for (auto& way : this->osmData.ways)
+            {
+                if (way.type == AerowayType::Taxiway_HoldingPoint)
+                {
+                    kept.push_back(std::move(way));
+                    continue;
+                }
+                const std::string& key = keyOf(way);
+                if      (cfgIntersections.contains(key)) { way.type = AerowayType::Taxiway_Intersection; kept.push_back(std::move(way)); }
+                else if (cfgTaxiways.contains(key))      { way.type = AerowayType::Taxiway;              kept.push_back(std::move(way)); }
+                else if (cfgTaxilanes.contains(key))     { way.type = AerowayType::Taxilane;             kept.push_back(std::move(way)); }
+                // else: not in any config list → excluded
+            }
+            this->osmData.ways = std::move(kept);
+        }
+
+        int hpCount = 0, isxCount = 0;
+        for (const auto& way : this->osmData.ways)
+        {
+            if      (way.type == AerowayType::Taxiway_HoldingPoint) hpCount++;
+            else if (way.type == AerowayType::Taxiway_Intersection)  isxCount++;
+        }
+        this->LogDebugMessage(
+            std::format("Annotated {} ways ({} HP, {} intersections), {} holding positions; saving cache",
+                        this->osmData.ways.size(), hpCount, isxCount,
+                        this->osmData.holdingPositions.size()), "OSM");
+
+        SaveOsmCache(this->osmData);
+    }
 }
 
 /// @brief Loads plugin settings (global toggles and window positions) from settings.json in the plugin directory.
@@ -547,7 +621,18 @@ void CFlowX_Settings::LoadConfig()
 
         if (json_airport.contains("scratchpadClearExclusions"))
             ap.scratchpadClearExclusions = json_airport["scratchpadClearExclusions"].get<std::vector<std::string>>();
-        ap.osmShowTaxilanes = json_airport.value("osmShowTaxilanes", true);
+        if (json_airport.contains("taxiIntersections"))
+            ap.taxiIntersections = json_airport["taxiIntersections"].get<std::vector<std::string>>();
+        if (json_airport.contains("taxiLanes"))
+            ap.taxiLanes = json_airport["taxiLanes"].get<std::vector<std::string>>();
+        if (json_airport.contains("taxiWays"))
+            ap.taxiWays = json_airport["taxiWays"].get<std::vector<std::string>>();
+        if (json_airport.contains("taxiFlowGeneric"))
+            for (const auto& r : json_airport["taxiFlowGeneric"])
+                ap.taxiFlowGeneric.push_back({ r.value("taxiway", std::string{}), r.value("direction", std::string{}) });
+        if (json_airport.contains("taxiWingspanMax"))
+            for (const auto& [ref, ws] : json_airport["taxiWingspanMax"].items())
+                ap.taxiWingspanMax[ref] = ws.get<double>();
 
         json json_geoGnds;
         try
@@ -706,6 +791,10 @@ void CFlowX_Settings::LoadConfig()
                     }
                     rwy.holdingPoints.emplace(hpName, hp);
                 }
+
+                if (json_rwy.contains("taxiFlowDep"))
+                    for (const auto& r : json_rwy["taxiFlowDep"])
+                        rwy.taxiFlowDep.push_back({ r.value("taxiway", std::string{}), r.value("direction", std::string{}) });
 
                 if (json_rwy.contains("vacatePoints"))
                 {

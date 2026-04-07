@@ -99,6 +99,13 @@ struct approachPath
     std::vector<approachFix> fixes; ///< Ordered list of fixes along the approach path (IAF first).
 };
 
+/// @brief A directional flow rule for a single taxiway.
+struct TaxiFlowRule
+{
+    std::string taxiway;   ///< Taxiway ref (e.g. "P", "M").
+    std::string direction; ///< Preferred direction: "N", "S", "E", or "W".
+};
+
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
@@ -116,6 +123,7 @@ struct runway
     std::map<std::string, holdingPoint> holdingPoints = {}; ///< Named holding points on this runway
     std::map<std::string, int>          sidGroups     = {}; ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
     std::map<std::string, std::string>  sidColors     = {}; ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
+    std::vector<TaxiFlowRule>           taxiFlowDep   = {}; ///< Taxiway direction rules active when this runway is used for departures.
     std::map<std::string, vacatePoint>  vacatePoints  = {}; ///< Named vacate points on this runway
 };
 
@@ -136,6 +144,10 @@ struct airport
     std::map<std::string, std::vector<std::string>> sidAppFreqs      = {};        ///< Approach frequency -> list of SIDs that use it
     std::map<std::string, std::vector<std::string>> appFreqFallbacks          = {};        ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
     std::map<std::string, runway>                   runways                   = {};        ///< Runway configurations keyed by designator
+    std::vector<std::string>                        taxiIntersections          = {};        ///< Intersection taxiway refs (e.g. "Exit 1") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                        taxiLanes              = {};        ///< Taxilane refs (e.g. "TL 31") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                        taxiWays               = {};        ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
     std::vector<std::string>                        scratchpadClearExclusions = {};        ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
-    bool                                            osmShowTaxilanes          = true;      ///< When true, taxilane ways (aeroway=taxilane) are included in the OSM taxi overlay; false = taxiways only
+    std::vector<TaxiFlowRule>                       taxiFlowGeneric           = {};        ///< Taxiway direction rules always active regardless of runway selection.
+    std::map<std::string, double>                   taxiWingspanMax           = {};        ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
 };
