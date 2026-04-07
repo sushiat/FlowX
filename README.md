@@ -15,6 +15,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 - [Tag Functions](#tag-functions)
 - [Custom Windows](#custom-windows)
 - [Chat Commands](#chat-commands)
+- [Start Menu](#start-menu)
 - [config.json Reference](#configjson-reference)
 - [Contributing](#contributing)
 - [License](#license)
@@ -31,7 +32,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 ### Installation
 
 1. Download the latest `FlowX.zip` from the [Releases](https://github.com/sushiat/FlowX/releases/latest) page.
-2. Extract `FlowX.dll`, `config.json`, `nap.wav`, and `airbourne.wav` into your plugin directory.
+2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, and `click.wav` into your plugin directory.
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `FlowX.dll`.
 4. Successful load is confirmed in the **Messages** chat:
    ```
@@ -39,9 +40,14 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
    ```
 5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
-> **Sound files:** `nap.wav` plays when the NAP reminder window appears and stops on acknowledgement. `airbourne.wav` plays once when an aircraft is detected airborne. Both files must be placed alongside `FlowX.dll`.
+> **Sound files** (all must be placed alongside `FlowX.dll`):
+> - `nap.wav` — plays when the NAP reminder window appears; stops on acknowledgement.
+> - `airbourne.wav` — plays once when an aircraft is detected airborne.
+> - `readyTakeoff.wav` — plays when a lined-up aircraft has been clear for takeoff for 5 seconds (departure separation resolved).
+> - `gndtransfer.wav` — plays when a landed inbound transitions to GND frequency.
+> - `click.wav` — plays on start-menu clicks.
 
-> **`windowLocations.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores the screen positions of all five custom GDI windows and the last NAP reminder dismissal date. Delete it to reset all window positions to their defaults.
+> **`settings.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores all plugin preferences, the screen positions of all custom windows, and the last NAP reminder dismissal date. Delete it to reset everything to defaults.
 
 ---
 
@@ -83,7 +89,11 @@ Only two tag functions are registered with EuroScope and can be assigned to tag 
 
 ## Custom Windows
 
-FlowX draws five custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `windowLocations.json` in the plugin directory.
+FlowX draws six custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `settings.json` in the plugin directory.
+
+### Approach Estimate
+
+A vertical time bar showing all tracked inbound aircraft for up to two runway groups (left / right), ordered by estimated time to touchdown. Each runway's aircraft appear on the side configured via `estimateBarSide` in `config.json`. Aircraft labels are coloured by inbound-list colour when **Appr Est Colors** is enabled, or always green otherwise. Go-around aircraft are shown with a red background; TTT-frozen aircraft with yellow. The window is resizable by dragging its lower-right corner.
 
 ### DEP/H — Departure Rate
 
@@ -108,6 +118,7 @@ Tracks all departing aircraft. Rows are sorted by a composite key (holding point
 | ATYP | TopSky | Aircraft type | — | — |
 | Freq | FlowX | Next handoff frequency; turquoise above transfer altitude, blinking orange at warning threshold, `!MODE-C` if airborne without Mode-C | Transfer Next | — |
 | HP | FlowX | Holding point; orange with `*` if readback pending, grey after departure | Assign HP | Request HP |
+| # | FlowX | Departure queue position (1-based); empty if not yet queued | — | — |
 | Spacing | FlowX | Takeoff spacing snapshot — time (lighter follows heavier) or distance (equal/heavier follows lighter), colour-coded green/yellow/red | — | — |
 | T+ | FlowX | Elapsed time since takeoff roll start (`M:SS`); empty while on the ground | — | — |
 | dNM | FlowX | Live distance to the previous departure (`XX.X nm`), updated on every position report; colour-coded green/yellow/red using the same distance thresholds as Spacing; `---` if no previous departure tracked | — | — |
@@ -170,6 +181,37 @@ Running `.flowx` alone prints the loaded version and a command list.
 | `.flowx autorestore` | Yes | Toggle auto-restore on quick reconnect. When enabled, if a pilot disconnects and reconnects within 90 seconds with a matching flight plan (same callsign, pilot name, airports, aircraft type, route, squawk, and position within 1 nm), their clearance flag and ground state are automatically restored. |
 | `.flowx reset` | — | Reload `config.json` and reset all settings to defaults |
 | `.flowx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
+
+---
+
+## Start Menu
+
+Click the **FlowX** button in the bottom-right corner of the radar screen to open the start menu. It has three sections:
+
+**Windows** — toggle visibility of each custom window:
+Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
+
+**Commands** — one-shot actions:
+
+| Item | Description |
+|---|---|
+| Redo CLR flags | Toggles all existing clearance flags off then back on (same as `.flowx redoflags`) |
+| Dismiss QNH | Bulk-clears all pending QNH change markers |
+| Save positions | Saves current window positions to `settings.json` |
+
+**Options** — persistent toggles (saved to `settings.json`):
+
+| Option | Default | Description |
+|---|---|---|
+| Debug mode | Off | Verbose debug logging in the Messages window |
+| Auto-Restore FPLN | Off | Auto-restores clearance flag and ground state on quick reconnect (within 90 s) |
+| Update check | On | Background check for a newer plugin version on startup |
+| Flash messages | Off | Flashes the unread message indicator for FlowX messages |
+| Auto Parked | On | Automatically sets arriving aircraft to PARK when they stop at their assigned stand |
+| Appr Est Colors | Off | Uses inbound-list colours in the Approach Estimate window instead of always-green |
+| Auto-Clear Scratch | Off | Automatically clears the scratchpad when this controller clicks LINEUP or DEPA, unless the content starts with a prefix in `scratchpadClearExclusions` |
+| Fonts | — | Increase / decrease font size offset for all custom windows |
+| BG opacity | 100% | Increase / decrease background opacity of all custom windows (20–100%) |
 
 ---
 
@@ -281,6 +323,14 @@ Night-time SIDs are filed with a truncated name (last character dropped), so `IR
 
 For example, a filed SID of `IRGO2A` is displayed as `IRGOT2A*`.
 
+### `scratchpadClearExclusions`
+
+A list of scratchpad prefixes that are exempt from the **Auto-Clear Scratch** feature. Comparison is case-insensitive. If the aircraft's scratchpad starts with any listed prefix the auto-clear is skipped.
+
+```json
+"scratchpadClearExclusions": [".cs", ".did", ".obacht"]
+```
+
 ### `runways`
 
 Per-runway configuration keyed by runway designator.
@@ -292,10 +342,13 @@ Per-runway configuration keyed by runway designator.
 | `goAroundFreq` | string | Go-around (approach) frequency for this runway |
 | `width` | int | Runway width in metres (e.g. `45`) |
 | `threshold` | object | `{ "lat": ..., "lon": ... }` — runway threshold coordinates |
+| `thresholdElevationFt` | int | Threshold elevation in feet; overrides `fieldElevation` for TTT altitude gates. Omit or set to `0` to use `fieldElevation`. |
+| `estimateBarSide` | string | Which side of the Approach Estimate bar this runway's aircraft appear on: `"left"` or `"right"`. Omit to exclude from the bar. |
 | `sidGroups` | object | Group number → array of SID prefixes. Aircraft in the same group get 5 nm spacing instead of 3 nm. |
 | `sidColors` | object | Colour name → array of SID prefixes. Valid colours: `green`, `orange`, `turq`, `purple`, `red`, `white`, `yellow`. SIDs omitted here default to white. |
 | `holdingPoints` | object | Named holding point definitions (see below) |
 | `vacatePoints` | object | Named vacate point definitions (see below) |
+| `gpsApproachPaths` | array | Non-straight-in RNP approach paths for early TTT detection. Each entry defines a sequence of fixes with distance/altitude gates. Omit for straight-in approaches. |
 
 ```json
 "runways": {
@@ -379,7 +432,7 @@ If you have a suggestion or encountered a bug, please open an [issue](https://gi
 - **Visual Studio 2022** (no other build system is supported)
 - Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration
 - Avoid breakpoints during live controlling — use `.flowx debug` instead
-- Target: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`), C++17, Windows SDK 11.0
+- Target: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`), C++23, Windows SDK 11.0
 
 Dependencies are bundled in `include/` and `lib/`:
 

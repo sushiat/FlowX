@@ -134,6 +134,7 @@ struct airport
     std::string                                     defaultAppFreq;               ///< Default approach frequency (used when no SID-specific one matches)
     std::map<std::string, std::string>              nightTimeSids    = {};        ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
     std::map<std::string, std::vector<std::string>> sidAppFreqs      = {};        ///< Approach frequency -> list of SIDs that use it
-    std::map<std::string, std::vector<std::string>> appFreqFallbacks = {};        ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
-    std::map<std::string, runway>                   runways          = {};        ///< Runway configurations keyed by designator
+    std::map<std::string, std::vector<std::string>> appFreqFallbacks          = {};        ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
+    std::map<std::string, runway>                   runways                   = {};        ///< Runway configurations keyed by designator
+    std::vector<std::string>                        scratchpadClearExclusions = {};        ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
 };

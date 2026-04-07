@@ -199,6 +199,22 @@ void CFlowX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
     std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
     fp.GetControllerAssignedData().SetScratchPadString("LINEUP");
     fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+
+    if (this->GetAutoScratchpadClear() && !scratchBackup.empty())
+    {
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
+        auto aptIt      = this->airports.find(dep);
+        std::string scratchUpper = scratchBackup;
+        to_upper(scratchUpper);
+        bool excluded = aptIt != this->airports.end() && std::ranges::any_of(aptIt->second.scratchpadClearExclusions, [&](const std::string& prefix)
+        {
+            std::string prefixUpper = prefix;
+            to_upper(prefixUpper);
+            return scratchUpper.starts_with(prefixUpper);
+        });
+        if (!excluded) { fp.GetControllerAssignedData().SetScratchPadString(""); }
+    }
 }
 
 /// @brief Handles a missed approach: immediately promotes the aircraft to go-around state in the TTT list, clears cleared-to-land, takes tracking, assigns 5000 ft, highlights in TopSky, and sets MISAP scratch.
@@ -343,6 +359,22 @@ void CFlowX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
     std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
     fp.GetControllerAssignedData().SetScratchPadString("DEPA");
     fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
+
+    if (this->GetAutoScratchpadClear() && !scratchBackup.empty())
+    {
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
+        auto aptIt      = this->airports.find(dep);
+        std::string scratchUpper = scratchBackup;
+        to_upper(scratchUpper);
+        bool excluded = aptIt != this->airports.end() && std::ranges::any_of(aptIt->second.scratchpadClearExclusions, [&](const std::string& prefix)
+        {
+            std::string prefixUpper = prefix;
+            to_upper(prefixUpper);
+            return scratchUpper.starts_with(prefixUpper);
+        });
+        if (!excluded) { fp.GetControllerAssignedData().SetScratchPadString(""); }
+    }
 
     fp.StartTracking();
 }

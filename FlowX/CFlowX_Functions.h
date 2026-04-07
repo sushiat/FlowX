@@ -47,7 +47,7 @@ class CFlowX_Functions : public CFlowX_CustomTags
 
     /// @brief Sets the LINEUP ground state on the flight plan via a scratch-pad toggle.
     /// @param fp Currently selected flight plan.
-    static void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
+    void Func_LineUp(EuroScopePlugIn::CFlightPlan& fp);
 
     /// @brief Handles a missed approach: immediately promotes the aircraft to go-around state in the TTT list, clears cleared-to-land, takes tracking, assigns 5000 ft, and triggers TopSky highlight.
     /// @param fp Currently selected flight plan.
@@ -75,7 +75,7 @@ class CFlowX_Functions : public CFlowX_CustomTags
 
     /// @brief Sets the DEPA ground state and starts tracking the flight plan.
     /// @param fp Currently selected flight plan.
-    static void Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp);
+    void Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp);
 
     /// @brief Transfers the flight plan to the next controller (approach, centre, or drops tracking).
     /// @param fp Currently selected flight plan.
