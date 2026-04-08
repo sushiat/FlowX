@@ -497,7 +497,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
                 if (sugIt != this->taxiSuggested.end())
                     drawRoute(sugIt->second, RGB(255, 220, 0), 2);        // yellow suggestion
-                drawRoute(this->taxiGreenPreview, RGB(100, 255, 100), 3); // green preview
+                drawRoute(this->taxiGreenPreview, RGB(255, 0, 220), 3); // magenta preview (user-adjusted)
 
                 // Draw via-point markers as small cyan squares.
                 for (const auto& wp : this->taxiWaypoints)
@@ -812,10 +812,6 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
     if (this->taxiDeviations.empty() && this->taxiConflicts.empty())
         return;
 
-    HFONT font = CreateFontA(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prevFont = static_cast<HFONT>(SelectObject(hDC, font));
     SetBkMode(hDC, TRANSPARENT);
 
     for (auto rt = GetPlugIn()->RadarTargetSelectFirst(); rt.IsValid();
@@ -866,9 +862,6 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
         RECT textRect = bgRect;
         DrawTextA(hDC, label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
-
-    SelectObject(hDC, prevFont);
-    DeleteObject(font);
 }
 
 static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct); ///< Forward declaration — defined below DrawGndTransferSquares.
@@ -2913,7 +2906,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
         {
             const int  dx         = Pt.x - this->taxiOriginPx.x;
             const int  dy         = Pt.y - this->taxiOriginPx.y;
-            const bool nearOrigin = (dx * dx + dy * dy) <= 20 * 20;
+            const bool nearOrigin = (dx * dx + dy * dy) <= 40 * 40;
 
             TaxiRoute finalRoute = nearOrigin
                                        ? this->taxiSuggested[this->taxiPlanActive]
