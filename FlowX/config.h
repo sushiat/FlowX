@@ -44,11 +44,11 @@ struct holdingPoint
     std::string         name;               ///< Holding point name (e.g. "N1")
     bool                assignable = false; ///< Whether the point appears in the HP popup list
     std::string         sameAs;             ///< Name of another holding point considered physically equivalent
-    std::vector<double> lat = {};           ///< Polygon vertex latitudes
-    std::vector<double> lon = {};           ///< Polygon vertex longitudes
-    double              centerLat = 0.0;   ///< Centroid latitude (mean of polygon vertices); computed at config load.
-    double              centerLon = 0.0;   ///< Centroid longitude (mean of polygon vertices); computed at config load.
-    int                 order     = 0;     ///< Insertion index from config.json (0 = first); preserves longest-to-shortest takeoff distance order.
+    std::vector<double> lat       = {};     ///< Polygon vertex latitudes
+    std::vector<double> lon       = {};     ///< Polygon vertex longitudes
+    double              centerLat = 0.0;    ///< Centroid latitude (mean of polygon vertices); computed at config load.
+    double              centerLon = 0.0;    ///< Centroid longitude (mean of polygon vertices); computed at config load.
+    int                 order     = 0;      ///< Insertion index from config.json (0 = first); preserves longest-to-shortest takeoff distance order.
 };
 
 /// @brief A single blocking relationship on a Ground Radar stand.
@@ -61,11 +61,11 @@ struct standBlock
 /// @brief A stand polygon loaded from GRpluginStands.txt.
 struct grStand
 {
-    std::string              icao;   ///< Airport ICAO code
-    std::string              name;   ///< Stand designator (e.g. "B67")
-    std::vector<double>      lat;    ///< Polygon vertex latitudes
-    std::vector<double>      lon;    ///< Polygon vertex longitudes
-    std::vector<standBlock>  blocks; ///< Stands blocked when this one is occupied
+    std::string             icao;   ///< Airport ICAO code
+    std::string             name;   ///< Stand designator (e.g. "B67")
+    std::vector<double>     lat;    ///< Polygon vertex latitudes
+    std::vector<double>     lon;    ///< Polygon vertex longitudes
+    std::vector<standBlock> blocks; ///< Stands blocked when this one is occupied
 };
 
 /// @brief Suggested runway vacate point with a minimum gap requirement and associated stands.
@@ -78,18 +78,18 @@ struct vacatePoint
 /// @brief A named approach fix for early TTT detection of non-straight-in RNP approaches.
 struct approachFix
 {
-    std::string name;                        ///< Fix identifier for debugging (e.g. "WW008")
-    double      lat          = 0.0;          ///< Fix latitude (decimal degrees)
-    double      lon          = 0.0;          ///< Fix longitude (decimal degrees)
-    int         altMinFt     = 0;            ///< Computed lower bound (ft MSL): altitude - altOffsetBelow. 0 = no lower gate.
-    int         altMaxFt     = 0;            ///< Computed upper bound (ft MSL): altitude + altOffsetAbove. 0 = no upper gate.
-    std::string legType      = "straight";   ///< Incoming leg type: "straight", "arcLeft", or "arcRight". IAF has no incoming leg (legLengthNm == 0).
-    double      legLengthNm  = 0.0;         ///< Along-track length of the incoming leg in NM; 0 = IAF (no incoming leg).
-    double      arcCenterLat     = 0.0; ///< Derived arc centre latitude (decimal degrees); 0 for straight legs.
-    double      arcCenterLon     = 0.0; ///< Derived arc centre longitude (decimal degrees); 0 for straight legs.
-    double      arcRadiusNm      = 0.0; ///< Derived arc radius in NM; 0 for straight legs.
-    double      detectionRadiusNm = 0.0; ///< Proximity radius (NM) for initial TTT detection; 0 = this fix does not trigger detection.
-    int         iafHeading        = 0;   ///< Expected inbound heading (degrees) at this IAF; 0 = no heading check.
+    std::string name;                           ///< Fix identifier for debugging (e.g. "WW008")
+    double      lat               = 0.0;        ///< Fix latitude (decimal degrees)
+    double      lon               = 0.0;        ///< Fix longitude (decimal degrees)
+    int         altMinFt          = 0;          ///< Computed lower bound (ft MSL): altitude - altOffsetBelow. 0 = no lower gate.
+    int         altMaxFt          = 0;          ///< Computed upper bound (ft MSL): altitude + altOffsetAbove. 0 = no upper gate.
+    std::string legType           = "straight"; ///< Incoming leg type: "straight", "arcLeft", or "arcRight". IAF has no incoming leg (legLengthNm == 0).
+    double      legLengthNm       = 0.0;        ///< Along-track length of the incoming leg in NM; 0 = IAF (no incoming leg).
+    double      arcCenterLat      = 0.0;        ///< Derived arc centre latitude (decimal degrees); 0 for straight legs.
+    double      arcCenterLon      = 0.0;        ///< Derived arc centre longitude (decimal degrees); 0 for straight legs.
+    double      arcRadiusNm       = 0.0;        ///< Derived arc radius in NM; 0 for straight legs.
+    double      detectionRadiusNm = 0.0;        ///< Proximity radius (NM) for initial TTT detection; 0 = this fix does not trigger detection.
+    int         iafHeading        = 0;          ///< Expected inbound heading (degrees) at this IAF; 0 = no heading check.
 };
 
 /// @brief An ordered sequence of approach fixes belonging to a single named non-straight-in approach.
@@ -109,45 +109,46 @@ struct TaxiFlowRule
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
-    std::vector<approachPath>            gpsApproachPaths = {}; ///< Non-straight-in GPS approach paths for early TTT detection; empty = straight-in only.
-    std::string                         designator;         ///< Runway designator (e.g. "11")
-    int                                 headingNumber = -1; ///< Numeric heading extracted from the designator (e.g. "11L" → 11); -1 if unparseable.
-    std::string                         opposite;           ///< Designator of the reciprocal runway (used for go-around detection)
-    double                              thresholdLat = 0.0; ///< Runway threshold latitude
-    double                              thresholdLon = 0.0; ///< Runway threshold longitude
-    std::string                         twrFreq;            ///< Tower frequency for this runway
-    std::string                         goAroundFreq;       ///< Go-around frequency for this runway
-    int                                 thresholdElevationFt = 0;  ///< Threshold elevation in feet (overrides airport fieldElevation for TTT altitude gates; 0 = use fieldElevation)
-    int                                 widthMeters          = 0;  ///< Runway width in metres (from config "width")
+    std::vector<approachPath>           gpsApproachPaths = {};    ///< Non-straight-in GPS approach paths for early TTT detection; empty = straight-in only.
+    std::string                         designator;               ///< Runway designator (e.g. "11")
+    int                                 headingNumber = -1;       ///< Numeric heading extracted from the designator (e.g. "11L" → 11); -1 if unparseable.
+    std::string                         opposite;                 ///< Designator of the reciprocal runway (used for go-around detection)
+    double                              thresholdLat = 0.0;       ///< Runway threshold latitude
+    double                              thresholdLon = 0.0;       ///< Runway threshold longitude
+    std::string                         twrFreq;                  ///< Tower frequency for this runway
+    std::string                         goAroundFreq;             ///< Go-around frequency for this runway
+    int                                 thresholdElevationFt = 0; ///< Threshold elevation in feet (overrides airport fieldElevation for TTT altitude gates; 0 = use fieldElevation)
+    int                                 widthMeters          = 0; ///< Runway width in metres (from config "width")
     std::string                         estimateBarSide;          ///< Which side of the approach estimate bar this runway's aircraft appear on ("left" or "right"); empty = omit from bar
-    std::map<std::string, holdingPoint> holdingPoints = {}; ///< Named holding points on this runway
-    std::map<std::string, int>          sidGroups     = {}; ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
-    std::map<std::string, std::string>  sidColors     = {}; ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
-    std::vector<TaxiFlowRule>           taxiFlowDep   = {}; ///< Taxiway direction rules active when this runway is used for departures.
-    std::map<std::string, vacatePoint>  vacatePoints  = {}; ///< Named vacate points on this runway
+    std::map<std::string, holdingPoint> holdingPoints = {};       ///< Named holding points on this runway
+    std::map<std::string, int>          sidGroups     = {};       ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
+    std::map<std::string, std::string>  sidColors     = {};       ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
+    std::vector<TaxiFlowRule>           taxiFlowDep   = {};       ///< Taxiway direction rules active when this runway is used for departures.
+    std::map<std::string, vacatePoint>  vacatePoints  = {};       ///< Named vacate points on this runway
 };
 
 /// @brief Full configuration for a single airport loaded from config.json.
 struct airport
 {
-    std::string                                     icao;                         ///< ICAO code (e.g. "LOWW")
-    std::string                                     gndFreq;                      ///< Default ground frequency string
-    int                                             fieldElevation          = 0;  ///< Field elevation in feet (used to detect airborne state)
-    int                                             airborneTransfer        = 0;  ///< Altitude (ft) above which the TWR next-freq tag changes colour
-    int                                             airborneTransferWarning = 0;  ///< Altitude (ft) above which the TWR next-freq tag blinks orange
-    std::map<std::string, geoGndFreq>               geoGndFreq              = {}; ///< Geographic ground frequency zones
-    std::vector<std::string>                        ctrStations             = {}; ///< Centre frequencies in priority order (first online station on each freq wins)
-    std::map<std::string, taxiOutStands>            taxiOutStands           = {}; ///< Taxi-out stand polygons
-    napReminder                                     nap_reminder            = {}; ///< NAP reminder configuration
-    std::string                                     defaultAppFreq;               ///< Default approach frequency (used when no SID-specific one matches)
-    std::map<std::string, std::string>              nightTimeSids    = {};        ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
-    std::map<std::string, std::vector<std::string>> sidAppFreqs      = {};        ///< Approach frequency -> list of SIDs that use it
-    std::map<std::string, std::vector<std::string>> appFreqFallbacks          = {};        ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
-    std::map<std::string, runway>                   runways                   = {};        ///< Runway configurations keyed by designator
-    std::vector<std::string>                        taxiIntersections          = {};        ///< Intersection taxiway refs (e.g. "Exit 1") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                        taxiLanes              = {};        ///< Taxilane refs (e.g. "TL 31") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                        taxiWays               = {};        ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                        scratchpadClearExclusions = {};        ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
-    std::vector<TaxiFlowRule>                       taxiFlowGeneric           = {};        ///< Taxiway direction rules always active regardless of runway selection.
-    std::map<std::string, double>                   taxiWingspanMax           = {};        ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
+    std::string                                     icao;                           ///< ICAO code (e.g. "LOWW")
+    std::string                                     gndFreq;                        ///< Default ground frequency string
+    int                                             fieldElevation          = 0;    ///< Field elevation in feet (used to detect airborne state)
+    int                                             airborneTransfer        = 0;    ///< Altitude (ft) above which the TWR next-freq tag changes colour
+    int                                             airborneTransferWarning = 0;    ///< Altitude (ft) above which the TWR next-freq tag blinks orange
+    std::map<std::string, geoGndFreq>               geoGndFreq              = {};   ///< Geographic ground frequency zones
+    std::vector<std::string>                        ctrStations             = {};   ///< Centre frequencies in priority order (first online station on each freq wins)
+    std::map<std::string, taxiOutStands>            taxiOnlyZones           = {};   ///< Apron/zone polygons that always force taxi planning mode regardless of stand or clearance state
+    std::map<std::string, taxiOutStands>            taxiOutStands           = {};   ///< Taxi-out stand polygons
+    napReminder                                     nap_reminder            = {};   ///< NAP reminder configuration
+    std::string                                     defaultAppFreq;                 ///< Default approach frequency (used when no SID-specific one matches)
+    std::map<std::string, std::string>              nightTimeSids             = {}; ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
+    std::map<std::string, std::vector<std::string>> sidAppFreqs               = {}; ///< Approach frequency -> list of SIDs that use it
+    std::map<std::string, std::vector<std::string>> appFreqFallbacks          = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
+    std::map<std::string, runway>                   runways                   = {}; ///< Runway configurations keyed by designator
+    std::vector<std::string>                        taxiIntersections         = {}; ///< Intersection taxiway refs (e.g. "Exit 1") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                        taxiLanes                 = {}; ///< Taxilane refs (e.g. "TL 31") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                        taxiWays                  = {}; ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                        scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
+    std::vector<TaxiFlowRule>                       taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway selection.
+    std::map<std::string, double>                   taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
 };

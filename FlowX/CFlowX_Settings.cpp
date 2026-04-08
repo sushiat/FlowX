@@ -20,18 +20,22 @@
 /// @brief Returns true if every element of the JSON array is a scalar (not object/array).
 static bool isScalarArray(const nlohmann::json& j)
 {
-    if (!j.is_array()) return false;
+    if (!j.is_array())
+        return false;
     for (const auto& v : j)
-        if (v.is_object() || v.is_array()) return false;
+        if (v.is_object() || v.is_array())
+            return false;
     return true;
 }
 
 /// @brief Returns true if every value in the JSON object is a scalar or scalar-array.
 static bool isSimpleObject(const nlohmann::json& j)
 {
-    if (!j.is_object()) return false;
+    if (!j.is_object())
+        return false;
     for (const auto& [k, v] : j.items())
-        if (v.is_object() || (v.is_array() && !isScalarArray(v))) return false;
+        if (v.is_object() || (v.is_array() && !isScalarArray(v)))
+            return false;
     return true;
 }
 
@@ -40,36 +44,41 @@ static bool isSimpleObject(const nlohmann::json& j)
 ///        Does NOT apply to plain simple-objects — those are already handled by isSimpleObject.
 static bool isDeepInlineable(const nlohmann::json& j)
 {
-    if (!j.is_object() || j.size() > 4) return false;
+    if (!j.is_object() || j.size() > 4)
+        return false;
     bool hasNestedObject = false;
     for (const auto& [k, v] : j.items())
     {
-        if (v.is_array() && !isScalarArray(v)) return false;
+        if (v.is_array() && !isScalarArray(v))
+            return false;
         if (v.is_object())
         {
-            if (!isSimpleObject(v)) return false;  // only one level of nesting allowed
+            if (!isSimpleObject(v))
+                return false; // only one level of nesting allowed
             hasNestedObject = true;
         }
     }
-    return hasNestedObject;  // pure simple-objects are handled by isSimpleObject already
+    return hasNestedObject; // pure simple-objects are handled by isSimpleObject already
 }
 
 /// @brief Renders a deep-inlineable object (one level of simple-object nesting) on one line.
 static std::string fmtDeepInline(const nlohmann::json& j)
 {
-    std::string s = "{ ";
-    bool first = true;
+    std::string s     = "{ ";
+    bool        first = true;
     for (const auto& [k, v] : j.items())
     {
-        if (!first) s += ", ";
+        if (!first)
+            s += ", ";
         s += nlohmann::json(k).dump() + ": ";
         if (v.is_object())
         {
             std::string s2 = "{ ";
-            bool f2 = true;
+            bool        f2 = true;
             for (const auto& [k2, v2] : v.items())
             {
-                if (!f2) s2 += ", ";
+                if (!f2)
+                    s2 += ", ";
                 s2 += nlohmann::json(k2).dump() + ": " + v2.dump();
                 f2 = false;
             }
@@ -96,17 +105,24 @@ static std::string compactJson(const nlohmann::json& j, int depth = 0)
     {
         if (isScalarArray(j))
         {
-            std::string s = "[";
-            bool first = true;
-            for (const auto& v : j) { if (!first) s += ", "; s += v.dump(); first = false; }
+            std::string s     = "[";
+            bool        first = true;
+            for (const auto& v : j)
+            {
+                if (!first)
+                    s += ", ";
+                s += v.dump();
+                first = false;
+            }
             return s + "]";
         }
         // Array with complex elements: one per line
-        std::string s = "[\n";
-        bool first = true;
+        std::string s     = "[\n";
+        bool        first = true;
         for (const auto& v : j)
         {
-            if (!first) s += ",\n";
+            if (!first)
+                s += ",\n";
             s += pad1 + compactJson(v, depth + 1);
             first = false;
         }
@@ -117,11 +133,12 @@ static std::string compactJson(const nlohmann::json& j, int depth = 0)
     // or if ≤4 keys with exactly one level of simple-object nesting.
     if (isSimpleObject(j))
     {
-        std::string s = "{ ";
-        bool first = true;
+        std::string s     = "{ ";
+        bool        first = true;
         for (const auto& [k, v] : j.items())
         {
-            if (!first) s += ", ";
+            if (!first)
+                s += ", ";
             s += nlohmann::json(k).dump() + ": " + v.dump();
             first = false;
         }
@@ -130,11 +147,12 @@ static std::string compactJson(const nlohmann::json& j, int depth = 0)
     if (isDeepInlineable(j))
         return fmtDeepInline(j);
 
-    std::string s = "{\n";
-    bool first = true;
+    std::string s     = "{\n";
+    bool        first = true;
     for (const auto& [k, v] : j.items())
     {
-        if (!first) s += ",\n";
+        if (!first)
+            s += ",\n";
         s += pad1 + nlohmann::json(k).dump() + ": " + compactJson(v, depth + 1);
         first = false;
     }
@@ -167,8 +185,10 @@ void CFlowX_Settings::RefreshActiveRunways()
     {
         for (int i = 0; i <= 1; ++i)
         {
-            if (el.IsElementActive(true,  i)) this->activeDepRunways.insert(el.GetRunwayName(i));
-            if (el.IsElementActive(false, i)) this->activeArrRunways.insert(el.GetRunwayName(i));
+            if (el.IsElementActive(true, i))
+                this->activeDepRunways.insert(el.GetRunwayName(i));
+            if (el.IsElementActive(false, i))
+                this->activeArrRunways.insert(el.GetRunwayName(i));
         }
         el = SectorFileElementSelectNext(el, EuroScopePlugIn::SECTOR_ELEMENT_RUNWAY);
     }
@@ -176,7 +196,8 @@ void CFlowX_Settings::RefreshActiveRunways()
 
 void CFlowX_Settings::RebuildTaxiGraph()
 {
-    if (this->osmData.ways.empty() || this->airports.empty()) return;
+    if (this->osmData.ways.empty() || this->airports.empty())
+        return;
     const auto& ap = this->airports.begin()->second;
     this->osmGraph.Build(this->osmData, ap);
     this->LogDebugMessage(
@@ -191,7 +212,8 @@ void CFlowX_Settings::StartOsmCacheLoad()
 
 void CFlowX_Settings::StartOsmFetch()
 {
-    if (this->IsOsmBusy()) return;
+    if (this->IsOsmBusy())
+        return;
     this->LogDebugMessage("Starting Overpass API fetch", "OSM");
     this->osmFuture = std::async(std::launch::async, fetchLOWWTaxiways);
 }
@@ -204,8 +226,10 @@ bool CFlowX_Settings::IsOsmBusy() const
 
 void CFlowX_Settings::PollOsmFuture()
 {
-    if (!this->osmFuture.valid()) return;
-    if (this->osmFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) return;
+    if (!this->osmFuture.valid())
+        return;
+    if (this->osmFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+        return;
 
     auto result = this->osmFuture.get();
     if (!result.has_value())
@@ -223,17 +247,27 @@ void CFlowX_Settings::PollOsmFuture()
         {
             switch (way.type)
             {
-            case AerowayType::Taxiway_HoldingPoint: hpCount++;  break;
-            case AerowayType::Taxiway_Intersection: isxCount++; break;
-            case AerowayType::Taxiway:              twCount++;  break;
-            case AerowayType::Taxilane:             tlCount++;  break;
-            default: break;
+            case AerowayType::Taxiway_HoldingPoint:
+                hpCount++;
+                break;
+            case AerowayType::Taxiway_Intersection:
+                isxCount++;
+                break;
+            case AerowayType::Taxiway:
+                twCount++;
+                break;
+            case AerowayType::Taxilane:
+                tlCount++;
+                break;
+            default:
+                break;
             }
         }
         this->LogDebugMessage(
             std::format("Loaded {} ways ({} taxiways, {} taxilanes, {} HP, {} intersections), {} holding positions from cache",
                         this->osmData.ways.size(), twCount, tlCount, hpCount, isxCount,
-                        this->osmData.holdingPositions.size()), "OSM");
+                        this->osmData.holdingPositions.size()),
+            "OSM");
     }
     else
     {
@@ -245,7 +279,7 @@ void CFlowX_Settings::PollOsmFuture()
                 bool matched = false;
                 for (const auto& [rwyName, rwy] : apt.runways)
                 {
-                    if ((!way.ref.empty()  && rwy.holdingPoints.contains(way.ref)) ||
+                    if ((!way.ref.empty() && rwy.holdingPoints.contains(way.ref)) ||
                         (!way.name.empty() && rwy.holdingPoints.contains(way.name)))
                     {
                         way.type = AerowayType::Taxiway_HoldingPoint;
@@ -253,7 +287,8 @@ void CFlowX_Settings::PollOsmFuture()
                         break;
                     }
                 }
-                if (matched) break;
+                if (matched)
+                    break;
             }
         }
 
@@ -272,7 +307,8 @@ void CFlowX_Settings::PollOsmFuture()
 
         // Pass 2: classify by config lists; ways not in any list are removed.
         // Holding-point ways already annotated in Pass 1 keep their type.
-        auto keyOf = [](const OsmWay& w) -> const std::string& { return w.ref.empty() ? w.name : w.ref; };
+        auto keyOf = [](const OsmWay& w) -> const std::string&
+        { return w.ref.empty() ? w.name : w.ref; };
         {
             std::vector<OsmWay> kept;
             kept.reserve(this->osmData.ways.size());
@@ -285,9 +321,21 @@ void CFlowX_Settings::PollOsmFuture()
                     continue;
                 }
                 const std::string& key = keyOf(way);
-                if      (cfgIntersections.contains(key)) { way.type = AerowayType::Taxiway_Intersection; kept.push_back(std::move(way)); }
-                else if (cfgTaxiways.contains(key))      { way.type = AerowayType::Taxiway;              kept.push_back(std::move(way)); }
-                else if (cfgTaxilanes.contains(key))     { way.type = AerowayType::Taxilane;             kept.push_back(std::move(way)); }
+                if (cfgIntersections.contains(key))
+                {
+                    way.type = AerowayType::Taxiway_Intersection;
+                    kept.push_back(std::move(way));
+                }
+                else if (cfgTaxiways.contains(key))
+                {
+                    way.type = AerowayType::Taxiway;
+                    kept.push_back(std::move(way));
+                }
+                else if (cfgTaxilanes.contains(key))
+                {
+                    way.type = AerowayType::Taxilane;
+                    kept.push_back(std::move(way));
+                }
                 // else: not in any config list → excluded
             }
             this->osmData.ways = std::move(kept);
@@ -298,17 +346,27 @@ void CFlowX_Settings::PollOsmFuture()
         {
             switch (way.type)
             {
-            case AerowayType::Taxiway_HoldingPoint: hpCount++;  break;
-            case AerowayType::Taxiway_Intersection: isxCount++; break;
-            case AerowayType::Taxiway:              twCount++;  break;
-            case AerowayType::Taxilane:             tlCount++;  break;
-            default: break;
+            case AerowayType::Taxiway_HoldingPoint:
+                hpCount++;
+                break;
+            case AerowayType::Taxiway_Intersection:
+                isxCount++;
+                break;
+            case AerowayType::Taxiway:
+                twCount++;
+                break;
+            case AerowayType::Taxilane:
+                tlCount++;
+                break;
+            default:
+                break;
             }
         }
         this->LogDebugMessage(
             std::format("Annotated {} ways ({} taxiways, {} taxilanes, {} HP, {} intersections), {} holding positions; saving cache",
                         this->osmData.ways.size(), twCount, tlCount, hpCount, isxCount,
-                        this->osmData.holdingPositions.size()), "OSM");
+                        this->osmData.holdingPositions.size()),
+            "OSM");
 
         // Delete stale cache before writing fresh data.
         DeleteOsmCache();
@@ -336,19 +394,22 @@ void CFlowX_Settings::LoadSettings()
 
         if (j.contains("global"))
         {
-            this->autoParked          = j["global"].value("autoParked",          true);
+            this->autoParked          = j["global"].value("autoParked", true);
             this->autoScratchpadClear = j["global"].value("autoScratchpadClear", false);
-            this->autoRestore         = j["global"].value("autoRestore",         false);
-            this->bgOpacity        = j["global"].value("bgOpacity",       100);
-            this->debug            = j["global"].value("debug",           false);
-            this->flashOnMessage   = j["global"].value("flashOnMessage",  false);
-            this->fontOffset        = j["global"].value("fontOffset",        0);
-            this->soundAirborne     = j["global"].value("soundAirborne",     true);
-            this->soundGndTransfer  = j["global"].value("soundGndTransfer",  true);
-            this->soundReadyTakeoff = j["global"].value("soundReadyTakeoff", true);
-            this->updateCheck       = j["global"].value("updateCheck",       true);
+            this->autoRestore         = j["global"].value("autoRestore", false);
+            this->bgOpacity           = j["global"].value("bgOpacity", 100);
+            this->debug               = j["global"].value("debug", false);
+            this->flashOnMessage      = j["global"].value("flashOnMessage", false);
+            this->fontOffset          = j["global"].value("fontOffset", 0);
+            this->soundAirborne       = j["global"].value("soundAirborne", true);
+            this->soundGndTransfer    = j["global"].value("soundGndTransfer", true);
+            this->soundReadyTakeoff   = j["global"].value("soundReadyTakeoff", true);
+            this->updateCheck         = j["global"].value("updateCheck", true);
         }
-        if (this->debug) { this->LogDebugSessionStart(); }
+        if (this->debug)
+        {
+            this->LogDebugSessionStart();
+        }
 
         if (j.contains("windowSettings") && j["windowSettings"].is_array())
         {
@@ -412,17 +473,17 @@ void CFlowX_Settings::SaveSettings()
         j["global"]["autoParked"]          = this->autoParked;
         j["global"]["autoScratchpadClear"] = this->autoScratchpadClear;
         j["global"]["autoRestore"]         = this->autoRestore;
-        j["global"]["bgOpacity"]      = this->bgOpacity;
-        j["global"]["debug"]          = this->debug;
-        j["global"]["flashOnMessage"] = this->flashOnMessage;
-        j["global"]["fontOffset"]        = this->fontOffset;
-        j["global"]["soundAirborne"]     = this->soundAirborne;
-        j["global"]["soundGndTransfer"]  = this->soundGndTransfer;
-        j["global"]["soundReadyTakeoff"] = this->soundReadyTakeoff;
-        j["global"]["updateCheck"]       = this->updateCheck;
+        j["global"]["bgOpacity"]           = this->bgOpacity;
+        j["global"]["debug"]               = this->debug;
+        j["global"]["flashOnMessage"]      = this->flashOnMessage;
+        j["global"]["fontOffset"]          = this->fontOffset;
+        j["global"]["soundAirborne"]       = this->soundAirborne;
+        j["global"]["soundGndTransfer"]    = this->soundGndTransfer;
+        j["global"]["soundReadyTakeoff"]   = this->soundReadyTakeoff;
+        j["global"]["updateCheck"]         = this->updateCheck;
 
         json windows = json::array();
-        auto addWin = [&](const char* name, int x, int y, bool vis)
+        auto addWin  = [&](const char* name, int x, int y, bool vis)
         {
             json w;
             w["name"]    = name;
@@ -433,18 +494,18 @@ void CFlowX_Settings::SaveSettings()
         };
         {
             json w;
-            w["name"]    = "approachEstWindow";
-            w["x"]       = this->approachEstWindowX;
-            w["y"]       = this->approachEstWindowY;
-            w["w"]       = this->approachEstWindowW;
-            w["h"]       = this->approachEstWindowH;
+            w["name"]          = "approachEstWindow";
+            w["x"]             = this->approachEstWindowX;
+            w["y"]             = this->approachEstWindowY;
+            w["w"]             = this->approachEstWindowW;
+            w["h"]             = this->approachEstWindowH;
             w["visible"]       = this->approachEstVisible;
             w["apprEstColors"] = this->apprEstColors;
             windows.push_back(w);
         }
-        addWin("depRateWindow",     this->depRateWindowX,     this->depRateWindowY,     this->depRateVisible);
+        addWin("depRateWindow", this->depRateWindowX, this->depRateWindowY, this->depRateVisible);
         addWin("twrOutboundWindow", this->twrOutboundWindowX, this->twrOutboundWindowY, this->twrOutboundVisible);
-        addWin("twrInboundWindow",  this->twrInboundWindowX,  this->twrInboundWindowY,  this->twrInboundVisible);
+        addWin("twrInboundWindow", this->twrInboundWindowX, this->twrInboundWindowY, this->twrInboundVisible);
         {
             json w;
             w["name"]              = "napWindow";
@@ -486,8 +547,8 @@ void CFlowX_Settings::LoadAircraftData()
         json j = json::parse(ifs);
 
         // First pass: collect wingspans and accumulate per-WTC sums for average computation.
-        std::map<std::string, double> wtcSum;
-        std::map<std::string, int>    wtcCount;
+        std::map<std::string, double>                    wtcSum;
+        std::map<std::string, int>                       wtcCount;
         std::vector<std::pair<std::string, std::string>> noWingspan; // {ICAO, WTC}
 
         for (auto& entry : j)
@@ -499,10 +560,10 @@ void CFlowX_Settings::LoadAircraftData()
 
             if (entry.contains("Wingspan"))
             {
-                double ws                       = entry["Wingspan"].get<double>();
-                this->aircraftWingspans[icao]   = ws;
-                wtcSum[wtc]                    += ws;
-                wtcCount[wtc]                  += 1;
+                double ws                     = entry["Wingspan"].get<double>();
+                this->aircraftWingspans[icao] = ws;
+                wtcSum[wtc] += ws;
+                wtcCount[wtc] += 1;
             }
             else
             {
@@ -525,7 +586,7 @@ void CFlowX_Settings::LoadAircraftData()
 
         this->LogMessage(
             std::format("Loaded wingspan data for {} aircraft types ({} used WTC average).",
-                this->aircraftWingspans.size(), noWingspan.size()),
+                        this->aircraftWingspans.size(), noWingspan.size()),
             "AircraftData");
     }
     catch (std::exception& e)
@@ -552,14 +613,16 @@ void CFlowX_Settings::LoadGroundRadarStands()
         // Parses one DMS coordinate token: N048.07.14.709 or E016.33.00.259
         auto parseDMS = [](const std::string& dms) -> double
         {
-            if (dms.size() < 2) return 0.0;
-            char   hemi = dms[0];
-            auto   segs = split(dms.substr(1), '.');
-            if (segs.size() < 4) return 0.0;
-            double deg  = std::stod(segs[0]);
-            double min  = std::stod(segs[1]);
-            double sec  = std::stod(segs[2]) + std::stod(segs[3]) / 1000.0;
-            double val  = deg + min / 60.0 + sec / 3600.0;
+            if (dms.size() < 2)
+                return 0.0;
+            char hemi = dms[0];
+            auto segs = split(dms.substr(1), '.');
+            if (segs.size() < 4)
+                return 0.0;
+            double deg = std::stod(segs[0]);
+            double min = std::stod(segs[1]);
+            double sec = std::stod(segs[2]) + std::stod(segs[3]) / 1000.0;
+            double val = deg + min / 60.0 + sec / 3600.0;
             return (hemi == 'S' || hemi == 'W') ? -val : val;
         };
 
@@ -576,7 +639,8 @@ void CFlowX_Settings::LoadGroundRadarStands()
         while (std::getline(ifs, line))
         {
             line = trim(line);
-            if (line.empty() || line[0] == '/') continue;
+            if (line.empty() || line[0] == '/')
+                continue;
 
             if (starts_with(line, "STAND:"))
             {
@@ -604,9 +668,9 @@ void CFlowX_Settings::LoadGroundRadarStands()
             else if (inStand && starts_with(line, "BLOCKS:"))
             {
                 // "BLOCKS:B68"  |  "BLOCKS:B69:35.99"  |  "BLOCKS:A93,A96:31.99"
-                std::string rest      = line.substr(7);
-                auto        cp        = split(rest, ':');
-                double      minWs     = (cp.size() >= 2) ? std::stod(cp[1]) : 0.0;
+                std::string rest  = line.substr(7);
+                auto        cp    = split(rest, ':');
+                double      minWs = (cp.size() >= 2) ? std::stod(cp[1]) : 0.0;
                 for (auto& sn : split(cp[0], ','))
                     current.blocks.push_back({trim(sn), minWs});
             }
@@ -663,7 +727,7 @@ void CFlowX_Settings::LoadConfig()
             ap.taxiWays = json_airport["taxiWays"].get<std::vector<std::string>>();
         if (json_airport.contains("taxiFlowGeneric"))
             for (const auto& r : json_airport["taxiFlowGeneric"])
-                ap.taxiFlowGeneric.push_back({ r.value("taxiway", std::string{}), r.value("direction", std::string{}) });
+                ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{})});
         if (json_airport.contains("taxiWingspanMax"))
             for (const auto& [ref, ws] : json_airport["taxiWingspanMax"].items())
                 ap.taxiWingspanMax[ref] = ws.get<double>();
@@ -714,6 +778,17 @@ void CFlowX_Settings::LoadConfig()
             tos.lon = lon;
 
             ap.taxiOutStands.emplace(name, tos);
+        }
+
+        if (json_airport.contains("taxiOnlyZones"))
+        {
+            for (auto& [name, json_zone] : json_airport.at("taxiOnlyZones").items())
+            {
+                taxiOutStands zone{name};
+                zone.lat = json_zone["lat"].get<std::vector<double>>();
+                zone.lon = json_zone["lon"].get<std::vector<double>>();
+                ap.taxiOnlyZones.emplace(name, zone);
+            }
         }
 
         json json_nap_reminder;
@@ -783,14 +858,15 @@ void CFlowX_Settings::LoadConfig()
                 rwy.designator = rwyDesignator;
                 {
                     std::string digits = rwyDesignator;
-                    std::erase_if(digits, [](char c) { return !std::isdigit(c); });
+                    std::erase_if(digits, [](char c)
+                                  { return !std::isdigit(c); });
                     rwy.headingNumber = digits.empty() ? -1 : std::stoi(digits);
                 }
-                rwy.opposite     = json_rwy.value<std::string>("opposite", "");
-                rwy.thresholdLat = json_rwy["threshold"].value<double>("lat", 0.0);
-                rwy.thresholdLon = json_rwy["threshold"].value<double>("lon", 0.0);
-                rwy.twrFreq      = json_rwy.value<std::string>("twrFreq", "");
-                rwy.goAroundFreq = json_rwy.value<std::string>("goAroundFreq", "");
+                rwy.opposite             = json_rwy.value<std::string>("opposite", "");
+                rwy.thresholdLat         = json_rwy["threshold"].value<double>("lat", 0.0);
+                rwy.thresholdLon         = json_rwy["threshold"].value<double>("lon", 0.0);
+                rwy.twrFreq              = json_rwy.value<std::string>("twrFreq", "");
+                rwy.goAroundFreq         = json_rwy.value<std::string>("goAroundFreq", "");
                 rwy.thresholdElevationFt = json_rwy.value<int>("thresholdElevationFt", 0);
                 rwy.widthMeters          = json_rwy.value<int>("width", 0);
                 rwy.estimateBarSide      = json_rwy.value<std::string>("estimateBarSide", "");
@@ -828,7 +904,7 @@ void CFlowX_Settings::LoadConfig()
 
                 if (json_rwy.contains("taxiFlowDep"))
                     for (const auto& r : json_rwy["taxiFlowDep"])
-                        rwy.taxiFlowDep.push_back({ r.value("taxiway", std::string{}), r.value("direction", std::string{}) });
+                        rwy.taxiFlowDep.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{})});
 
                 if (json_rwy.contains("vacatePoints"))
                 {
@@ -850,18 +926,18 @@ void CFlowX_Settings::LoadConfig()
                         for (const auto& json_af : json_path["fixes"])
                         {
                             approachFix af{};
-                            af.name               = json_af.value<std::string>("name", "");
-                            af.lat                = json_af.value<double>("lat", 0.0);
-                            af.lon                = json_af.value<double>("lon", 0.0);
-                            af.legType            = json_af.value<std::string>("legType", "straight");
-                            af.legLengthNm        = json_af.value<double>("legLengthNm", 0.0);
-                            af.detectionRadiusNm  = json_af.value<double>("detectionRadiusNm", 0.0);
-                            af.iafHeading         = json_af.value<int>("iafHeading", 0);
-                            int altitude     = json_af.value<int>("altitude", 0);
-                            int offsetBelow  = json_af.value<int>("altOffsetBelow", 0);
-                            int offsetAbove  = json_af.value<int>("altOffsetAbove", 0);
-                            af.altMinFt = (altitude > 0 && offsetBelow > 0) ? altitude - offsetBelow : 0;
-                            af.altMaxFt = (altitude > 0 && offsetAbove > 0) ? altitude + offsetAbove : 0;
+                            af.name              = json_af.value<std::string>("name", "");
+                            af.lat               = json_af.value<double>("lat", 0.0);
+                            af.lon               = json_af.value<double>("lon", 0.0);
+                            af.legType           = json_af.value<std::string>("legType", "straight");
+                            af.legLengthNm       = json_af.value<double>("legLengthNm", 0.0);
+                            af.detectionRadiusNm = json_af.value<double>("detectionRadiusNm", 0.0);
+                            af.iafHeading        = json_af.value<int>("iafHeading", 0);
+                            int altitude         = json_af.value<int>("altitude", 0);
+                            int offsetBelow      = json_af.value<int>("altOffsetBelow", 0);
+                            int offsetAbove      = json_af.value<int>("altOffsetAbove", 0);
+                            af.altMinFt          = (altitude > 0 && offsetBelow > 0) ? altitude - offsetBelow : 0;
+                            af.altMaxFt          = (altitude > 0 && offsetAbove > 0) ? altitude + offsetAbove : 0;
                             path.fixes.push_back(af);
                         }
 
@@ -869,14 +945,15 @@ void CFlowX_Settings::LoadConfig()
                         for (size_t fi = 1; fi < path.fixes.size(); ++fi)
                         {
                             auto& fix = path.fixes[fi];
-                            if ((fix.legType != "arcLeft" && fix.legType != "arcRight") || fix.legLengthNm <= 0.0) continue;
+                            if ((fix.legType != "arcLeft" && fix.legType != "arcRight") || fix.legLengthNm <= 0.0)
+                                continue;
                             const auto& prev = path.fixes[fi - 1];
 
                             // Flat-earth local NM coordinate system centred on prev
                             double latAvg = (prev.lat + fix.lat) * 0.5;
                             double cosLat = std::cos(latAvg * 3.141592653589793 / 180.0);
                             double dx     = (fix.lon - prev.lon) * cosLat * 60.0; // NM east
-                            double dy     = (fix.lat - prev.lat) * 60.0;           // NM north
+                            double dy     = (fix.lat - prev.lat) * 60.0;          // NM north
                             double chord  = std::sqrt(dx * dx + dy * dy);
                             double L      = fix.legLengthNm;
 
@@ -889,19 +966,20 @@ void CFlowX_Settings::LoadConfig()
                                 double dfu = (std::cos(u) * u - std::sin(u)) / (u * u);
                                 double du  = -fu / dfu;
                                 u += du;
-                                if (std::abs(du) < 1e-10) break;
+                                if (std::abs(du) < 1e-10)
+                                    break;
                             }
                             double r = L / (2.0 * u);   // radius
                             double d = r * std::cos(u); // signed distance from chord midpoint to centre
 
                             // Chord unit vector and perpendicular (left = CCW 90°, right = CW 90°)
                             double ux = dx / chord, uy = dy / chord;
-                            double perpX = (fix.legType == "arcRight") ?  uy : -uy;
-                            double perpY = (fix.legType == "arcRight") ? -ux :  ux;
+                            double perpX = (fix.legType == "arcRight") ? uy : -uy;
+                            double perpY = (fix.legType == "arcRight") ? -ux : ux;
 
                             // Centre in NM relative to prev, then back to lat/lon
-                            double cx = dx * 0.5 + d * perpX;
-                            double cy = dy * 0.5 + d * perpY;
+                            double cx        = dx * 0.5 + d * perpX;
+                            double cy        = dy * 0.5 + d * perpY;
                             fix.arcCenterLat = prev.lat + cy / 60.0;
                             fix.arcCenterLon = prev.lon + cx / (cosLat * 60.0);
                             fix.arcRadiusNm  = r;
@@ -934,7 +1012,9 @@ void CFlowX_Settings::LoadConfig()
         sprintf_s(ts, sizeof(ts), "%04d-%02d-%02d %02d:%02d:%02d", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         std::filesystem::path logPath = std::filesystem::path(GetPluginDirectory()) / "debugLog.txt";
         std::ofstream         f(logPath, std::ios::app);
-        if (f) f << ts << " [Config] config.json contents:\n" << compactJson(config) << "\n";
+        if (f)
+            f << ts << " [Config] config.json contents:\n"
+              << compactJson(config) << "\n";
     }
 
     // Computed/derived values not present in raw JSON (arc geometry for GPS approach paths; holding-point centroids).
@@ -944,22 +1024,30 @@ void CFlowX_Settings::LoadConfig()
         {
             for (auto& [hpName, hp] : rwy.holdingPoints)
             {
-                if (hp.centerLat == 0.0 && hp.centerLon == 0.0) { continue; }
+                if (hp.centerLat == 0.0 && hp.centerLon == 0.0)
+                {
+                    continue;
+                }
                 this->LogDebugFileOnly(std::format(
-                    "[{}][{}][{}] hp centre={:.6f}/{:.6f}",
-                    icao, rwyDesignator, hpName,
-                    hp.centerLat, hp.centerLon), "Config");
+                                           "[{}][{}][{}] hp centre={:.6f}/{:.6f}",
+                                           icao, rwyDesignator, hpName,
+                                           hp.centerLat, hp.centerLon),
+                                       "Config");
             }
 
             for (auto& path : rwy.gpsApproachPaths)
             {
                 for (auto& fix : path.fixes)
                 {
-                    if (fix.arcRadiusNm <= 0.0) { continue; }
+                    if (fix.arcRadiusNm <= 0.0)
+                    {
+                        continue;
+                    }
                     this->LogDebugFileOnly(std::format(
-                        "[{}][{}][{}][{}] arc: centre={:.6f}/{:.6f} r={:.3f}nm",
-                        icao, rwyDesignator, path.name, fix.name,
-                        fix.arcCenterLat, fix.arcCenterLon, fix.arcRadiusNm), "Config");
+                                               "[{}][{}][{}][{}] arc: centre={:.6f}/{:.6f} r={:.3f}nm",
+                                               icao, rwyDesignator, path.name, fix.name,
+                                               fix.arcCenterLat, fix.arcCenterLon, fix.arcRadiusNm),
+                                           "Config");
                 }
             }
         }

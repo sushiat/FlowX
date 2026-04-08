@@ -3065,9 +3065,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             }
 
             // Determine push vs. taxi.
-            // Push  = T/P tag shows "P": clearance flag set,
-            //         inside a grStands parking spot, NOT inside a taxiOutStands polygon.
-            // Taxi  = everything else.
+            // taxiOnlyZones (config) always force taxi regardless of other conditions.
+            // Push = clearance flag set + ground state empty + inside grStands + NOT inside taxiOutStands.
+            // Taxi = everything else.
             {
                 bool isPush = false;
                 auto fp2    = GetPlugIn()->FlightPlanSelect(callsign.c_str());
@@ -3082,9 +3082,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     const auto& ap  = settings->GetAirports().begin()->second;
                     const auto  pos = rt.GetPosition().GetPosition();
 
-                    // Not inside any taxiOutStands polygon (that would make T/P show "T").
-                    bool inTaxiOut = false;
-                    for (const auto& [_, poly] : ap.taxiOutStands)
+                    // taxiOnlyZones override: always taxi from these aprons.
+                    bool inTaxiOnlyZone = false;
+                    for (const auto& [_, poly] : ap.taxiOnlyZones)
                     {
                         if (CFlowX_LookupsTools::PointInsidePolygon(
                                 static_cast<int>(poly.lat.size()),
@@ -3092,30 +3092,49 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                 const_cast<double*>(poly.lat.data()),
                                 pos.m_Longitude, pos.m_Latitude))
                         {
-                            inTaxiOut = true;
+                            inTaxiOnlyZone = true;
                             break;
                         }
                     }
 
-                    if (!inTaxiOut)
+                    if (!inTaxiOnlyZone)
                     {
-                        // Inside a grStands parking spot.
-                        const std::string ourIcao = settings->GetAirports().begin()->first;
-                        const std::string prefix  = ourIcao + ":";
-                        for (const auto& [key, stand] : settings->GetGrStands())
+                        // Not inside any taxiOutStands polygon (that would make T/P show "T").
+                        bool inTaxiOut = false;
+                        for (const auto& [_, poly] : ap.taxiOutStands)
                         {
-                            if (key.size() < prefix.size() || key.substr(0, prefix.size()) != prefix)
-                                continue;
-                            if (stand.lat.empty())
-                                continue;
                             if (CFlowX_LookupsTools::PointInsidePolygon(
-                                    static_cast<int>(stand.lat.size()),
-                                    const_cast<double*>(stand.lon.data()),
-                                    const_cast<double*>(stand.lat.data()),
+                                    static_cast<int>(poly.lat.size()),
+                                    const_cast<double*>(poly.lon.data()),
+                                    const_cast<double*>(poly.lat.data()),
                                     pos.m_Longitude, pos.m_Latitude))
                             {
-                                isPush = true;
+                                inTaxiOut = true;
                                 break;
+                            }
+                        }
+
+                        if (!inTaxiOut)
+                        {
+                            // Inside a grStands parking spot.
+                            const std::string ourIcao = settings->GetAirports().begin()->first;
+                            const std::string prefix  = ourIcao + ":";
+                            for (const auto& [key, stand] : settings->GetGrStands())
+                            {
+                                if (key.size() < prefix.size() ||
+                                    key.substr(0, prefix.size()) != prefix)
+                                    continue;
+                                if (stand.lat.empty())
+                                    continue;
+                                if (CFlowX_LookupsTools::PointInsidePolygon(
+                                        static_cast<int>(stand.lat.size()),
+                                        const_cast<double*>(stand.lon.data()),
+                                        const_cast<double*>(stand.lat.data()),
+                                        pos.m_Longitude, pos.m_Latitude))
+                                {
+                                    isPush = true;
+                                    break;
+                                }
                             }
                         }
                     }
