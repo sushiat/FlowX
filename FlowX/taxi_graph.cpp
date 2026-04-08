@@ -17,38 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Geometry helpers (file-local)
 // ─────────────────────────────────────────────────────────────────────────────
-
-static constexpr double EARTH_R = 6'371'000.0; // metres
-
-/// @brief Haversine distance between two WGS-84 points, in metres.
-static double HaversineM(const GeoPoint& a, const GeoPoint& b)
-{
-    const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
-    const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
-    const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
-    const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
-    const double h    = std::sin(dLat / 2) * std::sin(dLat / 2) + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
-    return EARTH_R * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
-}
-
-/// @brief Forward bearing in degrees [0, 360) from @p a to @p b.
-static double BearingDeg(const GeoPoint& a, const GeoPoint& b)
-{
-    const double lat1 = a.lat * std::numbers::pi / 180.0;
-    const double lat2 = b.lat * std::numbers::pi / 180.0;
-    const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
-    const double y    = std::sin(dLon) * std::cos(lat2);
-    const double x    = std::cos(lat1) * std::sin(lat2) - std::sin(lat1) * std::cos(lat2) * std::cos(dLon);
-    double       deg  = std::atan2(y, x) * 180.0 / std::numbers::pi;
-    return std::fmod(deg + 360.0, 360.0);
-}
-
-/// @brief Absolute angular difference between two bearings, in degrees [0, 180].
-static double BearingDiff(double a, double b)
-{
-    double d = std::fmod(std::abs(a - b), 360.0);
-    return d > 180.0 ? 360.0 - d : d;
-}
+// HaversineM, BearingDeg, BearingDiff are now inline free functions in taxi_graph.h.
 
 /// @brief Convert a cardinal direction string ("N"/"S"/"E"/"W") to a bearing in degrees.
 static double CardinalToBearing(const std::string& dir)
@@ -282,6 +251,25 @@ int TaxiGraph::NearestNode(const GeoPoint& pos) const
     return bestId;
 }
 
+int TaxiGraph::NearestForwardNode(const GeoPoint& pos, double headingDeg, double maxM) const
+{
+    double bestD  = std::numeric_limits<double>::max();
+    int    bestId = -1;
+    for (const auto& n : nodes_)
+    {
+        const double d = HaversineM(n.pos, pos);
+        if (d > maxM || d >= bestD)
+            continue;
+        // Accept nodes in the forward hemisphere: bearing to node within ±90° of heading.
+        if (BearingDiff(BearingDeg(pos, n.pos), headingDeg) <= 90.0)
+        {
+            bestD  = d;
+            bestId = n.id;
+        }
+    }
+    return bestId;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TaxiGraph::FindRoute  (A*)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,7 +283,16 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     if (nodes_.empty())
         return {};
 
-    const int startId = NearestNode(from);
+    // When a heading is known, prefer nodes in the forward hemisphere so that an aircraft
+    // parked between two parallel taxilanes snaps to the exit in front rather than behind.
+    // Search radius 120 m covers a typical stand width; fall back to nearest if none found.
+    constexpr double FORWARD_SNAP_M = 120.0;
+    int startId = (initialBearingDeg >= 0.0)
+        ? NearestForwardNode(from, initialBearingDeg, FORWARD_SNAP_M)
+        : -1;
+    if (startId < 0)
+        startId = NearestNode(from);
+
     const int goalId  = NearestNode(to);
     if (startId == goalId)
     {

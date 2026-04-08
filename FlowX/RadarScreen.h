@@ -36,6 +36,8 @@ struct depInfo
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
 {
   private:
+    ULONGLONG taxiSafetyLastTickMs = 0; ///< GetTickCount64 timestamp of last UpdateTaxiSafety() run; throttle guard.
+
     /// @brief Called when a mouse button is pressed on a registered screen object; sets the pressed state.
     void OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
 
@@ -81,6 +83,9 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @note Only draws during REFRESH_PHASE_AFTER_TAGS.
     void OnRefresh(HDC hDC, int Phase) override;
 
+    /// @brief Recomputes taxiDeviations and taxiConflicts; throttled to 250 ms via taxiSafetyLastTickMs.
+    void UpdateTaxiSafety();
+
     /// @brief Draws the Approach Estimate window showing inbound TTT on a vertical time bar, split by runway estimateBarSide.
     void DrawApproachEstimateWindow(HDC hDC);
 
@@ -101,6 +106,12 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
 
     /// @brief Draws the popup menu that opens above the Start button when startMenuOpen is true.
     void DrawStartMenu(HDC hDC);
+
+    /// @brief Redraws the conflicting polyline segments in red and places a marker at each intersection.
+    void DrawTaxiConflicts(HDC hDC);
+
+    /// @brief Draws "!route" (yellow) or "conflict" (red) warning labels above radar targets.
+    void DrawTaxiWarningLabels(HDC hDC);
 
     /// @brief Draws the TWR Inbound custom window using pre-calculated twrInboundRowsCache.
     void DrawTwrInbound(HDC hDC);
@@ -142,10 +153,23 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     bool                                          startBtnPressed        = false;       ///< True while the left mouse button is held down over the Start button
     int                                           startMenuLastHoverType = -1;          ///< Last object type reported by OnOverScreenObject for Start menu items; used to detect hover transitions
     bool                                          startMenuOpen          = false;       ///< True while the Start button popup menu is visible
+    /// @brief A predicted taxi path intersection between two aircraft with conflicting routes.
+    struct TaxiConflictInfo
+    {
+        std::string csA, csB; ///< Callsigns of the two conflicting aircraft.
+        GeoPoint    pt;       ///< Geographic intersection point.
+        double      tA = 0.0; ///< Seconds until csA reaches pt (from last recompute).
+        double      tB = 0.0; ///< Seconds until csB reaches pt (from last recompute).
+        size_t      segA = 0; ///< Index of the B-end node of the conflicting segment in csA's polyline.
+        size_t      segB = 0; ///< Index of the B-end node of the conflicting segment in csB's polyline.
+    };
+
     std::map<std::string, TaxiRoute>              taxiAssigned;                         ///< Callsign -> controller-confirmed taxi route (green); auto-removed 2 s after assignment
     std::map<std::string, TaxiRoute>              taxiTracked;                          ///< Callsign -> persistent taxi route for "Show routes" display; cleared on disconnect or re-assignment
     std::map<std::string, ULONGLONG>              taxiAssignedTimes;                    ///< Tick (GetTickCount64 ms) when each confirmed taxi route was last assigned
+    std::vector<TaxiConflictInfo>                 taxiConflicts;                        ///< Active taxi path conflicts; recomputed every ~250 ms by UpdateTaxiSafety()
     GeoPoint                                      taxiCursorSnap;                       ///< Current snapped cursor geo-position; updated every OnRefresh frame during planning mode
+    std::set<std::string>                         taxiDeviations;                       ///< Callsigns of moving aircraft currently off their assigned route (GS > 3 kt, dist > 60 m)
     TaxiRoute                                     taxiGreenPreview;                     ///< Current green preview route recomputed each frame from origin through waypoints to cursor snap
     POINT                                         taxiOriginPx = {-1, -1};              ///< Screen pixel where right-click activated planning; used for accept-suggestion proximity test
     std::string                                   taxiPlanActive;                       ///< Callsign currently being planned; empty when not in planning mode

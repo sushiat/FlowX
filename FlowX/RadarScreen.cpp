@@ -14,6 +14,8 @@
 #include "CFlowX_Timers.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <set>
 #include <mmsystem.h>
 #include <string>
@@ -461,6 +463,9 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 }
             }
 
+            // Draw conflict overlays: red segments + intersection markers.
+            this->DrawTaxiConflicts(hDC);
+
             // Draw planning mode: yellow suggestion + green preview + via-point markers.
             if (!this->taxiPlanActive.empty())
             {
@@ -512,6 +517,9 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
             }
 
+            // Recompute route deviation and conflict state (throttled to ~250 ms).
+            this->UpdateTaxiSafety();
+
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
@@ -520,6 +528,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
             this->DrawDepartureInfoTag(hDC);
             this->DrawGndTransferSquares(hDC);
+            this->DrawTaxiWarningLabels(hDC);
 
             // Register invisible hit areas on ground aircraft for taxi planning (right-click to plan).
             // Skip during active planning so the full-screen TAXI_PLANNING overlay catches all clicks.
@@ -615,6 +624,251 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
         DeleteObject(pen);
         DeleteObject(brush);
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Taxi safety monitoring
+// ─────────────────────────────────────────────────────────────────────────────
+
+void RadarScreen::UpdateTaxiSafety()
+{
+    // Throttle: recompute at most once every 250 ms.
+    const ULONGLONG now = GetTickCount64();
+    if (now - this->taxiSafetyLastTickMs < 250)
+        return;
+    this->taxiSafetyLastTickMs = now;
+
+    this->taxiDeviations.clear();
+    this->taxiConflicts.clear();
+
+    if (this->taxiTracked.empty())
+        return;
+
+    constexpr double DEVIATION_THRESH_M = 60.0;
+    constexpr double MIN_GS_KT          = 3.0;
+    constexpr double KT_TO_MS           = 0.514444;
+    constexpr double MAX_PREDICT_S      = 60.0;
+    constexpr double CONFLICT_DELTA_S   = 30.0;
+    constexpr double SAME_DIR_DEG       = 45.0;
+
+    struct TimedPt
+    {
+        GeoPoint pos;
+        double   t; // seconds from now
+    };
+    std::map<std::string, std::vector<TimedPt>> timedPaths;
+
+    for (const auto& [cs, route] : this->taxiTracked)
+    {
+        if (!route.valid || route.polyline.size() < 2)
+            continue;
+        auto rt = GetPlugIn()->RadarTargetSelect(cs.c_str());
+        if (!rt.IsValid() || !rt.GetPosition().IsValid())
+            continue;
+
+        const double gs_kt = rt.GetPosition().GetReportedGS();
+        const GeoPoint acPos{ rt.GetPosition().GetPosition().m_Latitude,
+                              rt.GetPosition().GetPosition().m_Longitude };
+
+        // ── Deviation check ──────────────────────────────────────────────────
+        double minDist = std::numeric_limits<double>::max();
+        for (size_t i = 1; i < route.polyline.size(); ++i)
+            minDist = std::min(minDist,
+                PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
+        if (gs_kt > MIN_GS_KT && minDist > DEVIATION_THRESH_M)
+            this->taxiDeviations.insert(cs);
+
+        // ── Build timed predicted path ───────────────────────────────────────
+        if (gs_kt <= MIN_GS_KT)
+            continue;
+        const double gs_ms = gs_kt * KT_TO_MS;
+
+        // Find the closest segment by perpendicular distance.
+        size_t bestSeg  = 0;
+        double bestDist = std::numeric_limits<double>::max();
+        for (size_t i = 1; i < route.polyline.size(); ++i)
+        {
+            double d = PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]);
+            if (d < bestDist)
+            {
+                bestDist = d;
+                bestSeg  = i; // index of the B-end node of the closest segment
+            }
+        }
+
+        std::vector<TimedPt> path;
+        path.push_back({ acPos, 0.0 });
+        double t = 0.0;
+
+        // Distance from aircraft position to the next node (B-end of closest segment).
+        t += HaversineM(acPos, route.polyline[bestSeg]) / gs_ms;
+        if (t <= MAX_PREDICT_S)
+            path.push_back({ route.polyline[bestSeg], t });
+
+        for (size_t i = bestSeg + 1; i < route.polyline.size(); ++i)
+        {
+            t += HaversineM(route.polyline[i - 1], route.polyline[i]) / gs_ms;
+            if (t > MAX_PREDICT_S)
+                break;
+            path.push_back({ route.polyline[i], t });
+        }
+
+        if (path.size() >= 2)
+            timedPaths[cs] = std::move(path);
+    }
+
+    // ── Pairwise conflict check ───────────────────────────────────────────────
+    std::vector<std::string> keys;
+    keys.reserve(timedPaths.size());
+    for (const auto& [cs, _] : timedPaths)
+        keys.push_back(cs);
+
+    for (size_t i = 0; i < keys.size(); ++i)
+    {
+        const auto& pathA = timedPaths[keys[i]];
+        for (size_t j = i + 1; j < keys.size(); ++j)
+        {
+            const auto& pathB = timedPaths[keys[j]];
+            for (size_t a = 1; a < pathA.size(); ++a)
+            {
+                for (size_t b = 1; b < pathB.size(); ++b)
+                {
+                    GeoPoint isxPt;
+                    if (!SegmentIntersectGeo(pathA[a - 1].pos, pathA[a].pos,
+                                             pathB[b - 1].pos, pathB[b].pos, isxPt))
+                        continue;
+
+                    // Same-direction exclusion.
+                    const double bearA = BearingDeg(pathA[a - 1].pos, pathA[a].pos);
+                    const double bearB = BearingDeg(pathB[b - 1].pos, pathB[b].pos);
+                    if (BearingDiff(bearA, bearB) < SAME_DIR_DEG)
+                        continue;
+
+                    // Interpolate arrival time at the intersection.
+                    const double distA  = HaversineM(pathA[a - 1].pos, pathA[a].pos);
+                    const double fracA  = (distA > 0.1)
+                        ? std::clamp(HaversineM(pathA[a - 1].pos, isxPt) / distA, 0.0, 1.0) : 0.0;
+                    const double tA     = pathA[a - 1].t + fracA * (pathA[a].t - pathA[a - 1].t);
+
+                    const double distB  = HaversineM(pathB[b - 1].pos, pathB[b].pos);
+                    const double fracB  = (distB > 0.1)
+                        ? std::clamp(HaversineM(pathB[b - 1].pos, isxPt) / distB, 0.0, 1.0) : 0.0;
+                    const double tB     = pathB[b - 1].t + fracB * (pathB[b].t - pathB[b - 1].t);
+
+                    if (std::abs(tA - tB) < CONFLICT_DELTA_S)
+                        this->taxiConflicts.push_back({ keys[i], keys[j], isxPt, tA, tB, a, b });
+                }
+            }
+        }
+    }
+}
+
+void RadarScreen::DrawTaxiConflicts(HDC hDC)
+{
+    if (this->taxiConflicts.empty())
+        return;
+
+    HPEN redPen  = CreatePen(PS_SOLID, 3, RGB(220, 50, 50));
+    HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, redPen));
+
+    for (const auto& c : this->taxiConflicts)
+    {
+        // Redraw the conflicting segment for each aircraft in red.
+        auto drawSeg = [&](const std::string& cs, size_t segIdx)
+        {
+            auto it = this->taxiTracked.find(cs);
+            if (it == this->taxiTracked.end() || segIdx == 0 || segIdx >= it->second.polyline.size())
+                return;
+            EuroScopePlugIn::CPosition p0, p1;
+            p0.m_Latitude  = it->second.polyline[segIdx - 1].lat;
+            p0.m_Longitude = it->second.polyline[segIdx - 1].lon;
+            p1.m_Latitude  = it->second.polyline[segIdx].lat;
+            p1.m_Longitude = it->second.polyline[segIdx].lon;
+            const POINT pt0 = ConvertCoordFromPositionToPixel(p0);
+            const POINT pt1 = ConvertCoordFromPositionToPixel(p1);
+            MoveToEx(hDC, pt0.x, pt0.y, nullptr);
+            LineTo(hDC, pt1.x, pt1.y);
+        };
+        drawSeg(c.csA, c.segA);
+        drawSeg(c.csB, c.segB);
+
+        // Intersection marker: 6×6 filled red square.
+        EuroScopePlugIn::CPosition isxCPos;
+        isxCPos.m_Latitude  = c.pt.lat;
+        isxCPos.m_Longitude = c.pt.lon;
+        const POINT px = ConvertCoordFromPositionToPixel(isxCPos);
+        HBRUSH redBrush = CreateSolidBrush(RGB(220, 50, 50));
+        const RECT sq   = { px.x - 3, px.y - 3, px.x + 3, px.y + 3 };
+        FillRect(hDC, &sq, redBrush);
+        DeleteObject(redBrush);
+    }
+
+    SelectObject(hDC, prevPen);
+    DeleteObject(redPen);
+}
+
+void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
+{
+    if (this->taxiDeviations.empty() && this->taxiConflicts.empty())
+        return;
+
+    HFONT font = CreateFontA(-10, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prevFont = static_cast<HFONT>(SelectObject(hDC, font));
+    SetBkMode(hDC, TRANSPARENT);
+
+    for (auto rt = GetPlugIn()->RadarTargetSelectFirst(); rt.IsValid();
+         rt      = GetPlugIn()->RadarTargetSelectNext(rt))
+    {
+        auto fp = rt.GetCorrelatedFlightPlan();
+        if (!fp.IsValid())
+            continue;
+        const std::string cs = fp.GetCallsign();
+
+        // Check for critical conflict (ETA < 15 s) — takes priority over !route.
+        bool isCritical = false;
+        for (const auto& c : this->taxiConflicts)
+        {
+            if ((c.csA == cs || c.csB == cs) && std::min(c.tA, c.tB) < 15.0)
+            {
+                isCritical = true;
+                break;
+            }
+        }
+
+        const bool isDeviated = this->taxiDeviations.contains(cs);
+        if (!isCritical && !isDeviated)
+            continue;
+
+        const char*    label   = isCritical ? "conflict" : "!route";
+        const COLORREF bgCol   = isCritical ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
+        const COLORREF textCol = isCritical ? RGB(255, 255, 255) : RGB(0, 0, 0);
+
+        const POINT acPt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
+
+        // Measure text extents.
+        RECT m = { 0, 0, 200, 30 };
+        DrawTextA(hDC, label, -1, &m, DT_CALCRECT | DT_SINGLELINE);
+        constexpr int PAD = 3;
+        constexpr int GAP = 14; // pixels above radar dot
+
+        const RECT bgRect = { acPt.x - m.right / 2 - PAD,
+                               acPt.y - GAP - m.bottom - PAD * 2,
+                               acPt.x + m.right / 2 + PAD,
+                               acPt.y - GAP };
+
+        HBRUSH brush = CreateSolidBrush(bgCol);
+        FillRect(hDC, &bgRect, brush);
+        DeleteObject(brush);
+
+        SetTextColor(hDC, textCol);
+        RECT textRect = bgRect;
+        DrawTextA(hDC, label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
+
+    SelectObject(hDC, prevFont);
+    DeleteObject(font);
 }
 
 static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct); ///< Forward declaration — defined below DrawGndTransferSquares.
