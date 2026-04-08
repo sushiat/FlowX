@@ -243,8 +243,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
             // Canonical pair key: lower designator first.
             const std::string pairKey = (rwyDes < rwy.opposite)
-                ? rwyDes + "/" + rwy.opposite
-                : rwy.opposite + "/" + rwyDes;
+                                            ? rwyDes + "/" + rwy.opposite
+                                            : rwy.opposite + "/" + rwyDes;
             if (processedPairs.contains(pairKey))
                 continue;
             processedPairs.insert(pairKey);
@@ -256,8 +256,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             if (oppRwy.thresholdLat == 0.0 && oppRwy.thresholdLon == 0.0)
                 continue;
 
-            const GeoPoint thrA{ rwy.thresholdLat,    rwy.thresholdLon };
-            const GeoPoint thrB{ oppRwy.thresholdLat, oppRwy.thresholdLon };
+            const GeoPoint thrA{rwy.thresholdLat, rwy.thresholdLon};
+            const GeoPoint thrB{oppRwy.thresholdLat, oppRwy.thresholdLon};
 
             // Search radius: half runway width + generous margin for taxiway exit nodes.
             const double halfWidth  = (rwy.widthMeters > 0) ? rwy.widthMeters / 2.0 : 22.5;
@@ -277,12 +277,12 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             // Find taxiway Waypoint nodes within connRadius of the centreline.
             struct ConnPt
             {
-                GeoPoint proj;   ///< Projected point on centreline.
+                GeoPoint proj; ///< Projected point on centreline.
                 int      nodeId;
-                double   t;      ///< Parameter along centreline [0,1]; used for sorting.
+                double   t; ///< Parameter along centreline [0,1]; used for sorting.
             };
             std::vector<ConnPt> connPts;
-            const size_t snapCount = nodes_.size(); // only consider pre-existing nodes
+            const size_t        snapCount = nodes_.size(); // only consider pre-existing nodes
             for (size_t idx = 0; idx < snapCount; ++idx)
             {
                 const auto& n = nodes_[idx];
@@ -293,8 +293,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 const double apy = (n.pos.lat - thrA.lat) * scaleLat;
                 const double t   = std::clamp((apx * abx + apy * aby) / len2, 0.0, 1.0);
 
-                const GeoPoint proj{ thrA.lat + aby * t / scaleLat,
-                                     thrA.lon + abx * t / scaleLon };
+                const GeoPoint proj{thrA.lat + aby * t / scaleLat,
+                                    thrA.lon + abx * t / scaleLon};
                 if (HaversineM(n.pos, proj) > connRadius)
                     continue;
 
@@ -302,7 +302,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 if (HaversineM(proj, thrA) < 15.0 || HaversineM(proj, thrB) < 15.0)
                     continue;
 
-                connPts.push_back({ proj, n.id, t });
+                connPts.push_back({proj, n.id, t});
             }
 
             // Sort by t so we chain threshold → conn[0] → ... → conn[n] → threshold.
@@ -334,9 +334,9 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 const double clDist = HaversineM(nodes_[prev].pos, nodes_[clNode].pos);
                 if (clDist > 0.1)
                 {
-                    AddEdge(prev,   clNode, clDist * MULT_RUNWAY, rwyDes,
-                            BearingDeg(nodes_[prev].pos,   nodes_[clNode].pos));
-                    AddEdge(clNode, prev,   clDist * MULT_RUNWAY, rwyDes,
+                    AddEdge(prev, clNode, clDist * MULT_RUNWAY, rwyDes,
+                            BearingDeg(nodes_[prev].pos, nodes_[clNode].pos));
+                    AddEdge(clNode, prev, clDist * MULT_RUNWAY, rwyDes,
                             BearingDeg(nodes_[clNode].pos, nodes_[prev].pos));
                 }
 
@@ -346,9 +346,9 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                     const double d = HaversineM(nodes_[clNode].pos, nodes_[cp.nodeId].pos);
                     if (d > 0.1)
                     {
-                        AddEdge(clNode,    cp.nodeId, d * MULT_RUNWAY, rwyDes,
-                                BearingDeg(nodes_[clNode].pos,    nodes_[cp.nodeId].pos));
-                        AddEdge(cp.nodeId, clNode,    d * MULT_RUNWAY, rwyDes,
+                        AddEdge(clNode, cp.nodeId, d * MULT_RUNWAY, rwyDes,
+                                BearingDeg(nodes_[clNode].pos, nodes_[cp.nodeId].pos));
+                        AddEdge(cp.nodeId, clNode, d * MULT_RUNWAY, rwyDes,
                                 BearingDeg(nodes_[cp.nodeId].pos, nodes_[clNode].pos));
                     }
                 }
@@ -362,9 +362,9 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 const double d = HaversineM(nodes_[prev].pos, nodes_[nodeB].pos);
                 if (d > 0.1)
                 {
-                    AddEdge(prev,  nodeB, d * MULT_RUNWAY, rwyDes,
-                            BearingDeg(nodes_[prev].pos,  nodes_[nodeB].pos));
-                    AddEdge(nodeB, prev,  d * MULT_RUNWAY, rwyDes,
+                    AddEdge(prev, nodeB, d * MULT_RUNWAY, rwyDes,
+                            BearingDeg(nodes_[prev].pos, nodes_[nodeB].pos));
+                    AddEdge(nodeB, prev, d * MULT_RUNWAY, rwyDes,
                             BearingDeg(nodes_[nodeB].pos, nodes_[prev].pos));
                 }
             }
@@ -417,6 +417,25 @@ int TaxiGraph::NearestForwardNode(const GeoPoint& pos, double headingDeg, double
     return bestId;
 }
 
+int TaxiGraph::NearestBackwardNode(const GeoPoint& pos, double headingDeg, double maxM) const
+{
+    double bestD  = std::numeric_limits<double>::max();
+    int    bestId = -1;
+    for (const auto& n : nodes_)
+    {
+        const double d = HaversineM(n.pos, pos);
+        if (d > maxM || d >= bestD)
+            continue;
+        // Accept nodes in the backward hemisphere: bearing to node more than ±90° from heading.
+        if (BearingDiff(BearingDeg(pos, n.pos), headingDeg) > 90.0)
+        {
+            bestD  = d;
+            bestId = n.id;
+        }
+    }
+    return bestId;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TaxiGraph::FindRoute  (A*)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -430,17 +449,37 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     if (nodes_.empty())
         return {};
 
-    // When a heading is known, prefer nodes in the forward hemisphere so that an aircraft
-    // parked between two parallel taxilanes snaps to the exit in front rather than behind.
-    // Search radius 120 m covers a typical stand width; fall back to nearest if none found.
-    constexpr double FORWARD_SNAP_M = 120.0;
-    int startId = (initialBearingDeg >= 0.0)
-        ? NearestForwardNode(from, initialBearingDeg, FORWARD_SNAP_M)
-        : -1;
+    // Select start node based on the aircraft's heading.
+    // Forward hemisphere (120 m) handles stand exits — the exit node is typically closer
+    // than any backward node in the stand row, so it still wins.
+    // Backward hemisphere (300 m) handles mid-taxiway: the node the aircraft most recently
+    // passed is behind it; starting A* from there avoids routing from a point already
+    // slightly ahead of the aircraft, which can cause unexpected detours.
+    // When both exist, pick whichever is geometrically closer; ties go to the backward node.
+    constexpr double FORWARD_SNAP_M  = 120.0;
+    constexpr double BACKWARD_SNAP_M = 300.0;
+
+    int startId = -1;
+    if (initialBearingDeg >= 0.0)
+    {
+        const int fwdId  = NearestForwardNode(from, initialBearingDeg, FORWARD_SNAP_M);
+        const int backId = NearestBackwardNode(from, initialBearingDeg, BACKWARD_SNAP_M);
+
+        if (fwdId >= 0 && backId >= 0)
+        {
+            const double dFwd  = HaversineM(nodes_[fwdId].pos, from);
+            const double dBack = HaversineM(nodes_[backId].pos, from);
+            startId            = (dBack <= dFwd) ? backId : fwdId;
+        }
+        else if (backId >= 0)
+            startId = backId;
+        else
+            startId = fwdId; // may still be -1 → falls through to NearestNode
+    }
     if (startId < 0)
         startId = NearestNode(from);
 
-    const int goalId  = NearestNode(to);
+    const int goalId = NearestNode(to);
     if (startId == goalId)
     {
         TaxiRoute r;
@@ -593,9 +632,9 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     // Record exit bearing from the last edge so FindWaypointRoute can chain segments.
     if (path.size() >= 2)
     {
-        const GeoPoint& a  = nodes_[path[path.size() - 2]].pos;
-        const GeoPoint& b  = nodes_[path.back()].pos;
-        route.exitBearing  = BearingDeg(a, b);
+        const GeoPoint& a = nodes_[path[path.size() - 2]].pos;
+        const GeoPoint& b = nodes_[path.back()].pos;
+        route.exitBearing = BearingDeg(a, b);
     }
 
     return route;
@@ -619,8 +658,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
     stops.push_back(dest);
 
     TaxiRoute combined;
-    combined.valid         = true;
-    double segInitBearing  = initialBearingDeg; // propagated across segment boundaries
+    combined.valid        = true;
+    double segInitBearing = initialBearingDeg; // propagated across segment boundaries
 
     for (size_t i = 1; i < stops.size(); ++i)
     {

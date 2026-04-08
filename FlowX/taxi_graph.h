@@ -280,4 +280,9 @@ class TaxiGraph
     ///        (bearing from @p pos to node within ±90° of @p headingDeg).
     /// @return Node index, or -1 if no qualifying node is found.
     [[nodiscard]] int NearestForwardNode(const GeoPoint& pos, double headingDeg, double maxM) const;
+
+    /// @brief Returns the nearest node within @p maxM metres that lies in the backward hemisphere
+    ///        (bearing from @p pos to node more than ±90° from @p headingDeg).
+    /// @return Node index, or -1 if no qualifying node is found.
+    [[nodiscard]] int NearestBackwardNode(const GeoPoint& pos, double headingDeg, double maxM) const;
 };
