@@ -168,6 +168,8 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
         size_t      segB = 0;   ///< Index of the B-end node of the conflicting segment in csB's polyline.
     };
 
+    std::map<std::string, ULONGLONG>   taxiConflictFirstSeen;            ///< Keys "csA|csB" (sorted) -> GetTickCount64 tick when the conflict first entered the <15 s window; cleared when it exits.
+    std::set<std::string>              taxiConflictSoundPlayed;          ///< Keys "csA|csB" (sorted) for conflicts where the <15 s sound has already fired; cleared when conflict resolves.
     std::map<std::string, TaxiRoute>   pushTracked;                      ///< Callsign -> assigned pushback route; used to block taxi routing and show orange overlay
     std::map<std::string, TaxiRoute>   taxiAssigned;                     ///< Callsign -> controller-confirmed taxi route (green); auto-removed 2 s after assignment
     std::map<std::string, TaxiRoute>   taxiTracked;                      ///< Callsign -> persistent taxi route for "Show routes" display; cleared on disconnect or re-assignment

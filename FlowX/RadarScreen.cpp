@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <set>
 #include <mmsystem.h>
@@ -490,9 +491,6 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 }
             }
 
-            // Draw conflict overlays: red segments + intersection markers.
-            this->DrawTaxiConflicts(hDC);
-
             // Shared helper: draw a route polyline in a given colour/width.
             auto drawRoute = [&](const TaxiRoute& route, COLORREF col, int width)
             {
@@ -571,6 +569,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             this->DrawDepartureInfoTag(hDC);
             this->DrawGndTransferSquares(hDC);
             this->DrawTaxiWarningLabels(hDC);
+            this->DrawTaxiConflicts(hDC);
 
             // Register invisible hit areas on ground aircraft for taxi planning (right-click to plan).
             // Skip during active planning so the full-screen TAXI_PLANNING overlay catches all clicks.
@@ -682,6 +681,50 @@ void RadarScreen::UpdateTaxiSafety()
 
     this->taxiDeviations.clear();
     this->taxiConflicts.clear();
+
+    // Auto-clear taxi route when aircraft enters any holding point on its departure runway.
+    {
+        auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+        if (!settings->GetAirports().empty())
+        {
+            const auto&              ap = settings->GetAirports().begin()->second;
+            std::vector<std::string> toErase;
+            for (const auto& [cs, route] : this->taxiTracked)
+            {
+                auto rt = GetPlugIn()->RadarTargetSelect(cs.c_str());
+                if (!rt.IsValid() || !rt.GetPosition().IsValid())
+                    continue;
+                auto fp = GetPlugIn()->FlightPlanSelect(cs.c_str());
+                if (!fp.IsValid())
+                    continue;
+                std::string depRwy = fp.GetFlightPlanData().GetDepartureRwy();
+                auto        rwyIt  = ap.runways.find(depRwy);
+                if (rwyIt == ap.runways.end())
+                    continue;
+                const auto pos = rt.GetPosition().GetPosition();
+                for (const auto& [hpName, hp] : rwyIt->second.holdingPoints)
+                {
+                    if (hp.lat.empty())
+                        continue;
+                    if (CFlowX_LookupsTools::PointInsidePolygon(
+                            static_cast<int>(hp.lat.size()),
+                            const_cast<double*>(hp.lon.data()),
+                            const_cast<double*>(hp.lat.data()),
+                            pos.m_Longitude, pos.m_Latitude))
+                    {
+                        toErase.push_back(cs);
+                        break;
+                    }
+                }
+            }
+            for (const auto& cs : toErase)
+            {
+                this->taxiTracked.erase(cs);
+                this->taxiAssigned.erase(cs);
+                this->taxiAssignedTimes.erase(cs);
+            }
+        }
+    }
 
     if (this->taxiTracked.empty())
         return;
@@ -805,6 +848,43 @@ void RadarScreen::UpdateTaxiSafety()
             }
         }
     }
+
+    // ── Sound trigger: play once per conflict pair after it persists in <15 s window for 2 s ──
+    std::set<std::string> activeKeys;
+    std::set<std::string> under15Keys;
+    for (const auto& c : this->taxiConflicts)
+    {
+        const std::string key = std::min(c.csA, c.csB) + "|" + std::max(c.csA, c.csB);
+        activeKeys.insert(key);
+        if (std::min(c.tA, c.tB) < 15.0)
+            under15Keys.insert(key);
+    }
+
+    // Track first-seen timestamp for each under-15s conflict; remove entries that left the window.
+    for (const auto& key : under15Keys)
+    {
+        if (!this->taxiConflictFirstSeen.contains(key))
+            this->taxiConflictFirstSeen[key] = now;
+    }
+    std::erase_if(this->taxiConflictFirstSeen,
+                  [&](const auto& kv)
+                  { return !under15Keys.contains(kv.first); });
+
+    for (const auto& key : under15Keys)
+    {
+        if (!this->taxiConflictSoundPlayed.contains(key) &&
+            now - this->taxiConflictFirstSeen[key] >= 2000)
+        {
+            const std::filesystem::path wav =
+                std::filesystem::path(GetPluginDirectory()) / "taxiConflict.wav";
+            PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+            this->taxiConflictSoundPlayed.insert(key);
+            break; // at most one sound per cycle
+        }
+    }
+    std::erase_if(this->taxiConflictSoundPlayed,
+                  [&](const std::string& k)
+                  { return !activeKeys.contains(k); });
 }
 
 void RadarScreen::DrawTaxiConflicts(HDC hDC)
@@ -812,43 +892,33 @@ void RadarScreen::DrawTaxiConflicts(HDC hDC)
     if (this->taxiConflicts.empty())
         return;
 
-    HPEN redPen  = CreatePen(PS_SOLID, 3, RGB(220, 50, 50));
-    HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, redPen));
+    HPEN prevPen = static_cast<HPEN>(GetCurrentObject(hDC, OBJ_PEN));
 
     for (const auto& c : this->taxiConflicts)
     {
-        // Redraw the conflicting segment for each aircraft in red.
-        auto drawSeg = [&](const std::string& cs, size_t segIdx)
-        {
-            auto it = this->taxiTracked.find(cs);
-            if (it == this->taxiTracked.end() || segIdx == 0 || segIdx >= it->second.polyline.size())
-                return;
-            EuroScopePlugIn::CPosition p0, p1;
-            p0.m_Latitude   = it->second.polyline[segIdx - 1].lat;
-            p0.m_Longitude  = it->second.polyline[segIdx - 1].lon;
-            p1.m_Latitude   = it->second.polyline[segIdx].lat;
-            p1.m_Longitude  = it->second.polyline[segIdx].lon;
-            const POINT pt0 = ConvertCoordFromPositionToPixel(p0);
-            const POINT pt1 = ConvertCoordFromPositionToPixel(p1);
-            MoveToEx(hDC, pt0.x, pt0.y, nullptr);
-            LineTo(hDC, pt1.x, pt1.y);
-        };
-        drawSeg(c.csA, c.segA);
-        drawSeg(c.csB, c.segB);
+        const double tMin = std::min(c.tA, c.tB);
+        COLORREF     col;
+        if (tMin < 15.0)
+            col = RGB(220, 50, 50);
+        else if (tMin < 30.0)
+            col = RGB(255, 220, 0);
+        else
+            continue; // too far ahead — no marker yet
 
-        // Intersection marker: 6×6 filled red square.
         EuroScopePlugIn::CPosition isxCPos;
-        isxCPos.m_Latitude   = c.pt.lat;
-        isxCPos.m_Longitude  = c.pt.lon;
-        const POINT px       = ConvertCoordFromPositionToPixel(isxCPos);
-        HBRUSH      redBrush = CreateSolidBrush(RGB(220, 50, 50));
-        const RECT  sq       = {px.x - 3, px.y - 3, px.x + 3, px.y + 3};
-        FillRect(hDC, &sq, redBrush);
-        DeleteObject(redBrush);
-    }
+        isxCPos.m_Latitude  = c.pt.lat;
+        isxCPos.m_Longitude = c.pt.lon;
+        const POINT px      = ConvertCoordFromPositionToPixel(isxCPos);
 
-    SelectObject(hDC, prevPen);
-    DeleteObject(redPen);
+        HPEN mPen = CreatePen(PS_SOLID, 2, col);
+        SelectObject(hDC, mPen);
+        MoveToEx(hDC, px.x - 5, px.y - 5, nullptr);
+        LineTo(hDC, px.x + 5, px.y + 5);
+        MoveToEx(hDC, px.x + 5, px.y - 5, nullptr);
+        LineTo(hDC, px.x - 5, px.y + 5);
+        SelectObject(hDC, prevPen);
+        DeleteObject(mPen);
+    }
 }
 
 void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
@@ -856,6 +926,10 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
     if (this->taxiDeviations.empty() && this->taxiConflicts.empty())
         return;
 
+    HFONT warnFont = CreateFontA(-11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, ANSI_CHARSET,
+                                 OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                                 DEFAULT_PITCH | FF_DONTCARE, "EuroScope");
+    HFONT prevFont = static_cast<HFONT>(SelectObject(hDC, warnFont));
     SetBkMode(hDC, TRANSPARENT);
 
     for (auto rt = GetPlugIn()->RadarTargetSelectFirst(); rt.IsValid();
@@ -866,32 +940,43 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
             continue;
         const std::string cs = fp.GetCallsign();
 
-        // Check for critical conflict (ETA < 15 s) — takes priority over !route.
-        bool isCritical = false;
+        // Three tiers: CRITICAL (<15 s) > WARN (15–30 s) > deviation.
+        enum class Tier
+        {
+            None,
+            Deviation,
+            Warn,
+            Critical
+        } tier = Tier::None;
+
         for (const auto& c : this->taxiConflicts)
         {
-            if ((c.csA == cs || c.csB == cs) && std::min(c.tA, c.tB) < 15.0)
+            if (c.csA != cs && c.csB != cs)
+                continue;
+            const double tMin = std::min(c.tA, c.tB);
+            if (tMin < 15.0)
             {
-                isCritical = true;
+                tier = Tier::Critical;
                 break;
             }
+            if (tMin < 30.0 && tier < Tier::Warn)
+                tier = Tier::Warn;
         }
-
-        const bool isDeviated = this->taxiDeviations.contains(cs);
-        if (!isCritical && !isDeviated)
+        if (tier == Tier::None && this->taxiDeviations.contains(cs))
+            tier = Tier::Deviation;
+        if (tier == Tier::None)
             continue;
 
-        const char*    label   = isCritical ? "conflict" : "!route";
-        const COLORREF bgCol   = isCritical ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
-        const COLORREF textCol = isCritical ? RGB(255, 255, 255) : RGB(0, 0, 0);
+        const char*    label   = (tier == Tier::Deviation) ? "!ROUTE" : "CONFLICT";
+        const COLORREF bgCol   = (tier == Tier::Critical) ? TAG_COLOR_RED : TAG_COLOR_YELLOW;
+        const COLORREF textCol = (tier == Tier::Critical) ? RGB(255, 255, 255) : RGB(0, 0, 0);
 
         const POINT acPt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
 
-        // Measure text extents.
         RECT m = {0, 0, 200, 30};
         DrawTextA(hDC, label, -1, &m, DT_CALCRECT | DT_SINGLELINE);
-        constexpr int PAD = 3;
-        constexpr int GAP = 14; // pixels above radar dot
+        constexpr int PAD = 1;
+        constexpr int GAP = 14;
 
         const RECT bgRect = {acPt.x - m.right / 2 - PAD,
                              acPt.y - GAP - m.bottom - PAD * 2,
@@ -906,6 +991,9 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
         RECT textRect = bgRect;
         DrawTextA(hDC, label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
+
+    SelectObject(hDC, prevFont);
+    DeleteObject(warnFont);
 }
 
 /// @brief Highlights dead-end taxilane branches that are isolated by active push routes.
@@ -2154,10 +2242,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 
         cellClickable(RWY, r.rwy, r.callsignColor, r.callsign + "|RWY");
         cellTagClickable(TTT, r.ttt, r.callsign + "|TTT");
-        cellTagClickable(CS, {.tag = r.callsign, .color = r.isGoAround ? TAG_COLOR_WHITE : r.isFrozen ? TAG_COLOR_BLACK
-                                                                                                      : r.callsignColor,
-                              .bgColor = r.isGoAround ? TAG_BG_COLOR_RED : r.isFrozen ? TAG_BG_COLOR_YELLOW
-                                                                                      : TAG_COLOR_DEFAULT_NONE},
+        cellTagClickable(CS, {.tag = r.callsign, .color = (r.isEmergency || r.isGoAround) ? TAG_COLOR_WHITE : r.isFrozen ? TAG_COLOR_BLACK
+                                                                                                                         : r.callsignColor,
+                              .bgColor = (r.isEmergency || r.isGoAround) ? TAG_BG_COLOR_RED : r.isFrozen ? TAG_BG_COLOR_YELLOW
+                                                                                                         : TAG_COLOR_DEFAULT_NONE},
                          r.callsign + "|CS");
         cellTagClickable(NM, r.nm, r.callsign + "|NM", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
         cellClickable(GS, std::format("{}", r.groundSpeed), TAG_COLOR_WHITE, r.callsign + "|GS", DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
@@ -2984,7 +3072,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 bool isPush = false;
                 auto fp2    = GetPlugIn()->FlightPlanSelect(callsign.c_str());
 
-                if(!fp2.IsValid() || !fp2.GetClearenceFlag())
+                if (!fp2.IsValid() || !fp2.GetClearenceFlag())
                 {
                     return;
                 }
@@ -3160,7 +3248,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             {
                 const int  dx         = Pt.x - this->taxiOriginPx.x;
                 const int  dy         = Pt.y - this->taxiOriginPx.y;
-                const bool nearOrigin = (dx * dx + dy * dy) <= 40 * 40;
+                const bool nearOrigin = (dx * dx + dy * dy) <= 80 * 80;
 
                 TaxiRoute finalRoute = nearOrigin
                                            ? this->taxiSuggested[this->taxiPlanActive]
@@ -3168,6 +3256,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
                 if (finalRoute.valid)
                 {
+                    this->pushTracked.erase(this->taxiPlanActive);
                     this->taxiAssigned[this->taxiPlanActive]      = finalRoute;
                     this->taxiAssignedTimes[this->taxiPlanActive] = GetTickCount64();
                     this->taxiTracked[this->taxiPlanActive]       = finalRoute;

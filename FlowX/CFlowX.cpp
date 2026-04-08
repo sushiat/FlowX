@@ -103,6 +103,8 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
                 if (scratch.contains(status))
                 {
                     this->groundStatus[callSign] = status;
+                    if (status == "TAXI" && this->radarScreen)
+                        this->radarScreen->pushTracked.erase(callSign);
                     break;
                 }
             }
@@ -113,6 +115,8 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
             std::string callSign         = fp.GetCallsign();
             std::string groundState      = fp.GetGroundState();
             this->groundStatus[callSign] = groundState;
+            if (groundState == "TAXI" && this->radarScreen)
+                this->radarScreen->pushTracked.erase(callSign);
         }
     }
     catch (const std::exception& e)
