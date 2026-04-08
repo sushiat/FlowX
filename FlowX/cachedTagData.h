@@ -65,13 +65,14 @@ struct TwrInboundRowCache
 {
     std::string callsign;
     COLORREF    callsignColor = TAG_COLOR_LIST_GRAY; ///< Callsign colour: gray (unrelated), brown (handover pending), white (tracking), turq (cleared to land)
+    bool        isEmergency   = false;               ///< True when the aircraft is squawking 7700; drives red CS background and "/EM" callsign suffix
     bool        isFrozen      = false;               ///< True when in the 5-second frozen-exit state; drives yellow CS background and "?mm:ss?" TTT
     bool        isGoAround    = false;               ///< True when the row is in active go-around state; drives the red CS background
     char        wtc           = ' ';                 ///< Aircraft weight turbulence category character
     int         groundSpeed   = 0;                   ///< Current ground speed in knots
-    std::string rwy;                            ///< Runway designator this row belongs to (for group separators)
+    std::string rwy;                                 ///< Runway designator this row belongs to (for group separators)
     std::string sortKey;                             ///< Full "rwy_mm:ss" string used for ordering (not displayed)
-    int         tttSeconds    = -1;                  ///< TTT in seconds (distNm/GS×3600); -1 for go-arounds or no-speed data; frozen = parsed from frozenTttStr
+    int         tttSeconds = -1;                     ///< TTT in seconds (distNm/GS×3600); -1 for go-arounds or no-speed data; frozen = parsed from frozenTttStr
     tagInfo     ttt;                                 ///< TAG_ITEM_TTT — display text has the "rwy_" prefix stripped
     tagInfo     nm;                                  ///< TAG_ITEM_INBOUND_NM
     std::string aircraftType;                        ///< Aircraft type string (e.g. "B738") from GetAircraftFPType()

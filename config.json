@@ -76,7 +76,7 @@
             "129.050": ["129.050", "125.175", "134.675", "118.775"],
             "125.175": ["125.175", "129.050", "118.775", "134.675"]
         },
-        "scratchpadClearExclusions": [".cs ", ".did", ".obacht", "/cs "],
+        "scratchpadClearExclusions": [".cs ", ".did", ".obacht", "/cs ", ".new", ".newbie"],
         "taxiWingspanMax": {
             "P": 36,
             "Q": 36,

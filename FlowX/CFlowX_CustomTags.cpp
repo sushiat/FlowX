@@ -14,9 +14,9 @@
 #include "helpers.h"
 
 void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             tttKey,
-                                                   EuroScopePlugIn::CFlightPlan&  fp,
-                                                   EuroScopePlugIn::CRadarTarget& rt,
-                                                   TwrInboundRowCache&            row)
+                                                 EuroScopePlugIn::CFlightPlan&  fp,
+                                                 EuroScopePlugIn::CRadarTarget& rt,
+                                                 TwrInboundRowCache&            row)
 {
     // ── Shared lookups ──
     std::string callSign = fp.GetCallsign();
@@ -35,13 +35,13 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
         return;
     }
 
-    const TTTInboundState& state      = planIt->second;
-    const std::string&     designator = state.flightPlan.designator;
+    const TTTInboundState& state           = planIt->second;
+    const std::string&     designator      = state.flightPlan.designator;
     double                 distToThreshold = state.distanceToRunway;
-    bool                   isGoAround = state.goAroundTick != 0;
-    bool                   isFrozen   = state.frozenTick != 0;
-    row.isGoAround                    = isGoAround;
-    row.isFrozen                      = isFrozen;
+    bool                   isGoAround      = state.goAroundTick != 0;
+    bool                   isFrozen        = state.frozenTick != 0;
+    row.isGoAround                         = isGoAround;
+    row.isFrozen                           = isFrozen;
 
     auto sortedIt  = this->ttt_sortedByRunway.find(designator);
     bool hasSorted = (sortedIt != this->ttt_sortedByRunway.end());
@@ -78,18 +78,27 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     // ── row.tttSeconds — TTT in whole seconds for the Approach Estimate bar ──
     row.tttSeconds = [&]() -> int
     {
-        if (isGoAround) { return -1; }
+        if (isGoAround)
+        {
+            return -1;
+        }
         if (isFrozen)
         {
             const std::string& s     = state.frozenTttStr;
             auto               colon = s.find(':');
-            if (colon == std::string::npos) { return -1; }
+            if (colon == std::string::npos)
+            {
+                return -1;
+            }
             int mm = std::stoi(s.substr(0, colon));
             int ss = std::stoi(s.substr(colon + 1));
             return mm * 60 + ss;
         }
         int speed = rt.GetPosition().GetReportedGS();
-        if (speed <= 0) { return -1; }
+        if (speed <= 0)
+        {
+            return -1;
+        }
         return static_cast<int>((distToThreshold / speed) * 3600.0);
     }();
 
@@ -125,7 +134,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
                         break;
                     }
                     double gap = distToThreshold - leaderIt->second.distanceToRunway;
-                    tag = std::format("+{:.1f}", gap);
+                    tag        = std::format("+{:.1f}", gap);
                     if (gap > 3.0)
                     {
                         t.color = TAG_COLOR_GREEN;
@@ -250,8 +259,8 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
 }
 
 void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
-                                                    EuroScopePlugIn::CRadarTarget& rt,
-                                                    TwrOutboundRowCache&           row)
+                                                  EuroScopePlugIn::CRadarTarget& rt,
+                                                  TwrOutboundRowCache&           row)
 {
     // ── Shared lookups ──
     std::string callSign = fp.GetCallsign();
@@ -425,10 +434,10 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
 
     // ── row.queuePos (departureQueuePosition) ──
     {
-        auto it = this->dep_queuePos.find(callSign);
+        auto it      = this->dep_queuePos.find(callSign);
         row.queuePos = (it != this->dep_queuePos.end())
-                     ? tagInfo{ .tag = std::to_string(it->second), .color = TAG_COLOR_WHITE }
-                     : tagInfo{};
+                           ? tagInfo{.tag = std::to_string(it->second), .color = TAG_COLOR_WHITE}
+                           : tagInfo{};
     }
 
     // ── row.spacing (takeoffSpacing) ──
@@ -461,7 +470,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         {
             ULONGLONG offsetSeconds = sp.takeoffTimeOffset;
             int       timeRequired  = (sp.timeRequired > 0) ? sp.timeRequired : 120;
-            t.tag = std::format("{:>4} s  /{}", offsetSeconds, timeRequired);
+            t.tag                   = std::format("{:>4} s  /{}", offsetSeconds, timeRequired);
 
             if (offsetSeconds >= (ULONGLONG)timeRequired)
             {
@@ -557,9 +566,9 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         }
         double dist = rt.GetPosition().GetPosition().DistanceTo(prevRt.GetPosition().GetPosition());
 
-        double      distRequired = 3.0;
-        std::string curSid       = fpd.GetSidName();
-        const std::string& prevSid2 = lsIt->second.prevSid;
+        double             distRequired = 3.0;
+        std::string        curSid       = fpd.GetSidName();
+        const std::string& prevSid2     = lsIt->second.prevSid;
         if (!prevSid2.empty() && !curSid.empty() && prevSid2.length() > 2 && curSid.length() > 2)
         {
             auto prevSidKey = prevSid2.substr(0, prevSid2.length() - 2);
@@ -646,7 +655,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
             bool        isStillMine = fp.GetTrackingControllerIsMe() && fp.GetState() != EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
             std::string group       = isStillMine ? "C" : "D";
             auto        seqIt       = this->dep_sequenceNumber.find(callSign);
-            int         seq   = (seqIt != this->dep_sequenceNumber.end()) ? seqIt->second : 0;
+            int         seq         = (seqIt != this->dep_sequenceNumber.end()) ? seqIt->second : 0;
             return std::format("{}{}{:04d}", group, rwyPadded, seq);
         }
     }();
@@ -1039,8 +1048,8 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
         ULONGLONG elapsed = (GetTickCount64() - takeoffTick) / 1000;
         int       m       = static_cast<int>(elapsed / 60);
         int       s       = static_cast<int>(elapsed % 60);
-        t.tag   = std::format("{}:{:02d}", m, s);
-        t.color = TAG_COLOR_LIST_GRAY;
+        t.tag             = std::format("{}:{:02d}", m, s);
+        t.color           = TAG_COLOR_LIST_GRAY;
         return t;
     }();
 
@@ -1237,23 +1246,28 @@ void CFlowX_CustomTags::UpdateTagCache()
                 };
 
                 TwrInboundRowCache row;
-                row.callsign      = callSign;
+                row.isEmergency   = (std::string(rt.GetPosition().GetSquawk()) == "7700");
+                row.callsign      = callSign + (row.isEmergency ? "/EM" : "");
                 row.callsignColor = callsignColor();
                 row.wtc           = fp.GetFlightPlanData().GetAircraftWtc();
                 row.groundSpeed   = rt.GetPosition().GetReportedGS();
-                row.rwy      = designator;
+                row.rwy           = designator;
                 row.aircraftType  = fp.GetFlightPlanData().GetAircraftFPType();
                 {
                     auto standIt = this->standAssignment.find(callSign);
                     if (standIt != this->standAssignment.end())
                     {
                         const std::string& stand = standIt->second;
-                        row.gate.tag   = stand;
-                        bool occupied  = stand != "GAC" && this->standOccupancy.contains(stand);
+                        row.gate.tag             = stand;
+                        bool occupied            = stand != "GAC" && this->standOccupancy.contains(stand);
                         if (!occupied && stand != "GAC")
                         {
                             for (auto& [cs, s] : this->standAssignment)
-                                if (cs != callSign && s == stand) { occupied = true; break; }
+                                if (cs != callSign && s == stand)
+                                {
+                                    occupied = true;
+                                    break;
+                                }
                         }
                         row.gate.color = occupied ? TAG_COLOR_RED : TAG_COLOR_WHITE;
                     }
@@ -1298,10 +1312,10 @@ void CFlowX_CustomTags::UpdateTagCache()
                             bool rwyOccupied = this->ttt_runwayOccupied.contains(designator);
                             if (rwyOccupied && totalSeconds < 30)
                             {
-                                tttDisplay.bgColor    = TAG_BG_COLOR_RED;
-                                tttDisplay.color      = TAG_COLOR_WHITE;
-                                tttDisplay.bold       = true;
-                                tttDisplay.fontDelta  = 2;
+                                tttDisplay.bgColor   = TAG_BG_COLOR_RED;
+                                tttDisplay.color     = TAG_COLOR_WHITE;
+                                tttDisplay.bold      = true;
+                                tttDisplay.fontDelta = 2;
                             }
                             else if (totalSeconds < 15)
                             {
@@ -1490,9 +1504,9 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
             std::string curSid       = fp.GetFlightPlanData().GetSidName();
             std::string dep          = fp.GetFlightPlanData().GetOrigin();
             to_upper(dep);
-            std::string rwy       = fp.GetFlightPlanData().GetDepartureRwy();
-            auto        airportIt = this->airports.find(dep);
-            const std::string& prevSid3 = liveSpacingIt->second.prevSid;
+            std::string        rwy       = fp.GetFlightPlanData().GetDepartureRwy();
+            auto               airportIt = this->airports.find(dep);
+            const std::string& prevSid3  = liveSpacingIt->second.prevSid;
             if (airportIt != this->airports.end() && !prevSid3.empty() && !curSid.empty() && prevSid3.length() > 2 && curSid.length() > 2)
             {
                 auto prevSidKey = prevSid3.substr(0, prevSid3.length() - 2);
@@ -1511,14 +1525,18 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
             }
 
             tagInfo liveTag;
-            liveTag.tag        = std::format("{:4.1f} nm", dist);
-            double greenAt     = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852);
-            double yellowAt    = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852);
-            liveTag.color      = (dist >= greenAt) ? TAG_COLOR_GREEN : (dist >= yellowAt) ? TAG_COLOR_YELLOW : TAG_COLOR_RED;
+            liveTag.tag     = std::format("{:4.1f} nm", dist);
+            double greenAt  = (distRequired >= 5.0) ? 3.0 : (2.4 / 1.852);
+            double yellowAt = (distRequired >= 5.0) ? 2.8 : (2.0 / 1.852);
+            liveTag.color   = (dist >= greenAt) ? TAG_COLOR_GREEN : (dist >= yellowAt) ? TAG_COLOR_YELLOW
+                                                                                       : TAG_COLOR_RED;
 
             for (auto& row : this->radarScreen->twrOutboundRowsCache)
             {
-                if (row.callsign != callSign) { continue; }
+                if (row.callsign != callSign)
+                {
+                    continue;
+                }
                 row.liveSpacing = liveTag;
                 break;
             }
