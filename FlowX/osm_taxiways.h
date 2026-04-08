@@ -61,6 +61,10 @@ double WayLengthM(const OsmWay& way);
 /// @note Best-effort: silently ignores file I/O failures.
 void SaveOsmCache(const OsmAirportData& data);
 
+/// @brief Deletes the cache JSON file from the plugin directory if it exists.
+/// @note Best-effort: silently ignores file I/O failures.
+void DeleteOsmCache();
+
 /// @brief Fetches LOWW taxiway/taxilane geometry from the Overpass API and saves it to the local cache.
 /// @return Populated OsmAirportData on success, or an error string on any network or parse failure.
 /// @note Performs a synchronous HTTPS POST; always call from a background thread.

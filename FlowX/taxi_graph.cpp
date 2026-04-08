@@ -683,7 +683,7 @@ std::string FormatTaxiRoute(const TaxiRoute& route)
     for (const auto& ref : route.wayRefs)
     {
         if (!s.empty())
-            s += " → ";
+            s += " -> ";
         s += '[';
         s += ref;
         s += ']';

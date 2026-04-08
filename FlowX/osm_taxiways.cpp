@@ -199,6 +199,16 @@ void SaveOsmCache(const OsmAirportData& data)
     catch (...) {} // best-effort
 }
 
+void DeleteOsmCache()
+{
+    try
+    {
+        const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
+        std::filesystem::remove(path);
+    }
+    catch (...) {} // best-effort
+}
+
 double WayLengthM(const OsmWay& way)
 {
     double total = 0.0;
@@ -234,51 +244,72 @@ OsmResult fetchLOWWTaxiways()
         return std::unexpected(std::format("OSM fetch: InternetConnect failed ({})", GetLastError()));
     }
 
-    const DWORD flags = INTERNET_FLAG_SECURE | INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
-    HINTERNET hReq = HttpOpenRequest(hConn, "POST", OVERPASS_PATH, NULL, NULL, NULL, flags, 0);
-    if (!hReq)
-    {
-        InternetCloseHandle(hConn);
-        InternetCloseHandle(hNet);
-        return std::unexpected(std::format("OSM fetch: HttpOpenRequest failed ({})", GetLastError()));
-    }
-
     const std::string headers = "Content-Type: application/x-www-form-urlencoded\r\n";
     const std::string body    = "data=" + UrlEncode(OVERPASS_QUERY);
 
-    const BOOL sent = HttpSendRequest(hReq,
-                                      headers.c_str(), static_cast<DWORD>(headers.size()),
-                                      const_cast<char*>(body.c_str()), static_cast<DWORD>(body.size()));
-    if (!sent)
+    constexpr int MAX_ATTEMPTS = 3;
+    std::string   lastError;
+
+    for (int attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt)
     {
+        const DWORD flags = INTERNET_FLAG_SECURE | INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
+        HINTERNET hReq = HttpOpenRequest(hConn, "POST", OVERPASS_PATH, NULL, NULL, NULL, flags, 0);
+        if (!hReq)
+        {
+            InternetCloseHandle(hConn);
+            InternetCloseHandle(hNet);
+            return std::unexpected(std::format("OSM fetch: HttpOpenRequest failed ({})", GetLastError()));
+        }
+
+        const BOOL sent = HttpSendRequest(hReq,
+                                          headers.c_str(), static_cast<DWORD>(headers.size()),
+                                          const_cast<char*>(body.c_str()), static_cast<DWORD>(body.size()));
+        if (!sent)
+        {
+            InternetCloseHandle(hReq);
+            InternetCloseHandle(hConn);
+            InternetCloseHandle(hNet);
+            return std::unexpected(std::format("OSM fetch: HttpSendRequest failed ({})", GetLastError()));
+        }
+
+        DWORD statusCode = 0;
+        DWORD statusSize = sizeof(statusCode);
+        HttpQueryInfo(hReq, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &statusCode, &statusSize, NULL);
+
+        if (statusCode == 504)
+        {
+            InternetCloseHandle(hReq);
+            lastError = std::format("OSM fetch: HTTP 504 (attempt {}/{})", attempt, MAX_ATTEMPTS);
+            // Brief pause before retrying (runs on background thread so Sleep is safe).
+            if (attempt < MAX_ATTEMPTS)
+                Sleep(3000);
+            continue;
+        }
+
+        if (statusCode != 200)
+        {
+            InternetCloseHandle(hReq);
+            InternetCloseHandle(hConn);
+            InternetCloseHandle(hNet);
+            return std::unexpected(std::format("OSM fetch: HTTP status {}", statusCode));
+        }
+
+        char        buf[4096];
+        DWORD       bytesRead;
+        std::string response;
+        while (InternetReadFile(hReq, buf, sizeof(buf), &bytesRead) && bytesRead)
+            response.append(buf, bytesRead);
+
         InternetCloseHandle(hReq);
         InternetCloseHandle(hConn);
         InternetCloseHandle(hNet);
-        return std::unexpected(std::format("OSM fetch: HttpSendRequest failed ({})", GetLastError()));
+
+        return ParseOsmJson(response);
     }
 
-    DWORD statusCode = 0;
-    DWORD statusSize = sizeof(statusCode);
-    HttpQueryInfo(hReq, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &statusCode, &statusSize, NULL);
-    if (statusCode != 200)
-    {
-        InternetCloseHandle(hReq);
-        InternetCloseHandle(hConn);
-        InternetCloseHandle(hNet);
-        return std::unexpected(std::format("OSM fetch: HTTP status {}", statusCode));
-    }
-
-    char   buf[4096];
-    DWORD  bytesRead;
-    std::string response;
-    while (InternetReadFile(hReq, buf, sizeof(buf), &bytesRead) && bytesRead)
-        response.append(buf, bytesRead);
-
-    InternetCloseHandle(hReq);
     InternetCloseHandle(hConn);
     InternetCloseHandle(hNet);
-
-    return ParseOsmJson(response);
+    return std::unexpected(lastError);
 }
 
 OsmResult loadCachedTaxiways()

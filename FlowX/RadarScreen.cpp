@@ -199,7 +199,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
                                           : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
                                           : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
-                                          : (way.type == AerowayType::Runway)               ? RGB(180, 180, 180)
+                                          : (way.type == AerowayType::Runway)               ? RGB(255, 140, 0)
                                                                                             : RGB(255, 220, 0);
                     HPEN           pen  = CreatePen(PS_SOLID, 2, col);
                     HPEN           prev = static_cast<HPEN>(SelectObject(hDC, pen));
@@ -257,10 +257,6 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         if (way.geometry.size() < 2)
                             continue;
 
-                        // Runways don't need per-segment labels in the overlay.
-                        if (way.type == AerowayType::Runway)
-                            continue;
-
                         const std::string& lbl = way.ref.empty() ? way.name : way.ref;
                         if (lbl.empty())
                             continue;
@@ -284,6 +280,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(200, 60, 60)
                                                  : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 120, 220)
                                                  : (way.type == AerowayType::Taxilane)             ? RGB(0, 160, 210)
+                                                 : (way.type == AerowayType::Runway)               ? RGB(200, 100, 0)
                                                                                                    : RGB(180, 140, 0);
 
                         double accum   = 0.0;
@@ -3069,6 +3066,24 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
 {
     try
     {
+        // Double right-click on a ground aircraft target → clear its assigned taxi route.
+        if (ObjectType == SCREEN_OBJECT_TAXI_TARGET && Button == EuroScopePlugIn::BUTTON_RIGHT)
+        {
+            const std::string cs(sObjectId);
+            this->taxiTracked.erase(cs);
+            this->taxiAssigned.erase(cs);
+            this->taxiAssignedTimes.erase(cs);
+            this->taxiSuggested.erase(cs);
+            if (this->taxiPlanActive == cs)
+            {
+                this->taxiPlanActive.clear();
+                this->taxiWaypoints.clear();
+                this->taxiGreenPreview = {};
+            }
+            this->RequestRefresh();
+            return;
+        }
+
         if (ObjectType != SCREEN_OBJECT_TWR_OUT_CELL || Button != EuroScopePlugIn::BUTTON_LEFT)
         {
             return;

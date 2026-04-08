@@ -271,6 +271,15 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
         {
             Func_TakeOff(fp);
             this->RemoveFromDepartureQueue(fp.GetCallsign(), fp.GetFlightPlanData().GetDepartureRwy());
+            // Clear taxi route on takeoff clearance.
+            if (this->radarScreen)
+            {
+                const std::string cs = fp.GetCallsign();
+                this->radarScreen->taxiTracked.erase(cs);
+                this->radarScreen->taxiAssigned.erase(cs);
+                this->radarScreen->taxiAssignedTimes.erase(cs);
+                this->radarScreen->taxiSuggested.erase(cs);
+            }
         }
         else if (FunctionId == TAG_FUNC_TRANSFER_NEXT)
         {
