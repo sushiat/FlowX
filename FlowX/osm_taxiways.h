@@ -20,7 +20,15 @@ struct GeoPoint
 };
 
 /// @brief OSM aeroway tag classification.
-enum class AerowayType { Taxiway, Taxilane, Taxiway_HoldingPoint, Taxiway_Intersection, Runway, Unknown };
+enum class AerowayType
+{
+    Taxiway,
+    Taxilane,
+    Taxiway_HoldingPoint,
+    Taxiway_Intersection,
+    Runway,
+    Unknown
+};
 
 /// @brief A single OSM way element representing a taxiway or taxilane segment.
 struct OsmWay
@@ -44,8 +52,8 @@ struct OsmHoldingPosition
 /// @brief All taxiway/taxilane/runway ways and holding position nodes fetched for the configured airport.
 struct OsmAirportData
 {
-    std::vector<OsmWay>             ways;             ///< Taxiway, taxilane, and runway way segments.
-    std::vector<OsmHoldingPosition> holdingPositions; ///< Runway holding position nodes (aeroway=holding_position).
+    std::vector<OsmWay>             ways;                 ///< Taxiway, taxilane, and runway way segments.
+    std::vector<OsmHoldingPosition> holdingPositions;     ///< Runway holding position nodes (aeroway=holding_position).
     bool                            preAnnotated = false; ///< True when loaded from a cache file that already contains annotated types; skips re-annotation in PollOsmFuture.
 };
 

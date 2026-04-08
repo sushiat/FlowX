@@ -27,7 +27,6 @@ static constexpr const char* OVERPASS_QUERY =
     "(\n"
     "  way[\"aeroway\"=\"taxiway\"](around:6500,48.1103,16.5697);\n"
     "  way[\"aeroway\"=\"taxilane\"](around:6500,48.1103,16.5697);\n"
-    "  way[\"aeroway\"=\"runway\"](around:6500,48.1103,16.5697);\n"
     "  node[\"aeroway\"=\"holding_position\"](around:6500,48.1103,16.5697);\n"
     ");\n"
     "out geom;";
@@ -89,7 +88,6 @@ static OsmResult ParseOsmJson(const std::string& raw)
                         const std::string aeroway = tags.value("aeroway", std::string{});
                         if      (aeroway == "taxiway")  way.type = AerowayType::Taxiway;
                         else if (aeroway == "taxilane") way.type = AerowayType::Taxilane;
-                        else if (aeroway == "runway")   way.type = AerowayType::Runway;
                         else                            way.type = AerowayType::Unknown;
                         way.ref  = tags.value("ref",  std::string{});
                         way.name = tags.value("name", std::string{});
@@ -170,7 +168,6 @@ void SaveOsmCache(const OsmAirportData& data)
                        : (w.type == AerowayType::Taxiway_Intersection)  ? "taxiway_intersection"
                        : (w.type == AerowayType::Taxiway)               ? "taxiway"
                        : (w.type == AerowayType::Taxilane)              ? "taxilane"
-                       : (w.type == AerowayType::Runway)                ? "runway"
                                                                         : "unknown";
             wj["ref"]  = w.ref;
             wj["name"] = w.name;

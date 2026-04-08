@@ -45,8 +45,8 @@ struct TaxiNode
 /// @brief An ordered sequence of geographic positions forming a taxi path.
 struct TaxiRoute
 {
-    std::vector<GeoPoint>    polyline;           ///< Screen-rendered path.
-    std::vector<std::string> wayRefs;            ///< Taxiway refs traversed in order (for debug).
+    std::vector<GeoPoint>    polyline; ///< Screen-rendered path.
+    std::vector<std::string> wayRefs;  ///< Taxiway refs traversed in order (for debug).
     double                   totalDistM  = 0.0;
     double                   exitBearing = -1.0; ///< True bearing (°) of the final path edge; -1 = unknown.
     bool                     valid       = false;
@@ -108,8 +108,8 @@ inline double PointToSegmentDistM(const GeoPoint& P, const GeoPoint& A, const Ge
     if (len2 < 1e-10)
         return HaversineM(P, A);
 
-    const double t = std::clamp((apx * abx + apy * aby) / len2, 0.0, 1.0);
-    const GeoPoint proj{ A.lat + aby * t / scaleLat, A.lon + abx * t / scaleLon };
+    const double   t = std::clamp((apx * abx + apy * aby) / len2, 0.0, 1.0);
+    const GeoPoint proj{A.lat + aby * t / scaleLat, A.lon + abx * t / scaleLon};
     return HaversineM(P, proj);
 }
 
@@ -234,6 +234,10 @@ class TaxiGraph
     /// @return {0,0} if the key is not found.
     [[nodiscard]] static GeoPoint StandCentroid(const std::string&                    icaoStandKey,
                                                 const std::map<std::string, grStand>& grStands);
+
+    /// @brief Derived runway centreline polylines (one per runway pair), populated by Build().
+    /// Used for overlay rendering; not part of the OSM way data set.
+    std::vector<std::vector<GeoPoint>> runwayCentrelines;
 
   private:
     struct Edge

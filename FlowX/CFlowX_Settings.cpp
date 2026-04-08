@@ -218,7 +218,7 @@ void CFlowX_Settings::PollOsmFuture()
 
     if (this->osmData.preAnnotated)
     {
-        int hpCount = 0, isxCount = 0, twCount = 0, tlCount = 0, rwCount = 0;
+        int hpCount = 0, isxCount = 0, twCount = 0, tlCount = 0;
         for (const auto& way : this->osmData.ways)
         {
             switch (way.type)
@@ -227,13 +227,12 @@ void CFlowX_Settings::PollOsmFuture()
             case AerowayType::Taxiway_Intersection: isxCount++; break;
             case AerowayType::Taxiway:              twCount++;  break;
             case AerowayType::Taxilane:             tlCount++;  break;
-            case AerowayType::Runway:               rwCount++;  break;
             default: break;
             }
         }
         this->LogDebugMessage(
-            std::format("Loaded {} ways ({} taxiways, {} taxilanes, {} HP, {} intersections, {} runways), {} holding positions from cache",
-                        this->osmData.ways.size(), twCount, tlCount, hpCount, isxCount, rwCount,
+            std::format("Loaded {} ways ({} taxiways, {} taxilanes, {} HP, {} intersections), {} holding positions from cache",
+                        this->osmData.ways.size(), twCount, tlCount, hpCount, isxCount,
                         this->osmData.holdingPositions.size()), "OSM");
     }
     else
@@ -279,8 +278,8 @@ void CFlowX_Settings::PollOsmFuture()
             kept.reserve(this->osmData.ways.size());
             for (auto& way : this->osmData.ways)
             {
-                // Holding-point and runway ways are kept as-is; runways need no config entry.
-                if (way.type == AerowayType::Taxiway_HoldingPoint || way.type == AerowayType::Runway)
+                // Holding-point ways are kept as-is; no config entry required.
+                if (way.type == AerowayType::Taxiway_HoldingPoint)
                 {
                     kept.push_back(std::move(way));
                     continue;
@@ -294,7 +293,7 @@ void CFlowX_Settings::PollOsmFuture()
             this->osmData.ways = std::move(kept);
         }
 
-        int hpCount = 0, isxCount = 0, twCount = 0, tlCount = 0, rwCount = 0;
+        int hpCount = 0, isxCount = 0, twCount = 0, tlCount = 0;
         for (const auto& way : this->osmData.ways)
         {
             switch (way.type)
@@ -303,13 +302,12 @@ void CFlowX_Settings::PollOsmFuture()
             case AerowayType::Taxiway_Intersection: isxCount++; break;
             case AerowayType::Taxiway:              twCount++;  break;
             case AerowayType::Taxilane:             tlCount++;  break;
-            case AerowayType::Runway:               rwCount++;  break;
             default: break;
             }
         }
         this->LogDebugMessage(
-            std::format("Annotated {} ways ({} taxiways, {} taxilanes, {} HP, {} intersections, {} runways), {} holding positions; saving cache",
-                        this->osmData.ways.size(), twCount, tlCount, hpCount, isxCount, rwCount,
+            std::format("Annotated {} ways ({} taxiways, {} taxilanes, {} HP, {} intersections), {} holding positions; saving cache",
+                        this->osmData.ways.size(), twCount, tlCount, hpCount, isxCount,
                         this->osmData.holdingPositions.size()), "OSM");
 
         // Delete stale cache before writing fresh data.

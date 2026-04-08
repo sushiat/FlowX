@@ -226,6 +226,28 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     DeleteObject(pen);
                 }
 
+                // Pass 1b — derived runway centrelines (config-based, not from OSM ways).
+                if (this->showTaxiOverlay)
+                {
+                    HPEN rwPen  = CreatePen(PS_SOLID, 3, RGB(255, 140, 0));
+                    HPEN rwPrev = static_cast<HPEN>(SelectObject(hDC, rwPen));
+                    for (const auto& cl : settings->osmGraph.runwayCentrelines)
+                    {
+                        bool first = true;
+                        for (const auto& gp : cl)
+                        {
+                            EuroScopePlugIn::CPosition pos;
+                            pos.m_Latitude  = gp.lat;
+                            pos.m_Longitude = gp.lon;
+                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                            if (first) { MoveToEx(hDC, pt.x, pt.y, nullptr); first = false; }
+                            else         LineTo(hDC, pt.x, pt.y);
+                        }
+                    }
+                    SelectObject(hDC, rwPrev);
+                    DeleteObject(rwPen);
+                }
+
                 // Pass 2+3 — labels and holding position nodes; gated on showTaxiLabels.
                 if (this->showTaxiLabels)
                 {
@@ -282,7 +304,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(200, 60, 60)
                                                  : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 120, 220)
                                                  : (way.type == AerowayType::Taxilane)             ? RGB(0, 160, 210)
-                                                 : (way.type == AerowayType::Runway)               ? RGB(200, 100, 0)
+                                                 : (way.type == AerowayType::Runway)               ? RGB(200, 90, 0)
                                                                                                    : RGB(180, 140, 0);
 
                         double accum   = 0.0;
