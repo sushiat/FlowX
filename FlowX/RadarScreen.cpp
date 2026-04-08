@@ -402,6 +402,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 HPEN pen  = CreatePen(PS_SOLID, 2, RGB(80, 220, 80));
                 HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
 
+                std::vector<std::string> routesDone;
                 for (const auto& [cs, route] : this->taxiTracked)
                 {
                     if (!route.valid || route.polyline.size() < 2)
@@ -430,6 +431,13 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         }
                     }
 
+                    // If the aircraft is at or past the last node, the route is complete — erase it.
+                    if (closestIdx == route.polyline.size() - 1 && closestDist <= 100 * 100)
+                    {
+                        routesDone.push_back(cs);
+                        continue;
+                    }
+
                     // Draw from aircraft pixel position through the remaining polyline nodes.
                     MoveToEx(hDC, acPt.x, acPt.y, nullptr);
                     for (size_t i = closestIdx; i < route.polyline.size(); ++i)
@@ -444,6 +452,13 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
                 SelectObject(hDC, prev);
                 DeleteObject(pen);
+
+                for (const auto& cs : routesDone)
+                {
+                    this->taxiTracked.erase(cs);
+                    this->taxiAssigned.erase(cs);
+                    this->taxiAssignedTimes.erase(cs);
+                }
             }
 
             // Draw planning mode: yellow suggestion + green preview + via-point markers.
@@ -2655,9 +2670,29 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 this->taxiAssigned[this->taxiPlanActive]      = finalRoute;
                 this->taxiAssignedTimes[this->taxiPlanActive] = GetTickCount64();
                 this->taxiTracked[this->taxiPlanActive]       = finalRoute; // persistent for Show routes
-                auto* settings                                = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-                if (settings->GetDebug())
-                    settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
+
+                // Assign ground state if not already set: TAXI for departures, TXIN for inbounds.
+                auto  fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
+                if (fp.IsValid())
+                {
+                    auto* settings   = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                    std::string ourIcao;
+                    if (!settings->GetAirports().empty())
+                        ourIcao = settings->GetAirports().begin()->first;
+                    std::string arr = fp.GetFlightPlanData().GetDestination();
+                    to_upper(arr);
+                    const bool  inbound      = (!ourIcao.empty() && arr == ourIcao);
+                    const char* targetState  = inbound ? "TXIN" : "TAXI";
+                    std::string currentState = fp.GetGroundState();
+                    if (currentState != targetState)
+                    {
+                        std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
+                        fp.GetControllerAssignedData().SetScratchPadString(targetState);
+                        fp.GetControllerAssignedData().SetScratchPadString(scratch.c_str());
+                    }
+                    if (settings->GetDebug())
+                        settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
+                }
             }
 
             this->taxiPlanActive.clear();

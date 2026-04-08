@@ -779,7 +779,13 @@ void CFlowX_Timers::CheckArrivedAtStand()
 
         this->gndTransfer_list.erase(callSign);
         this->gndTransfer_soundPlayed.erase(callSign);
-        if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
+        if (this->radarScreen)
+        {
+            this->radarScreen->gndTransferSquares.erase(callSign);
+            this->radarScreen->taxiTracked.erase(callSign);
+            this->radarScreen->taxiAssigned.erase(callSign);
+            this->radarScreen->taxiAssignedTimes.erase(callSign);
+        }
 
         this->LogDebugMessage(callSign + " auto-PARK at stand " + standIt->second, "GND");
     }
