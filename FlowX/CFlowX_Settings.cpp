@@ -404,6 +404,7 @@ void CFlowX_Settings::LoadSettings()
             this->soundAirborne       = j["global"].value("soundAirborne", true);
             this->soundGndTransfer    = j["global"].value("soundGndTransfer", true);
             this->soundReadyTakeoff   = j["global"].value("soundReadyTakeoff", true);
+            this->soundTaxiConflict   = j["global"].value("soundTaxiConflict", true);
             this->updateCheck         = j["global"].value("updateCheck", true);
         }
         if (this->debug)
@@ -480,6 +481,7 @@ void CFlowX_Settings::SaveSettings()
         j["global"]["soundAirborne"]       = this->soundAirborne;
         j["global"]["soundGndTransfer"]    = this->soundGndTransfer;
         j["global"]["soundReadyTakeoff"]   = this->soundReadyTakeoff;
+        j["global"]["soundTaxiConflict"]   = this->soundTaxiConflict;
         j["global"]["updateCheck"]         = this->updateCheck;
 
         json windows = json::array();

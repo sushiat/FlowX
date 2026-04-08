@@ -245,6 +245,15 @@ class TaxiGraph
     [[nodiscard]] std::set<int> NodesToBlock(const std::vector<GeoPoint>& polyline,
                                              double                       radiusM = 3.0) const;
 
+    /// @brief Walks the taxiway network greedily from @p from in @p bearingDeg for up to @p maxDistM metres.
+    ///
+    /// At each node the neighbour edge whose bearing is closest to the current travel bearing is
+    /// selected (±90° maximum deviation); the travel bearing updates to each chosen edge so curves
+    /// are followed naturally. Stops at dead ends or when maxDistM is reached (final segment is
+    /// interpolated). The start position is snapped to the nearest graph node.
+    /// @return Polyline starting at the snapped origin; valid = true when at least one node was found.
+    [[nodiscard]] TaxiRoute WalkGraph(const GeoPoint& from, double bearingDeg, double maxDistM) const;
+
     /// @brief Returns edge geometry (GeoPoint pairs) forming the dead-end sub-graph that
     ///        contains @p dest but is cut off by @p blockedNodes.
     /// Returns empty when @p dest is still reachable through unblocked paths.

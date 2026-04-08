@@ -52,6 +52,7 @@ class CFlowX_Settings : public CFlowX_Logging
     bool                           soundAirborne      = true;   ///< Whether the airborne audio alert is enabled
     bool                           soundGndTransfer   = true;   ///< Whether the GND transfer audio alert is enabled
     bool                           soundReadyTakeoff  = true;   ///< Whether the ready-for-takeoff audio alert is enabled
+    bool                           soundTaxiConflict  = true;   ///< Whether the taxi conflict audio alert is enabled
     bool                           twrInboundVisible  = true;   ///< Whether the TWR Inbound window is visible; restored from settings.json
     int                            twrInboundWindowX  = -1;     ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
     int                            twrInboundWindowY  = -1;     ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
@@ -275,6 +276,12 @@ class CFlowX_Settings : public CFlowX_Logging
         return this->soundReadyTakeoff;
     }
 
+    /// @brief Returns whether the taxi conflict audio alert is enabled.
+    [[nodiscard]] bool GetSoundTaxiConflict() const
+    {
+        return this->soundTaxiConflict;
+    }
+
     /// @brief Returns whether the TWR Inbound window is currently visible.
     [[nodiscard]] bool GetTwrInboundVisible() const
     {
@@ -389,6 +396,13 @@ class CFlowX_Settings : public CFlowX_Logging
     void ToggleSoundReadyTakeoff()
     {
         this->soundReadyTakeoff = !this->soundReadyTakeoff;
+        SaveSettings();
+    }
+
+    /// @brief Toggles the taxi conflict audio alert and persists immediately.
+    void ToggleSoundTaxiConflict()
+    {
+        this->soundTaxiConflict = !this->soundTaxiConflict;
         SaveSettings();
     }
 

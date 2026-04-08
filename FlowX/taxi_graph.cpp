@@ -683,6 +683,74 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Push zone walk
+// ─────────────────────────────────────────────────────────────────────────────
+
+TaxiRoute TaxiGraph::WalkGraph(const GeoPoint& from, double bearingDeg, double maxDistM) const
+{
+    TaxiRoute result;
+    if (nodes_.empty())
+        return result;
+
+    const int startId = NearestNode(from);
+    if (startId < 0)
+        return result;
+
+    result.polyline.push_back(nodes_[startId].pos);
+    result.valid = true;
+
+    int    cur     = startId;
+    int    prev    = -1;
+    double accum   = 0.0;
+    double curBrng = bearingDeg;
+
+    for (;;)
+    {
+        int    bestTo   = -1;
+        double bestDiff = 90.0; // only accept edges within ±90° of current bearing
+        double bestBrng = curBrng;
+
+        for (const auto& e : adj_[cur])
+        {
+            if (e.to == prev)
+                continue; // no backtracking
+            const double diff = BearingDiff(e.bearingDeg, curBrng);
+            if (diff < bestDiff)
+            {
+                bestDiff = diff;
+                bestTo   = e.to;
+                bestBrng = e.bearingDeg;
+            }
+        }
+
+        if (bestTo < 0)
+            break; // dead end or no edge within ±90°
+
+        const double edgeDist = HaversineM(nodes_[cur].pos, nodes_[bestTo].pos);
+        if (accum + edgeDist >= maxDistM)
+        {
+            // Interpolate the stopping point along this edge.
+            const double   frac = (maxDistM - accum) / edgeDist;
+            const GeoPoint stop = {
+                nodes_[cur].pos.lat + frac * (nodes_[bestTo].pos.lat - nodes_[cur].pos.lat),
+                nodes_[cur].pos.lon + frac * (nodes_[bestTo].pos.lon - nodes_[cur].pos.lon)};
+            result.polyline.push_back(stop);
+            accum = maxDistM;
+            break;
+        }
+
+        accum += edgeDist;
+        result.polyline.push_back(nodes_[bestTo].pos);
+        prev    = cur;
+        cur     = bestTo;
+        curBrng = bestBrng; // follow curves naturally
+    }
+
+    result.totalDistM = accum;
+    return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Snapping
 // ─────────────────────────────────────────────────────────────────────────────
 

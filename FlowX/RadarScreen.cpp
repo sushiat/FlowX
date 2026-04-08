@@ -536,7 +536,8 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     if (sugIt != this->taxiSuggested.end())
                         drawRoute(sugIt->second, RGB(255, 220, 0), 2); // yellow suggestion
                 }
-                drawRoute(this->taxiGreenPreview, RGB(255, 0, 220), 3); // magenta preview
+                const COLORREF previewCol = this->taxiPlanIsPush ? RGB(100, 200, 255) : RGB(255, 0, 220);
+                drawRoute(this->taxiGreenPreview, previewCol, 3); // light-blue (push) or magenta (taxi)
 
                 // Draw via-point markers as small cyan squares.
                 for (const auto& wp : this->taxiWaypoints)
@@ -670,6 +671,52 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
 // ─────────────────────────────────────────────────────────────────────────────
 // Taxi safety monitoring
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Returns a GeoPoint offset from @p origin by @p distM metres along @p bearingDeg.
+static GeoPoint PushZonePoint(const GeoPoint& origin, double bearingDeg, double distM)
+{
+    constexpr double PI   = 3.14159265358979323846;
+    constexpr double R    = 6371000.0;
+    const double     d    = distM / R;
+    const double     lat1 = origin.lat * PI / 180.0;
+    const double     lon1 = origin.lon * PI / 180.0;
+    const double     brng = bearingDeg * PI / 180.0;
+    const double     lat2 = std::asin(std::sin(lat1) * std::cos(d) +
+                                      std::cos(lat1) * std::sin(d) * std::cos(brng));
+    const double     lon2 =
+        lon1 + std::atan2(std::sin(brng) * std::sin(d) * std::cos(lat1),
+                          std::cos(d) - std::sin(lat1) * std::sin(lat2));
+    return {lat2 * 180.0 / PI, lon2 * 180.0 / PI};
+}
+
+/// @brief Builds a push-zone polyline entirely on the taxiway network.
+///
+/// Walks @p armADistM in @p armABrng and @p armBDistM in @p armBBrng from @p pivot,
+/// then concatenates: armB-end → pivot → armA-end.
+static TaxiRoute BuildPushZone(const TaxiGraph& graph, const GeoPoint& pivot,
+                               double armABrng, double armADistM,
+                               double armBBrng, double armBDistM)
+{
+    TaxiRoute armA = graph.WalkGraph(pivot, armABrng, armADistM);
+    TaxiRoute armB = graph.WalkGraph(pivot, armBBrng, armBDistM);
+
+    TaxiRoute combined;
+    combined.valid = armA.valid || armB.valid;
+
+    // Lay out: reverse(armB) then armA, skipping the duplicate pivot point.
+    if (armB.valid && !armB.polyline.empty())
+        combined.polyline.insert(combined.polyline.end(), armB.polyline.rbegin(), armB.polyline.rend());
+
+    if (armA.valid && !armA.polyline.empty())
+    {
+        auto start = armA.polyline.cbegin();
+        if (!combined.polyline.empty())
+            ++start; // first point of armA == pivot, already present
+        combined.polyline.insert(combined.polyline.end(), start, armA.polyline.cend());
+    }
+
+    return combined;
+}
 
 void RadarScreen::UpdateTaxiSafety()
 {
@@ -870,14 +917,18 @@ void RadarScreen::UpdateTaxiSafety()
                   [&](const auto& kv)
                   { return !under15Keys.contains(kv.first); });
 
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     for (const auto& key : under15Keys)
     {
         if (!this->taxiConflictSoundPlayed.contains(key) &&
             now - this->taxiConflictFirstSeen[key] >= 2000)
         {
-            const std::filesystem::path wav =
-                std::filesystem::path(GetPluginDirectory()) / "taxiConflict.wav";
-            PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+            if (settings->GetSoundTaxiConflict())
+            {
+                const std::filesystem::path wav =
+                    std::filesystem::path(GetPluginDirectory()) / "taxiConflict.wav";
+                PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+            }
             this->taxiConflictSoundPlayed.insert(key);
             break; // at most one sound per cycle
         }
@@ -2513,6 +2564,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Airborne", true, settings->GetSoundAirborne(), 19},
         {false, "GND Transfer", true, settings->GetSoundGndTransfer(), 20},
         {false, "Ready T/O", true, settings->GetSoundReadyTakeoff(), 21},
+        {false, "Taxi Conflict", true, settings->GetSoundTaxiConflict(), 27},
         {true, "Options", false, false, -1},
         {false, "Debug mode", true, base->GetDebug(), 2},
         {false, "Update check", true, settings->GetUpdateCheck(), 13},
@@ -2947,20 +2999,73 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                     GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
                     const double               heading = rt.GetPosition().GetReportedHeadingTrueNorth();
 
-                    // For taxi (not push) planning, route around active push routes.
-                    std::set<int> blocked;
-                    if (!this->taxiPlanIsPush)
+                    if (this->taxiPlanIsPush)
                     {
+                        // Push zone: all geometry stays on the taxiway network via WalkGraph.
+                        // Cursor arm uses FindRoute (A*) so it handles junctions/curves correctly.
+                        // Fixed arm uses WalkGraph (greedy 25 m in opposite direction).
+                        // When cursor is too close to pivot (bearing unreliable) or off-network,
+                        // fall back to the symmetric 50 m initial zone.
+                        constexpr double MIN_BEARING_M = 15.0;
+                        const double     cursorDistM =
+                            HaversineM(this->taxiPushOrigin, this->taxiCursorSnap);
+                        const double pushDir  = std::fmod(this->taxiPushHeading + 180.0, 360.0);
+                        const double taxiDirA = std::fmod(pushDir + 90.0, 360.0);
+                        const double taxiDirB = std::fmod(pushDir - 90.0 + 360.0, 360.0);
+
+                        if (cursorDistM < MIN_BEARING_M)
+                        {
+                            // Too close — keep symmetric zone stable.
+                            this->taxiGreenPreview =
+                                BuildPushZone(settings->osmGraph, this->taxiPushOrigin,
+                                              taxiDirA, 50.0, taxiDirB, 50.0);
+                        }
+                        else
+                        {
+                            const double brng    = BearingDeg(this->taxiPushOrigin, this->taxiCursorSnap);
+                            const double oppBrng = std::fmod(brng + 180.0, 360.0);
+
+                            TaxiRoute cursorArm = settings->osmGraph.FindRoute(
+                                this->taxiPushOrigin, this->taxiCursorSnap,
+                                0.0, settings->GetActiveDepRunways(), -1.0, {});
+                            TaxiRoute fixedArm =
+                                settings->osmGraph.WalkGraph(this->taxiPushOrigin, oppBrng, 25.0);
+
+                            if (!cursorArm.valid || cursorArm.polyline.size() <= 1)
+                            {
+                                // Cursor off-network — show symmetric zone.
+                                this->taxiGreenPreview =
+                                    BuildPushZone(settings->osmGraph, this->taxiPushOrigin,
+                                                  taxiDirA, 50.0, taxiDirB, 50.0);
+                            }
+                            else
+                            {
+                                // Combine: reverse(fixedArm) then cursorArm (skip duplicate pivot).
+                                if (fixedArm.valid && fixedArm.polyline.size() > 1)
+                                {
+                                    cursorArm.polyline.insert(
+                                        cursorArm.polyline.begin(),
+                                        fixedArm.polyline.rbegin(),
+                                        std::prev(fixedArm.polyline.rend()));
+                                }
+                                this->taxiGreenPreview = cursorArm;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // For taxi planning, route around active push routes.
+                        std::set<int> blocked;
                         for (const auto& [_, pushRoute] : this->pushTracked)
                         {
                             auto b = settings->osmGraph.NodesToBlock(pushRoute.polyline, 3.0);
                             blocked.insert(b.begin(), b.end());
                         }
-                    }
 
-                    this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
-                        origin, this->taxiWaypoints, this->taxiCursorSnap,
-                        0.0, settings->GetActiveDepRunways(), heading, blocked);
+                        this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
+                            origin, this->taxiWaypoints, this->taxiCursorSnap,
+                            0.0, settings->GetActiveDepRunways(), heading, blocked);
+                    }
                 }
                 this->RequestRefresh();
             }
@@ -3149,6 +3254,24 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
             EuroScopePlugIn::CPosition rpos = rt.GetPosition().GetPosition();
             GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
+
+            if (this->taxiPlanIsPush)
+            {
+                // Push mode: snap pivot to nearest graph node ~30 m behind stand.
+                const double heading      = rt.GetPosition().GetReportedHeadingTrueNorth();
+                this->taxiPushHeading     = heading;
+                const double   pushDir    = std::fmod(heading + 180.0, 360.0);
+                const GeoPoint rawPivot   = PushZonePoint(origin, pushDir, 30.0);
+                auto [snapped, snapLabel] = settings->osmGraph.SnapNearest(rawPivot, 80.0);
+                this->taxiPushOrigin      = snapped.lat != 0.0 ? snapped : rawPivot;
+
+                // Initial zone: 50 m each side along the taxiway (±90° from push direction).
+                // WalkGraph follows actual graph edges so the zone is always on the network.
+                const double taxiDirA  = std::fmod(pushDir + 90.0, 360.0);
+                const double taxiDirB  = std::fmod(pushDir - 90.0 + 360.0, 360.0);
+                this->taxiGreenPreview = BuildPushZone(settings->osmGraph, this->taxiPushOrigin,
+                                                       taxiDirA, 50.0, taxiDirB, 50.0);
+            }
 
             if (!this->taxiPlanIsPush)
             {
@@ -3431,6 +3554,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 else if (idx == 21)
                 {
                     settings->ToggleSoundReadyTakeoff();
+                }
+                else if (idx == 27)
+                {
+                    settings->ToggleSoundTaxiConflict();
                 }
                 else if (idx == 22) // Update TAXI info
                 {
