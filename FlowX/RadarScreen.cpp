@@ -196,35 +196,35 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             {
                 // Pass 1 — draw polylines, one pen per way.
                 if (this->showTaxiOverlay)
-                for (const auto& way : settings->osmData.ways)
-                {
-                    const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
-                                          : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
-                                          : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
-                                          : (way.type == AerowayType::Runway)               ? RGB(255, 140, 0)
-                                                                                            : RGB(255, 220, 0);
-                    HPEN           pen  = CreatePen(PS_SOLID, 2, col);
-                    HPEN           prev = static_cast<HPEN>(SelectObject(hDC, pen));
-
-                    bool first = true;
-                    for (const auto& gp : way.geometry)
+                    for (const auto& way : settings->osmData.ways)
                     {
-                        EuroScopePlugIn::CPosition pos;
-                        pos.m_Latitude  = gp.lat;
-                        pos.m_Longitude = gp.lon;
-                        const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                        if (first)
-                        {
-                            MoveToEx(hDC, pt.x, pt.y, nullptr);
-                            first = false;
-                        }
-                        else
-                            LineTo(hDC, pt.x, pt.y);
-                    }
+                        const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
+                                              : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
+                                              : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
+                                              : (way.type == AerowayType::Runway)               ? RGB(255, 140, 0)
+                                                                                                : RGB(255, 220, 0);
+                        HPEN           pen  = CreatePen(PS_SOLID, 2, col);
+                        HPEN           prev = static_cast<HPEN>(SelectObject(hDC, pen));
 
-                    SelectObject(hDC, prev);
-                    DeleteObject(pen);
-                }
+                        bool first = true;
+                        for (const auto& gp : way.geometry)
+                        {
+                            EuroScopePlugIn::CPosition pos;
+                            pos.m_Latitude  = gp.lat;
+                            pos.m_Longitude = gp.lon;
+                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                            if (first)
+                            {
+                                MoveToEx(hDC, pt.x, pt.y, nullptr);
+                                first = false;
+                            }
+                            else
+                                LineTo(hDC, pt.x, pt.y);
+                        }
+
+                        SelectObject(hDC, prev);
+                        DeleteObject(pen);
+                    }
 
                 // Pass 1b — derived runway centrelines (config-based, not from OSM ways).
                 if (this->showTaxiOverlay)
@@ -240,8 +240,13 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                             pos.m_Latitude  = gp.lat;
                             pos.m_Longitude = gp.lon;
                             const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                            if (first) { MoveToEx(hDC, pt.x, pt.y, nullptr); first = false; }
-                            else         LineTo(hDC, pt.x, pt.y);
+                            if (first)
+                            {
+                                MoveToEx(hDC, pt.x, pt.y, nullptr);
+                                first = false;
+                            }
+                            else
+                                LineTo(hDC, pt.x, pt.y);
                         }
                     }
                     SelectObject(hDC, rwPrev);
@@ -436,9 +441,9 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         continue;
 
                     // Find the polyline node closest to the aircraft in screen space.
-                    const POINT acPt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
-                    size_t closestIdx  = 0;
-                    long   closestDist = LONG_MAX;
+                    const POINT acPt        = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
+                    size_t      closestIdx  = 0;
+                    long        closestDist = LONG_MAX;
                     for (size_t i = 0; i < route.polyline.size(); ++i)
                     {
                         EuroScopePlugIn::CPosition pos;
@@ -518,7 +523,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
                 auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
                 if (sugIt != this->taxiSuggested.end())
-                    drawRoute(sugIt->second, RGB(255, 220, 0), 2);        // yellow suggestion
+                    drawRoute(sugIt->second, RGB(255, 220, 0), 2);      // yellow suggestion
                 drawRoute(this->taxiGreenPreview, RGB(255, 0, 220), 3); // magenta preview (user-adjusted)
 
                 // Draw via-point markers as small cyan squares.
@@ -536,12 +541,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     DeleteObject(wbrush);
                     DeleteObject(wpen);
                 }
-
             }
 
             // Recompute route deviation and conflict state (throttled to ~250 ms).
             this->UpdateTaxiSafety();
-
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
@@ -688,15 +691,15 @@ void RadarScreen::UpdateTaxiSafety()
         if (!rt.IsValid() || !rt.GetPosition().IsValid())
             continue;
 
-        const double gs_kt = rt.GetPosition().GetReportedGS();
-        const GeoPoint acPos{ rt.GetPosition().GetPosition().m_Latitude,
-                              rt.GetPosition().GetPosition().m_Longitude };
+        const double   gs_kt = rt.GetPosition().GetReportedGS();
+        const GeoPoint acPos{rt.GetPosition().GetPosition().m_Latitude,
+                             rt.GetPosition().GetPosition().m_Longitude};
 
         // ── Deviation check ──────────────────────────────────────────────────
         double minDist = std::numeric_limits<double>::max();
         for (size_t i = 1; i < route.polyline.size(); ++i)
             minDist = std::min(minDist,
-                PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
+                               PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
         if (gs_kt > MIN_GS_KT && minDist > DEVIATION_THRESH_M)
             this->taxiDeviations.insert(cs);
 
@@ -719,20 +722,20 @@ void RadarScreen::UpdateTaxiSafety()
         }
 
         std::vector<TimedPt> path;
-        path.push_back({ acPos, 0.0 });
+        path.push_back({acPos, 0.0});
         double t = 0.0;
 
         // Distance from aircraft position to the next node (B-end of closest segment).
         t += HaversineM(acPos, route.polyline[bestSeg]) / gs_ms;
         if (t <= MAX_PREDICT_S)
-            path.push_back({ route.polyline[bestSeg], t });
+            path.push_back({route.polyline[bestSeg], t});
 
         for (size_t i = bestSeg + 1; i < route.polyline.size(); ++i)
         {
             t += HaversineM(route.polyline[i - 1], route.polyline[i]) / gs_ms;
             if (t > MAX_PREDICT_S)
                 break;
-            path.push_back({ route.polyline[i], t });
+            path.push_back({route.polyline[i], t});
         }
 
         if (path.size() >= 2)
@@ -767,18 +770,20 @@ void RadarScreen::UpdateTaxiSafety()
                         continue;
 
                     // Interpolate arrival time at the intersection.
-                    const double distA  = HaversineM(pathA[a - 1].pos, pathA[a].pos);
-                    const double fracA  = (distA > 0.1)
-                        ? std::clamp(HaversineM(pathA[a - 1].pos, isxPt) / distA, 0.0, 1.0) : 0.0;
-                    const double tA     = pathA[a - 1].t + fracA * (pathA[a].t - pathA[a - 1].t);
+                    const double distA = HaversineM(pathA[a - 1].pos, pathA[a].pos);
+                    const double fracA = (distA > 0.1)
+                                             ? std::clamp(HaversineM(pathA[a - 1].pos, isxPt) / distA, 0.0, 1.0)
+                                             : 0.0;
+                    const double tA    = pathA[a - 1].t + fracA * (pathA[a].t - pathA[a - 1].t);
 
-                    const double distB  = HaversineM(pathB[b - 1].pos, pathB[b].pos);
-                    const double fracB  = (distB > 0.1)
-                        ? std::clamp(HaversineM(pathB[b - 1].pos, isxPt) / distB, 0.0, 1.0) : 0.0;
-                    const double tB     = pathB[b - 1].t + fracB * (pathB[b].t - pathB[b - 1].t);
+                    const double distB = HaversineM(pathB[b - 1].pos, pathB[b].pos);
+                    const double fracB = (distB > 0.1)
+                                             ? std::clamp(HaversineM(pathB[b - 1].pos, isxPt) / distB, 0.0, 1.0)
+                                             : 0.0;
+                    const double tB    = pathB[b - 1].t + fracB * (pathB[b].t - pathB[b - 1].t);
 
                     if (std::abs(tA - tB) < CONFLICT_DELTA_S)
-                        this->taxiConflicts.push_back({ keys[i], keys[j], isxPt, tA, tB, a, b });
+                        this->taxiConflicts.push_back({keys[i], keys[j], isxPt, tA, tB, a, b});
                 }
             }
         }
@@ -802,10 +807,10 @@ void RadarScreen::DrawTaxiConflicts(HDC hDC)
             if (it == this->taxiTracked.end() || segIdx == 0 || segIdx >= it->second.polyline.size())
                 return;
             EuroScopePlugIn::CPosition p0, p1;
-            p0.m_Latitude  = it->second.polyline[segIdx - 1].lat;
-            p0.m_Longitude = it->second.polyline[segIdx - 1].lon;
-            p1.m_Latitude  = it->second.polyline[segIdx].lat;
-            p1.m_Longitude = it->second.polyline[segIdx].lon;
+            p0.m_Latitude   = it->second.polyline[segIdx - 1].lat;
+            p0.m_Longitude  = it->second.polyline[segIdx - 1].lon;
+            p1.m_Latitude   = it->second.polyline[segIdx].lat;
+            p1.m_Longitude  = it->second.polyline[segIdx].lon;
             const POINT pt0 = ConvertCoordFromPositionToPixel(p0);
             const POINT pt1 = ConvertCoordFromPositionToPixel(p1);
             MoveToEx(hDC, pt0.x, pt0.y, nullptr);
@@ -816,11 +821,11 @@ void RadarScreen::DrawTaxiConflicts(HDC hDC)
 
         // Intersection marker: 6×6 filled red square.
         EuroScopePlugIn::CPosition isxCPos;
-        isxCPos.m_Latitude  = c.pt.lat;
-        isxCPos.m_Longitude = c.pt.lon;
-        const POINT px = ConvertCoordFromPositionToPixel(isxCPos);
-        HBRUSH redBrush = CreateSolidBrush(RGB(220, 50, 50));
-        const RECT sq   = { px.x - 3, px.y - 3, px.x + 3, px.y + 3 };
+        isxCPos.m_Latitude   = c.pt.lat;
+        isxCPos.m_Longitude  = c.pt.lon;
+        const POINT px       = ConvertCoordFromPositionToPixel(isxCPos);
+        HBRUSH      redBrush = CreateSolidBrush(RGB(220, 50, 50));
+        const RECT  sq       = {px.x - 3, px.y - 3, px.x + 3, px.y + 3};
         FillRect(hDC, &sq, redBrush);
         DeleteObject(redBrush);
     }
@@ -866,15 +871,15 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
         const POINT acPt = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
 
         // Measure text extents.
-        RECT m = { 0, 0, 200, 30 };
+        RECT m = {0, 0, 200, 30};
         DrawTextA(hDC, label, -1, &m, DT_CALCRECT | DT_SINGLELINE);
         constexpr int PAD = 3;
         constexpr int GAP = 14; // pixels above radar dot
 
-        const RECT bgRect = { acPt.x - m.right / 2 - PAD,
-                               acPt.y - GAP - m.bottom - PAD * 2,
-                               acPt.x + m.right / 2 + PAD,
-                               acPt.y - GAP };
+        const RECT bgRect = {acPt.x - m.right / 2 - PAD,
+                             acPt.y - GAP - m.bottom - PAD * 2,
+                             acPt.x + m.right / 2 + PAD,
+                             acPt.y - GAP};
 
         HBRUSH brush = CreateSolidBrush(bgCol);
         FillRect(hDC, &bgRect, brush);
@@ -1665,7 +1670,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
-                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                           t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
@@ -1708,7 +1713,7 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
-                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                           t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
@@ -1979,7 +1984,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
-                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                           t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
@@ -2022,7 +2027,7 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
             {
                 int baseSize = (r.dimmed ? -14 : -17) - fo;
                 cellFont     = CreateFontA(baseSize - delta, 0, 0, 0,
-                                       t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+                                           t.bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
                                            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
                 SelectObject(hDC, cellFont);
@@ -2335,11 +2340,11 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Fonts", false, false, -1, true},
         {false, "BG opacity", false, false, -1, false, true},
         {true, "TAXI", false, false, -1},
-        {false, "Update TAXI info",    false, false,                22, false, false, osmBusy},
-        {false, "Clear TAXI routes",    false, false,               26},
-        {false, "Show TAXI network",  true,  this->showTaxiOverlay, 23},
-        {false, "Show TAXI labels",   true,  this->showTaxiLabels,  24},
-        {false, "Show TAXI routes",   true,  this->showTaxiRoutes,  25},
+        {false, "Update TAXI info", false, false, 22, false, false, osmBusy},
+        {false, "Clear TAXI routes", false, false, 26},
+        {false, "Show TAXI network", true, this->showTaxiOverlay, 23},
+        {false, "Show TAXI labels", true, this->showTaxiLabels, 24},
+        {false, "Show TAXI routes", true, this->showTaxiRoutes, 25},
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -2757,10 +2762,10 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                 auto rt = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
                 if (rt.IsValid())
                 {
-                    EuroScopePlugIn::CPosition rpos    = rt.GetPosition().GetPosition();
+                    EuroScopePlugIn::CPosition rpos = rt.GetPosition().GetPosition();
                     GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
                     const double               heading = rt.GetPosition().GetReportedHeadingTrueNorth();
-                    this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
+                    this->taxiGreenPreview             = settings->osmGraph.FindWaypointRoute(
                         origin, this->taxiWaypoints, this->taxiCursorSnap,
                         0.0, settings->GetActiveDepRunways(), heading);
                 }
@@ -2878,11 +2883,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             // An inbound has our airport as its destination; a departure has it as origin.
             GeoPoint    dest{0.0, 0.0};
             std::string ourIcao;
-            if (!settings->GetAirports().empty())
+            const bool  hasAirport = !settings->GetAirports().empty();
+            if (hasAirport)
                 ourIcao = settings->GetAirports().begin()->first; // e.g. "LOWW"
 
-            auto        fp          = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-            bool        isInbound   = false;
+            auto fp        = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+            bool isInbound = false;
             if (fp.IsValid())
             {
                 std::string arrAirport = fp.GetFlightPlanData().GetDestination();
@@ -2893,28 +2899,58 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             if (isInbound)
             {
                 // Route to assigned stand centroid if available.
-                auto* timers     = static_cast<CFlowX_Timers*>(this->GetPlugIn());
-                auto  standIt    = timers->GetStandAssignment().find(callsign);
+                auto* timers  = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                auto  standIt = timers->GetStandAssignment().find(callsign);
                 if (standIt != timers->GetStandAssignment().end())
                 {
                     const std::string standKey = ourIcao + ":" + standIt->second;
-                    dest = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
+                    dest                       = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
                 }
                 // If no stand assigned or centroid not found, dest stays {0,0} → no suggested route.
             }
-            else
+            else if (hasAirport)
             {
-                // Departure: route to best HP on active runway.
-                if (!settings->GetAirports().empty())
-                    dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(),
-                                                              settings->GetAirports().begin()->second);
+                const auto& ap = settings->GetAirports().begin()->second;
+
+                // Prefer the controller-assigned HP from annotation slot 8 (chars 7+).
+                // Only use a confirmed assignment (no trailing '*').
+                if (fp.IsValid())
+                {
+                    std::string ann = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+                    if (ann.length() > 7)
+                    {
+                        std::string hpName = ann.substr(7);
+                        if (!hpName.empty() && hpName.back() == '*')
+                            hpName.clear(); // requested-only → ignore, fall back to default
+
+                        if (!hpName.empty())
+                        {
+                            for (const auto& rwyDes : settings->GetActiveDepRunways())
+                            {
+                                auto rwyIt = ap.runways.find(rwyDes);
+                                if (rwyIt == ap.runways.end())
+                                    continue;
+                                auto hpIt = rwyIt->second.holdingPoints.find(hpName);
+                                if (hpIt != rwyIt->second.holdingPoints.end())
+                                {
+                                    dest = {hpIt->second.centerLat, hpIt->second.centerLon};
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fall back to the first assignable HP on the active runway.
+                if (dest.lat == 0.0 && dest.lon == 0.0)
+                    dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(), ap);
             }
 
             if (dest.lat == 0.0 && dest.lon == 0.0)
                 dest = origin; // fallback: no destination found
 
-            const double heading              = rt.GetPosition().GetReportedHeadingTrueNorth();
-            this->taxiSuggested[callsign]    = settings->osmGraph.FindRoute(
+            const double heading          = rt.GetPosition().GetReportedHeadingTrueNorth();
+            this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
                 origin, dest, 0.0, settings->GetActiveDepRunways(), heading);
             this->taxiGreenPreview = this->taxiSuggested[callsign];
 
@@ -2942,10 +2978,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 this->taxiTracked[this->taxiPlanActive]       = finalRoute; // persistent for Show routes
 
                 // Assign ground state if not already set: TAXI for departures, TXIN for inbounds.
-                auto  fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
+                auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
                 if (fp.IsValid())
                 {
-                    auto* settings   = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                    auto*       settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
                     std::string ourIcao;
                     if (!settings->GetAirports().empty())
                         ourIcao = settings->GetAirports().begin()->first;
