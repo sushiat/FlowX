@@ -2335,10 +2335,11 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Fonts", false, false, -1, true},
         {false, "BG opacity", false, false, -1, false, true},
         {true, "TAXI", false, false, -1},
-        {false, "Update TAXI info", false, false, 22, false, false, osmBusy},
-        {false, "Show TAXI network", true, this->showTaxiOverlay, 23},
-        {false, "Show TAXI labels",  true, this->showTaxiLabels,  24},
-        {false, "Show TAXI routes",  true, this->showTaxiRoutes,  25},
+        {false, "Update TAXI info",    false, false,                22, false, false, osmBusy},
+        {false, "Clear TAXI routes",    false, false,               26},
+        {false, "Show TAXI network",  true,  this->showTaxiOverlay, 23},
+        {false, "Show TAXI labels",   true,  this->showTaxiLabels,  24},
+        {false, "Show TAXI routes",   true,  this->showTaxiRoutes,  25},
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -3105,6 +3106,15 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 else if (idx == 25) // Show TAXI routes
                 {
                     this->showTaxiRoutes = !this->showTaxiRoutes;
+                }
+                else if (idx == 26) // Clear all TAXI routes
+                {
+                    this->taxiTracked.clear();
+                    this->taxiAssigned.clear();
+                    this->taxiAssignedTimes.clear();
+                    this->taxiSuggested.clear();
+                    this->taxiDeviations.clear();
+                    this->taxiConflicts.clear();
                 }
                 else if (idx == 4)
                 {

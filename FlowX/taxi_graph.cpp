@@ -450,12 +450,10 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         return {};
 
     // Select start node based on the aircraft's heading.
-    // Forward hemisphere (120 m) handles stand exits — the exit node is typically closer
-    // than any backward node in the stand row, so it still wins.
-    // Backward hemisphere (300 m) handles mid-taxiway: the node the aircraft most recently
-    // passed is behind it; starting A* from there avoids routing from a point already
-    // slightly ahead of the aircraft, which can cause unexpected detours.
-    // When both exist, pick whichever is geometrically closer; ties go to the backward node.
+    // Forward hemisphere (120 m): always preferred — covers stand exits where the exit
+    // node is ahead of the aircraft. Forward wins whenever one exists.
+    // Backward hemisphere (300 m): fallback only when no forward node is found —
+    // handles mid-taxiway where the aircraft has already passed the nearest node.
     constexpr double FORWARD_SNAP_M  = 120.0;
     constexpr double BACKWARD_SNAP_M = 300.0;
 
@@ -465,16 +463,10 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         const int fwdId  = NearestForwardNode(from, initialBearingDeg, FORWARD_SNAP_M);
         const int backId = NearestBackwardNode(from, initialBearingDeg, BACKWARD_SNAP_M);
 
-        if (fwdId >= 0 && backId >= 0)
-        {
-            const double dFwd  = HaversineM(nodes_[fwdId].pos, from);
-            const double dBack = HaversineM(nodes_[backId].pos, from);
-            startId            = (dBack <= dFwd) ? backId : fwdId;
-        }
+        if (fwdId >= 0)
+            startId = fwdId; // forward always wins
         else if (backId >= 0)
             startId = backId;
-        else
-            startId = fwdId; // may still be -1 → falls through to NearestNode
     }
     if (startId < 0)
         startId = NearestNode(from);
