@@ -178,4 +178,10 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     {
         return this->standAssignment;
     }
+
+    /// @brief Returns the callsign→ground status map (plugin-specific states: ONFREQ, ST-UP, PUSH, TAXI, …).
+    [[nodiscard]] const std::map<std::string, std::string>& GetGroundStatus() const
+    {
+        return this->groundStatus;
+    }
 };

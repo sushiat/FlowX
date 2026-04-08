@@ -98,10 +98,10 @@ Within every class, order members: `private` → `protected` → `public`.
 
 Within each access section: variables first (grouped, no blank lines between them), then a blank line, then functions (with doc-comment blocks; blank lines between functions). Both groups sorted alphabetically.
 
-Variable declarations use 3-column alignment (type, assignment, `///<` doc comment). After adding or modifying members, run clang-format to apply alignment automatically:
+Variable declarations use 3-column alignment (type, assignment, `///<` doc comment). **Do not manually align** — always run clang-format after adding or modifying members:
 
 ```
-"C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\Llvm\bin\clang-format.exe" -i <file>
+clang-format -i <file>
 ```
 
-The `.clang-format` at the repo root configures `AlignConsecutiveDeclarations`, `AlignConsecutiveAssignments`, and `AlignTrailingComments` to produce the correct 3-column layout.
+clang-format is on PATH. The `.clang-format` at the repo root configures `AlignConsecutiveDeclarations`, `AlignConsecutiveAssignments`, and `AlignTrailingComments` to produce the correct 3-column layout.

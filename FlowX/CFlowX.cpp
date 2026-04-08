@@ -50,16 +50,22 @@ bool CFlowX::OnCompileCommand(const char* sCommandLine)
             {
                 this->LogMessage(
                     std::format("posUpd={} (inbound={} outbound={}) | tagItem={} | timer={} | standLaunch={} standSkip={}",
-                        this->dbg_positionCalls, this->dbg_positionInbound, this->dbg_positionOutbound,
-                        this->dbg_tagItemCalls, this->dbg_timerTicks, this->dbg_standLaunches, this->dbg_standSkips),
+                                this->dbg_positionCalls, this->dbg_positionInbound, this->dbg_positionOutbound,
+                                this->dbg_tagItemCalls, this->dbg_timerTicks, this->dbg_standLaunches, this->dbg_standSkips),
                     "DebugStats");
 
                 return true;
             }
         }
     }
-    catch (const std::exception& e) { this->LogException("OnCompileCommand", e.what()); }
-    catch (...)                      { this->LogException("OnCompileCommand", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        this->LogException("OnCompileCommand", e.what());
+    }
+    catch (...)
+    {
+        this->LogException("OnCompileCommand", "unknown exception");
+    }
 
     return false;
 }
@@ -71,46 +77,52 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
 {
     try
     {
-    if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
-    {
-        std::string callSign = fp.GetCallsign();
-        std::string scratch  = fp.GetControllerAssignedData().GetScratchPadString();
-
-        // if (!scratch.empty())
-        //{
-        //   OutputDebugStringA(("[FlowX] " + callSign + " scratch: " + scratch + "\n").c_str());
-        // }
-
-        // Check for stand assignment
-        size_t pos = scratch.find("GRP/S/");
-        if (pos != std::string::npos)
+        if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_SCRATCH_PAD_STRING)
         {
-            std::string stand = scratch.substr(pos + 6);
+            std::string callSign = fp.GetCallsign();
+            std::string scratch  = fp.GetControllerAssignedData().GetScratchPadString();
 
-            this->standAssignment[callSign] = stand;
-        }
+            // if (!scratch.empty())
+            //{
+            //   OutputDebugStringA(("[FlowX] " + callSign + " scratch: " + scratch + "\n").c_str());
+            // }
 
-        // Check for ground status
-        static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "TXIN", "LINEUP", "DEPA", "PARK"};
-        for (const auto& status : groundStatuses)
-        {
-            if (scratch.contains(status))
+            // Check for stand assignment
+            size_t pos = scratch.find("GRP/S/");
+            if (pos != std::string::npos)
             {
-                this->groundStatus[callSign] = status;
-                break;
+                std::string stand = scratch.substr(pos + 6);
+
+                this->standAssignment[callSign] = stand;
+            }
+
+            // Check for ground status
+            static const std::vector<std::string> groundStatuses = {"PUSH", "ST-UP", "ONFREQ", "TAXI", "TXIN", "LINEUP", "DEPA", "PARK"};
+            for (const auto& status : groundStatuses)
+            {
+                if (scratch.contains(status))
+                {
+                    this->groundStatus[callSign] = status;
+                    break;
+                }
             }
         }
-    }
 
-    if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_GROUND_STATE)
+        if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_GROUND_STATE)
+        {
+            std::string callSign         = fp.GetCallsign();
+            std::string groundState      = fp.GetGroundState();
+            this->groundStatus[callSign] = groundState;
+        }
+    }
+    catch (const std::exception& e)
     {
-        std::string callSign         = fp.GetCallsign();
-        std::string groundState      = fp.GetGroundState();
-        this->groundStatus[callSign] = groundState;
+        this->LogException("OnFlightPlanControllerAssignedDataUpdate", e.what());
     }
+    catch (...)
+    {
+        this->LogException("OnFlightPlanControllerAssignedDataUpdate", "unknown exception");
     }
-    catch (const std::exception& e) { this->LogException("OnFlightPlanControllerAssignedDataUpdate", e.what()); }
-    catch (...)                      { this->LogException("OnFlightPlanControllerAssignedDataUpdate", "unknown exception"); }
 }
 
 /// @brief Removes the disconnecting aircraft from all departure and inbound state maps.
@@ -119,85 +131,95 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 {
     try
     {
-    std::string callSign = FlightPlan.GetCallsign();
-    std::string depRwy   = FlightPlan.GetFlightPlanData().GetDepartureRwy();
+        std::string callSign = FlightPlan.GetCallsign();
+        std::string depRwy   = FlightPlan.GetFlightPlanData().GetDepartureRwy();
 
-    // Capture a snapshot for auto-restore if the pilot reconnects within 90 seconds
-    if (this->autoRestore)
-    {
-        reconnectSnapshot                snap;
-        EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
-        snap.pilotName                       = FlightPlan.GetPilotName();
-        snap.depAirport                      = fpd.GetOrigin();
-        to_upper(snap.depAirport);
-        snap.destAirport = fpd.GetDestination();
-        to_upper(snap.destAirport);
-        snap.aircraftType   = fpd.GetAircraftFPType();
-        snap.wtc            = fpd.GetAircraftWtc();
-        snap.planType       = fpd.GetPlanType();
-        snap.route          = fpd.GetRoute();
-        snap.sidName        = fpd.GetSidName();
-        snap.squawk         = FlightPlan.GetControllerAssignedData().GetSquawk();
-        snap.clearanceFlag  = FlightPlan.GetClearenceFlag();
-        snap.disconnectTime = GetTickCount64();
-
-        auto gsIt = this->groundStatus.find(callSign);
-        if (gsIt != this->groundStatus.end())
+        // Capture a snapshot for auto-restore if the pilot reconnects within 90 seconds
+        if (this->autoRestore)
         {
-            snap.savedGroundStatus = gsIt->second;
+            reconnectSnapshot                snap;
+            EuroScopePlugIn::CFlightPlanData fpd = FlightPlan.GetFlightPlanData();
+            snap.pilotName                       = FlightPlan.GetPilotName();
+            snap.depAirport                      = fpd.GetOrigin();
+            to_upper(snap.depAirport);
+            snap.destAirport = fpd.GetDestination();
+            to_upper(snap.destAirport);
+            snap.aircraftType   = fpd.GetAircraftFPType();
+            snap.wtc            = fpd.GetAircraftWtc();
+            snap.planType       = fpd.GetPlanType();
+            snap.route          = fpd.GetRoute();
+            snap.sidName        = fpd.GetSidName();
+            snap.squawk         = FlightPlan.GetControllerAssignedData().GetSquawk();
+            snap.clearanceFlag  = FlightPlan.GetClearenceFlag();
+            snap.disconnectTime = GetTickCount64();
+
+            auto gsIt = this->groundStatus.find(callSign);
+            if (gsIt != this->groundStatus.end())
+            {
+                snap.savedGroundStatus = gsIt->second;
+            }
+
+            EuroScopePlugIn::CRadarTarget rt = FlightPlan.GetCorrelatedRadarTarget();
+            if (rt.IsValid() && rt.GetPosition().IsValid())
+            {
+                auto pos         = rt.GetPosition().GetPosition();
+                snap.lat         = pos.m_Latitude;
+                snap.lon         = pos.m_Longitude;
+                snap.hasPosition = true;
+            }
+
+            this->reconnect_pending[callSign] = snap;
+            // groundStatus is kept alive and cleaned up by CheckReconnects after 90 s or on successful match
+        }
+        if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+        {
+            this->twrSameSID.RemoveFpFromTheList(FlightPlan);
+            this->twrSameSID_flightPlans.erase(callSign);
         }
 
-        EuroScopePlugIn::CRadarTarget rt = FlightPlan.GetCorrelatedRadarTarget();
-        if (rt.IsValid() && rt.GetPosition().IsValid())
         {
-            auto pos         = rt.GetPosition().GetPosition();
-            snap.lat         = pos.m_Latitude;
-            snap.lon         = pos.m_Longitude;
-            snap.hasPosition = true;
+            auto inboundIt = this->ttt_inbound.find(callSign);
+            if (inboundIt != this->ttt_inbound.end())
+            {
+                this->LogDebugMessage(callSign + " removed from TTT (disconnect) rwy=" + inboundIt->second.flightPlan.designator, "TTT");
+                this->tttInbound.RemoveFpFromTheList(FlightPlan);
+                this->ttt_inbound.erase(inboundIt);
+            }
+        }
+        this->ttt_callSigns.erase(callSign);
+        this->ttt_clearedToLand.erase(callSign);
+
+        for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
+        {
+            it = (it->first.rfind(callSign, 0) == 0) ? this->ttt_recentlyRemoved.erase(it) : ++it;
         }
 
-        this->reconnect_pending[callSign] = snap;
-        // groundStatus is kept alive and cleaned up by CheckReconnects after 90 s or on successful match
+        this->dep_liveSpacing.erase(callSign);
+        this->dep_sequenceNumber.erase(callSign);
+        this->RemoveFromDepartureQueue(callSign, depRwy);
+
+        this->gndTransfer_list.erase(callSign);
+        this->gndTransfer_soundPlayed.erase(callSign);
+        this->readyTakeoff_wasWaiting.erase(callSign);
+        this->readyTakeoff_okTick.erase(callSign);
+        this->readyTakeoff_soundPlayed.erase(callSign);
+        if (this->radarScreen)
+            this->radarScreen->gndTransferSquares.erase(callSign);
+        if (this->radarScreen)
+            this->radarScreen->gndTransferSquareTimes.erase(callSign);
+        if (this->radarScreen)
+            this->radarScreen->pushTracked.erase(callSign);
+
+        this->standAssignment.erase(callSign);
     }
-    if (this->twrSameSID_flightPlans.find(callSign) != this->twrSameSID_flightPlans.end())
+    catch (const std::exception& e)
     {
-        this->twrSameSID.RemoveFpFromTheList(FlightPlan);
-        this->twrSameSID_flightPlans.erase(callSign);
+        this->LogException("OnFlightPlanDisconnect", e.what());
     }
-
+    catch (...)
     {
-        auto inboundIt = this->ttt_inbound.find(callSign);
-        if (inboundIt != this->ttt_inbound.end())
-        {
-            this->LogDebugMessage(callSign + " removed from TTT (disconnect) rwy=" + inboundIt->second.flightPlan.designator, "TTT");
-            this->tttInbound.RemoveFpFromTheList(FlightPlan);
-            this->ttt_inbound.erase(inboundIt);
-        }
+        this->LogException("OnFlightPlanDisconnect", "unknown exception");
     }
-    this->ttt_callSigns.erase(callSign);
-    this->ttt_clearedToLand.erase(callSign);
-
-    for (auto it = this->ttt_recentlyRemoved.begin(); it != this->ttt_recentlyRemoved.end();)
-    {
-        it = (it->first.rfind(callSign, 0) == 0) ? this->ttt_recentlyRemoved.erase(it) : ++it;
-    }
-
-    this->dep_liveSpacing.erase(callSign);
-    this->dep_sequenceNumber.erase(callSign);
-    this->RemoveFromDepartureQueue(callSign, depRwy);
-
-    this->gndTransfer_list.erase(callSign);
-    this->gndTransfer_soundPlayed.erase(callSign);
-    this->readyTakeoff_wasWaiting.erase(callSign);
-    this->readyTakeoff_okTick.erase(callSign);
-    this->readyTakeoff_soundPlayed.erase(callSign);
-    if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
-    if (this->radarScreen) this->radarScreen->gndTransferSquareTimes.erase(callSign);
-
-    this->standAssignment.erase(callSign);
-    }
-    catch (const std::exception& e) { this->LogException("OnFlightPlanDisconnect", e.what()); }
-    catch (...)                      { this->LogException("OnFlightPlanDisconnect", "unknown exception"); }
 }
 
 /// @brief Dispatches tag function callbacks to the appropriate Func_* method.
@@ -298,8 +320,14 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
             Func_StandAuto(fp, this->radarScreen);
         }
     }
-    catch (const std::exception& e) { this->LogException("OnFunctionCall", e.what()); }
-    catch (...)                      { this->LogException("OnFunctionCall", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        this->LogException("OnFunctionCall", e.what());
+    }
+    catch (...)
+    {
+        this->LogException("OnFunctionCall", "unknown exception");
+    }
 }
 
 /// @brief Dispatches tag item rendering to the appropriate Get*Tag method.
@@ -359,8 +387,14 @@ void CFlowX::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan, EuroScopePlug
             *pRGB       = tag.color;
         }
     }
-    catch (const std::exception& e) { this->LogException("OnGetTagItem", e.what()); }
-    catch (...)                      { this->LogException("OnGetTagItem", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        this->LogException("OnGetTagItem", e.what());
+    }
+    catch (...)
+    {
+        this->LogException("OnGetTagItem", "unknown exception");
+    }
 }
 
 /// @brief Parses an incoming METAR for QNH changes and flags cleared ground aircraft at that airport.
@@ -370,187 +404,193 @@ void CFlowX::OnNewMetarReceived(const char* sStation, const char* sFullMetar)
 {
     try
     {
-    std::string station = sStation;
-    to_upper(station);
+        std::string station = sStation;
+        to_upper(station);
 
-    auto& storedMetar = this->lastMetar[station];
-    if (storedMetar == sFullMetar)
-    {
-        return;
-    }
-    storedMetar = sFullMetar;
-
-    this->LogDebugMessage("New METAR for station " + station + ": " + sFullMetar, "Metar");
-
-    auto airport = this->airports.find(station);
-    if (airport == this->airports.end())
-    {
-        // Station not in airport config, so ignore it
-        return;
-    }
-
-    std::vector<std::string> metarElements = split(sFullMetar);
-    std::vector<std::string> rvrTokens;
-    bool inForecastGroup = false;
-    for (std::string metarElement : metarElements)
-    {
-        if (metarElement == "BECMG" || metarElement == "TEMPO" || metarElement == "NOSIG")
-            inForecastGroup = true;
-
-        static const std::regex windRx(R"((?:[0-9]{3}|VRB)[0-9]{2}(?:G[0-9]{2,3})?(?:KT|MPS))");
-        static const std::regex qnh(R"(Q[0-9]{4})");
-        static const std::regex alt(R"(A[0-9]{4})");
-        static const std::regex rvrRx(R"(R([0-9]{2}[LCR]?)\/([MP]?)([0-9]{4})(?:V([0-9]{4}))?([UDN])?(?:FT)?)");
-
-        if (!inForecastGroup && std::regex_match(metarElement, windRx))
+        auto& storedMetar = this->lastMetar[station];
+        if (storedMetar == sFullMetar)
         {
-            auto existingWind = this->airportWind.find(station);
-            if (existingWind == this->airportWind.end())
-            {
-                this->LogDebugMessage("First wind value for airport " + station + " is " + metarElement, "Metar");
-                this->airportWind.emplace(station, metarElement);
-            }
-            else if (existingWind->second != metarElement)
-            {
-                this->LogDebugMessage("New wind value for airport " + station + " is " + metarElement, "Metar");
-                this->airportWind[station] = metarElement;
-                this->windUnacked.insert(station);
-            }
+            return;
+        }
+        storedMetar = sFullMetar;
+
+        this->LogDebugMessage("New METAR for station " + station + ": " + sFullMetar, "Metar");
+
+        auto airport = this->airports.find(station);
+        if (airport == this->airports.end())
+        {
+            // Station not in airport config, so ignore it
+            return;
         }
 
-        std::smatch rvrMatch;
-        if (std::regex_match(metarElement, rvrMatch, rvrRx))
+        std::vector<std::string> metarElements = split(sFullMetar);
+        std::vector<std::string> rvrTokens;
+        bool                     inForecastGroup = false;
+        for (std::string metarElement : metarElements)
         {
-            std::string rwy      = rvrMatch[1].str();
-            std::string modifier = rvrMatch[2].str();
-            int         value    = std::stoi(rvrMatch[3].str());
-            std::string varUpper = rvrMatch[4].str();
-            std::string trend    = rvrMatch[5].str();
+            if (metarElement == "BECMG" || metarElement == "TEMPO" || metarElement == "NOSIG")
+                inForecastGroup = true;
 
-            std::string token = std::format("R{}/{}{}", rwy, modifier, value);
-            if (!varUpper.empty())
-            {
-                token += std::format("V{}", std::stoi(varUpper));
-            }
-            if (!trend.empty())
-            {
-                token += trend;
-            }
+            static const std::regex windRx(R"((?:[0-9]{3}|VRB)[0-9]{2}(?:G[0-9]{2,3})?(?:KT|MPS))");
+            static const std::regex qnh(R"(Q[0-9]{4})");
+            static const std::regex alt(R"(A[0-9]{4})");
+            static const std::regex rvrRx(R"(R([0-9]{2}[LCR]?)\/([MP]?)([0-9]{4})(?:V([0-9]{4}))?([UDN])?(?:FT)?)");
 
-            rvrTokens.push_back(token);
-        }
-
-        if (std::regex_match(metarElement, qnh) || std::regex_match(metarElement, alt))
-        {
-            // Check if existing QNH and if that is now different
-            auto existingQNH = this->airportQNH.find(station);
-            if (existingQNH == this->airportQNH.end())
+            if (!inForecastGroup && std::regex_match(metarElement, windRx))
             {
-                this->LogDebugMessage("First QNH value for airport " + station + " is " + metarElement, "Metar");
-
-                // No existing QNH, add it
-                this->airportQNH.emplace(station, metarElement);
-            }
-            else
-            {
-                if (existingQNH->second != metarElement)
+                auto existingWind = this->airportWind.find(station);
+                if (existingWind == this->airportWind.end())
                 {
-                    this->LogDebugMessage("New QNH value for airport " + station + " is " + metarElement, "Metar");
+                    this->LogDebugMessage("First wind value for airport " + station + " is " + metarElement, "Metar");
+                    this->airportWind.emplace(station, metarElement);
+                }
+                else if (existingWind->second != metarElement)
+                {
+                    this->LogDebugMessage("New wind value for airport " + station + " is " + metarElement, "Metar");
+                    this->airportWind[station] = metarElement;
+                    this->windUnacked.insert(station);
+                }
+            }
 
-                    // Save new QNH
-                    this->airportQNH[station] = metarElement;
-                    this->qnhUnacked.insert(station);
+            std::smatch rvrMatch;
+            if (std::regex_match(metarElement, rvrMatch, rvrRx))
+            {
+                std::string rwy      = rvrMatch[1].str();
+                std::string modifier = rvrMatch[2].str();
+                int         value    = std::stoi(rvrMatch[3].str());
+                std::string varUpper = rvrMatch[4].str();
+                std::string trend    = rvrMatch[5].str();
 
-                    // Set flight strip annotation on aircraft on the ground at that airport
-                    for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+                std::string token = std::format("R{}/{}{}", rwy, modifier, value);
+                if (!varUpper.empty())
+                {
+                    token += std::format("V{}", std::stoi(varUpper));
+                }
+                if (!trend.empty())
+                {
+                    token += trend;
+                }
+
+                rvrTokens.push_back(token);
+            }
+
+            if (std::regex_match(metarElement, qnh) || std::regex_match(metarElement, alt))
+            {
+                // Check if existing QNH and if that is now different
+                auto existingQNH = this->airportQNH.find(station);
+                if (existingQNH == this->airportQNH.end())
+                {
+                    this->LogDebugMessage("First QNH value for airport " + station + " is " + metarElement, "Metar");
+
+                    // No existing QNH, add it
+                    this->airportQNH.emplace(station, metarElement);
+                }
+                else
+                {
+                    if (existingQNH->second != metarElement)
                     {
-                        EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
+                        this->LogDebugMessage("New QNH value for airport " + station + " is " + metarElement, "Metar");
 
-                        // Skip aircraft is not on the ground
-                        auto stationAp        = this->airports.find(station);
-                        int  stationElevation = stationAp != this->airports.end() ? stationAp->second.fieldElevation : 0;
-                        if (!pos.IsValid() || pos.GetPressureAltitude() >= stationElevation + 50)
+                        // Save new QNH
+                        this->airportQNH[station] = metarElement;
+                        this->qnhUnacked.insert(station);
+
+                        // Set flight strip annotation on aircraft on the ground at that airport
+                        for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
                         {
-                            continue;
-                        }
+                            EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
 
-                        EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-                        // Skip aircraft is tracked (except aircraft tracked by current controller)
-                        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe()))
-                        {
-                            continue;
-                        }
-
-                        std::string callSign = fp.GetCallsign();
-
-                        if (this->ControllerMyself().GetFacility() == 4)
-                        {
-                            auto        gsIt = this->groundStatus.find(callSign);
-                            std::string gs   = (gsIt != this->groundStatus.end()) ? gsIt->second : fp.GetGroundState();
-                            if (gs != "TAXI" && gs != "LINEUP" && gs != "DEPA")
+                            // Skip aircraft is not on the ground
+                            auto stationAp        = this->airports.find(station);
+                            int  stationElevation = stationAp != this->airports.end() ? stationAp->second.fieldElevation : 0;
+                            if (!pos.IsValid() || pos.GetPressureAltitude() >= stationElevation + 50)
                             {
                                 continue;
                             }
-                        }
 
-                        std::string dep = fp.GetFlightPlanData().GetOrigin();
-                        to_upper(dep);
+                            EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
+                            // Skip aircraft is tracked (except aircraft tracked by current controller)
+                            if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe()))
+                            {
+                                continue;
+                            }
 
-                        if (dep == station && fp.GetClearenceFlag())
-                        {
-                            EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
-                            if (this->flightStripAnnotation[callSign].empty())
+                            std::string callSign = fp.GetCallsign();
+
+                            if (this->ControllerMyself().GetFacility() == 4)
                             {
-                                this->flightStripAnnotation[callSign].append("Q");
+                                auto        gsIt = this->groundStatus.find(callSign);
+                                std::string gs   = (gsIt != this->groundStatus.end()) ? gsIt->second : fp.GetGroundState();
+                                if (gs != "TAXI" && gs != "LINEUP" && gs != "DEPA")
+                                {
+                                    continue;
+                                }
                             }
-                            else
+
+                            std::string dep = fp.GetFlightPlanData().GetOrigin();
+                            to_upper(dep);
+
+                            if (dep == station && fp.GetClearenceFlag())
                             {
-                                this->flightStripAnnotation[callSign][0] = 'Q';
+                                EuroScopePlugIn::CFlightPlanControllerAssignedData fpcad = fp.GetControllerAssignedData();
+                                if (this->flightStripAnnotation[callSign].empty())
+                                {
+                                    this->flightStripAnnotation[callSign].append("Q");
+                                }
+                                else
+                                {
+                                    this->flightStripAnnotation[callSign][0] = 'Q';
+                                }
+                                fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
+                                this->PushToOtherControllers(fp);
                             }
-                            fpcad.SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
-                            this->PushToOtherControllers(fp);
                         }
                     }
                 }
             }
         }
-    }
 
-    // Sort RVR tokens by runway designator (numeric part), then join
-    std::sort(rvrTokens.begin(), rvrTokens.end(), [](const std::string& a, const std::string& b)
-              {
+        // Sort RVR tokens by runway designator (numeric part), then join
+        std::sort(rvrTokens.begin(), rvrTokens.end(), [](const std::string& a, const std::string& b)
+                  {
         auto rwyNum = [](const std::string& s) -> int {
             size_t slash = s.find('/');
             return (slash != std::string::npos && slash > 1) ? std::stoi(s.substr(1, slash - 1)) : 0;
         };
         return rwyNum(a) < rwyNum(b); });
-    std::string newRVR;
-    for (const auto& t : rvrTokens)
-    {
-        if (!newRVR.empty())
+        std::string newRVR;
+        for (const auto& t : rvrTokens)
         {
-            newRVR += " ";
+            if (!newRVR.empty())
+            {
+                newRVR += " ";
+            }
+            newRVR += t;
         }
-        newRVR += t;
-    }
 
-    // Update RVR after processing all elements (may be empty if none present)
-    auto existingRVR = this->airportRVR.find(station);
-    if (existingRVR == this->airportRVR.end() || existingRVR->second != newRVR)
+        // Update RVR after processing all elements (may be empty if none present)
+        auto existingRVR = this->airportRVR.find(station);
+        if (existingRVR == this->airportRVR.end() || existingRVR->second != newRVR)
+        {
+            if (!newRVR.empty())
+            {
+                this->LogDebugMessage("New RVR for airport " + station + ": " + newRVR, "Metar");
+            }
+            this->airportRVR[station] = newRVR;
+            if (!newRVR.empty())
+            {
+                this->rvrUnacked.insert(station);
+            }
+        }
+    }
+    catch (const std::exception& e)
     {
-        if (!newRVR.empty())
-        {
-            this->LogDebugMessage("New RVR for airport " + station + ": " + newRVR, "Metar");
-        }
-        this->airportRVR[station] = newRVR;
-        if (!newRVR.empty())
-        {
-            this->rvrUnacked.insert(station);
-        }
+        this->LogException("OnNewMetarReceived", e.what());
     }
+    catch (...)
+    {
+        this->LogException("OnNewMetarReceived", "unknown exception");
     }
-    catch (const std::exception& e) { this->LogException("OnNewMetarReceived", e.what()); }
-    catch (...)                      { this->LogException("OnNewMetarReceived", "unknown exception"); }
 }
 
 /// @brief Creates the RadarScreen and immediately applies any persisted window positions so the
@@ -583,13 +623,25 @@ EuroScopePlugIn::CRadarScreen* CFlowX::OnRadarScreenCreated(const char* sDisplay
         if (this->approachEstWindowX != -1)
         {
             this->radarScreen->approachEstWindowPos = {this->approachEstWindowX, this->approachEstWindowY};
-            if (this->approachEstWindowW > 0) { this->radarScreen->approachEstWindowW = this->approachEstWindowW; }
-            if (this->approachEstWindowH > 0) { this->radarScreen->approachEstWindowH = this->approachEstWindowH; }
+            if (this->approachEstWindowW > 0)
+            {
+                this->radarScreen->approachEstWindowW = this->approachEstWindowW;
+            }
+            if (this->approachEstWindowH > 0)
+            {
+                this->radarScreen->approachEstWindowH = this->approachEstWindowH;
+            }
         }
         return this->radarScreen;
     }
-    catch (const std::exception& e) { this->LogException("OnRadarScreenCreated", e.what()); }
-    catch (...)                      { this->LogException("OnRadarScreenCreated", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        this->LogException("OnRadarScreenCreated", e.what());
+    }
+    catch (...)
+    {
+        this->LogException("OnRadarScreenCreated", "unknown exception");
+    }
     return this->radarScreen;
 }
 
@@ -644,8 +696,14 @@ void CFlowX::OnTimer(int Counter)
         this->PollAtisLetters(Counter);
         this->PollOsmFuture();
     }
-    catch (const std::exception& e) { this->LogException("OnTimer", e.what()); }
-    catch (...)                      { this->LogException("OnTimer", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        this->LogException("OnTimer", e.what());
+    }
+    catch (...)
+    {
+        this->LogException("OnTimer", "unknown exception");
+    }
 }
 
 /// Singleton plugin instance owned by the DLL.
@@ -678,6 +736,12 @@ void __declspec(dllexport) EuroScopePlugInExit(void)
     {
         delete pPlugin;
     }
-    catch (const std::exception& e) { WriteExceptionToLog("EuroScopePlugInExit", e.what()); }
-    catch (...)                      { WriteExceptionToLog("EuroScopePlugInExit", "unknown exception"); }
+    catch (const std::exception& e)
+    {
+        WriteExceptionToLog("EuroScopePlugInExit", e.what());
+    }
+    catch (...)
+    {
+        WriteExceptionToLog("EuroScopePlugInExit", "unknown exception");
+    }
 }

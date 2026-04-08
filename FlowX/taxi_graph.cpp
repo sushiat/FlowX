@@ -444,7 +444,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                const GeoPoint&              to,
                                double                       wingspanM,
                                const std::set<std::string>& activeDepRwys,
-                               double                       initialBearingDeg) const
+                               double                       initialBearingDeg,
+                               const std::set<int>&         blockedNodes) const
 {
     if (nodes_.empty())
         return {};
@@ -535,6 +536,9 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         for (const auto& edge : adj_[cur])
         {
             if (!excludedRefs.empty() && excludedRefs.contains(edge.wayRef))
+                continue;
+            if (!blockedNodes.empty() && blockedNodes.contains(edge.to) &&
+                edge.to != goalId) // never block the goal itself
                 continue;
 
             // Re-apply departure rule multiplier (generic rules already baked in, dep rules added here).
@@ -641,7 +645,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                                        const GeoPoint&              dest,
                                        double                       wingspanM,
                                        const std::set<std::string>& activeDepRwys,
-                                       double                       initialBearingDeg) const
+                                       double                       initialBearingDeg,
+                                       const std::set<int>&         blockedNodes) const
 {
     std::vector<GeoPoint> stops;
     stops.push_back(origin);
@@ -655,7 +660,7 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
 
     for (size_t i = 1; i < stops.size(); ++i)
     {
-        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, segInitBearing);
+        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, segInitBearing, blockedNodes);
         if (!seg.valid)
         {
             combined.valid = false;
@@ -844,6 +849,107 @@ GeoPoint TaxiGraph::StandCentroid(const std::string&                    icaoStan
     }
     return {sumLat / static_cast<double>(st.lat.size()),
             sumLon / static_cast<double>(st.lat.size())};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TaxiGraph::NodesToBlock
+// ─────────────────────────────────────────────────────────────────────────────
+
+std::set<int> TaxiGraph::NodesToBlock(const std::vector<GeoPoint>& polyline,
+                                      double                       radiusM) const
+{
+    std::set<int> result;
+    for (const auto& n : nodes_)
+    {
+        for (const auto& pt : polyline)
+        {
+            if (HaversineM(n.pos, pt) <= radiusM)
+            {
+                result.insert(n.id);
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TaxiGraph::DeadEndEdges
+// ─────────────────────────────────────────────────────────────────────────────
+
+std::vector<std::pair<GeoPoint, GeoPoint>> TaxiGraph::DeadEndEdges(
+    const GeoPoint& dest, const std::set<int>& blockedNodes) const
+{
+    if (nodes_.empty() || blockedNodes.empty())
+        return {};
+
+    const int destId = NearestNode(dest);
+    if (destId < 0 || blockedNodes.contains(destId))
+        return {};
+
+    // BFS from destId, never crossing blockedNodes.
+    std::set<int>   reachable;
+    std::queue<int> q;
+    reachable.insert(destId);
+    q.push(destId);
+    while (!q.empty())
+    {
+        const int cur = q.front();
+        q.pop();
+        for (const auto& edge : adj_[cur])
+        {
+            if (blockedNodes.contains(edge.to) || reachable.contains(edge.to))
+                continue;
+            reachable.insert(edge.to);
+            q.push(edge.to);
+        }
+    }
+
+    // Check whether any blocked node acts as a "bridge" between the reachable set and
+    // the rest of the graph. A blocked node bridges if it has at least one edge into
+    // `reachable` AND at least one edge to an unblocked node outside `reachable`.
+    // If no blocked node bridges, dest is still accessible from the full network.
+    bool isCutOff = false;
+    for (const int b : blockedNodes)
+    {
+        if (b < 0 || b >= static_cast<int>(adj_.size()))
+            continue;
+        bool intoReachable    = false;
+        bool outsideReachable = false;
+        for (const auto& edge : adj_[b])
+        {
+            if (reachable.contains(edge.to))
+                intoReachable = true;
+            else if (!blockedNodes.contains(edge.to))
+                outsideReachable = true;
+            if (intoReachable && outsideReachable)
+                break;
+        }
+        if (intoReachable && outsideReachable)
+        {
+            isCutOff = true;
+            break;
+        }
+    }
+    if (!isCutOff)
+        return {}; // dest is still reachable normally
+
+    // Truly isolated — collect undirected edge segments within the reachable set.
+    std::vector<std::pair<GeoPoint, GeoPoint>> edges;
+    std::set<std::pair<int, int>>              seen;
+    for (const int nodeId : reachable)
+    {
+        for (const auto& edge : adj_[nodeId])
+        {
+            if (!reachable.contains(edge.to))
+                continue;
+            const int lo = std::min(nodeId, edge.to);
+            const int hi = std::max(nodeId, edge.to);
+            if (seen.insert({lo, hi}).second)
+                edges.emplace_back(nodes_[nodeId].pos, nodes_[edge.to].pos);
+        }
+    }
+    return edges;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -493,38 +493,52 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             // Draw conflict overlays: red segments + intersection markers.
             this->DrawTaxiConflicts(hDC);
 
-            // Draw planning mode: yellow suggestion + green preview + via-point markers.
+            // Shared helper: draw a route polyline in a given colour/width.
+            auto drawRoute = [&](const TaxiRoute& route, COLORREF col, int width)
+            {
+                if (!route.valid || route.polyline.empty())
+                    return;
+                HPEN pen   = CreatePen(PS_SOLID, width, col);
+                HPEN prev  = static_cast<HPEN>(SelectObject(hDC, pen));
+                bool first = true;
+                for (const auto& gp : route.polyline)
+                {
+                    EuroScopePlugIn::CPosition pos;
+                    pos.m_Latitude  = gp.lat;
+                    pos.m_Longitude = gp.lon;
+                    POINT pt        = ConvertCoordFromPositionToPixel(pos);
+                    if (first)
+                    {
+                        MoveToEx(hDC, pt.x, pt.y, nullptr);
+                        first = false;
+                    }
+                    else
+                        LineTo(hDC, pt.x, pt.y);
+                }
+                SelectObject(hDC, prev);
+                DeleteObject(pen);
+            };
+
+            // Draw push routes: red during taxi-planning mode (active obstacle), orange otherwise.
+            if (!this->pushTracked.empty())
+            {
+                const bool     inTaxiPlan = !this->taxiPlanActive.empty() && !this->taxiPlanIsPush;
+                const COLORREF pushCol    = inTaxiPlan ? RGB(220, 50, 50) : RGB(255, 140, 0);
+                for (const auto& [_, pushRoute] : this->pushTracked)
+                    drawRoute(pushRoute, pushCol, 3);
+            }
+
+            // Draw planning mode: yellow suggestion + magenta preview + via-point markers.
             if (!this->taxiPlanActive.empty())
             {
-                auto drawRoute = [&](const TaxiRoute& route, COLORREF col, int width)
+                // During push planning, skip the yellow suggestion (none exists).
+                if (!this->taxiPlanIsPush)
                 {
-                    if (!route.valid || route.polyline.empty())
-                        return;
-                    HPEN pen   = CreatePen(PS_SOLID, width, col);
-                    HPEN prev  = static_cast<HPEN>(SelectObject(hDC, pen));
-                    bool first = true;
-                    for (const auto& gp : route.polyline)
-                    {
-                        EuroScopePlugIn::CPosition pos;
-                        pos.m_Latitude  = gp.lat;
-                        pos.m_Longitude = gp.lon;
-                        POINT pt        = ConvertCoordFromPositionToPixel(pos);
-                        if (first)
-                        {
-                            MoveToEx(hDC, pt.x, pt.y, nullptr);
-                            first = false;
-                        }
-                        else
-                            LineTo(hDC, pt.x, pt.y);
-                    }
-                    SelectObject(hDC, prev);
-                    DeleteObject(pen);
-                };
-
-                auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
-                if (sugIt != this->taxiSuggested.end())
-                    drawRoute(sugIt->second, RGB(255, 220, 0), 2);      // yellow suggestion
-                drawRoute(this->taxiGreenPreview, RGB(255, 0, 220), 3); // magenta preview (user-adjusted)
+                    auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
+                    if (sugIt != this->taxiSuggested.end())
+                        drawRoute(sugIt->second, RGB(255, 220, 0), 2); // yellow suggestion
+                }
+                drawRoute(this->taxiGreenPreview, RGB(255, 0, 220), 3); // magenta preview
 
                 // Draw via-point markers as small cyan squares.
                 for (const auto& wp : this->taxiWaypoints)
@@ -541,6 +555,9 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     DeleteObject(wbrush);
                     DeleteObject(wpen);
                 }
+
+                // Dead-end branch warning: red overlay when taxi destination is isolated.
+                this->DrawPushDeadEnds(hDC);
             }
 
             // Recompute route deviation and conflict state (throttled to ~250 ms).
@@ -889,6 +906,82 @@ void RadarScreen::DrawTaxiWarningLabels(HDC hDC)
         RECT textRect = bgRect;
         DrawTextA(hDC, label, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
+}
+
+/// @brief Highlights dead-end taxilane branches that are isolated by active push routes.
+/// Called from BEFORE_TAGS only when in taxi planning mode (not push planning).
+void RadarScreen::DrawPushDeadEnds(HDC hDC)
+{
+    if (this->taxiPlanIsPush || this->pushTracked.empty())
+        return;
+
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settings->osmGraph.IsBuilt())
+        return;
+
+    // Collect all blocked nodes from active push routes.
+    std::set<int> blocked;
+    for (const auto& [_, pushRoute] : this->pushTracked)
+    {
+        auto b = settings->osmGraph.NodesToBlock(pushRoute.polyline, 3.0);
+        blocked.insert(b.begin(), b.end());
+    }
+    if (blocked.empty())
+        return;
+
+    // Re-derive planning destination (same logic as the right-click trigger).
+    std::string ourIcao;
+    if (!settings->GetAirports().empty())
+        ourIcao = settings->GetAirports().begin()->first;
+
+    auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
+    auto rt = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+    if (!fp.IsValid() || !rt.IsValid())
+        return;
+
+    std::string arrAirport = fp.GetFlightPlanData().GetDestination();
+    to_upper(arrAirport);
+    const bool isInbound = (!ourIcao.empty() && arrAirport == ourIcao);
+
+    GeoPoint dest{0.0, 0.0};
+    if (isInbound)
+    {
+        auto* timers  = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+        auto  standIt = timers->GetStandAssignment().find(this->taxiPlanActive);
+        if (standIt != timers->GetStandAssignment().end())
+        {
+            const std::string standKey = ourIcao + ":" + standIt->second;
+            dest                       = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
+        }
+    }
+    else if (!ourIcao.empty() && !settings->GetAirports().empty())
+    {
+        dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(),
+                                                  settings->GetAirports().begin()->second);
+    }
+    if (dest.lat == 0.0 && dest.lon == 0.0)
+        return; // no destination to check
+
+    auto deadEdges = settings->osmGraph.DeadEndEdges(dest, blocked);
+    if (deadEdges.empty())
+        return;
+
+    HPEN redPen  = CreatePen(PS_SOLID, 3, RGB(220, 50, 50));
+    HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, redPen));
+    for (const auto& [a, b] : deadEdges)
+    {
+        EuroScopePlugIn::CPosition pa, pb;
+        pa.m_Latitude   = a.lat;
+        pa.m_Longitude  = a.lon;
+        pb.m_Latitude   = b.lat;
+        pb.m_Longitude  = b.lon;
+        const POINT pta = ConvertCoordFromPositionToPixel(pa);
+        const POINT ptb = ConvertCoordFromPositionToPixel(pb);
+        MoveToEx(hDC, pta.x, pta.y, nullptr);
+        LineTo(hDC, ptb.x, ptb.y);
+    }
+    SelectObject(hDC, prevPen);
+    DeleteObject(redPen);
 }
 
 static void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct); ///< Forward declaration — defined below DrawGndTransferSquares.
@@ -2765,9 +2858,21 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                     EuroScopePlugIn::CPosition rpos = rt.GetPosition().GetPosition();
                     GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
                     const double               heading = rt.GetPosition().GetReportedHeadingTrueNorth();
-                    this->taxiGreenPreview             = settings->osmGraph.FindWaypointRoute(
+
+                    // For taxi (not push) planning, route around active push routes.
+                    std::set<int> blocked;
+                    if (!this->taxiPlanIsPush)
+                    {
+                        for (const auto& [_, pushRoute] : this->pushTracked)
+                        {
+                            auto b = settings->osmGraph.NodesToBlock(pushRoute.polyline, 3.0);
+                            blocked.insert(b.begin(), b.end());
+                        }
+                    }
+
+                    this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
                         origin, this->taxiWaypoints, this->taxiCursorSnap,
-                        0.0, settings->GetActiveDepRunways(), heading);
+                        0.0, settings->GetActiveDepRunways(), heading, blocked);
                 }
                 this->RequestRefresh();
             }
@@ -2871,6 +2976,65 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 return;
             }
 
+            // Determine push vs. taxi.
+            // Push  = T/P tag shows "P": clearance flag set,
+            //         inside a grStands parking spot, NOT inside a taxiOutStands polygon.
+            // Taxi  = everything else.
+            {
+                bool isPush = false;
+                auto fp2    = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+
+                if(!fp2.IsValid() || !fp2.GetClearenceFlag())
+                {
+                    return;
+                }
+
+                if (!settings->GetAirports().empty())
+                {
+                    const auto& ap  = settings->GetAirports().begin()->second;
+                    const auto  pos = rt.GetPosition().GetPosition();
+
+                    // Not inside any taxiOutStands polygon (that would make T/P show "T").
+                    bool inTaxiOut = false;
+                    for (const auto& [_, poly] : ap.taxiOutStands)
+                    {
+                        if (CFlowX_LookupsTools::PointInsidePolygon(
+                                static_cast<int>(poly.lat.size()),
+                                const_cast<double*>(poly.lon.data()),
+                                const_cast<double*>(poly.lat.data()),
+                                pos.m_Longitude, pos.m_Latitude))
+                        {
+                            inTaxiOut = true;
+                            break;
+                        }
+                    }
+
+                    if (!inTaxiOut)
+                    {
+                        // Inside a grStands parking spot.
+                        const std::string ourIcao = settings->GetAirports().begin()->first;
+                        const std::string prefix  = ourIcao + ":";
+                        for (const auto& [key, stand] : settings->GetGrStands())
+                        {
+                            if (key.size() < prefix.size() || key.substr(0, prefix.size()) != prefix)
+                                continue;
+                            if (stand.lat.empty())
+                                continue;
+                            if (CFlowX_LookupsTools::PointInsidePolygon(
+                                    static_cast<int>(stand.lat.size()),
+                                    const_cast<double*>(stand.lon.data()),
+                                    const_cast<double*>(stand.lat.data()),
+                                    pos.m_Longitude, pos.m_Latitude))
+                            {
+                                isPush = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                this->taxiPlanIsPush = isPush;
+            }
+
             this->taxiPlanActive = callsign;
             this->taxiWaypoints.clear();
             this->taxiOriginPx     = Pt;
@@ -2879,83 +3043,90 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             EuroScopePlugIn::CPosition rpos = rt.GetPosition().GetPosition();
             GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
 
-            // Determine whether this is an inbound or departure aircraft.
-            // An inbound has our airport as its destination; a departure has it as origin.
-            GeoPoint    dest{0.0, 0.0};
-            std::string ourIcao;
-            const bool  hasAirport = !settings->GetAirports().empty();
-            if (hasAirport)
-                ourIcao = settings->GetAirports().begin()->first; // e.g. "LOWW"
-
-            auto fp        = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-            bool isInbound = false;
-            if (fp.IsValid())
+            if (!this->taxiPlanIsPush)
             {
-                std::string arrAirport = fp.GetFlightPlanData().GetDestination();
-                to_upper(arrAirport);
-                isInbound = (!ourIcao.empty() && arrAirport == ourIcao);
-            }
+                // Taxi planning: compute auto-suggested route to destination.
+                GeoPoint    dest{0.0, 0.0};
+                std::string ourIcao;
+                const bool  hasAirport = !settings->GetAirports().empty();
+                if (hasAirport)
+                    ourIcao = settings->GetAirports().begin()->first;
 
-            if (isInbound)
-            {
-                // Route to assigned stand centroid if available.
-                auto* timers  = static_cast<CFlowX_Timers*>(this->GetPlugIn());
-                auto  standIt = timers->GetStandAssignment().find(callsign);
-                if (standIt != timers->GetStandAssignment().end())
-                {
-                    const std::string standKey = ourIcao + ":" + standIt->second;
-                    dest                       = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
-                }
-                // If no stand assigned or centroid not found, dest stays {0,0} → no suggested route.
-            }
-            else if (hasAirport)
-            {
-                const auto& ap = settings->GetAirports().begin()->second;
-
-                // Prefer the controller-assigned HP from annotation slot 8 (chars 7+).
-                // Only use a confirmed assignment (no trailing '*').
+                auto fp        = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+                bool isInbound = false;
                 if (fp.IsValid())
                 {
-                    std::string ann = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
-                    if (ann.length() > 7)
-                    {
-                        std::string hpName = ann.substr(7);
-                        if (!hpName.empty() && hpName.back() == '*')
-                            hpName.clear(); // requested-only → ignore, fall back to default
+                    std::string arrAirport = fp.GetFlightPlanData().GetDestination();
+                    to_upper(arrAirport);
+                    isInbound = (!ourIcao.empty() && arrAirport == ourIcao);
+                }
 
-                        if (!hpName.empty())
+                auto* timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                if (isInbound)
+                {
+                    auto standIt = timers->GetStandAssignment().find(callsign);
+                    if (standIt != timers->GetStandAssignment().end())
+                    {
+                        const std::string standKey = ourIcao + ":" + standIt->second;
+                        dest                       = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
+                    }
+                }
+                else if (hasAirport)
+                {
+                    const auto& ap = settings->GetAirports().begin()->second;
+
+                    if (fp.IsValid())
+                    {
+                        std::string ann = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+                        if (ann.length() > 7)
                         {
-                            for (const auto& rwyDes : settings->GetActiveDepRunways())
+                            std::string hpName = ann.substr(7);
+                            if (!hpName.empty() && hpName.back() == '*')
+                                hpName.clear();
+                            if (!hpName.empty())
                             {
-                                auto rwyIt = ap.runways.find(rwyDes);
-                                if (rwyIt == ap.runways.end())
-                                    continue;
-                                auto hpIt = rwyIt->second.holdingPoints.find(hpName);
-                                if (hpIt != rwyIt->second.holdingPoints.end())
+                                for (const auto& rwyDes : settings->GetActiveDepRunways())
                                 {
-                                    dest = {hpIt->second.centerLat, hpIt->second.centerLon};
-                                    break;
+                                    auto rwyIt = ap.runways.find(rwyDes);
+                                    if (rwyIt == ap.runways.end())
+                                        continue;
+                                    auto hpIt = rwyIt->second.holdingPoints.find(hpName);
+                                    if (hpIt != rwyIt->second.holdingPoints.end())
+                                    {
+                                        dest = {hpIt->second.centerLat, hpIt->second.centerLon};
+                                        break;
+                                    }
                                 }
                             }
                         }
                     }
+                    if (dest.lat == 0.0 && dest.lon == 0.0)
+                        dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(), ap);
                 }
 
-                // Fall back to the first assignable HP on the active runway.
                 if (dest.lat == 0.0 && dest.lon == 0.0)
-                    dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(), ap);
+                    dest = origin;
+
+                // Collect blocked nodes from active push routes.
+                std::set<int> blocked;
+                for (const auto& [_, pushRoute] : this->pushTracked)
+                {
+                    auto b = settings->osmGraph.NodesToBlock(pushRoute.polyline, 3.0);
+                    blocked.insert(b.begin(), b.end());
+                }
+
+                const double heading          = rt.GetPosition().GetReportedHeadingTrueNorth();
+                this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
+                    origin, dest, 0.0, settings->GetActiveDepRunways(), heading, blocked);
+                this->taxiGreenPreview = this->taxiSuggested[callsign];
             }
-
-            if (dest.lat == 0.0 && dest.lon == 0.0)
-                dest = origin; // fallback: no destination found
-
-            const double heading          = rt.GetPosition().GetReportedHeadingTrueNorth();
-            this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
-                origin, dest, 0.0, settings->GetActiveDepRunways(), heading);
-            this->taxiGreenPreview = this->taxiSuggested[callsign];
+            // Push planning: no suggestion; preview computed on first mouse move.
 
             if (settings->GetDebug())
-                settings->LogDebugMessage("Taxi planning started for " + callsign, "TAXI");
+                settings->LogDebugMessage(
+                    std::string(this->taxiPlanIsPush ? "Push" : "Taxi") +
+                        " planning started for " + callsign,
+                    "TAXI");
 
             this->RequestRefresh();
             return;
@@ -2963,45 +3134,70 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
         if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && Button == EuroScopePlugIn::BUTTON_LEFT)
         {
-            const int  dx         = Pt.x - this->taxiOriginPx.x;
-            const int  dy         = Pt.y - this->taxiOriginPx.y;
-            const bool nearOrigin = (dx * dx + dy * dy) <= 40 * 40;
+            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
 
-            TaxiRoute finalRoute = nearOrigin
-                                       ? this->taxiSuggested[this->taxiPlanActive]
-                                       : this->taxiGreenPreview;
-
-            if (finalRoute.valid)
+            if (this->taxiPlanIsPush)
             {
-                this->taxiAssigned[this->taxiPlanActive]      = finalRoute;
-                this->taxiAssignedTimes[this->taxiPlanActive] = GetTickCount64();
-                this->taxiTracked[this->taxiPlanActive]       = finalRoute; // persistent for Show routes
-
-                // Assign ground state if not already set: TAXI for departures, TXIN for inbounds.
-                auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
-                if (fp.IsValid())
+                // Push planning: always use the current preview (no "near origin" shortcut).
+                if (this->taxiGreenPreview.valid)
                 {
-                    auto*       settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-                    std::string ourIcao;
-                    if (!settings->GetAirports().empty())
-                        ourIcao = settings->GetAirports().begin()->first;
-                    std::string arr = fp.GetFlightPlanData().GetDestination();
-                    to_upper(arr);
-                    const bool  inbound      = (!ourIcao.empty() && arr == ourIcao);
-                    const char* targetState  = inbound ? "TXIN" : "TAXI";
-                    std::string currentState = fp.GetGroundState();
-                    if (currentState != targetState)
+                    this->pushTracked[this->taxiPlanActive] = this->taxiGreenPreview;
+
+                    // Set ground state to PUSH.
+                    auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
+                    if (fp.IsValid())
                     {
-                        std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
-                        fp.GetControllerAssignedData().SetScratchPadString(targetState);
-                        fp.GetControllerAssignedData().SetScratchPadString(scratch.c_str());
+                        std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
+                        fp.GetControllerAssignedData().SetScratchPadString("PUSH");
+                        fp.GetControllerAssignedData().SetScratchPadString(scratchBackup.c_str());
                     }
                     if (settings->GetDebug())
-                        settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
+                        settings->LogDebugMessage(
+                            "Push route assigned: " + FormatTaxiRoute(this->taxiGreenPreview), "TAXI");
+                }
+            }
+            else
+            {
+                const int  dx         = Pt.x - this->taxiOriginPx.x;
+                const int  dy         = Pt.y - this->taxiOriginPx.y;
+                const bool nearOrigin = (dx * dx + dy * dy) <= 40 * 40;
+
+                TaxiRoute finalRoute = nearOrigin
+                                           ? this->taxiSuggested[this->taxiPlanActive]
+                                           : this->taxiGreenPreview;
+
+                if (finalRoute.valid)
+                {
+                    this->taxiAssigned[this->taxiPlanActive]      = finalRoute;
+                    this->taxiAssignedTimes[this->taxiPlanActive] = GetTickCount64();
+                    this->taxiTracked[this->taxiPlanActive]       = finalRoute;
+
+                    // Assign ground state: TAXI for departures, TXIN for inbounds.
+                    auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
+                    if (fp.IsValid())
+                    {
+                        std::string ourIcao;
+                        if (!settings->GetAirports().empty())
+                            ourIcao = settings->GetAirports().begin()->first;
+                        std::string arr = fp.GetFlightPlanData().GetDestination();
+                        to_upper(arr);
+                        const bool  inbound      = (!ourIcao.empty() && arr == ourIcao);
+                        const char* targetState  = inbound ? "TXIN" : "TAXI";
+                        std::string currentState = fp.GetGroundState();
+                        if (currentState != targetState)
+                        {
+                            std::string scratch = fp.GetControllerAssignedData().GetScratchPadString();
+                            fp.GetControllerAssignedData().SetScratchPadString(targetState);
+                            fp.GetControllerAssignedData().SetScratchPadString(scratch.c_str());
+                        }
+                        if (settings->GetDebug())
+                            settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
+                    }
                 }
             }
 
             this->taxiPlanActive.clear();
+            this->taxiPlanIsPush = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
             this->RequestRefresh();
@@ -3019,6 +3215,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
         {
             this->taxiSuggested.erase(this->taxiPlanActive);
             this->taxiPlanActive.clear();
+            this->taxiPlanIsPush = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
             this->RequestRefresh();
@@ -3145,6 +3342,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
                 else if (idx == 26) // Clear all TAXI routes
                 {
+                    this->pushTracked.clear();
                     this->taxiTracked.clear();
                     this->taxiAssigned.clear();
                     this->taxiAssignedTimes.clear();
@@ -3420,6 +3618,7 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
         if (ObjectType == SCREEN_OBJECT_TAXI_TARGET && Button == EuroScopePlugIn::BUTTON_RIGHT)
         {
             const std::string cs(sObjectId);
+            this->pushTracked.erase(cs);
             this->taxiTracked.erase(cs);
             this->taxiAssigned.erase(cs);
             this->taxiAssignedTimes.erase(cs);
@@ -3427,6 +3626,7 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
             if (this->taxiPlanActive == cs)
             {
                 this->taxiPlanActive.clear();
+                this->taxiPlanIsPush = false;
                 this->taxiWaypoints.clear();
                 this->taxiGreenPreview = {};
             }
@@ -3529,7 +3729,8 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
         if (findCallSign != this->radarTargetDepartureInfos.end())
             this->radarTargetDepartureInfos.erase(findCallSign);
 
-        // Clear taxi planning state for disconnecting aircraft.
+        // Clear taxi/push planning state for disconnecting aircraft.
+        this->pushTracked.erase(cs);
         this->taxiAssigned.erase(cs);
         this->taxiAssignedTimes.erase(cs);
         this->taxiTracked.erase(cs);
@@ -3537,6 +3738,7 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
         if (this->taxiPlanActive == cs)
         {
             this->taxiPlanActive.clear();
+            this->taxiPlanIsPush = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
         }

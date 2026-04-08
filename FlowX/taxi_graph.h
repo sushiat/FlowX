@@ -180,31 +180,36 @@ class TaxiGraph
     /// @brief Finds the least-cost path from @p from to @p to using A*.
     ///
     /// Both endpoints are snapped to the nearest graph node before searching.
-    /// @param from          Origin position (aircraft current position or prev waypoint).
-    /// @param to            Destination position.
-    /// @param wingspanM     Aircraft wingspan in metres; edges on narrower taxiways are excluded.
-    ///                      Pass 0 to disable wingspan filtering.
-    /// @param activeDepRwys Active departure runway designators; their taxiFlowDep rules are applied.
+    /// @param from            Origin position (aircraft current position or prev waypoint).
+    /// @param to              Destination position.
+    /// @param wingspanM       Aircraft wingspan in metres; edges on narrower taxiways are excluded.
+    ///                        Pass 0 to disable wingspan filtering.
+    /// @param activeDepRwys   Active departure runway designators; their taxiFlowDep rules are applied.
+    /// @param initialBearingDeg Aircraft heading for forward-node selection; -1 = unknown.
+    /// @param blockedNodes    Node IDs that A* may not expand through (e.g. active push routes).
     /// @return Populated TaxiRoute on success; TaxiRoute{valid=false} if no path found.
     [[nodiscard]] TaxiRoute FindRoute(const GeoPoint&              from,
                                       const GeoPoint&              to,
                                       double                       wingspanM,
                                       const std::set<std::string>& activeDepRwys,
-                                      double                       initialBearingDeg = -1.0) const;
+                                      double                       initialBearingDeg = -1.0,
+                                      const std::set<int>&         blockedNodes      = {}) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
-    /// @param origin         Route start.
-    /// @param waypoints      Ordered mandatory via-points (may be empty).
-    /// @param dest           Route end.
-    /// @param cursorSnap     Current cursor snap position (appended as a trailing segment to dest).
-    /// @param wingspanM      Passed to each FindRoute call.
-    /// @param activeDepRwys  Passed to each FindRoute call.
+    /// @param origin           Route start.
+    /// @param waypoints        Ordered mandatory via-points (may be empty).
+    /// @param dest             Route end.
+    /// @param wingspanM        Passed to each FindRoute call.
+    /// @param activeDepRwys    Passed to each FindRoute call.
+    /// @param initialBearingDeg Aircraft heading; forwarded to the first FindRoute segment.
+    /// @param blockedNodes     Forwarded to every FindRoute call.
     [[nodiscard]] TaxiRoute FindWaypointRoute(const GeoPoint&              origin,
                                               const std::vector<GeoPoint>& waypoints,
                                               const GeoPoint&              dest,
                                               double                       wingspanM,
                                               const std::set<std::string>& activeDepRwys,
-                                              double                       initialBearingDeg = -1.0) const;
+                                              double                       initialBearingDeg = -1.0,
+                                              const std::set<int>&         blockedNodes      = {}) const;
 
     /// @brief Snaps @p rawPos to the nearest graph node within @p maxM metres.
     /// @return {snapped position, node label}. Returns {rawPos, ""} if no node is within range.
@@ -234,6 +239,17 @@ class TaxiGraph
     /// @return {0,0} if the key is not found.
     [[nodiscard]] static GeoPoint StandCentroid(const std::string&                    icaoStandKey,
                                                 const std::map<std::string, grStand>& grStands);
+
+    /// @brief Returns node IDs within @p radiusM metres of any point in @p polyline.
+    /// Use to convert a push-route polyline into a blocked-node set for FindRoute.
+    [[nodiscard]] std::set<int> NodesToBlock(const std::vector<GeoPoint>& polyline,
+                                             double                       radiusM = 3.0) const;
+
+    /// @brief Returns edge geometry (GeoPoint pairs) forming the dead-end sub-graph that
+    ///        contains @p dest but is cut off by @p blockedNodes.
+    /// Returns empty when @p dest is still reachable through unblocked paths.
+    [[nodiscard]] std::vector<std::pair<GeoPoint, GeoPoint>> DeadEndEdges(
+        const GeoPoint& dest, const std::set<int>& blockedNodes) const;
 
     /// @brief Derived runway centreline polylines (one per runway pair), populated by Build().
     /// Used for overlay rendering; not part of the OSM way data set.
