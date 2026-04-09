@@ -462,77 +462,14 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // (Stand nodes are added lazily in StandCentroid and FindRoute; we skip bulk
     //  stand insertion during Build to avoid loading thousands of irrelevant stands.)
 
-    // ── Step 6: cross-way gap bridging ───────────────────────────────────────
-    // OSM ways sometimes have endpoints within a few metres of each other but no
-    // shared node (GPS precision gaps). Use the spatial grid so each node only
-    // checks a small neighbourhood instead of the full O(N²) pair scan.
-    {
-        constexpr double GAP_M  = 6.0;
-        const int        rings6 = static_cast<int>(std::ceil(GAP_M / GRID_CELL_M)) + 1;
-        const int        N      = static_cast<int>(nodes_.size());
-        for (int i = 0; i < N; ++i)
-        {
-            if (nodes_[i].type != TaxiNodeType::Waypoint || nodes_[i].wayRef.empty())
-                continue;
-            auto [cx0, cy0] = GridCell(nodes_[i].pos);
-            for (int dx = -rings6; dx <= rings6; ++dx)
-            {
-                for (int dy = -rings6; dy <= rings6; ++dy)
-                {
-                    auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
-                    if (it == grid_.end())
-                        continue;
-                    for (const int j : it->second)
-                    {
-                        if (j <= i)
-                            continue; // avoid duplicate pairs
-                        if (nodes_[j].type != TaxiNodeType::Waypoint || nodes_[j].wayRef.empty())
-                            continue;
-                        if (nodes_[i].wayRef == nodes_[j].wayRef)
-                            continue;
-                        const double d = HaversineM(nodes_[i].pos, nodes_[j].pos);
-                        if (d > GAP_M)
-                            continue;
-                        bool linked = false;
-                        for (const auto& e : adj_[i])
-                            if (e.to == j)
-                            {
-                                linked = true;
-                                break;
-                            }
-                        if (linked)
-                            continue;
-                        const double bIJ = BearingDeg(nodes_[i].pos, nodes_[j].pos);
-                        const double bJI = BearingDeg(nodes_[j].pos, nodes_[i].pos);
-                        AddEdge(i, j, d, nodes_[j].wayRef, bIJ);
-                        AddEdge(j, i, d, nodes_[i].wayRef, bJI);
-                    }
-                }
-            }
-        }
-    }
-
-    // ── Final step: remove phantom cross-taxiway edges ───────────────────────
-    // After all construction steps (including gap bridging) strip any directed
-    // edge where both endpoints carry DIFFERENT non-empty wayRefs and are more
-    // than 1 m apart. Genuine junctions share an OSM node (≤ 1 m); anything
-    // further is parallel-lane proximity, not a real connection.
-    // Nodes with an empty wayRef (HPs, stands, runway centreline) are exempt
-    // because they legitimately bridge across taxiway refs.
-    for (int i = 0; i < static_cast<int>(adj_.size()); ++i)
-    {
-        const std::string& srcRef = nodes_[i].wayRef;
-        if (srcRef.empty())
-            continue;
-        std::erase_if(adj_[i],
-                      [&](const Edge& e)
-                      {
-                          const std::string& dstRef = nodes_[e.to].wayRef;
-                          if (dstRef.empty() || dstRef == srcRef)
-                              return false;
-                          return HaversineM(nodes_[i].pos, nodes_[e.to].pos) > 1.0;
-                      });
-    }
+    // ── Steps 6+: gap bridging and post-cleanup removed ──────────────────────
+    // FindOrCreateNode already merges different-ref nodes within 1 m (the GPS
+    // noise tolerance for genuine OSM junction nodes). Gap-bridging is redundant
+    // because all real intersections share exact OSM nodes (≤ 0.1 m), and any
+    // edge-removal pass broad enough to catch phantom parallel-lane connections
+    // also removes legitimate cross-taxiway edges from junction nodes (breaking
+    // all intersection routing). The 1 m merge threshold in FindOrCreateNode is
+    // the single, sufficient safeguard against phantom parallel-lane merges.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
