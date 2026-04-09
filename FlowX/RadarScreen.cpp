@@ -369,7 +369,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                         Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
 
                         const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
-                        if (!lbl.empty())
+                        if (!lbl.empty() && this->showTaxiLabels)
                             drawLabel({pt.x + 13, pt.y}, lbl, RGB(160, 80, 0));
                     }
 
@@ -1036,9 +1036,32 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             return ConvertCoordFromPositionToPixel(pos);
         };
 
-        // Pass 1 — edges (draw each undirected pair once; skip reverse duplicates via i < e.to).
-        HPEN edgePen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
-        HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, edgePen));
+        // Pass 1 — edges, coloured by cost multiplier (cost / distance in metres).
+        //   < 1×  green  — preferred / with-flow discount
+        //   ~1×   white  — neutral
+        //   ~3×   yellow — against generic flow or taxilane
+        //   ~9×   orange — taxilane against flow
+        //   ≥15×  red    — runway
+        struct CostBand
+        {
+            double   maxMult;
+            COLORREF col;
+        };
+        constexpr CostBand BANDS[] = {
+            {1.0,  RGB(0,   200, 100)}, // green
+            {2.0,  RGB(255, 255, 255)}, // white
+            {5.0,  RGB(255, 220,   0)}, // yellow
+            {14.0, RGB(255, 130,   0)}, // orange
+            {1e9,  RGB(220,  50,  50)}, // red
+        };
+        constexpr int NBAND = static_cast<int>(std::size(BANDS));
+        HPEN costPens[NBAND];
+        for (int b = 0; b < NBAND; ++b)
+            costPens[b] = CreatePen(PS_SOLID, 2, BANDS[b].col);
+
+        HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, costPens[1]));
+        int  curBand = 1;
+
         for (int i = 0; i < static_cast<int>(adj.size()); ++i)
         {
             const POINT ptA = toPixel(nodes[i].pos);
@@ -1046,28 +1069,49 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             {
                 if (e.to <= i)
                     continue; // draw each edge once
+
+                const double distM = HaversineM(nodes[i].pos, nodes[e.to].pos);
+                const double mult  = (distM > 0.01) ? e.cost / distM : 1.0;
+
+                int band = NBAND - 1;
+                for (int b = 0; b < NBAND; ++b)
+                {
+                    if (mult < BANDS[b].maxMult)
+                    {
+                        band = b;
+                        break;
+                    }
+                }
+                if (band != curBand)
+                {
+                    SelectObject(hDC, costPens[band]);
+                    curBand = band;
+                }
+
                 const POINT ptB = toPixel(nodes[e.to].pos);
                 MoveToEx(hDC, ptA.x, ptA.y, nullptr);
                 LineTo(hDC, ptB.x, ptB.y);
             }
         }
         SelectObject(hDC, prevPen);
-        DeleteObject(edgePen);
+        for (int b = 0; b < NBAND; ++b)
+            DeleteObject(costPens[b]);
 
-        // Pass 2 — nodes: 3 × 3 px square coloured by type.
+        // Pass 2 — nodes: 6 × 6 px square coloured by type.
         //   Waypoint       → cyan
-        //   HoldingPoint   → red
-        //   HoldingPosition→ orange
-        //   Stand          → green
+        //   HoldingPosition→ red
+        //   Stand          → green  (added lazily; only visible after a route to a stand is computed)
+        //   HoldingPoint   → not drawn (config centroids; not useful in visual debug)
         for (const auto& n : nodes)
         {
-            const COLORREF col = (n.type == TaxiNodeType::HoldingPoint)      ? RGB(220, 50, 50)
-                                 : (n.type == TaxiNodeType::HoldingPosition) ? RGB(255, 140, 0)
-                                 : (n.type == TaxiNodeType::Stand)           ? RGB(50, 220, 50)
-                                                                             : RGB(0, 200, 255);
+            if (n.type == TaxiNodeType::HoldingPoint)
+                continue;
+            const COLORREF col = (n.type == TaxiNodeType::HoldingPosition) ? RGB(220, 50, 50)
+                                 : (n.type == TaxiNodeType::Stand)         ? RGB(50, 220, 50)
+                                                                           : RGB(0, 200, 255);
             const POINT    pt  = toPixel(n.pos);
             HBRUSH         br  = CreateSolidBrush(col);
-            const RECT     r   = {pt.x - 2, pt.y - 2, pt.x + 2, pt.y + 2};
+            const RECT     r   = {pt.x - 3, pt.y - 3, pt.x + 3, pt.y + 3};
             FillRect(hDC, &r, br);
             DeleteObject(br);
         }
