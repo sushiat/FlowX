@@ -323,17 +323,23 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // all intersection routing). The 1 m merge threshold in FindOrCreateNode is
     // the single, sufficient safeguard against phantom parallel-lane merges.
 
-    // ── Step 7: build SnapForPlanning node-type indices ─────────────────────
-    // Pre-index HP/HoldingPosition and intersection nodes so SnapForPlanning()
-    // can scan O(k) typed nodes rather than the full O(n) node list.
+    // ── Step 7: build typed node indices ────────────────────────────────────
+    // hpNodeIds_ / isxNodeIds_ for O(k) SnapForPlanning scans.
+    // wayRefNodes_ for O(k) SwingoverSnap wayRef-filtered scans.
     hpNodeIds_.clear();
     isxNodeIds_.clear();
+    wayRefNodes_.clear();
     for (const auto& n : nodes_)
     {
         if (n.type == TaxiNodeType::HoldingPoint || n.type == TaxiNodeType::HoldingPosition)
             hpNodeIds_.push_back(n.id);
-        else if (n.type == TaxiNodeType::Waypoint && n.label.find("Exit") != std::string::npos)
-            isxNodeIds_.push_back(n.id);
+        else if (n.type == TaxiNodeType::Waypoint)
+        {
+            if (n.label.find("Exit") != std::string::npos)
+                isxNodeIds_.push_back(n.id);
+            if (!n.wayRef.empty())
+                wayRefNodes_[n.wayRef].push_back(n.id);
+        }
     }
 }
 
@@ -860,6 +866,8 @@ std::vector<TaxiGraph::PushPivotCandidate> TaxiGraph::PushCandidates(
     const double uy       = std::cos(brngRad); // lat component of push unit vector
 
     // One representative node per wayRef: keep the one closest to the push axis (lateral).
+    // Grid bounding-radius query: the search region is maxDistM ahead × ±60 m lateral,
+    // so a circle of radius sqrt(maxDistM² + 60²) covers the whole rectangle.
     struct Entry
     {
         int    nodeId;
@@ -868,25 +876,38 @@ std::vector<TaxiGraph::PushPivotCandidate> TaxiGraph::PushCandidates(
     };
     std::map<std::string, Entry> best;
 
-    for (const auto& n : nodes_)
+    const double searchR = std::sqrt(maxDistM * maxDistM + 60.0 * 60.0);
+    const int    rings   = static_cast<int>(std::ceil(searchR / GRID_CELL_M)) + 1;
+    auto [cx0, cy0]      = GridCell(origin);
+    for (int dx = -rings; dx <= rings; ++dx)
     {
-        if (n.type != TaxiNodeType::Waypoint || n.wayRef.empty())
-            continue;
-        if (excludedRefs.contains(n.wayRef))
-            continue;
+        for (int dy = -rings; dy <= rings; ++dy)
+        {
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int nid : it->second)
+            {
+                const TaxiNode& n = nodes_[nid];
+                if (n.type != TaxiNodeType::Waypoint || n.wayRef.empty())
+                    continue;
+                if (excludedRefs.contains(n.wayRef))
+                    continue;
 
-        const double dx = (n.pos.lon - origin.lon) * scaleLon;
-        const double dy = (n.pos.lat - origin.lat) * scaleLat;
-        const double t  = dx * ux + dy * uy; // signed projection onto push axis
-        if (t < 5.0 || t > maxDistM)
-            continue;
-        const double lateral = std::abs(dx * uy - dy * ux); // perp distance from push axis
-        if (lateral > 60.0)
-            continue; // too far to the side — probably a different apron row
+                const double ndx = (n.pos.lon - origin.lon) * scaleLon;
+                const double ndy = (n.pos.lat - origin.lat) * scaleLat;
+                const double t   = ndx * ux + ndy * uy;
+                if (t < 5.0 || t > maxDistM)
+                    continue;
+                const double lateral = std::abs(ndx * uy - ndy * ux);
+                if (lateral > 60.0)
+                    continue;
 
-        auto it = best.find(n.wayRef);
-        if (it == best.end() || lateral < it->second.lateral)
-            best[n.wayRef] = {n.id, t, lateral};
+                auto bIt = best.find(n.wayRef);
+                if (bIt == best.end() || lateral < bIt->second.lateral)
+                    best[n.wayRef] = {n.id, t, lateral};
+            }
+        }
     }
 
     std::vector<PushPivotCandidate> result;
@@ -1037,23 +1058,29 @@ TaxiGraph::SwingoverResult TaxiGraph::SwingoverSnap(
     const double ux       = std::sin(hdgRad); // forward unit vector (lon component)
     const double uy       = std::cos(hdgRad); // forward unit vector (lat component)
 
+    // Look up pre-indexed wayRef node lists (built by Build()).
+    const auto curIt = wayRefNodes_.find(currentRef);
+    const auto parIt = wayRefNodes_.find(partnerRef);
+    if (curIt == wayRefNodes_.end() || parIt == wayRefNodes_.end())
+        return {};
+    const auto& curNodes = curIt->second;
+    const auto& parNodes = parIt->second;
+
     // Step 1: startBend = nearest current-lane node >= START_MIN_M ahead of rawPos.
     double bestStartD = maxM;
     int    startNode  = -1;
-    for (const auto& n : nodes_)
+    for (const int nid : curNodes)
     {
-        if (n.type != TaxiNodeType::Waypoint || n.wayRef != currentRef)
-            continue;
-        const double dx      = (n.pos.lon - rawPos.lon) * scaleLon;
-        const double dy      = (n.pos.lat - rawPos.lat) * scaleLat;
-        const double forward = dx * ux + dy * uy;
-        if (forward < START_MIN_M)
+        const TaxiNode& n  = nodes_[nid];
+        const double    dx = (n.pos.lon - rawPos.lon) * scaleLon;
+        const double    dy = (n.pos.lat - rawPos.lat) * scaleLat;
+        if (dx * ux + dy * uy < START_MIN_M)
             continue;
         const double d = HaversineM(n.pos, rawPos);
         if (d < bestStartD)
         {
             bestStartD = d;
-            startNode  = n.id;
+            startNode  = nid;
         }
     }
     if (startNode < 0)
@@ -1065,15 +1092,13 @@ TaxiGraph::SwingoverResult TaxiGraph::SwingoverSnap(
     // Step 2: crossPt = nearest partner-lane node to startBend (lateral jump).
     double bestCrossD = maxM;
     int    crossNode  = -1;
-    for (const auto& n : nodes_)
+    for (const int nid : parNodes)
     {
-        if (n.type != TaxiNodeType::Waypoint || n.wayRef != partnerRef)
-            continue;
-        const double d = HaversineM(n.pos, startBend);
+        const double d = HaversineM(nodes_[nid].pos, startBend);
         if (d < bestCrossD)
         {
             bestCrossD = d;
-            crossNode  = n.id;
+            crossNode  = nid;
         }
     }
     if (crossNode < 0)
@@ -1081,24 +1106,21 @@ TaxiGraph::SwingoverResult TaxiGraph::SwingoverSnap(
 
     const GeoPoint& crossPt = nodes_[crossNode].pos;
 
-    // Step 3: endBend = nearest partner-lane node >= END_MIN_M ahead of crossPt,
-    // using the same aircraft heading as the forward direction.
+    // Step 3: endBend = nearest partner-lane node >= END_MIN_M ahead of crossPt.
     double bestEndD = maxM;
     int    endNode  = -1;
-    for (const auto& n : nodes_)
+    for (const int nid : parNodes)
     {
-        if (n.type != TaxiNodeType::Waypoint || n.wayRef != partnerRef)
-            continue;
-        const double dx      = (n.pos.lon - crossPt.lon) * scaleLon;
-        const double dy      = (n.pos.lat - crossPt.lat) * scaleLat;
-        const double forward = dx * ux + dy * uy;
-        if (forward < END_MIN_M)
+        const TaxiNode& n  = nodes_[nid];
+        const double    dx = (n.pos.lon - crossPt.lon) * scaleLon;
+        const double    dy = (n.pos.lat - crossPt.lat) * scaleLat;
+        if (dx * ux + dy * uy < END_MIN_M)
             continue;
         const double d = HaversineM(n.pos, crossPt);
         if (d < bestEndD)
         {
             bestEndD = d;
-            endNode  = n.id;
+            endNode  = nid;
         }
     }
     if (endNode < 0)
@@ -1328,14 +1350,22 @@ std::set<int> TaxiGraph::NodesToBlock(const std::vector<GeoPoint>& polyline,
                                       double                       radiusM) const
 {
     std::set<int> result;
-    for (const auto& n : nodes_)
+    const int     rings = static_cast<int>(std::ceil(radiusM / GRID_CELL_M)) + 1;
+    for (const auto& pt : polyline)
     {
-        for (const auto& pt : polyline)
+        auto [cx0, cy0] = GridCell(pt);
+        for (int dx = -rings; dx <= rings; ++dx)
         {
-            if (HaversineM(n.pos, pt) <= radiusM)
+            for (int dy = -rings; dy <= rings; ++dy)
             {
-                result.insert(n.id);
-                break;
+                auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+                if (it == grid_.end())
+                    continue;
+                for (const int nid : it->second)
+                {
+                    if (HaversineM(nodes_[nid].pos, pt) <= radiusM)
+                        result.insert(nid);
+                }
             }
         }
     }

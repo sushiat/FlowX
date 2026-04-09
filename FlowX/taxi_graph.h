@@ -361,6 +361,8 @@ class TaxiGraph
                      grid_;       ///< Spatial hash: packed(cx,cy) → node IDs; rebuilt every Build().
     std::vector<int> hpNodeIds_;  ///< IDs of all HoldingPoint/HoldingPosition nodes; built in Build() for O(k) SnapForPlanning priority-1 scan.
     std::vector<int> isxNodeIds_; ///< IDs of all intersection Waypoint nodes (label contains "Exit"); built in Build() for O(k) SnapForPlanning priority-2 scan.
+    std::unordered_map<std::string, std::vector<int>>
+        wayRefNodes_; ///< wayRef → node IDs for all Waypoint nodes on that ref; built in Build() for O(k) SwingoverSnap scans.
 
     // ── Build helpers ────────────────────────────────────────────────────────
 
