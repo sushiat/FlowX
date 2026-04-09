@@ -273,6 +273,96 @@ Named polygons that identify taxi-out aprons. Aircraft inside these polygons rec
 }
 ```
 
+### `taxiOnlyZones`
+
+Named polygons that always force taxi planning mode, regardless of stand assignment or clearance state. Use for remote aprons or cargo areas that never require a push-back tug.
+
+Same polygon format as `taxiOutStands`.
+
+```json
+"taxiOnlyZones": {
+    "GAC": {
+        "lat": [48.124791, 48.126092, 48.129959, 48.128719],
+        "lon": [16.537689, 16.533779, 16.536438, 16.540431]
+    }
+}
+```
+
+### Taxi overlay filtering
+
+These three arrays control which OSM aeroway ways are rendered in the taxi graph overlay. Ways whose `ref` tag is not listed are excluded from the overlay entirely.
+
+| Field | Type | Description |
+|---|---|---|
+| `taxiWays` | array of strings | Main taxiway refs (e.g. `"D"`, `"M"`, `"W"`) |
+| `taxiLanes` | array of strings | Taxilane refs (e.g. `"TL 31"`, `"TL 40 \"Blue Line\""`) |
+| `taxiIntersections` | array of strings | Intersection/exit refs (e.g. `"Exit 1"`, `"Exit 12"`) |
+
+```json
+"taxiWays":        ["D", "E", "L", "M", "P", "Q", "W"],
+"taxiLanes":       ["TL 16", "TL 17", "TL 31", "TL 40 \"Blue Line\""],
+"taxiIntersections": ["Exit 1", "Exit 2", "Exit 3"]
+```
+
+### `taxiWingspanMax`
+
+Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft wider than the limit are not routed over that element.
+
+```json
+"taxiWingspanMax": {
+    "P":  36.0,
+    "TL 40 \"Blue Line\"": 36.0
+}
+```
+
+### `taxiLaneSwingoverPairs`
+
+Pairs of taxilane refs that are physically the same strip painted with two direction-of-travel markings. The taxi router treats them as freely interchangeable — an aircraft assigned to either lane may use the other without penalty.
+
+```json
+"taxiLaneSwingoverPairs": [
+    ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]
+]
+```
+
+### `taxiFlowGeneric`
+
+Taxiway direction rules that are always active, regardless of which runways are in use. Each rule specifies a preferred direction of travel on a named taxiway. The router applies a cost penalty to edges that go against the grain.
+
+```json
+"taxiFlowGeneric": [
+    { "taxiway": "P", "direction": "N" },
+    { "taxiway": "Q", "direction": "S" }
+]
+```
+
+### `taxiFlowConfigs`
+
+Per-runway-configuration taxiway direction rules. The map key identifies the active runway configuration as `"<dep>_<arr>"`, where multiple runways on one side are joined with `/`. Rules in the matching entry are applied on top of `taxiFlowGeneric`.
+
+Key examples:
+
+| Config | Key |
+|---|---|
+| DEP 29, ARR 29 | `"29_29"` |
+| DEP 16, ARR 11 | `"16_11"` |
+| DEP 29 + 16, ARR 16 (split dep) | `"29/16_16"` |
+| DEP 16, ARR 11 + 16 (sim landings) | `"16_11/16"` |
+
+```json
+"taxiFlowConfigs": {
+    "29_29": [
+        { "taxiway": "M", "direction": "E" },
+        { "taxiway": "L", "direction": "W" },
+        { "taxiway": "W", "direction": "S" }
+    ],
+    "16_11": [],
+    "29/16_16": []
+}
+```
+
+Entries with an empty array are valid and simply apply no additional rules beyond `taxiFlowGeneric`. Configurations not present in the map inherit only `taxiFlowGeneric`.
+
 ### `napReminder`
 
 Configures a once-per-session modal alert at a specific local time (e.g. to remind controllers of the start of noise abatement procedures).
