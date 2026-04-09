@@ -813,6 +813,7 @@ void CFlowX_Timers::CheckArrivedAtStand()
             this->radarScreen->taxiTracked.erase(callSign);
             this->radarScreen->taxiAssigned.erase(callSign);
             this->radarScreen->taxiAssignedTimes.erase(callSign);
+            this->radarScreen->taxiAssignedPos.erase(callSign);
         }
 
         this->LogDebugMessage(callSign + " auto-PARK at stand " + standIt->second, "GND");

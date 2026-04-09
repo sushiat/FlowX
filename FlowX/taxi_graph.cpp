@@ -77,10 +77,10 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
     return id;
 }
 
-void TaxiGraph::AddEdge(int from, int to, double cost,
+void TaxiGraph::AddEdge(int from, int to, double cost, float flowMult,
                         const std::string& wayRef, double bearingDeg)
 {
-    adj_[from].push_back({to, cost, wayRef, bearingDeg});
+    adj_[from].push_back({to, cost, flowMult, wayRef, bearingDeg});
 }
 
 double TaxiGraph::FlowMult(double bearingDeg, const std::string& wayRef) const
@@ -213,10 +213,12 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             if (dist < 0.1)
                 continue; // skip degenerate segments
 
-            const double bAB  = BearingDeg(a, b);
-            const double bBA  = BearingDeg(b, a);
-            const double fmAB = FlowMult(bAB, ref) * typeMult;
-            const double fmBA = FlowMult(bBA, ref) * typeMult;
+            const double bAB    = BearingDeg(a, b);
+            const double bBA    = BearingDeg(b, a);
+            const float  flowAB = static_cast<float>(FlowMult(bAB, ref));
+            const float  flowBA = static_cast<float>(FlowMult(bBA, ref));
+            const double fmAB   = flowAB * typeMult;
+            const double fmBA   = flowBA * typeMult;
 
             // Subdivide long straight segments so there is a node every SUBDIV_M metres.
             // OSM geometry may place nodes hundreds of metres apart on runways/taxiways;
@@ -240,8 +242,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 if (cur == prev)
                     continue;
                 const double d = HaversineM(nodes_[prev].pos, nodes_[cur].pos);
-                AddEdge(prev, cur, d * fmAB, ref, bAB);
-                AddEdge(cur, prev, d * fmBA, ref, bBA);
+                AddEdge(prev, cur, d * fmAB, flowAB, ref, bAB);
+                AddEdge(cur, prev, d * fmBA, flowBA, ref, bBA);
                 prev = cur;
             }
 
@@ -249,8 +251,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             if (nB != prev)
             {
                 const double d = HaversineM(nodes_[prev].pos, nodes_[nB].pos);
-                AddEdge(prev, nB, d * fmAB, ref, bAB);
-                AddEdge(nB, prev, d * fmBA, ref, bBA);
+                AddEdge(prev, nB, d * fmAB, flowAB, ref, bAB);
+                AddEdge(nB, prev, d * fmBA, flowBA, ref, bBA);
             }
         }
     }
@@ -516,7 +518,10 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                               const std::set<int>&         blockedNodes,
                               const std::set<std::string>& activeDepRwys,
                               const std::set<std::string>& activeArrRwys,
-                              double                       initialBearingDeg) const
+                              double                       initialBearingDeg,
+                              const std::set<std::string>& suppressFlowWayRefs,
+                              bool                         ignoreAllPenalties,
+                              const std::set<int>&         preferredNodes) const
 {
     if (startId == goalId)
     {
@@ -555,6 +560,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     std::vector<int>         prev(nodes_.size(), -1);
     std::vector<double>      incomingBearing(nodes_.size(), -1.0);
     std::vector<std::string> incomingWayRef(nodes_.size(), "");
+    std::vector<bool>        closed(nodes_.size(), false);
     int                      nodesExpanded = 0;
 
     // Seed the aircraft's current heading so the first edge is turn-checked.
@@ -568,6 +574,11 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         const auto [f, cur] = open.top();
         open.pop();
 
+        // Skip stale priority-queue entries; once closed, g[cur] is optimal.
+        if (closed[cur])
+            continue;
+        closed[cur] = true;
+
         if (cur == goalId)
             break;
         if (++nodesExpanded > MAX_NODES)
@@ -575,60 +586,85 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
 
         for (const auto& edge : adj_[cur])
         {
+            // Never update a closed node — its cost is already final.
+            if (closed[edge.to])
+                continue;
             if (!excludedRefs.empty() && excludedRefs.contains(edge.wayRef))
                 continue;
-            if (!blockedNodes.empty() && blockedNodes.contains(edge.to) &&
-                edge.to != goalId)
+            if (!blockedNodes.empty() && blockedNodes.contains(edge.to) && edge.to != goalId)
                 continue;
 
-            // Re-apply config flow rule multiplier (generic rules baked in at Build time;
-            // taxiFlowConfigs rules for the active dep+arr configuration are added here).
-            // cfgFlowIt and hasConfigRules are resolved once per A* call (above).
-            double depMult = 1.0;
-            if (!edge.wayRef.empty() && hasConfigRules)
-            {
-                for (const auto& rule : cfgFlowIt->second)
-                {
-                    if (rule.taxiway != edge.wayRef)
-                        continue;
-                    const double rb = CardinalToBearing(rule.direction);
-                    if (rb < 0.0)
-                        continue;
-                    if (BearingDiff(edge.bearingDeg, rb) >= apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
-                        depMult = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
-                    break;
-                }
-            }
-
-            // Hard-block sharp turns; penalise turns beyond the soft threshold.
-            double turnPenalty = 0.0;
+            // Hard-turn block applies in all modes: physically undrivable turns are never allowed.
             if (incomingBearing[cur] >= 0.0)
             {
-                const double diff = BearingDiff(incomingBearing[cur], edge.bearingDeg);
-                if (diff > apt_.taxiNetworkConfig.routing.hardTurnDeg)
+                if (BearingDiff(incomingBearing[cur], edge.bearingDeg) >
+                    apt_.taxiNetworkConfig.routing.hardTurnDeg)
                     continue;
-                if (diff > apt_.taxiNetworkConfig.routing.softTurnDeg)
-                    turnPenalty = TURN_PENALTY;
             }
 
-            if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
-                incomingWayRef[cur] != edge.wayRef &&
-                !isxWayRefs_.count(incomingWayRef[cur]) &&
-                !isxWayRefs_.count(edge.wayRef))
-                turnPenalty += WAYREF_CHANGE_PENALTY;
+            double edgeCost;
+            double turnPenalty = 0.0;
 
-            const double ng = g[cur] + edge.cost * depMult + turnPenalty;
+            if (ignoreAllPenalties)
+            {
+                // Drawn-path mode: shortest geometric path — no flow, soft-turn, or wayref overhead.
+                edgeCost = edge.cost / edge.flowMult;
+                // Nodes collected during the draw gesture receive a strong discount to bias
+                // the route toward the drawn path without hard-forcing it.
+                constexpr double PREFERRED_NODE_DISCOUNT = 0.2;
+                if (!preferredNodes.empty() && preferredNodes.contains(edge.to))
+                    edgeCost *= PREFERRED_NODE_DISCOUNT;
+            }
+            else
+            {
+                // Normal mode: apply flow, turn, and wayref-change penalties.
+                // suppressFlowWayRefs: set by FindWaypointRoute after a manual via-point
+                // forced the route onto a taxiway; allows continuing against flow on that way.
+                const bool suppress =
+                    !suppressFlowWayRefs.empty() && suppressFlowWayRefs.count(edge.wayRef);
+                double depMult = 1.0;
+                if (!suppress && !edge.wayRef.empty() && hasConfigRules)
+                {
+                    for (const auto& rule : cfgFlowIt->second)
+                    {
+                        if (rule.taxiway != edge.wayRef)
+                            continue;
+                        const double rb = CardinalToBearing(rule.direction);
+                        if (rb < 0.0)
+                            continue;
+                        if (BearingDiff(edge.bearingDeg, rb) >=
+                            apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
+                            depMult = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
+                        break;
+                    }
+                }
+
+                if (incomingBearing[cur] >= 0.0 &&
+                    BearingDiff(incomingBearing[cur], edge.bearingDeg) >
+                        apt_.taxiNetworkConfig.routing.softTurnDeg)
+                    turnPenalty = TURN_PENALTY;
+
+                if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
+                    incomingWayRef[cur] != edge.wayRef &&
+                    !isxWayRefs_.count(incomingWayRef[cur]) &&
+                    !isxWayRefs_.count(edge.wayRef))
+                    turnPenalty += WAYREF_CHANGE_PENALTY;
+
+                const double baseCost = suppress ? edge.cost / edge.flowMult : edge.cost;
+                edgeCost              = baseCost * depMult;
+            }
+
+            const double ng = g[cur] + edgeCost + turnPenalty;
             if (ng < g[edge.to])
             {
                 g[edge.to]               = ng;
                 prev[edge.to]            = cur;
                 incomingBearing[edge.to] = edge.bearingDeg;
                 incomingWayRef[edge.to]  = edge.wayRef;
-                const double h           = HaversineM(nodes_[edge.to].pos, goalPos);
-                open.push({ng + h, edge.to});
+                open.push({ng + HaversineM(nodes_[edge.to].pos, goalPos), edge.to});
             }
         }
-    }
+    } // while
 
     if (prev[goalId] == -1 && goalId != startId)
         return {};
@@ -652,8 +688,8 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
             lastRef = ref;
         }
         if (nId != path.front())
-            route.totalDistM += HaversineM(nodes_[prev[nId] == -1 ? nId : prev[nId]].pos,
-                                           nodes_[nId].pos);
+            route.totalDistM +=
+                HaversineM(nodes_[prev[nId] == -1 ? nId : prev[nId]].pos, nodes_[nId].pos);
     }
 
     if (path.size() >= 2)
@@ -672,7 +708,10 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                const std::set<std::string>& activeDepRwys,
                                const std::set<std::string>& activeArrRwys,
                                double                       initialBearingDeg,
-                               const std::set<int>&         blockedNodes) const
+                               const std::set<int>&         blockedNodes,
+                               const std::set<std::string>& suppressFlowWayRefs,
+                               bool                         ignoreAllPenalties,
+                               const std::set<int>&         preferredNodes) const
 {
     if (nodes_.empty())
         return {};
@@ -727,7 +766,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     for (const int startId : candidates)
     {
         TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
-                               activeArrRwys, initialBearingDeg);
+                               activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
+                               ignoreAllPenalties, preferredNodes);
         if (!r.valid)
             continue;
         const double snapDist = HaversineM(from, nodes_[startId].pos);
@@ -752,7 +792,9 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                                        const std::set<std::string>& activeDepRwys,
                                        const std::set<std::string>& activeArrRwys,
                                        double                       initialBearingDeg,
-                                       const std::set<int>&         blockedNodes) const
+                                       const std::set<int>&         blockedNodes,
+                                       bool                         ignoreAllPenalties,
+                                       const std::set<int>&         preferredNodes) const
 {
     std::vector<GeoPoint> stops;
     stops.push_back(origin);
@@ -764,17 +806,33 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
     combined.valid        = true;
     double segInitBearing = initialBearingDeg; // propagated across segment boundaries
 
+    // Accumulated set of wayRefs for which the flow penalty is suppressed in subsequent
+    // segments. Each time a user waypoint ends on a taxiway (regardless of travel direction),
+    // that wayRef is added so the next segment can freely continue along it.
+    std::set<std::string> suppressFlowWayRefs;
+
     for (size_t i = 1; i < stops.size(); ++i)
     {
-        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
-                                  segInitBearing, blockedNodes);
+        // In drawn-path mode bias each sub-segment toward the direction of the next stop
+        // Drawn-path mode uses -1 (unconstrained) so the hard-turn block doesn't fire at
+        // sub-segment entries.  Loops are prevented by the closed set in RunAStar instead.
+        const double thisBearing = ignoreAllPenalties ? -1.0 : segInitBearing;
+        TaxiRoute    seg         = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
+                                             thisBearing, blockedNodes, suppressFlowWayRefs,
+                                             ignoreAllPenalties, preferredNodes);
         if (!seg.valid)
         {
             combined.valid = false;
             return combined;
         }
-        // Chain: the exit bearing of this segment becomes the initial bearing of the next.
-        segInitBearing = seg.exitBearing;
+        // Chain exit bearing for normal mode only.
+        if (!ignoreAllPenalties)
+            segInitBearing = seg.exitBearing;
+
+        // After each segment that ends at a user waypoint (not the last stop),
+        // record the wayRef so the next segment can continue on that taxiway against flow.
+        if (i < stops.size() - 1 && !seg.wayRefs.empty())
+            suppressFlowWayRefs.insert(seg.wayRefs.back());
 
         // Avoid duplicate junction points when concatenating.
         if (!combined.polyline.empty() && !seg.polyline.empty())
@@ -1198,6 +1256,22 @@ std::string TaxiGraph::WayRefAt(const GeoPoint& rawPos, double maxM) const
     if (bestId < 0)
         return {};
     return nodes_[bestId].wayRef;
+}
+
+int TaxiGraph::NearestNodeId(const GeoPoint& rawPos, double maxM) const
+{
+    double bestD  = maxM;
+    int    bestId = -1;
+    for (const auto& n : nodes_)
+    {
+        const double d = HaversineM(n.pos, rawPos);
+        if (d < bestD)
+        {
+            bestD  = d;
+            bestId = n.id;
+        }
+    }
+    return bestId;
 }
 
 GeoPoint TaxiGraph::SnapForPlanning(const GeoPoint&  rawPos,

@@ -230,6 +230,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::map<std::string, TaxiRoute>   taxiAssigned;                      ///< Callsign -> controller-confirmed taxi route (green); auto-removed 2 s after assignment
     std::map<std::string, TaxiRoute>   taxiTracked;                       ///< Callsign -> persistent taxi route for "Show routes" display; cleared on disconnect or re-assignment
     std::map<std::string, ULONGLONG>   taxiAssignedTimes;                 ///< Tick (GetTickCount64 ms) when each confirmed taxi route was last assigned
+    std::map<std::string, GeoPoint>    taxiAssignedPos;                   ///< Aircraft position at the moment each taxi route was confirmed; deviation warning is suppressed until the position changes by > 5 m (i.e. a fresh position update has been received)
     std::vector<TaxiConflictInfo>      taxiConflicts;                     ///< Active taxi path conflicts; recomputed every ~250 ms by UpdateTaxiSafety()
     GeoPoint                           taxiCursorSnap;                    ///< Current snapped cursor geo-position; updated every OnRefresh frame during planning mode
     std::set<std::string>              taxiDeviations;                    ///< Callsigns of moving aircraft currently off their assigned route (GS > 3 kt, dist > 60 m)
@@ -247,6 +248,10 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     bool                               taxiSwingoverActive   = false;     ///< Toggled by an ALT keypress during taxi planning; routes via a fixed s-bend crossover to the partner taxilane.
     std::map<std::string, TaxiRoute>   taxiSuggested;                     ///< Callsign -> auto-calculated suggested route (yellow); computed on planning activation
     std::vector<GeoPoint>              taxiWaypoints;                     ///< Mandatory via-points added by middle-click; route recalculated through all in order
+    bool                               taxiMidDrawing = false;            ///< True while the middle mouse button is held during taxi planning (draw gesture in progress).
+    std::vector<GeoPoint>              taxiDrawPolyline;                  ///< Subsampled cursor positions collected during a middle-drag gesture; rendered as cyan intent line; cleared on button release.
+    std::set<int>                      taxiDrawnNodeSet;                  ///< Graph node IDs collected during a middle-drag gesture; passed to FindWaypointRoute as preferredNodes to bias routing toward the drawn path.
+    GeoPoint                           taxiLastDrawnPos = {};             ///< Last position at which a draw sample was taken; used to throttle sampling by distance.
     std::map<std::string, std::string> towerStations;                     ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)
     POINT                              twrInboundLastDrag = {-1, -1};     ///< Previous drag cursor position for the TWR Inbound window
     std::vector<TwrInboundRowCache>    twrInboundRowsCache;               ///< Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates)

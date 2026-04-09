@@ -198,8 +198,11 @@ class TaxiGraph
                                       double                       wingspanM,
                                       const std::set<std::string>& activeDepRwys,
                                       const std::set<std::string>& activeArrRwys,
-                                      double                       initialBearingDeg = -1.0,
-                                      const std::set<int>&         blockedNodes      = {}) const;
+                                      double                       initialBearingDeg   = -1.0,
+                                      const std::set<int>&         blockedNodes        = {},
+                                      const std::set<std::string>& suppressFlowWayRefs = {},
+                                      bool                         ignoreAllPenalties  = false,
+                                      const std::set<int>&         preferredNodes      = {}) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
     /// @param origin            Route start.
@@ -216,8 +219,10 @@ class TaxiGraph
                                               double                       wingspanM,
                                               const std::set<std::string>& activeDepRwys,
                                               const std::set<std::string>& activeArrRwys,
-                                              double                       initialBearingDeg = -1.0,
-                                              const std::set<int>&         blockedNodes      = {}) const;
+                                              double                       initialBearingDeg  = -1.0,
+                                              const std::set<int>&         blockedNodes       = {},
+                                              bool                         ignoreAllPenalties = false,
+                                              const std::set<int>&         preferredNodes     = {}) const;
 
     /// @brief Returns the merged set of flow rules for the given active runway configuration.
     /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.
@@ -234,6 +239,10 @@ class TaxiGraph
     /// @brief Returns the wayRef of the nearest Waypoint node within @p maxM metres of @p rawPos.
     /// @return Empty string if no Waypoint node is within range.
     [[nodiscard]] std::string WayRefAt(const GeoPoint& rawPos, double maxM) const;
+
+    /// @brief Returns the ID of the nearest node of any type within @p maxM metres of @p rawPos.
+    /// @return Node ID, or -1 if no node is within range.
+    [[nodiscard]] int NearestNodeId(const GeoPoint& rawPos, double maxM) const;
 
     /// @brief Determines the best snap point for interactive planning mode.
     ///
@@ -339,9 +348,10 @@ class TaxiGraph
     struct Edge
     {
         int         to;
-        double      cost;       ///< Pre-multiplied cost including type and flow multipliers.
-        std::string wayRef;     ///< For wingspan filtering at query time.
-        double      bearingDeg; ///< Direction of travel (for turn-penalty calculation).
+        double      cost;            ///< Pre-multiplied cost including type and flow multipliers.
+        float       flowMult = 1.0f; ///< The generic flow multiplier baked into cost (1.0 = no penalty). Used by RunAStar to divide it out when flow suppression is active.
+        std::string wayRef;          ///< For wingspan filtering at query time.
+        double      bearingDeg;      ///< Direction of travel (for turn-penalty calculation).
     };
 
     /// @brief Read-only access to the node list; used for graph overlay rendering.
@@ -390,7 +400,8 @@ class TaxiGraph
     void GridInsert(int id);
 
     /// @brief Adds a single directed edge from → to with pre-computed cost.
-    void AddEdge(int from, int to, double cost,
+    /// @param flowMult The generic flow multiplier already baked into @p cost (1.0 = no penalty).
+    void AddEdge(int from, int to, double cost, float flowMult,
                  const std::string& wayRef, double bearingDeg);
 
     /// @brief Returns the generic flow-direction cost multiplier for @p wayRef at @p bearingDeg.
@@ -434,6 +445,12 @@ class TaxiGraph
     [[nodiscard]] double ForwardEdgeBearing(int nodeId, const std::string& wayRef, double headingDeg) const;
 
     /// @brief Core A* search from a pre-resolved start node to a goal node.
+    /// @param suppressFlowWayRefs WayRefs for which both the baked-in and runtime flow
+    ///        multipliers are ignored; used to allow continued travel on a taxiway after
+    ///        a manual via-point forced the route onto it against flow.
+    /// @param preferredNodes Node IDs collected from a middle-drag draw gesture; edges
+    ///        leading to these nodes receive a cost discount to bias routing toward the
+    ///        drawn path.
     /// @return Populated TaxiRoute on success; invalid TaxiRoute if no path found.
     [[nodiscard]] TaxiRoute RunAStar(int                          startId,
                                      int                          goalId,
@@ -441,5 +458,8 @@ class TaxiGraph
                                      const std::set<int>&         blockedNodes,
                                      const std::set<std::string>& activeDepRwys,
                                      const std::set<std::string>& activeArrRwys,
-                                     double                       initialBearingDeg) const;
+                                     double                       initialBearingDeg,
+                                     const std::set<std::string>& suppressFlowWayRefs = {},
+                                     bool                         ignoreAllPenalties  = false,
+                                     const std::set<int>&         preferredNodes      = {}) const;
 };

@@ -807,6 +807,7 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
             this->taxiTracked.erase(cs);
             this->taxiAssigned.erase(cs);
             this->taxiAssignedTimes.erase(cs);
+            this->taxiAssignedPos.erase(cs);
         }
         return;
     }
@@ -829,6 +830,7 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
         this->taxiTracked.erase(cs);
         this->taxiAssigned.erase(cs);
         this->taxiAssignedTimes.erase(cs);
+        this->taxiAssignedPos.erase(cs);
     }
 }
 
@@ -873,6 +875,27 @@ void RadarScreen::DrawPlanningRoutes(HDC hDC)
 
     const COLORREF previewCol = this->taxiPlanIsPush ? RGB(100, 200, 255) : RGB(255, 0, 220);
     this->DrawRoutePolyline(hDC, this->taxiGreenPreview, previewCol, 3); // light-blue (push) or magenta (taxi)
+
+    // Draw the middle-drag intent path as a thin orange polyline while the gesture is active.
+    if (this->taxiMidDrawing && this->taxiDrawPolyline.size() >= 2)
+    {
+        HPEN drawPen = CreatePen(PS_SOLID, 3, RGB(0, 240, 255));
+        HPEN oldPen  = static_cast<HPEN>(SelectObject(hDC, drawPen));
+        for (size_t pi = 1; pi < this->taxiDrawPolyline.size(); ++pi)
+        {
+            EuroScopePlugIn::CPosition pa, pb;
+            pa.m_Latitude  = this->taxiDrawPolyline[pi - 1].lat;
+            pa.m_Longitude = this->taxiDrawPolyline[pi - 1].lon;
+            pb.m_Latitude  = this->taxiDrawPolyline[pi].lat;
+            pb.m_Longitude = this->taxiDrawPolyline[pi].lon;
+            POINT ptA      = ConvertCoordFromPositionToPixel(pa);
+            POINT ptB      = ConvertCoordFromPositionToPixel(pb);
+            MoveToEx(hDC, ptA.x, ptA.y, nullptr);
+            LineTo(hDC, ptB.x, ptB.y);
+        }
+        SelectObject(hDC, oldPen);
+        DeleteObject(drawPen);
+    }
 
     // Draw via-point markers as small cyan squares.
     for (const auto& wp : this->taxiWaypoints)
@@ -1036,6 +1059,7 @@ void RadarScreen::UpdateTaxiSafety()
                 this->taxiTracked.erase(cs);
                 this->taxiAssigned.erase(cs);
                 this->taxiAssignedTimes.erase(cs);
+                this->taxiAssignedPos.erase(cs);
             }
         }
     }
@@ -1076,12 +1100,28 @@ void RadarScreen::UpdateTaxiSafety()
                              rt.GetPosition().GetPosition().m_Longitude};
 
         // ── Deviation check ──────────────────────────────────────────────────
-        double minDist = std::numeric_limits<double>::max();
-        for (size_t i = 1; i < route.polyline.size(); ++i)
-            minDist = std::min(minDist,
-                               PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
-        if (gs_kt > MIN_GS_KT && minDist > DEVIATION_THRESH_M)
-            this->taxiDeviations.insert(cs);
+        // Suppress until the aircraft's position has changed from where it was when
+        // the route was assigned — ensures the first position update after confirmation
+        // is evaluated rather than the same stale position that was used during planning.
+        constexpr double ASSIGN_POS_THRESH_M = 5.0;
+        auto             assignPosIt         = this->taxiAssignedPos.find(cs);
+        bool             suppressDeviation   = false;
+        if (assignPosIt != this->taxiAssignedPos.end())
+        {
+            if (HaversineM(acPos, assignPosIt->second) >= ASSIGN_POS_THRESH_M)
+                this->taxiAssignedPos.erase(assignPosIt); // position has moved — start checking
+            else
+                suppressDeviation = true;
+        }
+        if (!suppressDeviation)
+        {
+            double minDist = std::numeric_limits<double>::max();
+            for (size_t i = 1; i < route.polyline.size(); ++i)
+                minDist = std::min(minDist,
+                                   PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
+            if (gs_kt > MIN_GS_KT && minDist > DEVIATION_THRESH_M)
+                this->taxiDeviations.insert(cs);
+        }
 
         // ── Build timed predicted path ───────────────────────────────────────
         if (gs_kt <= MIN_GS_KT)
@@ -3596,6 +3636,21 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                                            : TaxiRoute{};
                 this->taxiCursorSnap = settings->osmGraph.SnapForPlanning(raw, sug);
 
+                // Collect raw cursor positions and nearby graph nodes while a middle-drag
+                // draw gesture is in progress.  The node set is passed as preferredNodes to
+                // FindWaypointRoute after release to bias A* toward the drawn path.
+                constexpr double DRAW_SAMPLE_M      = 5.0;
+                constexpr double DRAW_SNAP_RADIUS_M = 20.0;
+                if (this->taxiMidDrawing &&
+                    HaversineM(raw, this->taxiLastDrawnPos) >= DRAW_SAMPLE_M)
+                {
+                    this->taxiDrawPolyline.push_back(raw);
+                    const int nid = settings->osmGraph.NearestNodeId(raw, DRAW_SNAP_RADIUS_M);
+                    if (nid >= 0)
+                        this->taxiDrawnNodeSet.insert(nid);
+                    this->taxiLastDrawnPos = raw;
+                }
+
                 auto rt = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
                 if (rt.IsValid())
                 {
@@ -3682,7 +3737,7 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                             }
                         }
                     }
-                    else
+                    else if (!this->taxiMidDrawing)
                     {
                         // For taxi planning, route around active push routes.
                         std::set<int> blocked;
@@ -3717,9 +3772,17 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                         }
                         else
                         {
-                            this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
+                            // When a draw gesture produced preferred nodes, pass them to
+                            // FindWaypointRoute which forwards them to A* as a soft discount
+                            // (0.2x cost) to bias the route toward the drawn path.  Using
+                            // preferred nodes instead of hard intermediate waypoints avoids
+                            // backtracking loops when sampled points are close together.
+                            const bool hasDrawnNodes = !this->taxiDrawnNodeSet.empty() &&
+                                                       !this->taxiWaypoints.empty();
+                            this->taxiGreenPreview   = settings->osmGraph.FindWaypointRoute(
                                 origin, this->taxiWaypoints, this->taxiCursorSnap,
-                                taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked);
+                                taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
+                                heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet);
                         }
                     }
                 }
@@ -3764,6 +3827,22 @@ void RadarScreen::OnButtonDownScreenObject(int ObjectType, const char* sObjectId
         {
             static_cast<CFlowX_Functions*>(this->GetPlugIn())->Func_GndTransfer(std::string(sObjectId));
             this->RequestRefresh();
+        }
+
+        // Middle-button down during taxi planning starts a draw gesture.
+        // Preferred nodes from any previous gesture are cleared so each draw
+        // represents the intent for one specific segment.
+        if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING &&
+            Button == EuroScopePlugIn::BUTTON_MIDDLE &&
+            !this->taxiPlanActive.empty() && !this->taxiPlanIsPush)
+        {
+            this->taxiMidDrawing = true;
+            this->taxiDrawPolyline.clear();
+            this->taxiDrawnNodeSet.clear(); // each gesture replaces the previous
+            EuroScopePlugIn::CPosition startRawPos = this->ConvertCoordFromPixelToPosition(Pt);
+            GeoPoint                   startRaw{startRawPos.m_Latitude, startRawPos.m_Longitude};
+            this->taxiLastDrawnPos = startRaw;
+            this->taxiDrawPolyline.push_back(startRaw);
         }
     }
     catch (const std::exception& e)
@@ -3899,6 +3978,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
             this->taxiPlanActive = callsign;
             this->taxiWaypoints.clear();
+            this->taxiMidDrawing = false;
+            this->taxiDrawPolyline.clear();
+            this->taxiDrawnNodeSet.clear();
+            this->taxiLastDrawnPos = {};
             this->taxiOriginPx     = Pt;
             this->taxiGreenPreview = {};
 
@@ -4087,6 +4170,15 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     this->taxiAssignedTimes[this->taxiPlanActive] = GetTickCount64();
                     this->taxiTracked[this->taxiPlanActive]       = finalRoute;
 
+                    // Record current position so UpdateTaxiSafety can suppress the
+                    // deviation warning until a genuine position update has arrived.
+                    auto rtNow = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+                    if (rtNow.IsValid() && rtNow.GetPosition().IsValid())
+                    {
+                        auto p                                      = rtNow.GetPosition().GetPosition();
+                        this->taxiAssignedPos[this->taxiPlanActive] = {p.m_Latitude, p.m_Longitude};
+                    }
+
                     // Assign ground state: TAXI for departures, TXIN for inbounds.
                     auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
                     if (fp.IsValid())
@@ -4125,6 +4217,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             this->taxiSwingoverOrigin   = {};
             this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
+            this->taxiMidDrawing = false;
+            this->taxiDrawPolyline.clear();
+            this->taxiDrawnNodeSet.clear();
             this->taxiGreenPreview = {};
             this->RequestRefresh();
             return;
@@ -4132,6 +4227,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
         if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && Button == EuroScopePlugIn::BUTTON_MIDDLE)
         {
+            this->taxiMidDrawing = false;
+            this->taxiDrawPolyline.clear();
+            // taxiDrawnNodeSet stays active — it was populated during OnOverScreenObject
+            // sampling and will bias the next FindWaypointRoute call toward the drawn path.
             this->taxiWaypoints.push_back(this->taxiCursorSnap);
             this->RequestRefresh();
             return;
@@ -4147,6 +4246,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             this->taxiSwingoverOrigin   = {};
             this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
+            this->taxiMidDrawing = false;
+            this->taxiDrawPolyline.clear();
+            this->taxiDrawnNodeSet.clear();
             this->taxiGreenPreview = {};
             this->RequestRefresh();
             return;
@@ -4311,6 +4413,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     this->taxiTracked.clear();
                     this->taxiAssigned.clear();
                     this->taxiAssignedTimes.clear();
+                    this->taxiAssignedPos.clear();
                     this->taxiSuggested.clear();
                     this->taxiDeviations.clear();
                     this->taxiConflicts.clear();
@@ -4587,6 +4690,7 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
             this->taxiTracked.erase(cs);
             this->taxiAssigned.erase(cs);
             this->taxiAssignedTimes.erase(cs);
+            this->taxiAssignedPos.erase(cs);
             this->taxiSuggested.erase(cs);
             if (this->taxiPlanActive == cs)
             {
@@ -4701,6 +4805,7 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
         this->pushTracked.erase(cs);
         this->taxiAssigned.erase(cs);
         this->taxiAssignedTimes.erase(cs);
+        this->taxiAssignedPos.erase(cs);
         this->taxiTracked.erase(cs);
         this->taxiSuggested.erase(cs);
         if (this->taxiPlanActive == cs)

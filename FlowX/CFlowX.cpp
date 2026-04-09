@@ -355,6 +355,7 @@ void CFlowX::OnFunctionCall(int FunctionId, const char* sItemString, POINT Pt, R
                 this->radarScreen->taxiTracked.erase(cs);
                 this->radarScreen->taxiAssigned.erase(cs);
                 this->radarScreen->taxiAssignedTimes.erase(cs);
+                this->radarScreen->taxiAssignedPos.erase(cs);
                 this->radarScreen->taxiSuggested.erase(cs);
             }
         }
