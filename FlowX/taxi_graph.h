@@ -182,36 +182,48 @@ class TaxiGraph
     /// @brief Finds the least-cost path from @p from to @p to using A*.
     ///
     /// Both endpoints are snapped to the nearest graph node before searching.
-    /// @param from            Origin position (aircraft current position or prev waypoint).
-    /// @param to              Destination position.
-    /// @param wingspanM       Aircraft wingspan in metres; edges on narrower taxiways are excluded.
-    ///                        Pass 0 to disable wingspan filtering.
-    /// @param activeDepRwys   Active departure runway designators; their taxiFlowDep rules are applied.
+    /// @param from              Origin position (aircraft current position or prev waypoint).
+    /// @param to                Destination position.
+    /// @param wingspanM         Aircraft wingspan in metres; edges on narrower taxiways are excluded.
+    ///                          Pass 0 to disable wingspan filtering.
+    /// @param activeDepRwys     Active departure runway designators.
+    /// @param activeArrRwys     Active arrival runway designators.
+    ///                          Together dep+arr form the taxiFlowConfigs key applied during A*.
     /// @param initialBearingDeg Aircraft heading for forward-node selection; -1 = unknown.
-    /// @param blockedNodes    Node IDs that A* may not expand through (e.g. active push routes).
+    /// @param blockedNodes      Node IDs that A* may not expand through (e.g. active push routes).
     /// @return Populated TaxiRoute on success; TaxiRoute{valid=false} if no path found.
     [[nodiscard]] TaxiRoute FindRoute(const GeoPoint&              from,
                                       const GeoPoint&              to,
                                       double                       wingspanM,
                                       const std::set<std::string>& activeDepRwys,
+                                      const std::set<std::string>& activeArrRwys,
                                       double                       initialBearingDeg = -1.0,
                                       const std::set<int>&         blockedNodes      = {}) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
-    /// @param origin           Route start.
-    /// @param waypoints        Ordered mandatory via-points (may be empty).
-    /// @param dest             Route end.
-    /// @param wingspanM        Passed to each FindRoute call.
-    /// @param activeDepRwys    Passed to each FindRoute call.
+    /// @param origin            Route start.
+    /// @param waypoints         Ordered mandatory via-points (may be empty).
+    /// @param dest              Route end.
+    /// @param wingspanM         Passed to each FindRoute call.
+    /// @param activeDepRwys     Passed to each FindRoute call.
+    /// @param activeArrRwys     Passed to each FindRoute call.
     /// @param initialBearingDeg Aircraft heading; forwarded to the first FindRoute segment.
-    /// @param blockedNodes     Forwarded to every FindRoute call.
+    /// @param blockedNodes      Forwarded to every FindRoute call.
     [[nodiscard]] TaxiRoute FindWaypointRoute(const GeoPoint&              origin,
                                               const std::vector<GeoPoint>& waypoints,
                                               const GeoPoint&              dest,
                                               double                       wingspanM,
                                               const std::set<std::string>& activeDepRwys,
+                                              const std::set<std::string>& activeArrRwys,
                                               double                       initialBearingDeg = -1.0,
                                               const std::set<int>&         blockedNodes      = {}) const;
+
+    /// @brief Returns the merged set of flow rules for the given active runway configuration.
+    /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.
+    /// Used by the taxi graph overlay to render directional chevrons.
+    [[nodiscard]] std::vector<TaxiFlowRule> GetActiveFlowRules(
+        const std::set<std::string>& activeDepRwys,
+        const std::set<std::string>& activeArrRwys) const;
 
     /// @brief Snaps @p rawPos to the nearest graph node within @p maxM metres.
     /// @return {snapped position, node label}. Returns {rawPos, ""} if no node is within range.
@@ -370,11 +382,10 @@ class TaxiGraph
     void AddEdge(int from, int to, double cost,
                  const std::string& wayRef, double bearingDeg);
 
-    /// @brief Returns the flow-direction cost multiplier for an edge on @p wayRef
-    ///        travelling at @p bearingDeg, given the currently active flow rules.
-    [[nodiscard]] double FlowMult(double                       bearingDeg,
-                                  const std::string&           wayRef,
-                                  const std::set<std::string>& activeDepRwys) const;
+    /// @brief Returns the generic flow-direction cost multiplier for @p wayRef at @p bearingDeg.
+    /// Only taxiFlowGeneric rules are evaluated here; config-specific rules from taxiFlowConfigs
+    /// are applied separately at A* query time.
+    [[nodiscard]] double FlowMult(double bearingDeg, const std::string& wayRef) const;
 
     // ── A* helpers ───────────────────────────────────────────────────────────
 
@@ -418,5 +429,6 @@ class TaxiGraph
                                      const std::set<std::string>& excludedRefs,
                                      const std::set<int>&         blockedNodes,
                                      const std::set<std::string>& activeDepRwys,
+                                     const std::set<std::string>& activeArrRwys,
                                      double                       initialBearingDeg) const;
 };

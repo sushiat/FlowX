@@ -716,6 +716,32 @@ void CFlowX::OnTimer(int Counter)
             this->CheckForUpdate();
         }
 
+        // Detect connection transitions and trigger RefreshActiveRunways 5 s after connect.
+        {
+            const int curType = this->GetConnectionType();
+            if (curType != EuroScopePlugIn::CONNECTION_TYPE_NO &&
+                this->connectedType == EuroScopePlugIn::CONNECTION_TYPE_NO)
+            {
+                // Just connected (or switched from no-connection to a live/playback session).
+                this->connectedTickMs          = GetTickCount64();
+                this->connectedRunwayRefreshed = false;
+            }
+            else if (curType == EuroScopePlugIn::CONNECTION_TYPE_NO)
+            {
+                // Disconnected — reset so next connect fires again.
+                this->connectedRunwayRefreshed = false;
+                this->connectedTickMs          = 0;
+            }
+            this->connectedType = curType;
+
+            if (!this->connectedRunwayRefreshed && this->connectedTickMs > 0 &&
+                GetTickCount64() - this->connectedTickMs >= 5000)
+            {
+                this->RefreshActiveRunways();
+                this->connectedRunwayRefreshed = true;
+            }
+        }
+
         if (Counter > 0 && Counter % 10 == 0)
         {
             this->CheckAirportNAPReminder();

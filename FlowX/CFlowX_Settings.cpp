@@ -180,18 +180,47 @@ void CFlowX_Settings::RefreshActiveRunways()
     this->activeDepRunways.clear();
     this->activeArrRunways.clear();
 
+    auto trimmed = [](const char* s) -> std::string
+    {
+        std::string r = s ? s : "";
+        r.erase(0, r.find_first_not_of(' '));
+        if (!r.empty())
+            r.erase(r.find_last_not_of(' ') + 1);
+        return r;
+    };
+
+    // Iterate all runway sector elements; restrict to configured airports only.
     auto el = SectorFileElementSelectFirst(EuroScopePlugIn::SECTOR_ELEMENT_RUNWAY);
     while (el.IsValid())
     {
-        for (int i = 0; i <= 1; ++i)
+        const std::string apt = trimmed(el.GetAirportName());
+        if (this->airports.count(apt))
         {
-            if (el.IsElementActive(true, i))
-                this->activeDepRunways.insert(el.GetRunwayName(i));
-            if (el.IsElementActive(false, i))
-                this->activeArrRunways.insert(el.GetRunwayName(i));
+            for (int i = 0; i <= 1; ++i)
+            {
+                if (el.IsElementActive(true, i))
+                    this->activeDepRunways.insert(trimmed(el.GetRunwayName(i)));
+                if (el.IsElementActive(false, i))
+                    this->activeArrRunways.insert(trimmed(el.GetRunwayName(i)));
+            }
         }
         el = SectorFileElementSelectNext(el, EuroScopePlugIn::SECTOR_ELEMENT_RUNWAY);
     }
+
+    auto join = [](const std::set<std::string>& s) -> std::string
+    {
+        std::string out;
+        for (const auto& r : s)
+        {
+            if (!out.empty())
+                out += '/';
+            out += r;
+        }
+        return out;
+    };
+    this->LogMessage(std::format("Active runways - DEP: [{}]  ARR: [{}]",
+                                 join(this->activeDepRunways), join(this->activeArrRunways)),
+                     "TAXI");
 }
 
 void CFlowX_Settings::RebuildTaxiGraph()
@@ -733,6 +762,42 @@ void CFlowX_Settings::LoadConfig()
         if (json_airport.contains("taxiFlowGeneric"))
             for (const auto& r : json_airport["taxiFlowGeneric"])
                 ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{})});
+        if (json_airport.contains("taxiFlowConfigs"))
+        {
+            // Normalise each key: split on '_', sort each side on '/', rejoin.
+            // Allows the config file to use any ordering (e.g. "29/16_16" → stored as "16/29_16").
+            auto normSide = [](const std::string& side) -> std::string
+            {
+                std::vector<std::string> parts;
+                size_t                   start = 0, end;
+                while ((end = side.find('/', start)) != std::string::npos)
+                {
+                    parts.push_back(side.substr(start, end - start));
+                    start = end + 1;
+                }
+                parts.push_back(side.substr(start));
+                std::ranges::sort(parts);
+                std::string out;
+                for (const auto& p : parts)
+                {
+                    if (!out.empty())
+                        out += '/';
+                    out += p;
+                }
+                return out;
+            };
+            for (auto& [rawKey, json_rules] : json_airport["taxiFlowConfigs"].items())
+            {
+                const auto  sep = rawKey.find('_');
+                std::string normKey =
+                    (sep == std::string::npos)
+                        ? rawKey
+                        : normSide(rawKey.substr(0, sep)) + '_' + normSide(rawKey.substr(sep + 1));
+                for (const auto& r : json_rules)
+                    ap.taxiFlowConfigs[normKey].push_back(
+                        {r.value("taxiway", std::string{}), r.value("direction", std::string{})});
+            }
+        }
         if (json_airport.contains("taxiWingspanMax"))
             for (const auto& [ref, ws] : json_airport["taxiWingspanMax"].items())
                 ap.taxiWingspanMax[ref] = ws.get<double>();
@@ -911,10 +976,6 @@ void CFlowX_Settings::LoadConfig()
                     }
                     rwy.holdingPoints.emplace(hpName, hp);
                 }
-
-                if (json_rwy.contains("taxiFlowDep"))
-                    for (const auto& r : json_rwy["taxiFlowDep"])
-                        rwy.taxiFlowDep.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{})});
 
                 if (json_rwy.contains("vacatePoints"))
                 {

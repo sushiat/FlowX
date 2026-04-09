@@ -123,33 +123,33 @@ struct runway
     std::map<std::string, holdingPoint> holdingPoints = {};       ///< Named holding points on this runway
     std::map<std::string, int>          sidGroups     = {};       ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
     std::map<std::string, std::string>  sidColors     = {};       ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
-    std::vector<TaxiFlowRule>           taxiFlowDep   = {};       ///< Taxiway direction rules active when this runway is used for departures.
     std::map<std::string, vacatePoint>  vacatePoints  = {};       ///< Named vacate points on this runway
 };
 
 /// @brief Full configuration for a single airport loaded from config.json.
 struct airport
 {
-    std::string                                     icao;                           ///< ICAO code (e.g. "LOWW")
-    std::string                                     gndFreq;                        ///< Default ground frequency string
-    int                                             fieldElevation          = 0;    ///< Field elevation in feet (used to detect airborne state)
-    int                                             airborneTransfer        = 0;    ///< Altitude (ft) above which the TWR next-freq tag changes colour
-    int                                             airborneTransferWarning = 0;    ///< Altitude (ft) above which the TWR next-freq tag blinks orange
-    std::map<std::string, geoGndFreq>               geoGndFreq              = {};   ///< Geographic ground frequency zones
-    std::vector<std::string>                        ctrStations             = {};   ///< Centre frequencies in priority order (first online station on each freq wins)
-    std::map<std::string, taxiOutStands>            taxiOnlyZones           = {};   ///< Apron/zone polygons that always force taxi planning mode regardless of stand or clearance state
-    std::map<std::string, taxiOutStands>            taxiOutStands           = {};   ///< Taxi-out stand polygons
-    napReminder                                     nap_reminder            = {};   ///< NAP reminder configuration
-    std::string                                     defaultAppFreq;                 ///< Default approach frequency (used when no SID-specific one matches)
-    std::map<std::string, std::string>              nightTimeSids             = {}; ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
-    std::map<std::string, std::vector<std::string>> sidAppFreqs               = {}; ///< Approach frequency -> list of SIDs that use it
-    std::map<std::string, std::vector<std::string>> appFreqFallbacks          = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
-    std::map<std::string, runway>                   runways                   = {}; ///< Runway configurations keyed by designator
-    std::vector<std::string>                        taxiIntersections         = {}; ///< Intersection taxiway refs (e.g. "Exit 1") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                        taxiLanes                 = {}; ///< Taxilane refs (e.g. "TL 31") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                        taxiWays                  = {}; ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                        scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
-    std::vector<TaxiFlowRule>                       taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway selection.
-    std::map<std::string, double>                   taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
-    std::vector<std::array<std::string, 2>>         taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
+    std::string                                      icao;                           ///< ICAO code (e.g. "LOWW")
+    std::string                                      gndFreq;                        ///< Default ground frequency string
+    int                                              fieldElevation          = 0;    ///< Field elevation in feet (used to detect airborne state)
+    int                                              airborneTransfer        = 0;    ///< Altitude (ft) above which the TWR next-freq tag changes colour
+    int                                              airborneTransferWarning = 0;    ///< Altitude (ft) above which the TWR next-freq tag blinks orange
+    std::map<std::string, geoGndFreq>                geoGndFreq              = {};   ///< Geographic ground frequency zones
+    std::vector<std::string>                         ctrStations             = {};   ///< Centre frequencies in priority order (first online station on each freq wins)
+    std::map<std::string, taxiOutStands>             taxiOnlyZones           = {};   ///< Apron/zone polygons that always force taxi planning mode regardless of stand or clearance state
+    std::map<std::string, taxiOutStands>             taxiOutStands           = {};   ///< Taxi-out stand polygons
+    napReminder                                      nap_reminder            = {};   ///< NAP reminder configuration
+    std::string                                      defaultAppFreq;                 ///< Default approach frequency (used when no SID-specific one matches)
+    std::map<std::string, std::string>               nightTimeSids             = {}; ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
+    std::map<std::string, std::vector<std::string>>  sidAppFreqs               = {}; ///< Approach frequency -> list of SIDs that use it
+    std::map<std::string, std::vector<std::string>>  appFreqFallbacks          = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
+    std::map<std::string, runway>                    runways                   = {}; ///< Runway configurations keyed by designator
+    std::vector<std::string>                         taxiIntersections         = {}; ///< Intersection taxiway refs (e.g. "Exit 1") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                         taxiLanes                 = {}; ///< Taxilane refs (e.g. "TL 31") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                         taxiWays                  = {}; ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                         scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
+    std::vector<TaxiFlowRule>                        taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
+    std::map<std::string, std::vector<TaxiFlowRule>> taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
+    std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
+    std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
 };

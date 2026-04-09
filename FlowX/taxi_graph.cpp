@@ -83,48 +83,46 @@ void TaxiGraph::AddEdge(int from, int to, double cost,
     adj_[from].push_back({to, cost, wayRef, bearingDeg});
 }
 
-double TaxiGraph::FlowMult(double                       bearingDeg,
-                           const std::string&           wayRef,
-                           const std::set<std::string>& activeDepRwys) const
+double TaxiGraph::FlowMult(double bearingDeg, const std::string& wayRef) const
 {
     constexpr double WITH_FLOW_MAX = 45.0;
     constexpr double AGAINST_FLOW  = 135.0;
     constexpr double AGAINST_MULT  = 3.0;
 
-    auto checkRules = [&](const std::vector<TaxiFlowRule>& rules) -> double
+    for (const auto& rule : apt_.taxiFlowGeneric)
     {
-        for (const auto& rule : rules)
-        {
-            if (rule.taxiway != wayRef)
-                continue;
-            const double ruleBearing = CardinalToBearing(rule.direction);
-            if (ruleBearing < 0.0)
-                continue;
-            const double diff = BearingDiff(bearingDeg, ruleBearing);
-            if (diff <= WITH_FLOW_MAX)
-                return 1.0;
-            if (diff >= AGAINST_FLOW)
-                return AGAINST_MULT;
-        }
-        return 1.0; // no rule applies → neutral
-    };
-
-    // Check generic rules first.
-    double mult = checkRules(apt_.taxiFlowGeneric);
-    if (mult > 1.0)
-        return mult;
-
-    // Check departure-specific rules for each active runway.
-    for (const auto& rwyDes : activeDepRwys)
-    {
-        auto it = apt_.runways.find(rwyDes);
-        if (it == apt_.runways.end())
+        if (rule.taxiway != wayRef)
             continue;
-        mult = checkRules(it->second.taxiFlowDep);
-        if (mult > 1.0)
-            return mult;
+        const double ruleBearing = CardinalToBearing(rule.direction);
+        if (ruleBearing < 0.0)
+            continue;
+        const double diff = BearingDiff(bearingDeg, ruleBearing);
+        if (diff <= WITH_FLOW_MAX)
+            return 1.0;
+        if (diff >= AGAINST_FLOW)
+            return AGAINST_MULT;
     }
     return 1.0;
+}
+
+/// @brief Builds a canonical taxiFlowConfigs key from sorted dep/arr runway sets.
+/// Sets are already lexicographically ordered; elements are joined with '/' and
+/// separated by '_' (e.g. {"16","29"} dep + {"16"} arr → "16/29_16").
+static std::string BuildConfigKey(const std::set<std::string>& dep,
+                                  const std::set<std::string>& arr)
+{
+    auto join = [](const std::set<std::string>& s) -> std::string
+    {
+        std::string out;
+        for (const auto& r : s)
+        {
+            if (!out.empty())
+                out += '/';
+            out += r;
+        }
+        return out;
+    };
+    return join(dep) + '_' + join(arr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -178,9 +176,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
         }
     }
 
-    // Use generic rules only during graph building (departure rules are applied
-    // per-query at FindRoute time via the activeDepRwys parameter).
-    const std::set<std::string> noDepRwys;
+    // Only generic rules are baked into edge costs at build time.
+    // Config-specific rules (taxiFlowConfigs) are applied per-query in RunAStar.
 
     // Type multipliers (distance × mult = base cost).
     constexpr double MULT_TAXIWAY      = 1.0;
@@ -214,8 +211,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
             const double bAB  = BearingDeg(a, b);
             const double bBA  = BearingDeg(b, a);
-            const double fmAB = FlowMult(bAB, ref, noDepRwys) * typeMult;
-            const double fmBA = FlowMult(bBA, ref, noDepRwys) * typeMult;
+            const double fmAB = FlowMult(bAB, ref) * typeMult;
+            const double fmBA = FlowMult(bBA, ref) * typeMult;
 
             // Subdivide long straight segments so there is a node every SUBDIV_M metres.
             // OSM geometry may place nodes hundreds of metres apart on runways/taxiways;
@@ -494,6 +491,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                               const std::set<std::string>& excludedRefs,
                               const std::set<int>&         blockedNodes,
                               const std::set<std::string>& activeDepRwys,
+                              const std::set<std::string>& activeArrRwys,
                               double                       initialBearingDeg) const
 {
     if (startId == goalId)
@@ -550,29 +548,26 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 edge.to != goalId)
                 continue;
 
-            // Re-apply departure rule multiplier (generic rules already baked in, dep rules added here).
+            // Re-apply config flow rule multiplier (generic rules baked in at Build time;
+            // taxiFlowConfigs rules for the active dep+arr configuration are added here).
             double depMult = 1.0;
-            if (!activeDepRwys.empty() && !edge.wayRef.empty())
+            if (!edge.wayRef.empty() && (!activeDepRwys.empty() || !activeArrRwys.empty()))
             {
-                for (const auto& rwyDes : activeDepRwys)
+                const std::string configKey = BuildConfigKey(activeDepRwys, activeArrRwys);
+                const auto        cfgIt     = apt_.taxiFlowConfigs.find(configKey);
+                if (cfgIt != apt_.taxiFlowConfigs.end())
                 {
-                    auto it = apt_.runways.find(rwyDes);
-                    if (it == apt_.runways.end())
-                        continue;
-                    for (const auto& rule : it->second.taxiFlowDep)
+                    for (const auto& rule : cfgIt->second)
                     {
                         if (rule.taxiway != edge.wayRef)
                             continue;
                         const double rb = CardinalToBearing(rule.direction);
                         if (rb < 0.0)
                             continue;
-                        const double diff = BearingDiff(edge.bearingDeg, rb);
-                        if (diff >= 135.0)
+                        if (BearingDiff(edge.bearingDeg, rb) >= 135.0)
                             depMult = 3.0;
                         break;
                     }
-                    if (depMult > 1.0)
-                        break;
                 }
             }
 
@@ -644,6 +639,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                const GeoPoint&              to,
                                double                       wingspanM,
                                const std::set<std::string>& activeDepRwys,
+                               const std::set<std::string>& activeArrRwys,
                                double                       initialBearingDeg,
                                const std::set<int>&         blockedNodes) const
 {
@@ -694,7 +690,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     for (const int startId : candidates)
     {
         TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
-                               initialBearingDeg);
+                               activeArrRwys, initialBearingDeg);
         if (r.valid && (!best.valid || r.totalDistM < best.totalDistM))
             best = std::move(r);
     }
@@ -710,6 +706,7 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                                        const GeoPoint&              dest,
                                        double                       wingspanM,
                                        const std::set<std::string>& activeDepRwys,
+                                       const std::set<std::string>& activeArrRwys,
                                        double                       initialBearingDeg,
                                        const std::set<int>&         blockedNodes) const
 {
@@ -725,7 +722,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
 
     for (size_t i = 1; i < stops.size(); ++i)
     {
-        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, segInitBearing, blockedNodes);
+        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
+                                  segInitBearing, blockedNodes);
         if (!seg.valid)
         {
             combined.valid = false;
@@ -1236,6 +1234,22 @@ GeoPoint TaxiGraph::SnapForPlanning(const GeoPoint&  rawPos,
     }
 
     return rawPos;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Flow rule helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+std::vector<TaxiFlowRule> TaxiGraph::GetActiveFlowRules(
+    const std::set<std::string>& activeDepRwys,
+    const std::set<std::string>& activeArrRwys) const
+{
+    std::vector<TaxiFlowRule> rules = apt_.taxiFlowGeneric;
+    const std::string         key   = BuildConfigKey(activeDepRwys, activeArrRwys);
+    const auto                it    = apt_.taxiFlowConfigs.find(key);
+    if (it != apt_.taxiFlowConfigs.end())
+        rules.insert(rules.end(), it->second.begin(), it->second.end());
+    return rules;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

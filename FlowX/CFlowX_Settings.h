@@ -149,6 +149,12 @@ class CFlowX_Settings : public CFlowX_Logging
         return {};
     }
 
+    /// @brief Returns a const reference to the active arrival runway designator set.
+    [[nodiscard]] const std::set<std::string>& GetActiveArrRunways() const
+    {
+        return this->activeArrRunways;
+    }
+
     /// @brief Returns a const reference to the active departure runway designator set.
     [[nodiscard]] const std::set<std::string>& GetActiveDepRunways() const
     {
