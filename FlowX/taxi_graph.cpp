@@ -33,6 +33,8 @@ static double CardinalToBearing(const std::string& dir)
     return -1.0; // unknown
 }
 
+static constexpr double GRID_CELL_M = 15.0; ///< Spatial grid cell size in metres.
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Build helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,8 +134,6 @@ double TaxiGraph::FlowMult(double                       bearingDeg,
 // ─────────────────────────────────────────────────────────────────────────────
 // Spatial grid helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-static constexpr double GRID_CELL_M = 15.0; ///< Spatial grid cell size in metres.
 
 std::pair<int, int> TaxiGraph::GridCell(const GeoPoint& p) const
 {
