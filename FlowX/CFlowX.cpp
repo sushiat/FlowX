@@ -108,6 +108,51 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
                     break;
                 }
             }
+
+            // HP shortcut (TWR only): .NAME → assign confirmed and clear pad; .NAME? → register request, leave pad.
+            auto me = this->ControllerMyself();
+            if (me.IsValid() && me.GetFacility() == 4 && scratch.size() >= 2 && scratch[0] == '.')
+            {
+                std::string hpInput   = scratch.substr(1);
+                bool        isReqMark = (!hpInput.empty() && hpInput.back() == '?');
+                if (isReqMark)
+                    hpInput.pop_back();
+
+                // Reject inputs with spaces (e.g. ".a4 ok") to prevent infinite re-entry.
+                if (!hpInput.empty() && hpInput.find(' ') == std::string::npos)
+                {
+                    std::string hpUpper = hpInput;
+                    to_upper(hpUpper);
+
+                    // Find canonical HP name (case-insensitive search across all runways).
+                    std::string foundHpName;
+                    if (!this->GetAirports().empty())
+                    {
+                        const auto& ap = this->GetAirports().begin()->second;
+                        for (const auto& [rwyDes, rwy] : ap.runways)
+                        {
+                            auto it = rwy.holdingPoints.find(hpUpper);
+                            if (it != rwy.holdingPoints.end())
+                            {
+                                foundHpName = it->first;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!foundHpName.empty())
+                    {
+                        const std::string newHp = foundHpName + (isReqMark ? "*" : "");
+                        this->flightStripAnnotation[callSign] =
+                            AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], newHp);
+                        fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
+                        if (!isReqMark)
+                            fp.GetControllerAssignedData().SetScratchPadString(""); // confirmed: clear pad
+                        // Request (.NAME?): leave scratchpad as-is so TWR can see the pending request.
+                        this->PushToOtherControllers(fp);
+                    }
+                }
+            }
         }
 
         if (dataType == EuroScopePlugIn::CTR_DATA_TYPE_GROUND_STATE)
