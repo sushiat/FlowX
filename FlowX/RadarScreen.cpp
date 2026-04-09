@@ -3889,6 +3889,14 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             fp.GetControllerAssignedData().SetScratchPadString(targetState);
                             fp.GetControllerAssignedData().SetScratchPadString(scratch.c_str());
                         }
+                        if (inbound)
+                        {
+                            auto* timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                            timers->gndTransfer_list.erase(this->taxiPlanActive);
+                            timers->gndTransfer_soundPlayed.erase(this->taxiPlanActive);
+                            this->gndTransferSquares.erase(this->taxiPlanActive);
+                            this->gndTransferSquareTimes.erase(this->taxiPlanActive);
+                        }
                         if (settings->GetDebug())
                             settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
                     }
