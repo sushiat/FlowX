@@ -842,28 +842,28 @@ void CFlowX_Settings::LoadConfig()
             auto&       nc  = ap.taxiNetworkConfig;
             if (jnc.contains("graph"))
             {
-                const auto& g            = jnc["graph"];
+                const auto& g                    = jnc["graph"];
                 nc.graph.subdivisionIntervalM    = g.value("subdivisionIntervalM", 15.0);
                 nc.graph.osmHoldingPositionSnapM = g.value("osmHoldingPositionSnapM", 25.0);
                 nc.graph.configHoldingPointSnapM = g.value("configHoldingPointSnapM", 40.0);
             }
             if (jnc.contains("edgeCosts"))
             {
-                const auto& e          = jnc["edgeCosts"];
+                const auto& e                 = jnc["edgeCosts"];
                 nc.edgeCosts.multIntersection = e.value("multIntersection", 1.1);
                 nc.edgeCosts.multTaxilane     = e.value("multTaxilane", 3.0);
                 nc.edgeCosts.multRunway       = e.value("multRunway", 20.0);
             }
             if (jnc.contains("flowRules"))
             {
-                const auto& f              = jnc["flowRules"];
+                const auto& f                  = jnc["flowRules"];
                 nc.flowRules.withFlowMaxDeg    = f.value("withFlowMaxDeg", 45.0);
                 nc.flowRules.againstFlowMinDeg = f.value("againstFlowMinDeg", 135.0);
                 nc.flowRules.againstFlowMult   = f.value("againstFlowMult", 3.0);
             }
             if (jnc.contains("routing"))
             {
-                const auto& r                = jnc["routing"];
+                const auto& r                  = jnc["routing"];
                 nc.routing.hardTurnDeg         = r.value("hardTurnDeg", 120.0);
                 nc.routing.softTurnDeg         = r.value("softTurnDeg", 85.0);
                 nc.routing.turnPenalty         = r.value("turnPenalty", 200.0);
@@ -873,7 +873,7 @@ void CFlowX_Settings::LoadConfig()
             }
             if (jnc.contains("snapping"))
             {
-                const auto& s              = jnc["snapping"];
+                const auto& s               = jnc["snapping"];
                 nc.snapping.holdingPointM   = s.value("holdingPointM", 30.0);
                 nc.snapping.intersectionM   = s.value("intersectionM", 15.0);
                 nc.snapping.suggestedRouteM = s.value("suggestedRouteM", 20.0);
@@ -947,6 +947,12 @@ void CFlowX_Settings::LoadConfig()
                 zone.lon = json_zone["lon"].get<std::vector<double>>();
                 ap.taxiOnlyZones.emplace(name, zone);
             }
+        }
+
+        if (json_airport.contains("standRoutingTargets"))
+        {
+            for (auto& [standName, hpLabel] : json_airport.at("standRoutingTargets").items())
+                ap.standRoutingTargets.emplace(standName, hpLabel.get<std::string>());
         }
 
         json json_nap_reminder;

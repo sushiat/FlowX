@@ -211,6 +211,7 @@ struct airport
     std::vector<std::string>                         taxiWays                  = {}; ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
     std::vector<std::string>                         scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
     std::vector<TaxiFlowRule>                        taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
+    std::map<std::string, std::string>               standRoutingTargets       = {}; ///< Stand name → holding point/position label; overrides centroid routing for inbounds (e.g. uncontrolled aprons handed off to a marshaller).
     std::map<std::string, std::vector<TaxiFlowRule>> taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
     std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
     std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).

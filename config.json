@@ -83,6 +83,9 @@
             "TL 40 \"Blue Line\"": 36,
             "TL 40 \"Orange Line\"": 36
         },
+        "standRoutingTargets": {
+            "GAC": "P1"
+        },
         "taxiLaneSwingoverPairs": [
             ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]
         ],

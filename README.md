@@ -418,8 +418,22 @@ For example, a filed SID of `IRGO2A` is displayed as `IRGOT2A*`.
 A list of scratchpad prefixes that are exempt from the **Auto-Clear Scratch** feature. Comparison is case-insensitive. If the aircraft's scratchpad starts with any listed prefix the auto-clear is skipped.
 
 ```json
-"scratchpadClearExclusions": [".cs", ".did", ".obacht"]
+"scratchpadClearExclusions": [".cs", ".new"]
 ```
+
+### `standRoutingTargets`
+
+Maps stand names to the label of an OSM holding position node. When an inbound aircraft is assigned one of these stands, the taxi router terminates at that holding position instead of routing to the centre of the stand polygon. Use this for uncontrolled aprons where the tower hands off to a marshaller at a defined point.
+
+The label must match the `ref` tag of the OSM `aeroway=holding_position` node exactly.
+
+```json
+"standRoutingTargets": {
+    "GAC": "P1"
+}
+```
+
+If the label is not found in the OSM graph data, routing falls back to the stand centroid.
 
 ### `taxiNetworkConfig`
 

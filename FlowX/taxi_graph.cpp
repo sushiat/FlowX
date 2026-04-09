@@ -1362,6 +1362,16 @@ GeoPoint TaxiGraph::StandCentroid(const std::string&                    icaoStan
             sumLon / static_cast<double>(st.lat.size())};
 }
 
+GeoPoint TaxiGraph::HoldingPositionByLabel(const std::string& label) const
+{
+    for (const int id : hpNodeIds_)
+    {
+        if (nodes_[id].label == label)
+            return nodes_[id].pos;
+    }
+    return {0.0, 0.0};
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TaxiGraph::NodesToBlock
 // ─────────────────────────────────────────────────────────────────────────────

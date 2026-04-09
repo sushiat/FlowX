@@ -648,7 +648,7 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
     };
 
     // Expire the hover state after 500 ms so it clears when the mouse moves away.
-    constexpr ULONGLONG HOVER_MS = 2000;
+    constexpr ULONGLONG HOVER_MS = 1000;
     if (!this->hoveredTaxiTarget.empty() &&
         GetTickCount64() - this->hoveredTaxiTargetTick >= HOVER_MS)
         this->hoveredTaxiTarget.clear();
@@ -1451,8 +1451,20 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
         auto  standIt = timers->GetStandAssignment().find(this->taxiPlanActive);
         if (standIt != timers->GetStandAssignment().end())
         {
-            const std::string standKey = ourIcao + ":" + standIt->second;
-            dest                       = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
+            const std::string& standName = standIt->second;
+            const auto&        ap        = settings->GetAirports().begin()->second;
+            auto               ovIt      = ap.standRoutingTargets.find(standName);
+            if (ovIt != ap.standRoutingTargets.end())
+            {
+                GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(ovIt->second);
+                dest        = (hp.lat != 0.0 || hp.lon != 0.0)
+                                  ? hp
+                                  : TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+            }
+            else
+            {
+                dest = TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+            }
         }
     }
     else if (!ourIcao.empty() && !settings->GetAirports().empty())
@@ -3738,8 +3750,20 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     auto standIt = timers->GetStandAssignment().find(callsign);
                     if (standIt != timers->GetStandAssignment().end())
                     {
-                        const std::string standKey = ourIcao + ":" + standIt->second;
-                        dest                       = TaxiGraph::StandCentroid(standKey, settings->GetGrStands());
+                        const std::string& standName = standIt->second;
+                        const auto&        ap        = settings->GetAirports().begin()->second;
+                        auto               ovIt      = ap.standRoutingTargets.find(standName);
+                        if (ovIt != ap.standRoutingTargets.end())
+                        {
+                            GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(ovIt->second);
+                            dest        = (hp.lat != 0.0 || hp.lon != 0.0)
+                                              ? hp
+                                              : TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+                        }
+                        else
+                        {
+                            dest = TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+                        }
                     }
                 }
                 else if (hasAirport)

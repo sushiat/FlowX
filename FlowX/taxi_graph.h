@@ -259,6 +259,10 @@ class TaxiGraph
     [[nodiscard]] static GeoPoint StandCentroid(const std::string&                    icaoStandKey,
                                                 const std::map<std::string, grStand>& grStands);
 
+    /// @brief Returns the position of the HoldingPoint or HoldingPosition node whose label
+    ///        matches @p label (case-sensitive), or {0,0} if not found.
+    [[nodiscard]] GeoPoint HoldingPositionByLabel(const std::string& label) const;
+
     /// @brief Returns node IDs within @p radiusM metres of any point in @p polyline.
     /// Use to convert a push-route polyline into a blocked-node set for FindRoute.
     [[nodiscard]] std::set<int> NodesToBlock(const std::vector<GeoPoint>& polyline,
