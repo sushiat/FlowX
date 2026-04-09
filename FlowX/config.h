@@ -106,6 +106,68 @@ struct TaxiFlowRule
     std::string direction; ///< Preferred direction: "N", "S", "E", or "W".
 };
 
+/// @brief Tunable parameters for taxi graph construction, routing, and safety monitoring.
+///
+/// All fields default to the values previously hardcoded in taxi_graph.cpp / RadarScreen.cpp.
+/// The entire section is optional in config.json; omitting it (or any sub-section) leaves
+/// every parameter at its default, so existing airports need no changes.
+struct TaxiNetworkConfig
+{
+    /// @brief Graph construction parameters.
+    struct Graph
+    {
+        double configHoldingPointSnapM = 40.0; ///< Max snap radius (m) when promoting a config HP polygon centroid to a HoldingPoint node.
+        double osmHoldingPositionSnapM = 25.0; ///< Max snap radius (m) when promoting an OSM stop-bar node to a HoldingPosition node.
+        double subdivisionIntervalM    = 15.0; ///< Interval (m) at which long OSM way segments are subdivided into waypoint nodes.
+    } graph;
+
+    /// @brief Base edge-cost multipliers applied per aeroway type at build time.
+    struct EdgeCosts
+    {
+        double multIntersection = 1.1;  ///< Cost multiplier for taxiway-intersection edges (slight penalty).
+        double multRunway       = 20.0; ///< Cost multiplier for runway edges (strongly discouraged; only used to vacate the runway).
+        double multTaxilane     = 3.0;  ///< Cost multiplier for stand-access taxilane edges (prefer main taxiways).
+    } edgeCosts;
+
+    /// @brief Bearing-difference thresholds for taxiway flow-rule enforcement.
+    struct FlowRules
+    {
+        double againstFlowMinDeg = 135.0; ///< Bearing difference (deg) at or above which an edge is considered against the flow rule.
+        double againstFlowMult   = 3.0;   ///< Additional cost multiplier applied to edges that go against an active flow rule.
+        double withFlowMaxDeg    = 45.0;  ///< Bearing difference (deg) at or below which an edge is considered to follow the flow rule.
+    } flowRules;
+
+    /// @brief A* routing algorithm parameters.
+    struct Routing
+    {
+        double backwardSnapM       = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
+        double forwardSnapM        = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
+        double hardTurnDeg         = 120.0; ///< Bearing change (deg) above which an edge is hard-blocked during A*.
+        double softTurnDeg         = 85.0;  ///< Bearing change (deg) above which a turn penalty is applied during A*.
+        double turnPenalty         = 200.0; ///< Cost added for turns exceeding softTurnDeg.
+        double wayrefChangePenalty = 500.0; ///< Cost added when the route changes from one named taxiway to another.
+    } routing;
+
+    /// @brief Cursor snap radii used during interactive taxi planning.
+    struct Snapping
+    {
+        double holdingPointM   = 30.0; ///< Snap radius (m) to holding-point / holding-position nodes (highest priority).
+        double intersectionM   = 15.0; ///< Snap radius (m) to intersection waypoint nodes (second priority).
+        double suggestedRouteM = 20.0; ///< Snap radius (m) to the suggested route polyline (third priority).
+        double waypointM       = 40.0; ///< Snap radius (m) to any waypoint node (lowest priority).
+    } snapping;
+
+    /// @brief Taxi safety-monitoring thresholds.
+    struct Safety
+    {
+        double conflictDeltaS   = 30.0; ///< Time window (s) within which two aircraft at the same intersection are flagged as conflicting.
+        double deviationThreshM = 40.0; ///< Distance (m) an aircraft may deviate from its assigned route before a warning is raised.
+        double maxPredictS      = 60.0; ///< Maximum prediction horizon (s) used for conflict detection.
+        double minSpeedKt       = 3.0;  ///< Minimum ground speed (kt) required before safety checks are evaluated.
+        double sameDirDeg       = 45.0; ///< Bearing difference (deg) below which two conflicting paths are considered same-direction (suppresses alert).
+    } safety;
+};
+
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
@@ -152,4 +214,5 @@ struct airport
     std::map<std::string, std::vector<TaxiFlowRule>> taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
     std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
     std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
+    TaxiNetworkConfig                                taxiNetworkConfig         = {}; ///< Tunable taxi graph, routing, snapping, and safety parameters (all fields default when absent from config.json).
 };

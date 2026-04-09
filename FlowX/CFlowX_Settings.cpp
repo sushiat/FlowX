@@ -807,6 +807,60 @@ void CFlowX_Settings::LoadConfig()
                     ap.taxiLaneSwingoverPairs.push_back(
                         {pair[0].get<std::string>(), pair[1].get<std::string>()});
 
+        if (json_airport.contains("taxiNetworkConfig"))
+        {
+            const auto& jnc = json_airport["taxiNetworkConfig"];
+            auto&       nc  = ap.taxiNetworkConfig;
+            if (jnc.contains("graph"))
+            {
+                const auto& g            = jnc["graph"];
+                nc.graph.subdivisionIntervalM    = g.value("subdivisionIntervalM", 15.0);
+                nc.graph.osmHoldingPositionSnapM = g.value("osmHoldingPositionSnapM", 25.0);
+                nc.graph.configHoldingPointSnapM = g.value("configHoldingPointSnapM", 40.0);
+            }
+            if (jnc.contains("edgeCosts"))
+            {
+                const auto& e          = jnc["edgeCosts"];
+                nc.edgeCosts.multIntersection = e.value("multIntersection", 1.1);
+                nc.edgeCosts.multTaxilane     = e.value("multTaxilane", 3.0);
+                nc.edgeCosts.multRunway       = e.value("multRunway", 20.0);
+            }
+            if (jnc.contains("flowRules"))
+            {
+                const auto& f              = jnc["flowRules"];
+                nc.flowRules.withFlowMaxDeg    = f.value("withFlowMaxDeg", 45.0);
+                nc.flowRules.againstFlowMinDeg = f.value("againstFlowMinDeg", 135.0);
+                nc.flowRules.againstFlowMult   = f.value("againstFlowMult", 3.0);
+            }
+            if (jnc.contains("routing"))
+            {
+                const auto& r                = jnc["routing"];
+                nc.routing.hardTurnDeg         = r.value("hardTurnDeg", 120.0);
+                nc.routing.softTurnDeg         = r.value("softTurnDeg", 85.0);
+                nc.routing.turnPenalty         = r.value("turnPenalty", 200.0);
+                nc.routing.wayrefChangePenalty = r.value("wayrefChangePenalty", 500.0);
+                nc.routing.forwardSnapM        = r.value("forwardSnapM", 120.0);
+                nc.routing.backwardSnapM       = r.value("backwardSnapM", 300.0);
+            }
+            if (jnc.contains("snapping"))
+            {
+                const auto& s              = jnc["snapping"];
+                nc.snapping.holdingPointM   = s.value("holdingPointM", 30.0);
+                nc.snapping.intersectionM   = s.value("intersectionM", 15.0);
+                nc.snapping.suggestedRouteM = s.value("suggestedRouteM", 20.0);
+                nc.snapping.waypointM       = s.value("waypointM", 40.0);
+            }
+            if (jnc.contains("safety"))
+            {
+                const auto& sf             = jnc["safety"];
+                nc.safety.deviationThreshM = sf.value("deviationThreshM", 40.0);
+                nc.safety.minSpeedKt       = sf.value("minSpeedKt", 3.0);
+                nc.safety.maxPredictS      = sf.value("maxPredictS", 60.0);
+                nc.safety.conflictDeltaS   = sf.value("conflictDeltaS", 30.0);
+                nc.safety.sameDirDeg       = sf.value("sameDirDeg", 45.0);
+            }
+        }
+
         json json_geoGnds;
         try
         {

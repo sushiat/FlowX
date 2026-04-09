@@ -400,6 +400,44 @@
                     }
                 }
             }
+        },
+        "taxiNetworkConfig": {
+            "graph": {
+                "subdivisionIntervalM": 15.0,
+                "osmHoldingPositionSnapM": 25.0,
+                "configHoldingPointSnapM": 40.0
+            },
+            "edgeCosts": {
+                "multIntersection": 1.1,
+                "multTaxilane": 3.0,
+                "multRunway": 20.0
+            },
+            "flowRules": {
+                "withFlowMaxDeg": 45.0,
+                "againstFlowMinDeg": 135.0,
+                "againstFlowMult": 3.0
+            },
+            "routing": {
+                "hardTurnDeg": 120.0,
+                "softTurnDeg": 85.0,
+                "turnPenalty": 200.0,
+                "wayrefChangePenalty": 500.0,
+                "forwardSnapM": 120.0,
+                "backwardSnapM": 300.0
+            },
+            "snapping": {
+                "holdingPointM": 30.0,
+                "intersectionM": 15.0,
+                "suggestedRouteM": 20.0,
+                "waypointM": 40.0
+            },
+            "safety": {
+                "deviationThreshM": 40.0,
+                "minSpeedKt": 3.0,
+                "maxPredictS": 60.0,
+                "conflictDeltaS": 30.0,
+                "sameDirDeg": 45.0
+            }
         }
     }
 }

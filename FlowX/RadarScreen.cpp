@@ -857,12 +857,18 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         if (this->taxiTracked.empty())
             return;
 
-        constexpr double DEVIATION_THRESH_M = 40.0;
-        constexpr double MIN_GS_KT          = 3.0;
-        constexpr double KT_TO_MS           = 0.514444;
-        constexpr double MAX_PREDICT_S      = 60.0;
-        constexpr double CONFLICT_DELTA_S   = 30.0;
-        constexpr double SAME_DIR_DEG       = 45.0;
+        static const TaxiNetworkConfig kDefaultNC{};
+        auto*                          safetySettings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+        const TaxiNetworkConfig&       nc             = safetySettings->GetAirports().empty()
+                                                            ? kDefaultNC
+                                                            : safetySettings->GetAirports().begin()->second.taxiNetworkConfig;
+
+        const double DEVIATION_THRESH_M = nc.safety.deviationThreshM;
+        const double MIN_GS_KT          = nc.safety.minSpeedKt;
+        constexpr double KT_TO_MS       = 0.514444;
+        const double MAX_PREDICT_S      = nc.safety.maxPredictS;
+        const double CONFLICT_DELTA_S   = nc.safety.conflictDeltaS;
+        const double SAME_DIR_DEG       = nc.safety.sameDirDeg;
 
         struct TimedPt
         {

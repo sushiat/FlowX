@@ -85,9 +85,9 @@ void TaxiGraph::AddEdge(int from, int to, double cost,
 
 double TaxiGraph::FlowMult(double bearingDeg, const std::string& wayRef) const
 {
-    constexpr double WITH_FLOW_MAX = 45.0;
-    constexpr double AGAINST_FLOW  = 135.0;
-    constexpr double AGAINST_MULT  = 3.0;
+    const double WITH_FLOW_MAX = apt_.taxiNetworkConfig.flowRules.withFlowMaxDeg;
+    const double AGAINST_FLOW  = apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg;
+    const double AGAINST_MULT  = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
 
     for (const auto& rule : apt_.taxiFlowGeneric)
     {
@@ -182,9 +182,9 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // Type multipliers (distance × mult = base cost).
     constexpr double MULT_TAXIWAY      = 1.0;
     constexpr double MULT_HOLDINGPOINT = 1.0;
-    constexpr double MULT_INTERSECTION = 1.1;
-    constexpr double MULT_TAXILANE     = 3.0;  // stand-access taxilanes; strongly discouraged vs main taxiways
-    constexpr double MULT_RUNWAY       = 20.0; // runways; only used to get an aircraft off the runway; never preferred for taxi
+    const double     MULT_INTERSECTION = apt_.taxiNetworkConfig.edgeCosts.multIntersection;
+    const double     MULT_TAXILANE     = apt_.taxiNetworkConfig.edgeCosts.multTaxilane;
+    const double     MULT_RUNWAY       = apt_.taxiNetworkConfig.edgeCosts.multRunway;
 
     // ── Step 1: ways ─────────────────────────────────────────────────────────
     for (const auto& way : osm.ways)
@@ -222,8 +222,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             // OSM endpoints use 1.0 m (not 5 m) — genuine shared junction nodes are at
             // exactly 0 m in OSM data, so 1 m handles float precision without merging
             // nearby same-ref nodes on different fillet branches at intersections.
-            constexpr double SUBDIV_M = 15.0;
-            const int        nSteps   = static_cast<int>(std::floor(dist / SUBDIV_M));
+            const double SUBDIV_M = apt_.taxiNetworkConfig.graph.subdivisionIntervalM;
+            const int    nSteps   = static_cast<int>(std::floor(dist / SUBDIV_M));
 
             int prev = FindOrCreateNode(a, 1.0, TaxiNodeType::Waypoint, ref, ref);
 
@@ -254,11 +254,11 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // ── Step 2: OSM holding position nodes ───────────────────────────────────
     // Promote the nearest existing Waypoint node to HoldingPosition type rather than
     // creating a separate node with a long connecting edge. The OSM stop-bar node is
-    // typically already on the taxiway centreline; snapping within 25 m is sufficient.
+    // typically already on the taxiway centreline; snapping within osmHoldingPositionSnapM is sufficient.
     for (const auto& hp : osm.holdingPositions)
     {
         const std::string& label    = hp.ref.empty() ? hp.name : hp.ref;
-        double             bestDist = 25.0;
+        double             bestDist = apt_.taxiNetworkConfig.graph.osmHoldingPositionSnapM;
         int                bestId   = -1;
         for (const auto& n : nodes_)
         {
@@ -280,8 +280,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
     // ── Step 3: config holding points ────────────────────────────────────────
     // Same approach: promote the nearest Waypoint node rather than adding a separate
-    // node + long edge. Search up to 40 m because config HP centres are polygon
-    // centroids that may sit a few metres back from the taxiway edge.
+    // node + long edge. Search up to configHoldingPointSnapM because config HP centres
+    // are polygon centroids that may sit a few metres back from the taxiway edge.
     for (const auto& [rwyDes, rwy] : ap.runways)
     {
         for (const auto& [hpName, hp] : rwy.holdingPoints)
@@ -289,7 +289,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             if (!hp.assignable)
                 continue;
             const GeoPoint hpPos{hp.centerLat, hp.centerLon};
-            double         bestDist = 40.0;
+            double         bestDist = apt_.taxiNetworkConfig.graph.configHoldingPointSnapM;
             int            bestId   = -1;
             for (const auto& n : nodes_)
             {
@@ -504,8 +504,8 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     }
 
     constexpr int    MAX_NODES             = 5000;
-    constexpr double TURN_PENALTY          = 200.0;
-    constexpr double WAYREF_CHANGE_PENALTY = 500.0;
+    const double     TURN_PENALTY          = apt_.taxiNetworkConfig.routing.turnPenalty;
+    const double     WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
 
     const GeoPoint& goalPos = nodes_[goalId].pos;
 
@@ -564,21 +564,21 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                         const double rb = CardinalToBearing(rule.direction);
                         if (rb < 0.0)
                             continue;
-                        if (BearingDiff(edge.bearingDeg, rb) >= 135.0)
-                            depMult = 3.0;
+                        if (BearingDiff(edge.bearingDeg, rb) >= apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
+                            depMult = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
                         break;
                     }
                 }
             }
 
-            // Hard-block sharp turns (>120°); penalise turns beyond 85°.
+            // Hard-block sharp turns; penalise turns beyond the soft threshold.
             double turnPenalty = 0.0;
             if (incomingBearing[cur] >= 0.0)
             {
                 const double diff = BearingDiff(incomingBearing[cur], edge.bearingDeg);
-                if (diff > 120.0)
+                if (diff > apt_.taxiNetworkConfig.routing.hardTurnDeg)
                     continue;
-                if (diff > 85.0)
+                if (diff > apt_.taxiNetworkConfig.routing.softTurnDeg)
                     turnPenalty = TURN_PENALTY;
             }
 
@@ -649,8 +649,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     // Collect candidate start nodes: up to 3 nearest forward (within 120 m) and up to 2 nearest
     // backward (within 300 m). A* runs from each candidate; the shortest valid route wins.
     // This handles curve intersections where the closest forward node is on the wrong branch.
-    constexpr double FORWARD_SNAP_M  = 120.0;
-    constexpr double BACKWARD_SNAP_M = 300.0;
+    const double FORWARD_SNAP_M  = apt_.taxiNetworkConfig.routing.forwardSnapM;
+    const double BACKWARD_SNAP_M = apt_.taxiNetworkConfig.routing.backwardSnapM;
 
     std::vector<int> candidates = NearestCandidateNodes(from, initialBearingDeg,
                                                         FORWARD_SNAP_M, BACKWARD_SNAP_M, 3, 2);
@@ -1143,10 +1143,10 @@ std::string TaxiGraph::WayRefAt(const GeoPoint& rawPos, double maxM) const
 GeoPoint TaxiGraph::SnapForPlanning(const GeoPoint&  rawPos,
                                     const TaxiRoute& suggested) const
 {
-    constexpr double HP_SNAP_M    = 30.0;
-    constexpr double ISX_SNAP_M   = 15.0;
-    constexpr double ROUTE_SNAP_M = 20.0;
-    constexpr double WP_SNAP_M    = 40.0;
+    const double HP_SNAP_M    = apt_.taxiNetworkConfig.snapping.holdingPointM;
+    const double ISX_SNAP_M   = apt_.taxiNetworkConfig.snapping.intersectionM;
+    const double ROUTE_SNAP_M = apt_.taxiNetworkConfig.snapping.suggestedRouteM;
+    const double WP_SNAP_M    = apt_.taxiNetworkConfig.snapping.waypointM;
 
     // Priority 1: holding points / holding positions.
     {

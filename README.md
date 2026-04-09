@@ -421,6 +421,81 @@ A list of scratchpad prefixes that are exempt from the **Auto-Clear Scratch** fe
 "scratchpadClearExclusions": [".cs", ".did", ".obacht"]
 ```
 
+### `taxiNetworkConfig`
+
+Optional fine-tuning of the taxi graph builder, A\* router, interactive snapping, and safety monitor. Every sub-section and every field is optional — omitting any of them leaves the corresponding parameter at its default. All defaults match the values previously hardcoded in the plugin, so existing airports need no changes to `config.json`.
+
+#### `graph` — graph construction
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `subdivisionIntervalM` | number | `15.0` | Long OSM way segments are subdivided into waypoint nodes at this interval (metres). |
+| `osmHoldingPositionSnapM` | number | `25.0` | Maximum radius (m) to snap an OSM stop-bar node onto the nearest taxiway waypoint and promote it to a HoldingPosition node. |
+| `configHoldingPointSnapM` | number | `40.0` | Maximum radius (m) to snap a config holding-point polygon centroid onto the nearest taxiway waypoint. Larger than the OSM value because centroids may sit a few metres back from the taxiway edge. |
+
+#### `edgeCosts` — base type multipliers
+
+Applied at graph-build time to all edges of the corresponding aeroway type. Higher values make the router prefer other paths.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `multIntersection` | number | `1.1` | Slight penalty for taxiway-intersection edges. |
+| `multTaxilane` | number | `3.0` | Stand-access taxilane edges are strongly discouraged vs main taxiways. |
+| `multRunway` | number | `20.0` | Runway edges are only traversed to vacate the runway; never preferred for taxi. |
+
+#### `flowRules` — direction enforcement
+
+Controls how heavily active taxiway flow rules penalise against-flow routing.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `withFlowMaxDeg` | number | `45.0` | Bearing difference (°) at or below which an edge is considered to follow the active flow rule (no penalty). |
+| `againstFlowMinDeg` | number | `135.0` | Bearing difference (°) at or above which an edge is considered against the flow rule. |
+| `againstFlowMult` | number | `3.0` | Additional cost multiplier applied to edges that go against an active flow rule. |
+
+#### `routing` — A\* search
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `hardTurnDeg` | number | `120.0` | Bearing change (°) above which an edge is hard-blocked during A\* (path cannot turn that sharply). |
+| `softTurnDeg` | number | `85.0` | Bearing change (°) above which a turn penalty is added. |
+| `turnPenalty` | number | `200.0` | Cost added for turns exceeding `softTurnDeg`. |
+| `wayrefChangePenalty` | number | `500.0` | Cost added when the route transitions from one named taxiway to another. |
+| `forwardSnapM` | number | `120.0` | Radius (m) used to collect up to 3 forward start-node candidates for A\*. |
+| `backwardSnapM` | number | `300.0` | Radius (m) used to collect up to 2 backward start-node candidates for A\*. |
+
+#### `snapping` — interactive planning
+
+Snap radii when the controller clicks to set a waypoint. Higher-priority types are checked first; the first match within the radius wins.
+
+| Field | Type | Default | Priority | Description |
+|---|---|---|---|---|
+| `holdingPointM` | number | `30.0` | 1 (highest) | Snap to holding-point / holding-position nodes. |
+| `intersectionM` | number | `15.0` | 2 | Snap to intersection waypoint nodes (labelled "Exit …"). |
+| `suggestedRouteM` | number | `20.0` | 3 | Snap to the suggested route polyline. |
+| `waypointM` | number | `40.0` | 4 (lowest) | Snap to any graph waypoint node. |
+
+#### `safety` — taxi safety monitoring
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `deviationThreshM` | number | `40.0` | Distance (m) an aircraft may deviate from its assigned route before a deviation warning is raised. |
+| `minSpeedKt` | number | `3.0` | Minimum ground speed (kt) required before safety checks are evaluated. |
+| `maxPredictS` | number | `60.0` | Maximum prediction horizon (s) used when building conflict-detection paths. |
+| `conflictDeltaS` | number | `30.0` | Two aircraft at the same intersection are flagged as conflicting if their estimated arrival times differ by less than this value (s). |
+| `sameDirDeg` | number | `45.0` | Bearing difference (°) below which two converging paths are considered same-direction and excluded from conflict alerts. |
+
+```json
+"taxiNetworkConfig": {
+    "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0, "configHoldingPointSnapM": 40.0 },
+    "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0 },
+    "flowRules": { "withFlowMaxDeg": 45.0, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
+    "routing":   { "hardTurnDeg": 120.0, "softTurnDeg": 85.0, "turnPenalty": 200.0, "wayrefChangePenalty": 500.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0 },
+    "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
+    "safety":    { "deviationThreshM": 40.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
+}
+```
+
 ### `runways`
 
 Per-runway configuration keyed by runway designator.
