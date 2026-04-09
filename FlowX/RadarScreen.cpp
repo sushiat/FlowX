@@ -1032,7 +1032,7 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
     };
 
     // Pass 1 — edges (draw each undirected pair once; skip reverse duplicates via i < e.to).
-    HPEN edgePen = CreatePen(PS_SOLID, 1, RGB(80, 80, 80));
+    HPEN edgePen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
     HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, edgePen));
     for (int i = 0; i < static_cast<int>(adj.size()); ++i)
     {
@@ -2709,7 +2709,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Show TAXI network", true, this->showTaxiOverlay, 23},
         {false, "Show TAXI labels", true, this->showTaxiLabels, 24},
         {false, "Show TAXI routes", true, this->showTaxiRoutes, 25},
-        {false, "Show TAXI graph", true, this->showTaxiGraph, 28},
+        {false, "Show TAXI graph", true, this->showTaxiGraph, 29},
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -3785,7 +3785,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 {
                     this->showTaxiRoutes = !this->showTaxiRoutes;
                 }
-                else if (idx == 28) // Show TAXI graph
+                else if (idx == 29) // Show TAXI graph
                 {
                     this->showTaxiGraph = !this->showTaxiGraph;
                 }

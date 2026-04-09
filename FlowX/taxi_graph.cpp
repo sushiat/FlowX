@@ -60,8 +60,8 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                 if (d > mergeThreshM)
                     continue;
                 // Prevent parallel taxiway nodes from merging: if both have different named
-                // refs, require a tight tolerance (<= 1 m). Genuine OSM junction nodes share
-                // coordinates (0 m); the 5 m threshold exists for same-way GPS noise only.
+                // refs, require distance <= 1 m. Genuine OSM junction nodes share
+                // coordinates (0 m); OSM endpoint threshold is 1 m for float precision.
                 // Nodes with empty refs (HPs, stands) are exempt.
                 if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
                     nodes_[nid].wayRef != wayRef && d > 1.0)
@@ -219,19 +219,22 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             // Subdivide long straight segments so there is a node every SUBDIV_M metres.
             // OSM geometry may place nodes hundreds of metres apart on runways/taxiways;
             // dense nodes improve aircraft snapping and deviation detection accuracy.
-            // Interpolated nodes use a 0.1 m merge to avoid colliding with one another;
-            // OSM endpoint nodes keep the 5 m merge for same-ref GPS-noise tolerance.
+            // Interpolated nodes use a 0.001 m merge (float-precision only) so they never
+            // cross-merge with nodes from adjacent ways.
+            // OSM endpoints use 1.0 m (not 5 m) — genuine shared junction nodes are at
+            // exactly 0 m in OSM data, so 1 m handles float precision without merging
+            // nearby same-ref nodes on different fillet branches at intersections.
             constexpr double SUBDIV_M = 15.0;
             const int        nSteps   = static_cast<int>(std::floor(dist / SUBDIV_M));
 
-            int prev = FindOrCreateNode(a, 5.0, TaxiNodeType::Waypoint, ref, ref);
+            int prev = FindOrCreateNode(a, 1.0, TaxiNodeType::Waypoint, ref, ref);
 
             for (int s = 1; s < nSteps; ++s)
             {
                 const double   t   = static_cast<double>(s) * SUBDIV_M / dist;
                 const GeoPoint mid = {a.lat + (b.lat - a.lat) * t,
                                       a.lon + (b.lon - a.lon) * t};
-                const int      cur = FindOrCreateNode(mid, 0.1, TaxiNodeType::Waypoint, ref, ref);
+                const int      cur = FindOrCreateNode(mid, 0.001, TaxiNodeType::Waypoint, ref, ref);
                 if (cur == prev)
                     continue;
                 const double d = HaversineM(nodes_[prev].pos, nodes_[cur].pos);
@@ -240,7 +243,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 prev = cur;
             }
 
-            const int nB = FindOrCreateNode(b, 5.0, TaxiNodeType::Waypoint, ref, ref);
+            const int nB = FindOrCreateNode(b, 1.0, TaxiNodeType::Waypoint, ref, ref);
             if (nB != prev)
             {
                 const double d = HaversineM(nodes_[prev].pos, nodes_[nB].pos);
@@ -251,14 +254,14 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     }
 
     // ── Step 2: OSM holding position nodes ───────────────────────────────────
+    // Promote the nearest existing Waypoint node to HoldingPosition type rather than
+    // creating a separate node with a long connecting edge. The OSM stop-bar node is
+    // typically already on the taxiway centreline; snapping within 25 m is sufficient.
     for (const auto& hp : osm.holdingPositions)
     {
-        const std::string& label  = hp.ref.empty() ? hp.name : hp.ref;
-        const int          hpNode = FindOrCreateNode(hp.pos, 20.0,
-                                                     TaxiNodeType::HoldingPosition, label, "");
-        // Connect to nearest waypoint within 25 m.
-        double bestDist = 25.0;
-        int    bestId   = -1;
+        const std::string& label   = hp.ref.empty() ? hp.name : hp.ref;
+        double             bestDist = 25.0;
+        int                bestId   = -1;
         for (const auto& n : nodes_)
         {
             if (n.type != TaxiNodeType::Waypoint)
@@ -270,25 +273,26 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 bestId   = n.id;
             }
         }
-        if (bestId >= 0 && bestId != hpNode)
+        if (bestId >= 0)
         {
-            AddEdge(hpNode, bestId, bestDist, "", BearingDeg(hp.pos, nodes_[bestId].pos));
-            AddEdge(bestId, hpNode, bestDist, "", BearingDeg(nodes_[bestId].pos, hp.pos));
+            nodes_[bestId].type  = TaxiNodeType::HoldingPosition;
+            nodes_[bestId].label = label;
         }
     }
 
     // ── Step 3: config holding points ────────────────────────────────────────
+    // Same approach: promote the nearest Waypoint node rather than adding a separate
+    // node + long edge. Search up to 40 m because config HP centres are polygon
+    // centroids that may sit a few metres back from the taxiway edge.
     for (const auto& [rwyDes, rwy] : ap.runways)
     {
         for (const auto& [hpName, hp] : rwy.holdingPoints)
         {
             if (!hp.assignable)
                 continue;
-            GeoPoint  hpPos{hp.centerLat, hp.centerLon};
-            const int hpNode   = FindOrCreateNode(hpPos, 20.0,
-                                                  TaxiNodeType::HoldingPoint, hpName, "");
-            double    bestDist = 30.0;
-            int       bestId   = -1;
+            const GeoPoint hpPos{hp.centerLat, hp.centerLon};
+            double         bestDist = 40.0;
+            int            bestId   = -1;
             for (const auto& n : nodes_)
             {
                 if (n.type != TaxiNodeType::Waypoint)
@@ -300,10 +304,10 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                     bestId   = n.id;
                 }
             }
-            if (bestId >= 0 && bestId != hpNode)
+            if (bestId >= 0)
             {
-                AddEdge(hpNode, bestId, bestDist, "", BearingDeg(hpPos, nodes_[bestId].pos));
-                AddEdge(bestId, hpNode, bestDist, "", BearingDeg(nodes_[bestId].pos, hpPos));
+                nodes_[bestId].type  = TaxiNodeType::HoldingPoint;
+                nodes_[bestId].label = hpName;
             }
         }
     }
@@ -346,9 +350,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             const GeoPoint thrA{rwy.thresholdLat, rwy.thresholdLon};
             const GeoPoint thrB{oppRwy.thresholdLat, oppRwy.thresholdLon};
 
-            // Search radius: half runway width + generous margin for taxiway exit nodes.
-            const double halfWidth  = (rwy.widthMeters > 0) ? rwy.widthMeters / 2.0 : 22.5;
-            const double connRadius = halfWidth + 40.0;
+            // halfWidth used to identify nodes sitting right at the runway edge (perpDist ≈ halfWidth).
+            const double halfWidth = (rwy.widthMeters > 0) ? rwy.widthMeters / 2.0 : 22.5;
 
             // Flat-earth scale factors centred on thrA.
             const double cosLat   = std::cos(thrA.lat * std::numbers::pi / 180.0);
@@ -382,7 +385,13 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
                 const GeoPoint proj{thrA.lat + aby * t / scaleLat,
                                     thrA.lon + abx * t / scaleLon};
-                if (HaversineM(n.pos, proj) > connRadius)
+                const double perpDist = HaversineM(n.pos, proj);
+
+                // Only connect nodes that sit approximately at the runway edge.
+                // Nodes further along an exit curve have a larger perpDist and must be
+                // excluded — connecting them produces one rung per subdivision step.
+                // Tolerance: -5 m inward (GPS/OSM precision) to +2 m outward.
+                if (perpDist < halfWidth - 5.0 || perpDist > halfWidth + 2.0)
                     continue;
 
                 // Skip nodes projecting within 15 m of a threshold.
