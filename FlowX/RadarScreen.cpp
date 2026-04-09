@@ -1563,34 +1563,40 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
 
     for (auto& [cs, info] : this->radarTargetDepartureInfos)
     {
-        if (info.pos.x <= -1 || info.pos.y <= -1)
-        {
+        if (info.anchor.lat == 0.0 && info.anchor.lon == 0.0)
             continue;
-        }
+
+        // Recompute pixel position from geo anchor every frame so panning/zooming moves the tag.
+        EuroScopePlugIn::CPosition esPos;
+        esPos.m_Latitude  = info.anchor.lat;
+        esPos.m_Longitude = info.anchor.lon;
+        POINT pos         = ConvertCoordFromPositionToPixel(esPos);
+        pos.x -= 16;
+        pos.y += 3;
 
         SetTextColor(hDC, info.dep_color);
         SIZE textSize;
         GetTextExtentPoint32A(hDC, info.dep_info.c_str(), (int)info.dep_info.length(), &textSize);
         TextOutA(hDC,
-                 info.pos.x - textSize.cx + info.dragX,
-                 info.pos.y + info.dragY,
+                 pos.x - textSize.cx + info.dragX,
+                 pos.y + info.dragY,
                  info.dep_info.c_str(), (int)info.dep_info.length());
 
         RECT area;
-        area.left   = info.pos.x - textSize.cx - 2 + info.dragX;
-        area.top    = info.pos.y - 2 + info.dragY;
-        area.right  = info.pos.x + 2 + info.dragX;
-        area.bottom = info.pos.y + textSize.cy + 2 + info.dragY;
+        area.left   = pos.x - textSize.cx - 2 + info.dragX;
+        area.top    = pos.y - 2 + info.dragY;
+        area.right  = pos.x + 2 + info.dragX;
+        area.bottom = pos.y + textSize.cy + 2 + info.dragY;
 
         auto sidBrush = CreateSolidBrush(info.sid_color);
         auto sidPen   = CreatePen(PS_SOLID, 1, info.sid_color);
         SelectObject(hDC, sidBrush);
         SelectObject(hDC, sidPen);
         RECT dotRect = {
-            info.pos.x - textSize.cx + info.dragX + 2,
-            info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 2,
-            info.pos.x - textSize.cx + info.dragX + 14,
-            info.pos.y + info.dragY + (area.bottom - area.top) - 5 + 14};
+            pos.x - textSize.cx + info.dragX + 2,
+            pos.y + info.dragY + (area.bottom - area.top) - 5 + 2,
+            pos.x - textSize.cx + info.dragX + 14,
+            pos.y + info.dragY + (area.bottom - area.top) - 5 + 14};
         Ellipse(hDC, dotRect.left, dotRect.top, dotRect.right, dotRect.bottom);
         DeleteObject(sidBrush);
         DeleteObject(sidPen);
@@ -1599,16 +1605,16 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
         {
             SetTextColor(hDC, info.hp_color);
             TextOutA(hDC,
-                     info.pos.x - textSize.cx + 18 + info.dragX,
-                     info.pos.y + info.dragY + (area.bottom - area.top) - 5,
+                     pos.x - textSize.cx + 18 + info.dragX,
+                     pos.y + info.dragY + (area.bottom - area.top) - 5,
                      info.hp_info.c_str(), (int)info.hp_info.length());
             area.bottom += (area.bottom - area.top) - 5;
         }
 
         auto pen = CreatePen(PS_SOLID, 1, info.dep_color);
         SelectObject(hDC, pen);
-        MoveToEx(hDC, info.pos.x + 16, info.pos.y - 3, nullptr);
-        if (area.right <= info.pos.x + 16)
+        MoveToEx(hDC, pos.x + 16, pos.y - 3, nullptr);
+        if (area.right <= pos.x + 16)
             LineTo(hDC, area.right, area.top + (area.bottom - area.top) / 2);
         else
             LineTo(hDC, area.left, area.top + (area.bottom - area.top) / 2);
@@ -1625,8 +1631,8 @@ void RadarScreen::DrawDepartureInfoTag(HDC hDC)
             GetTextExtentPoint32A(hDC, seqStr.c_str(), (int)seqStr.length(), &seqSize);
             constexpr int PAD       = 3;
             constexpr int GAP       = 14; // distance from radar target dot to bottom of background box
-            int           targetX   = info.pos.x + 16;
-            int           targetY   = info.pos.y - 3;
+            int           targetX   = pos.x + 16;
+            int           targetY   = pos.y - 3;
             int           boxLeft   = targetX - seqSize.cx / 2 - PAD;
             int           boxTop    = targetY - GAP - seqSize.cy - PAD * 2;
             int           boxRight  = targetX + seqSize.cx / 2 + PAD + (seqSize.cx % 2 == 0 ? 0 : 1);
@@ -4150,10 +4156,9 @@ void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget Rada
         auto depInfoIt = this->radarTargetDepartureInfos.find(RadarTarget.GetCallsign());
         if (RadarTarget.IsValid() && depInfoIt != this->radarTargetDepartureInfos.end())
         {
-            POINT screenPos = this->ConvertCoordFromPositionToPixel(RadarTarget.GetPosition().GetPosition());
-            screenPos.x -= 16;
-            screenPos.y += 3;
-            depInfoIt->second.pos = screenPos;
+            const auto esPos             = RadarTarget.GetPosition().GetPosition();
+            depInfoIt->second.anchor.lat = esPos.m_Latitude;
+            depInfoIt->second.anchor.lon = esPos.m_Longitude;
         }
         if (RadarTarget.IsValid())
         {

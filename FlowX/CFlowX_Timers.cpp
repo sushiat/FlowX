@@ -717,7 +717,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
             di.dep_info  = dep_info;
             di.dep_color = cachedRow.depInfo.color;
             di.queue_pos = queuePos;
-            di.pos       = {-1, -1};
+            di.anchor    = {0.0, 0.0};
             di.dragX     = 0;
             di.dragY     = 0;
             di.lastDrag  = {-1, -1};
