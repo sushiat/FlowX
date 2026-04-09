@@ -942,16 +942,54 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         for (const auto& [cs, _] : timedPaths)
             keys.push_back(cs);
 
+        // Pre-compute per-path axis-aligned bounding boxes for the path-level AABB guard.
+        struct PathBBox
+        {
+            double minLat, maxLat, minLon, maxLon;
+        };
+        std::map<std::string, PathBBox> pathBBoxes;
+        for (const auto& [cs, path] : timedPaths)
+        {
+            PathBBox bb{path[0].pos.lat, path[0].pos.lat, path[0].pos.lon, path[0].pos.lon};
+            for (const auto& tp : path)
+            {
+                bb.minLat = std::min(bb.minLat, tp.pos.lat);
+                bb.maxLat = std::max(bb.maxLat, tp.pos.lat);
+                bb.minLon = std::min(bb.minLon, tp.pos.lon);
+                bb.maxLon = std::max(bb.maxLon, tp.pos.lon);
+            }
+            pathBBoxes[cs] = bb;
+        }
+
         for (size_t i = 0; i < keys.size(); ++i)
         {
-            const auto& pathA = timedPaths[keys[i]];
+            const auto&    pathA = timedPaths[keys[i]];
+            const PathBBox bbA   = pathBBoxes[keys[i]];
             for (size_t j = i + 1; j < keys.size(); ++j)
             {
-                const auto& pathB = timedPaths[keys[j]];
+                const auto&    pathB = timedPaths[keys[j]];
+                const PathBBox bbB   = pathBBoxes[keys[j]];
+
+                // Path-level AABB: skip all segment work when predicted paths don't overlap spatially.
+                if (bbA.maxLat < bbB.minLat || bbA.minLat > bbB.maxLat ||
+                    bbA.maxLon < bbB.minLon || bbA.minLon > bbB.maxLon)
+                    continue;
+
                 for (size_t a = 1; a < pathA.size(); ++a)
                 {
                     for (size_t b = 1; b < pathB.size(); ++b)
                     {
+                        // Segment-level AABB: skip SegmentIntersectGeo for non-overlapping segments.
+                        if (std::max(pathA[a - 1].pos.lat, pathA[a].pos.lat) <
+                                std::min(pathB[b - 1].pos.lat, pathB[b].pos.lat) ||
+                            std::min(pathA[a - 1].pos.lat, pathA[a].pos.lat) >
+                                std::max(pathB[b - 1].pos.lat, pathB[b].pos.lat) ||
+                            std::max(pathA[a - 1].pos.lon, pathA[a].pos.lon) <
+                                std::min(pathB[b - 1].pos.lon, pathB[b].pos.lon) ||
+                            std::min(pathA[a - 1].pos.lon, pathA[a].pos.lon) >
+                                std::max(pathB[b - 1].pos.lon, pathB[b].pos.lon))
+                            continue;
+
                         GeoPoint isxPt;
                         if (!SegmentIntersectGeo(pathA[a - 1].pos, pathA[a].pos,
                                                  pathB[b - 1].pos, pathB[b].pos, isxPt))
