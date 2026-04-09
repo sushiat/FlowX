@@ -363,6 +363,17 @@ class TaxiGraph
     /// @return Node index, or -1 if no qualifying node is found.
     [[nodiscard]] int NearestBackwardNode(const GeoPoint& pos, double headingDeg, double maxM) const;
 
+    /// @brief Returns up to @p maxFwd nearest forward nodes within @p maxFwdM metres,
+    ///        followed by up to @p maxBwd nearest backward nodes within @p maxBwdM metres.
+    ///        Forward = bearing from @p pos to node within ±90° of @p headingDeg.
+    ///        Falls back to unconstrained nearest when @p headingDeg < 0.
+    [[nodiscard]] std::vector<int> NearestCandidateNodes(const GeoPoint& pos,
+                                                         double          headingDeg,
+                                                         double          maxFwdM,
+                                                         double          maxBwdM,
+                                                         int             maxFwd = 3,
+                                                         int             maxBwd = 2) const;
+
     /// @brief Returns mean bearing of all edges on @p wayRef leaving node @p nodeId.
     /// @return 0.0 if no matching edges found.
     [[nodiscard]] double NodeLaneBearing(int nodeId, const std::string& wayRef) const;
@@ -371,4 +382,13 @@ class TaxiGraph
     ///        most closely aligned with @p headingDeg.
     /// @return @p headingDeg if no matching edges found.
     [[nodiscard]] double ForwardEdgeBearing(int nodeId, const std::string& wayRef, double headingDeg) const;
+
+    /// @brief Core A* search from a pre-resolved start node to a goal node.
+    /// @return Populated TaxiRoute on success; invalid TaxiRoute if no path found.
+    [[nodiscard]] TaxiRoute RunAStar(int                          startId,
+                                     int                          goalId,
+                                     const std::set<std::string>& excludedRefs,
+                                     const std::set<int>&         blockedNodes,
+                                     const std::set<std::string>& activeDepRwys,
+                                     double                       initialBearingDeg) const;
 };

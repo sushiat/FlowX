@@ -848,7 +848,7 @@ void RadarScreen::UpdateTaxiSafety()
     if (this->taxiTracked.empty())
         return;
 
-    constexpr double DEVIATION_THRESH_M = 60.0;
+    constexpr double DEVIATION_THRESH_M = 40.0;
     constexpr double MIN_GS_KT          = 3.0;
     constexpr double KT_TO_MS           = 0.514444;
     constexpr double MAX_PREDICT_S      = 60.0;

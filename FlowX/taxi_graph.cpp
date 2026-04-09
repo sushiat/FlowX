@@ -45,8 +45,16 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
     // Linear scan is acceptable: LOWW has ~2 000 nodes at most.
     for (const auto& n : nodes_)
     {
-        if (HaversineM(n.pos, pos) <= mergeThreshM)
-            return n.id;
+        const double d = HaversineM(n.pos, pos);
+        if (d > mergeThreshM)
+            continue;
+        // Prevent parallel taxiway nodes from merging: if both have different named refs,
+        // require a tight tolerance (<= 1 m). Genuine OSM junction nodes are at exactly the
+        // same coordinates (0 m); the 5 m threshold exists for GPS noise, not parallel-lane
+        // proximity. Nodes with empty refs (HPs, stands) are exempt and always merge freely.
+        if (!wayRef.empty() && !n.wayRef.empty() && n.wayRef != wayRef && d > 1.0)
+            continue;
+        return n.id;
     }
     const int id = static_cast<int>(nodes_.size());
     nodes_.push_back({id, pos, type, std::string(label), std::string(wayRef)});
@@ -478,43 +486,57 @@ int TaxiGraph::NearestBackwardNode(const GeoPoint& pos, double headingDeg, doubl
     return bestId;
 }
 
+std::vector<int> TaxiGraph::NearestCandidateNodes(
+    const GeoPoint& pos, double headingDeg, double maxFwdM, double maxBwdM, int maxFwd,
+    int maxBwd) const
+{
+    struct Cand
+    {
+        double dist;
+        int    id;
+    };
+    std::vector<Cand> fwd, bwd;
+
+    for (const auto& n : nodes_)
+    {
+        const double d = HaversineM(n.pos, pos);
+        if (headingDeg >= 0.0)
+        {
+            const double diff = BearingDiff(BearingDeg(pos, n.pos), headingDeg);
+            if (diff <= 90.0 && d <= maxFwdM)
+                fwd.push_back({d, n.id});
+            else if (diff > 90.0 && d <= maxBwdM)
+                bwd.push_back({d, n.id});
+        }
+        else if (d <= maxFwdM)
+        {
+            fwd.push_back({d, n.id});
+        }
+    }
+
+    std::ranges::sort(fwd, {}, &Cand::dist);
+    std::ranges::sort(bwd, {}, &Cand::dist);
+
+    std::vector<int> result;
+    result.reserve(maxFwd + maxBwd);
+    for (int i = 0; i < maxFwd && i < static_cast<int>(fwd.size()); ++i)
+        result.push_back(fwd[i].id);
+    for (int i = 0; i < maxBwd && i < static_cast<int>(bwd.size()); ++i)
+        result.push_back(bwd[i].id);
+    return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TaxiGraph::FindRoute  (A*)
 // ─────────────────────────────────────────────────────────────────────────────
 
-TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
-                               const GeoPoint&              to,
-                               double                       wingspanM,
-                               const std::set<std::string>& activeDepRwys,
-                               double                       initialBearingDeg,
-                               const std::set<int>&         blockedNodes) const
+TaxiRoute TaxiGraph::RunAStar(int                          startId,
+                              int                          goalId,
+                              const std::set<std::string>& excludedRefs,
+                              const std::set<int>&         blockedNodes,
+                              const std::set<std::string>& activeDepRwys,
+                              double                       initialBearingDeg) const
 {
-    if (nodes_.empty())
-        return {};
-
-    // Select start node based on the aircraft's heading.
-    // Forward hemisphere (120 m): always preferred — covers stand exits where the exit
-    // node is ahead of the aircraft. Forward wins whenever one exists.
-    // Backward hemisphere (300 m): fallback only when no forward node is found —
-    // handles mid-taxiway where the aircraft has already passed the nearest node.
-    constexpr double FORWARD_SNAP_M  = 120.0;
-    constexpr double BACKWARD_SNAP_M = 300.0;
-
-    int startId = -1;
-    if (initialBearingDeg >= 0.0)
-    {
-        const int fwdId  = NearestForwardNode(from, initialBearingDeg, FORWARD_SNAP_M);
-        const int backId = NearestBackwardNode(from, initialBearingDeg, BACKWARD_SNAP_M);
-
-        if (fwdId >= 0)
-            startId = fwdId; // forward always wins
-        else if (backId >= 0)
-            startId = backId;
-    }
-    if (startId < 0)
-        startId = NearestNode(from);
-
-    const int goalId = NearestNode(to);
     if (startId == goalId)
     {
         TaxiRoute r;
@@ -524,17 +546,9 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         return r;
     }
 
-    // Per-edge wingspan check: build a set of excluded wayRefs.
-    std::set<std::string> excludedRefs;
-    if (wingspanM > 0.0)
-    {
-        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
-            if (wingspanM > maxWs)
-                excludedRefs.insert(ref);
-    }
-
-    constexpr int    MAX_NODES    = 5000;
-    constexpr double TURN_PENALTY = 200.0; // metres equivalent; strong enough to prefer straight over any detour
+    constexpr int    MAX_NODES             = 5000;
+    constexpr double TURN_PENALTY          = 200.0;
+    constexpr double WAYREF_CHANGE_PENALTY = 500.0;
 
     const GeoPoint& goalPos = nodes_[goalId].pos;
 
@@ -546,11 +560,6 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     auto cmp = [](const PQEntry& a, const PQEntry& b)
     { return a.f > b.f; };
     std::priority_queue<PQEntry, std::vector<PQEntry>, decltype(cmp)> open(cmp);
-
-    // 500 m per wayref switch. With ×3 flow multiplier, the worst flow savings on any realistic
-    // segment (≤300 m) is 2×300 = 600 m. Two wayref changes + turn penalty (200+2×500 = 1200 m)
-    // always exceeds that, preventing side-taxiway detours.
-    constexpr double WAYREF_CHANGE_PENALTY = 500.0;
 
     std::vector<double>      g(nodes_.size(), std::numeric_limits<double>::max());
     std::vector<int>         prev(nodes_.size(), -1);
@@ -574,13 +583,12 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         if (++nodesExpanded > MAX_NODES)
             break;
 
-        // Apply departure-rule cost multipliers at query time (on top of graph edge costs).
         for (const auto& edge : adj_[cur])
         {
             if (!excludedRefs.empty() && excludedRefs.contains(edge.wayRef))
                 continue;
             if (!blockedNodes.empty() && blockedNodes.contains(edge.to) &&
-                edge.to != goalId) // never block the goal itself
+                edge.to != goalId)
                 continue;
 
             // Re-apply departure rule multiplier (generic rules already baked in, dep rules added here).
@@ -601,9 +609,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                             continue;
                         const double diff = BearingDiff(edge.bearingDeg, rb);
                         if (diff >= 135.0)
-                        {
-                            depMult = 3.0; // same multiplier as generic flow rules
-                        }
+                            depMult = 3.0;
                         break;
                     }
                     if (depMult > 1.0)
@@ -612,18 +618,16 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             }
 
             // Hard-block sharp turns (>120°); penalise turns beyond 85°.
-            // 120° catches tight S-turns / near-reversals that large aircraft cannot execute.
             double turnPenalty = 0.0;
             if (incomingBearing[cur] >= 0.0)
             {
                 const double diff = BearingDiff(incomingBearing[cur], edge.bearingDeg);
                 if (diff > 120.0)
-                    continue; // turn too sharp for normal aircraft operations
+                    continue;
                 if (diff > 85.0)
                     turnPenalty = TURN_PENALTY;
             }
 
-            // Penalise switching between named taxiways (prefer staying on the same ref).
             if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
                 incomingWayRef[cur] != edge.wayRef)
                 turnPenalty += WAYREF_CHANGE_PENALTY;
@@ -642,7 +646,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     }
 
     if (prev[goalId] == -1 && goalId != startId)
-        return {}; // no path
+        return {};
 
     // Reconstruct path.
     TaxiRoute route;
@@ -667,7 +671,6 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                            nodes_[nId].pos);
     }
 
-    // Record exit bearing from the last edge so FindWaypointRoute can chain segments.
     if (path.size() >= 2)
     {
         const GeoPoint& a = nodes_[path[path.size() - 2]].pos;
@@ -676,6 +679,67 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     }
 
     return route;
+}
+
+TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
+                               const GeoPoint&              to,
+                               double                       wingspanM,
+                               const std::set<std::string>& activeDepRwys,
+                               double                       initialBearingDeg,
+                               const std::set<int>&         blockedNodes) const
+{
+    if (nodes_.empty())
+        return {};
+
+    // Collect candidate start nodes: up to 3 nearest forward (within 120 m) and up to 2 nearest
+    // backward (within 300 m). A* runs from each candidate; the shortest valid route wins.
+    // This handles curve intersections where the closest forward node is on the wrong branch.
+    constexpr double FORWARD_SNAP_M  = 120.0;
+    constexpr double BACKWARD_SNAP_M = 300.0;
+
+    std::vector<int> candidates = NearestCandidateNodes(from, initialBearingDeg,
+                                                        FORWARD_SNAP_M, BACKWARD_SNAP_M, 3, 2);
+    if (candidates.empty())
+        candidates.push_back(NearestNode(from));
+
+    // Restrict candidates to the same taxiway ref as the nearest one.
+    // This prevents A* from starting on a different taxiway (e.g. centre line
+    // instead of the blue taxilane) whose nodes happen to be within the snap radius.
+    if (candidates.size() > 1)
+    {
+        const std::string& primaryRef = nodes_[candidates[0]].wayRef;
+        if (!primaryRef.empty())
+        {
+            candidates.erase(
+                std::remove_if(candidates.begin() + 1, candidates.end(),
+                               [&](int id)
+                               {
+                                   const std::string& r = nodes_[id].wayRef;
+                                   return !r.empty() && r != primaryRef;
+                               }),
+                candidates.end());
+        }
+    }
+
+    const int goalId = NearestNode(to);
+
+    // Per-edge wingspan check: build a set of excluded wayRefs.
+    std::set<std::string> excludedRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
+            if (wingspanM > maxWs)
+                excludedRefs.insert(ref);
+
+    // Try A* from each candidate; keep the shortest valid result.
+    TaxiRoute best;
+    for (const int startId : candidates)
+    {
+        TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
+                               initialBearingDeg);
+        if (r.valid && (!best.valid || r.totalDistM < best.totalDistM))
+            best = std::move(r);
+    }
+    return best;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
