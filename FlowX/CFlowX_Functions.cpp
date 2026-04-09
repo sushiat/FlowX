@@ -217,6 +217,12 @@ void CFlowX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const
                 fp.GetControllerAssignedData().SetScratchPadString(("." + oldHpName + " ok").c_str());
                 this->LogDebugMessage(callSign + " HP request approved via popup: " + oldHpName + " → scratchpad set to ." + oldHpName + " ok", "HP");
             }
+            else
+            {
+                // Different HP assigned — clear the stale request from scratchpad.
+                fp.GetControllerAssignedData().SetScratchPadString("");
+                this->LogDebugMessage(callSign + " HP request overridden: " + oldHpName + " → " + std::string(sItemString) + ", scratchpad cleared", "HP");
+            }
         }
     }
 
