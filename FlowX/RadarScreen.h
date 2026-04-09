@@ -166,11 +166,13 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::set<std::string>                         gndTransferSquares;                   ///< Callsigns for which a GND-transfer green square is currently shown on the radar
     std::map<std::string, ULONGLONG>              gndTransferSquareTimes;               ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
     std::map<std::string, std::string>            groundStations;                       ///< Callsign -> primary frequency string for online GND controllers (facility 3)
-    ULONGLONG                                     napAckClickTick   = 0;                ///< Tick (GetTickCount64) at which the ACK button was clicked; 0 when not animating
-    bool                                          napAckPressed     = false;            ///< True while the left mouse button is held down over the ACK button
-    POINT                                         napLastDrag       = {-1, -1};         ///< Previous drag cursor position for the NAP reminder window
-    int                                           napLastHoverType  = -1;               ///< Last object type reported by OnOverScreenObject for NAP objects; used to detect enter/leave transitions
-    bool                                          napReminderActive = false;            ///< True while the NAP reminder window should be visible
+    std::string                                   hoveredTaxiTarget;                    ///< Callsign of the radar target currently hovered by the mouse (if it has a tracked route); cleared when stale
+    ULONGLONG                                     hoveredTaxiTargetTick = 0;            ///< GetTickCount64 tick when hoveredTaxiTarget was last refreshed by OnOverScreenObject
+    ULONGLONG                                     napAckClickTick       = 0;            ///< Tick (GetTickCount64) at which the ACK button was clicked; 0 when not animating
+    bool                                          napAckPressed         = false;        ///< True while the left mouse button is held down over the ACK button
+    POINT                                         napLastDrag           = {-1, -1};     ///< Previous drag cursor position for the NAP reminder window
+    int                                           napLastHoverType      = -1;           ///< Last object type reported by OnOverScreenObject for NAP objects; used to detect enter/leave transitions
+    bool                                          napReminderActive     = false;        ///< True while the NAP reminder window should be visible
     std::string                                   napReminderAirport;                   ///< ICAO code of the airport whose NAP reminder is currently active
     POINT                                         napWindowPos = {-1, -1};              ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
     std::map<std::string, depInfo>                radarTargetDepartureInfos;            ///< Callsign -> departure overlay data for aircraft currently shown on the radar
