@@ -12,10 +12,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <map>
 #include <numbers>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -327,7 +329,11 @@ class TaxiGraph
 
     std::vector<TaxiNode>          nodes_;
     std::vector<std::vector<Edge>> adj_;
-    airport                        apt_; ///< Snapshot of airport config used during build.
+    airport                        apt_;           ///< Snapshot of airport config used during build.
+    double                         gridLatStep_{}; ///< Grid cell height in degrees (set in Build).
+    double                         gridLonStep_{}; ///< Grid cell width in degrees (set in Build).
+    std::unordered_map<int64_t, std::vector<int>>
+        grid_; ///< Spatial hash: packed(cx,cy) → node IDs; rebuilt every Build().
 
     // ── Build helpers ────────────────────────────────────────────────────────
 
@@ -337,6 +343,15 @@ class TaxiGraph
                          TaxiNodeType     type,
                          std::string_view label,
                          std::string_view wayRef);
+
+    /// @brief Returns the (cx, cy) spatial grid cell for @p p.
+    [[nodiscard]] std::pair<int, int> GridCell(const GeoPoint& p) const;
+
+    /// @brief Packs (cx, cy) into a single int64 hash key.
+    [[nodiscard]] static int64_t GridKey(int cx, int cy);
+
+    /// @brief Inserts node @p id into the spatial grid.
+    void GridInsert(int id);
 
     /// @brief Adds a single directed edge from → to with pre-computed cost.
     void AddEdge(int from, int to, double cost,

@@ -42,23 +42,36 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                                 std::string_view label,
                                 std::string_view wayRef)
 {
-    // Linear scan is acceptable: LOWW has ~2 000 nodes at most.
-    for (const auto& n : nodes_)
+    // Grid-accelerated lookup: only scan cells within mergeThreshM.
+    const int rings = static_cast<int>(std::ceil(mergeThreshM / GRID_CELL_M)) + 1;
+    auto [cx0, cy0] = GridCell(pos);
+    for (int dx = -rings; dx <= rings; ++dx)
     {
-        const double d = HaversineM(n.pos, pos);
-        if (d > mergeThreshM)
-            continue;
-        // Prevent parallel taxiway nodes from merging: if both have different named refs,
-        // require a tight tolerance (<= 1 m). Genuine OSM junction nodes are at exactly the
-        // same coordinates (0 m); the 5 m threshold exists for GPS noise, not parallel-lane
-        // proximity. Nodes with empty refs (HPs, stands) are exempt and always merge freely.
-        if (!wayRef.empty() && !n.wayRef.empty() && n.wayRef != wayRef && d > 1.0)
-            continue;
-        return n.id;
+        for (int dy = -rings; dy <= rings; ++dy)
+        {
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int nid : it->second)
+            {
+                const double d = HaversineM(nodes_[nid].pos, pos);
+                if (d > mergeThreshM)
+                    continue;
+                // Prevent parallel taxiway nodes from merging: if both have different named
+                // refs, require a tight tolerance (<= 1 m). Genuine OSM junction nodes share
+                // coordinates (0 m); the 5 m threshold exists for same-way GPS noise only.
+                // Nodes with empty refs (HPs, stands) are exempt.
+                if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
+                    nodes_[nid].wayRef != wayRef && d > 1.0)
+                    continue;
+                return nid;
+            }
+        }
     }
     const int id = static_cast<int>(nodes_.size());
     nodes_.push_back({id, pos, type, std::string(label), std::string(wayRef)});
     adj_.emplace_back();
+    GridInsert(id);
     return id;
 }
 
@@ -116,11 +129,54 @@ double TaxiGraph::FlowMult(double                       bearingDeg,
 // TaxiGraph::Build
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Spatial grid helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+static constexpr double GRID_CELL_M = 15.0; ///< Spatial grid cell size in metres.
+
+std::pair<int, int> TaxiGraph::GridCell(const GeoPoint& p) const
+{
+    return {static_cast<int>(std::floor(p.lat / gridLatStep_)),
+            static_cast<int>(std::floor(p.lon / gridLonStep_))};
+}
+
+int64_t TaxiGraph::GridKey(int cx, int cy)
+{
+    return (static_cast<int64_t>(cx) << 32) | static_cast<uint32_t>(cy);
+}
+
+void TaxiGraph::GridInsert(int id)
+{
+    auto [cx, cy] = GridCell(nodes_[id].pos);
+    grid_[GridKey(cx, cy)].push_back(id);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TaxiGraph::Build
+// ─────────────────────────────────────────────────────────────────────────────
+
 void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 {
     nodes_.clear();
     adj_.clear();
+    grid_.clear();
     apt_ = ap;
+
+    // Initialise grid step sizes from the first available geometry point.
+    // Using a fixed cosLat for the airport area is accurate enough over ~5 km.
+    gridLatStep_ = 1.0;
+    gridLonStep_ = 1.0;
+    for (const auto& way : osm.ways)
+    {
+        if (!way.geometry.empty())
+        {
+            const double cosLat = std::cos(way.geometry[0].lat * std::numbers::pi / 180.0);
+            gridLatStep_        = GRID_CELL_M / TAXI_EARTH_R * 180.0 / std::numbers::pi;
+            gridLonStep_        = GRID_CELL_M / (TAXI_EARTH_R * cosLat) * 180.0 / std::numbers::pi;
+            break;
+        }
+    }
 
     // Use generic rules only during graph building (departure rules are applied
     // per-query at FindRoute time via the activeDepRwys parameter).
@@ -155,19 +211,42 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             if (dist < 0.1)
                 continue; // skip degenerate segments
 
-            const int nA = FindOrCreateNode(a, 5.0, TaxiNodeType::Waypoint, ref, ref);
+            const double bAB  = BearingDeg(a, b);
+            const double bBA  = BearingDeg(b, a);
+            const double fmAB = FlowMult(bAB, ref, noDepRwys) * typeMult;
+            const double fmBA = FlowMult(bBA, ref, noDepRwys) * typeMult;
+
+            // Subdivide long straight segments so there is a node every SUBDIV_M metres.
+            // OSM geometry may place nodes hundreds of metres apart on runways/taxiways;
+            // dense nodes improve aircraft snapping and deviation detection accuracy.
+            // Interpolated nodes use a 0.1 m merge to avoid colliding with one another;
+            // OSM endpoint nodes keep the 5 m merge for same-ref GPS-noise tolerance.
+            constexpr double SUBDIV_M = 15.0;
+            const int        nSteps   = static_cast<int>(std::floor(dist / SUBDIV_M));
+
+            int prev = FindOrCreateNode(a, 5.0, TaxiNodeType::Waypoint, ref, ref);
+
+            for (int s = 1; s < nSteps; ++s)
+            {
+                const double   t   = static_cast<double>(s) * SUBDIV_M / dist;
+                const GeoPoint mid = {a.lat + (b.lat - a.lat) * t,
+                                      a.lon + (b.lon - a.lon) * t};
+                const int      cur = FindOrCreateNode(mid, 0.1, TaxiNodeType::Waypoint, ref, ref);
+                if (cur == prev)
+                    continue;
+                const double d = HaversineM(nodes_[prev].pos, nodes_[cur].pos);
+                AddEdge(prev, cur, d * fmAB, ref, bAB);
+                AddEdge(cur, prev, d * fmBA, ref, bBA);
+                prev = cur;
+            }
+
             const int nB = FindOrCreateNode(b, 5.0, TaxiNodeType::Waypoint, ref, ref);
-            if (nA == nB)
-                continue;
-
-            const double bAB = BearingDeg(a, b);
-            const double bBA = BearingDeg(b, a);
-
-            const double costAB = dist * typeMult * FlowMult(bAB, ref, noDepRwys);
-            const double costBA = dist * typeMult * FlowMult(bBA, ref, noDepRwys);
-
-            AddEdge(nA, nB, costAB, ref, bAB);
-            AddEdge(nB, nA, costBA, ref, bBA);
+            if (nB != prev)
+            {
+                const double d = HaversineM(nodes_[prev].pos, nodes_[nB].pos);
+                AddEdge(prev, nB, d * fmAB, ref, bAB);
+                AddEdge(nB, prev, d * fmBA, ref, bBA);
+            }
         }
     }
 
@@ -384,45 +463,75 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     //  stand insertion during Build to avoid loading thousands of irrelevant stands.)
 
     // ── Step 6: cross-way gap bridging ───────────────────────────────────────
-    // OSM ways sometimes have endpoints that are within a few metres of each other
-    // but don't share a node (coordinate precision gaps). For every pair of Waypoint
-    // nodes from different wayRefs that are within GAP_M and have no existing edge,
-    // add a bidirectional connecting edge. This fixes broken intersections without
-    // raising the general merge threshold (which would falsely collapse nearby parallel lanes).
+    // OSM ways sometimes have endpoints within a few metres of each other but no
+    // shared node (GPS precision gaps). Use the spatial grid so each node only
+    // checks a small neighbourhood instead of the full O(N²) pair scan.
     {
-        constexpr double GAP_M = 6.0;
-        const int        N     = static_cast<int>(nodes_.size());
+        constexpr double GAP_M  = 6.0;
+        const int        rings6 = static_cast<int>(std::ceil(GAP_M / GRID_CELL_M)) + 1;
+        const int        N      = static_cast<int>(nodes_.size());
         for (int i = 0; i < N; ++i)
         {
             if (nodes_[i].type != TaxiNodeType::Waypoint || nodes_[i].wayRef.empty())
                 continue;
-            for (int j = i + 1; j < N; ++j)
+            auto [cx0, cy0] = GridCell(nodes_[i].pos);
+            for (int dx = -rings6; dx <= rings6; ++dx)
             {
-                if (nodes_[j].type != TaxiNodeType::Waypoint || nodes_[j].wayRef.empty())
-                    continue;
-                if (nodes_[i].wayRef == nodes_[j].wayRef)
-                    continue; // same way — merge threshold already handled this
-                const double d = HaversineM(nodes_[i].pos, nodes_[j].pos);
-                if (d > GAP_M)
-                    continue;
-
-                // Check no edge already exists i→j.
-                bool alreadyLinked = false;
-                for (const auto& e : adj_[i])
-                    if (e.to == j)
+                for (int dy = -rings6; dy <= rings6; ++dy)
+                {
+                    auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+                    if (it == grid_.end())
+                        continue;
+                    for (const int j : it->second)
                     {
-                        alreadyLinked = true;
-                        break;
+                        if (j <= i)
+                            continue; // avoid duplicate pairs
+                        if (nodes_[j].type != TaxiNodeType::Waypoint || nodes_[j].wayRef.empty())
+                            continue;
+                        if (nodes_[i].wayRef == nodes_[j].wayRef)
+                            continue;
+                        const double d = HaversineM(nodes_[i].pos, nodes_[j].pos);
+                        if (d > GAP_M)
+                            continue;
+                        bool linked = false;
+                        for (const auto& e : adj_[i])
+                            if (e.to == j)
+                            {
+                                linked = true;
+                                break;
+                            }
+                        if (linked)
+                            continue;
+                        const double bIJ = BearingDeg(nodes_[i].pos, nodes_[j].pos);
+                        const double bJI = BearingDeg(nodes_[j].pos, nodes_[i].pos);
+                        AddEdge(i, j, d, nodes_[j].wayRef, bIJ);
+                        AddEdge(j, i, d, nodes_[i].wayRef, bJI);
                     }
-                if (alreadyLinked)
-                    continue;
-
-                const double bIJ = BearingDeg(nodes_[i].pos, nodes_[j].pos);
-                const double bJI = BearingDeg(nodes_[j].pos, nodes_[i].pos);
-                AddEdge(i, j, d, nodes_[j].wayRef, bIJ);
-                AddEdge(j, i, d, nodes_[i].wayRef, bJI);
+                }
             }
         }
+    }
+
+    // ── Final step: remove phantom cross-taxiway edges ───────────────────────
+    // After all construction steps (including gap bridging) strip any directed
+    // edge where both endpoints carry DIFFERENT non-empty wayRefs and are more
+    // than 1 m apart. Genuine junctions share an OSM node (≤ 1 m); anything
+    // further is parallel-lane proximity, not a real connection.
+    // Nodes with an empty wayRef (HPs, stands, runway centreline) are exempt
+    // because they legitimately bridge across taxiway refs.
+    for (int i = 0; i < static_cast<int>(adj_.size()); ++i)
+    {
+        const std::string& srcRef = nodes_[i].wayRef;
+        if (srcRef.empty())
+            continue;
+        std::erase_if(adj_[i],
+                      [&](const Edge& e)
+                      {
+                          const std::string& dstRef = nodes_[e.to].wayRef;
+                          if (dstRef.empty() || dstRef == srcRef)
+                              return false;
+                          return HaversineM(nodes_[i].pos, nodes_[e.to].pos) > 1.0;
+                      });
     }
 }
 
@@ -434,15 +543,38 @@ int TaxiGraph::NearestNode(const GeoPoint& pos) const
 {
     if (nodes_.empty())
         return -1;
-    double bestD  = std::numeric_limits<double>::max();
-    int    bestId = 0;
-    for (const auto& n : nodes_)
+
+    // Expanding-ring search: start at the cell containing pos, expand one ring at a time.
+    // Stop once the inner edge of the next ring is further than the current best distance.
+    auto [cx0, cy0] = GridCell(pos);
+    double bestD    = std::numeric_limits<double>::max();
+    int    bestId   = 0;
+
+    for (int ring = 0;; ++ring)
     {
-        const double d = HaversineM(n.pos, pos);
-        if (d < bestD)
+        // Inner edge of this ring is at least (ring - 1) * GRID_CELL_M away.
+        if (ring > 0 && (ring - 1) * GRID_CELL_M >= bestD)
+            break;
+
+        for (int dx = -ring; dx <= ring; ++dx)
         {
-            bestD  = d;
-            bestId = n.id;
+            for (int dy = -ring; dy <= ring; ++dy)
+            {
+                if (ring > 0 && std::abs(dx) < ring && std::abs(dy) < ring)
+                    continue; // skip interior — already checked in previous rings
+                auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+                if (it == grid_.end())
+                    continue;
+                for (const int id : it->second)
+                {
+                    const double d = HaversineM(nodes_[id].pos, pos);
+                    if (d < bestD)
+                    {
+                        bestD  = d;
+                        bestId = id;
+                    }
+                }
+            }
         }
     }
     return bestId;
@@ -450,18 +582,29 @@ int TaxiGraph::NearestNode(const GeoPoint& pos) const
 
 int TaxiGraph::NearestForwardNode(const GeoPoint& pos, double headingDeg, double maxM) const
 {
-    double bestD  = std::numeric_limits<double>::max();
-    int    bestId = -1;
-    for (const auto& n : nodes_)
+    double    bestD  = std::numeric_limits<double>::max();
+    int       bestId = -1;
+    const int rings  = static_cast<int>(std::ceil(maxM / GRID_CELL_M)) + 1;
+    auto [cx0, cy0]  = GridCell(pos);
+
+    for (int dx = -rings; dx <= rings; ++dx)
     {
-        const double d = HaversineM(n.pos, pos);
-        if (d > maxM || d >= bestD)
-            continue;
-        // Accept nodes in the forward hemisphere: bearing to node within ±90° of heading.
-        if (BearingDiff(BearingDeg(pos, n.pos), headingDeg) <= 90.0)
+        for (int dy = -rings; dy <= rings; ++dy)
         {
-            bestD  = d;
-            bestId = n.id;
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int id : it->second)
+            {
+                const double d = HaversineM(nodes_[id].pos, pos);
+                if (d > maxM || d >= bestD)
+                    continue;
+                if (BearingDiff(BearingDeg(pos, nodes_[id].pos), headingDeg) <= 90.0)
+                {
+                    bestD  = d;
+                    bestId = id;
+                }
+            }
         }
     }
     return bestId;
@@ -469,18 +612,29 @@ int TaxiGraph::NearestForwardNode(const GeoPoint& pos, double headingDeg, double
 
 int TaxiGraph::NearestBackwardNode(const GeoPoint& pos, double headingDeg, double maxM) const
 {
-    double bestD  = std::numeric_limits<double>::max();
-    int    bestId = -1;
-    for (const auto& n : nodes_)
+    double    bestD  = std::numeric_limits<double>::max();
+    int       bestId = -1;
+    const int rings  = static_cast<int>(std::ceil(maxM / GRID_CELL_M)) + 1;
+    auto [cx0, cy0]  = GridCell(pos);
+
+    for (int dx = -rings; dx <= rings; ++dx)
     {
-        const double d = HaversineM(n.pos, pos);
-        if (d > maxM || d >= bestD)
-            continue;
-        // Accept nodes in the backward hemisphere: bearing to node more than ±90° from heading.
-        if (BearingDiff(BearingDeg(pos, n.pos), headingDeg) > 90.0)
+        for (int dy = -rings; dy <= rings; ++dy)
         {
-            bestD  = d;
-            bestId = n.id;
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int id : it->second)
+            {
+                const double d = HaversineM(nodes_[id].pos, pos);
+                if (d > maxM || d >= bestD)
+                    continue;
+                if (BearingDiff(BearingDeg(pos, nodes_[id].pos), headingDeg) > 90.0)
+                {
+                    bestD  = d;
+                    bestId = id;
+                }
+            }
         }
     }
     return bestId;
@@ -497,20 +651,33 @@ std::vector<int> TaxiGraph::NearestCandidateNodes(
     };
     std::vector<Cand> fwd, bwd;
 
-    for (const auto& n : nodes_)
+    const double maxR  = std::max(maxFwdM, maxBwdM);
+    const int    rings = static_cast<int>(std::ceil(maxR / GRID_CELL_M)) + 1;
+    auto [cx0, cy0]    = GridCell(pos);
+
+    for (int dx = -rings; dx <= rings; ++dx)
     {
-        const double d = HaversineM(n.pos, pos);
-        if (headingDeg >= 0.0)
+        for (int dy = -rings; dy <= rings; ++dy)
         {
-            const double diff = BearingDiff(BearingDeg(pos, n.pos), headingDeg);
-            if (diff <= 90.0 && d <= maxFwdM)
-                fwd.push_back({d, n.id});
-            else if (diff > 90.0 && d <= maxBwdM)
-                bwd.push_back({d, n.id});
-        }
-        else if (d <= maxFwdM)
-        {
-            fwd.push_back({d, n.id});
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int id : it->second)
+            {
+                const double d = HaversineM(nodes_[id].pos, pos);
+                if (headingDeg >= 0.0)
+                {
+                    const double diff = BearingDiff(BearingDeg(pos, nodes_[id].pos), headingDeg);
+                    if (diff <= 90.0 && d <= maxFwdM)
+                        fwd.push_back({d, id});
+                    else if (diff > 90.0 && d <= maxBwdM)
+                        bwd.push_back({d, id});
+                }
+                else if (d <= maxFwdM)
+                {
+                    fwd.push_back({d, id});
+                }
+            }
         }
     }
 
