@@ -86,6 +86,27 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Recomputes taxiDeviations and taxiConflicts; throttled to 250 ms via taxiSafetyLastTickMs.
     void UpdateTaxiSafety();
 
+    /// @brief Detects ALT keypress each BEFORE_TAGS frame and toggles taxiSwingoverActive when it fires.
+    /// Computes the fixed swingover segment (taxiSwingoverFixedSeg / taxiSwingoverOrigin) on activation.
+    /// No-op when not in non-push taxi planning mode.
+    void UpdateSwingoverState();
+
+    /// @brief Draws the OSM taxiway/taxilane polylines, derived runway centrelines, holding-position
+    /// circles, and way labels. Gated on showTaxiOverlay / showTaxiLabels.
+    void DrawTaxiOverlay(HDC hDC);
+
+    /// @brief Draws a single TaxiRoute polyline with the given GDI pen colour and width.
+    /// No-op when route.valid is false or polyline is empty.
+    void DrawRoutePolyline(HDC hDC, const TaxiRoute& route, COLORREF col, int width);
+
+    /// @brief Draws confirmed (2-second flash) and persistently tracked taxi routes.
+    /// Prunes stale entries from taxiAssigned and completed routes from taxiTracked.
+    void DrawTaxiRoutes(HDC hDC);
+
+    /// @brief Draws active push routes, the yellow suggested route, and the magenta/light-blue
+    /// planning preview including via-point markers and dead-end warnings.
+    void DrawPlanningRoutes(HDC hDC);
+
     /// @brief Draws the Approach Estimate window showing inbound TTT on a vertical time bar, split by runway estimateBarSide.
     void DrawApproachEstimateWindow(HDC hDC);
 

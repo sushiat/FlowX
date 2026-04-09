@@ -358,7 +358,9 @@ class TaxiGraph
     double                         gridLatStep_{}; ///< Grid cell height in degrees (set in Build).
     double                         gridLonStep_{}; ///< Grid cell width in degrees (set in Build).
     std::unordered_map<int64_t, std::vector<int>>
-        grid_; ///< Spatial hash: packed(cx,cy) → node IDs; rebuilt every Build().
+                     grid_;       ///< Spatial hash: packed(cx,cy) → node IDs; rebuilt every Build().
+    std::vector<int> hpNodeIds_;  ///< IDs of all HoldingPoint/HoldingPosition nodes; built in Build() for O(k) SnapForPlanning priority-1 scan.
+    std::vector<int> isxNodeIds_; ///< IDs of all intersection Waypoint nodes (label contains "Exit"); built in Build() for O(k) SnapForPlanning priority-2 scan.
 
     // ── Build helpers ────────────────────────────────────────────────────────
 

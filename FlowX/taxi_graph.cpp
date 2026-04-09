@@ -322,6 +322,19 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // also removes legitimate cross-taxiway edges from junction nodes (breaking
     // all intersection routing). The 1 m merge threshold in FindOrCreateNode is
     // the single, sufficient safeguard against phantom parallel-lane merges.
+
+    // ── Step 7: build SnapForPlanning node-type indices ─────────────────────
+    // Pre-index HP/HoldingPosition and intersection nodes so SnapForPlanning()
+    // can scan O(k) typed nodes rather than the full O(n) node list.
+    hpNodeIds_.clear();
+    isxNodeIds_.clear();
+    for (const auto& n : nodes_)
+    {
+        if (n.type == TaxiNodeType::HoldingPoint || n.type == TaxiNodeType::HoldingPosition)
+            hpNodeIds_.push_back(n.id);
+        else if (n.type == TaxiNodeType::Waypoint && n.label.find("Exit") != std::string::npos)
+            isxNodeIds_.push_back(n.id);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,9 +516,18 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         return r;
     }
 
-    constexpr int    MAX_NODES             = 5000;
-    const double     TURN_PENALTY          = apt_.taxiNetworkConfig.routing.turnPenalty;
-    const double     WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
+    constexpr int MAX_NODES             = 5000;
+    const double  TURN_PENALTY          = apt_.taxiNetworkConfig.routing.turnPenalty;
+    const double  WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
+
+    // Pre-resolve the active taxiFlowConfigs entry once per A* call.
+    // Previously BuildConfigKey() and map::find() were called inside the per-edge loop,
+    // costing O(|activeRwys|) string construction + O(log N) lookup for every edge evaluated.
+    const bool hasActiveRwys  = !activeDepRwys.empty() || !activeArrRwys.empty();
+    const auto cfgFlowIt      = hasActiveRwys
+                                    ? apt_.taxiFlowConfigs.find(BuildConfigKey(activeDepRwys, activeArrRwys))
+                                    : apt_.taxiFlowConfigs.end();
+    const bool hasConfigRules = cfgFlowIt != apt_.taxiFlowConfigs.end();
 
     const GeoPoint& goalPos = nodes_[goalId].pos;
 
@@ -550,24 +572,20 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
 
             // Re-apply config flow rule multiplier (generic rules baked in at Build time;
             // taxiFlowConfigs rules for the active dep+arr configuration are added here).
+            // cfgFlowIt and hasConfigRules are resolved once per A* call (above).
             double depMult = 1.0;
-            if (!edge.wayRef.empty() && (!activeDepRwys.empty() || !activeArrRwys.empty()))
+            if (!edge.wayRef.empty() && hasConfigRules)
             {
-                const std::string configKey = BuildConfigKey(activeDepRwys, activeArrRwys);
-                const auto        cfgIt     = apt_.taxiFlowConfigs.find(configKey);
-                if (cfgIt != apt_.taxiFlowConfigs.end())
+                for (const auto& rule : cfgFlowIt->second)
                 {
-                    for (const auto& rule : cfgIt->second)
-                    {
-                        if (rule.taxiway != edge.wayRef)
-                            continue;
-                        const double rb = CardinalToBearing(rule.direction);
-                        if (rb < 0.0)
-                            continue;
-                        if (BearingDiff(edge.bearingDeg, rb) >= apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
-                            depMult = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
-                        break;
-                    }
+                    if (rule.taxiway != edge.wayRef)
+                        continue;
+                    const double rb = CardinalToBearing(rule.direction);
+                    if (rb < 0.0)
+                        continue;
+                    if (BearingDiff(edge.bearingDeg, rb) >= apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
+                        depMult = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
+                    break;
                 }
             }
 
@@ -1148,45 +1166,34 @@ GeoPoint TaxiGraph::SnapForPlanning(const GeoPoint&  rawPos,
     const double ROUTE_SNAP_M = apt_.taxiNetworkConfig.snapping.suggestedRouteM;
     const double WP_SNAP_M    = apt_.taxiNetworkConfig.snapping.waypointM;
 
-    // Priority 1: holding points / holding positions.
+    // Priority 1: holding points / holding positions — O(k) via pre-built index.
     {
         double bestD  = HP_SNAP_M;
         int    bestId = -1;
-        for (const auto& n : nodes_)
+        for (const int id : hpNodeIds_)
         {
-            if (n.type != TaxiNodeType::HoldingPoint &&
-                n.type != TaxiNodeType::HoldingPosition)
-                continue;
-            const double d = HaversineM(n.pos, rawPos);
+            const double d = HaversineM(nodes_[id].pos, rawPos);
             if (d < bestD)
             {
                 bestD  = d;
-                bestId = n.id;
+                bestId = id;
             }
         }
         if (bestId >= 0)
             return nodes_[bestId].pos;
     }
 
-    // Priority 2: intersection waypoints (nodes on Taxiway_Intersection ways).
-    // We detect these by checking whether any edge from the node belongs to an
-    // intersection way — but we don't store type on the node directly.
-    // Instead, use nodes whose wayRef is a key in osmData intersections list.
-    // As a proxy: nodes whose label starts with "Exit" (LOWW-specific but reasonable).
+    // Priority 2: intersection waypoints (label contains "Exit") — O(k) via pre-built index.
     {
         double bestD  = ISX_SNAP_M;
         int    bestId = -1;
-        for (const auto& n : nodes_)
+        for (const int id : isxNodeIds_)
         {
-            if (n.type != TaxiNodeType::Waypoint)
-                continue;
-            if (n.label.find("Exit") == std::string::npos)
-                continue;
-            const double d = HaversineM(n.pos, rawPos);
+            const double d = HaversineM(nodes_[id].pos, rawPos);
             if (d < bestD)
             {
                 bestD  = d;
-                bestId = n.id;
+                bestId = id;
             }
         }
         if (bestId >= 0)
@@ -1214,19 +1221,30 @@ GeoPoint TaxiGraph::SnapForPlanning(const GeoPoint&  rawPos,
             return bestPt;
     }
 
-    // Priority 4: nearest waypoint.
+    // Priority 4: nearest waypoint — O(cells in radius) via spatial grid.
     {
-        double bestD  = WP_SNAP_M;
-        int    bestId = -1;
-        for (const auto& n : nodes_)
+        double    bestD  = WP_SNAP_M;
+        int       bestId = -1;
+        const int rings  = static_cast<int>(std::ceil(WP_SNAP_M / GRID_CELL_M)) + 1;
+        auto [cx0, cy0]  = GridCell(rawPos);
+        for (int dx = -rings; dx <= rings; ++dx)
         {
-            if (n.type != TaxiNodeType::Waypoint)
-                continue;
-            const double d = HaversineM(n.pos, rawPos);
-            if (d < bestD)
+            for (int dy = -rings; dy <= rings; ++dy)
             {
-                bestD  = d;
-                bestId = n.id;
+                auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+                if (it == grid_.end())
+                    continue;
+                for (const int id : it->second)
+                {
+                    if (nodes_[id].type != TaxiNodeType::Waypoint)
+                        continue;
+                    const double d = HaversineM(nodes_[id].pos, rawPos);
+                    if (d < bestD)
+                    {
+                        bestD  = d;
+                        bestId = id;
+                    }
+                }
             }
         }
         if (bestId >= 0)

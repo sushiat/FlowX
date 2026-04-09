@@ -189,458 +189,13 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
     {
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
         {
-            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-
-            // Swingover toggle: detect ALT keypress during taxi (non-push) planning.
-            if (!this->taxiPlanActive.empty() && !this->taxiPlanIsPush)
-            {
-                const bool vkMenu  = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                const bool vkLMenu = (GetAsyncKeyState(VK_LMENU) & 0x8000) != 0;
-                const bool vkRMenu = (GetAsyncKeyState(VK_RMENU) & 0x8000) != 0;
-                const bool altNow  = vkMenu || vkLMenu || vkRMenu;
-                if (altNow && !this->taxiAltPrevDown)
-                {
-                    this->taxiSwingoverActive = !this->taxiSwingoverActive;
-
-                    if (this->taxiSwingoverActive)
-                    {
-                        // Compute fixed crossover from current aircraft position.
-                        this->taxiSwingoverFixedSeg = {};
-                        const auto& airports        = settings->GetAirports();
-                        auto        rt              = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
-                        if (!airports.empty() && rt.IsValid())
-                        {
-                            const auto&  ap     = airports.begin()->second;
-                            const auto   rpos   = rt.GetPosition().GetPosition();
-                            const double hdg    = rt.GetPosition().GetReportedHeadingTrueNorth();
-                            const double taxiWs = settings->GetAircraftWingspan(
-                                GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
-                            const GeoPoint acPos{rpos.m_Latitude, rpos.m_Longitude};
-
-                            const std::string curRef = settings->osmGraph.WayRefAt(acPos, 40.0);
-                            if (!curRef.empty())
-                            {
-                                auto sr = settings->osmGraph.SwingoverSnap(
-                                    acPos, curRef, ap.taxiLaneSwingoverPairs, taxiWs, hdg);
-                                if (sr.valid)
-                                {
-                                    // Fixed segment: origin → startBend (5m+ ahead on current lane)
-                                    // → s-bend control points → endBend (20m+ ahead on partner lane).
-                                    // crossPt == startBend, guaranteed ahead of aircraft.
-                                    TaxiRoute fixedSeg;
-                                    fixedSeg.polyline.push_back(acPos);
-                                    fixedSeg.polyline.push_back(sr.crossPt); // startBend
-                                    for (const auto& pt : sr.sbendPts)
-                                        fixedSeg.polyline.push_back(pt);
-                                    fixedSeg.polyline.push_back(sr.partnerPt);
-                                    fixedSeg.valid              = true;
-                                    fixedSeg.totalDistM         = HaversineM(acPos, sr.partnerPt);
-                                    this->taxiSwingoverFixedSeg = fixedSeg;
-                                    this->taxiSwingoverOrigin   = sr.partnerPt;
-                                }
-                                else
-                                    this->taxiSwingoverActive = false;
-                            }
-                            else
-                                this->taxiSwingoverActive = false;
-                        }
-                        else
-                            this->taxiSwingoverActive = false;
-                    }
-                    else
-                    {
-                        this->taxiSwingoverFixedSeg = {};
-                    }
-
-                    if (settings->GetDebug())
-                        settings->LogDebugMessage(
-                            std::format("Swingover {} (VK_MENU={} VK_LMENU={} VK_RMENU={})",
-                                        this->taxiSwingoverActive ? "ON" : "OFF",
-                                        vkMenu, vkLMenu, vkRMenu),
-                            "TAXI");
-                }
-                this->taxiAltPrevDown = altNow;
-            }
-
-            // Draw routing graph diagnostic overlay (edges then nodes, before planning routes).
+            this->UpdateSwingoverState();
             if (this->showTaxiGraph)
                 this->DrawTaxiGraph(hDC);
-
-            // Draw taxiway/taxilane overlay when enabled (before planning routes so routes paint on top).
-            if ((this->showTaxiOverlay || this->showTaxiLabels) &&
-                (!settings->osmData.ways.empty() || !settings->osmData.holdingPositions.empty()))
-            {
-                // Pass 1 — draw polylines, one pen per way.
-                if (this->showTaxiOverlay)
-                    for (const auto& way : settings->osmData.ways)
-                    {
-                        const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
-                                              : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
-                                              : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
-                                              : (way.type == AerowayType::Runway)               ? RGB(255, 140, 0)
-                                                                                                : RGB(255, 220, 0);
-                        HPEN           pen  = CreatePen(PS_SOLID, 2, col);
-                        HPEN           prev = static_cast<HPEN>(SelectObject(hDC, pen));
-
-                        bool first = true;
-                        for (const auto& gp : way.geometry)
-                        {
-                            EuroScopePlugIn::CPosition pos;
-                            pos.m_Latitude  = gp.lat;
-                            pos.m_Longitude = gp.lon;
-                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                            if (first)
-                            {
-                                MoveToEx(hDC, pt.x, pt.y, nullptr);
-                                first = false;
-                            }
-                            else
-                                LineTo(hDC, pt.x, pt.y);
-                        }
-
-                        SelectObject(hDC, prev);
-                        DeleteObject(pen);
-                    }
-
-                // Pass 1b — derived runway centrelines (config-based, not from OSM ways).
-                if (this->showTaxiOverlay)
-                {
-                    HPEN rwPen  = CreatePen(PS_SOLID, 3, RGB(255, 140, 0));
-                    HPEN rwPrev = static_cast<HPEN>(SelectObject(hDC, rwPen));
-                    for (const auto& cl : settings->osmGraph.runwayCentrelines)
-                    {
-                        bool first = true;
-                        for (const auto& gp : cl)
-                        {
-                            EuroScopePlugIn::CPosition pos;
-                            pos.m_Latitude  = gp.lat;
-                            pos.m_Longitude = gp.lon;
-                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                            if (first)
-                            {
-                                MoveToEx(hDC, pt.x, pt.y, nullptr);
-                                first = false;
-                            }
-                            else
-                                LineTo(hDC, pt.x, pt.y);
-                        }
-                    }
-                    SelectObject(hDC, rwPrev);
-                    DeleteObject(rwPen);
-                }
-
-                // Shared label helper used by Pass 2 (way labels) and Pass 3 (HP node labels).
-                HFONT labelFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                              ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-                HFONT prevFont  = static_cast<HFONT>(SelectObject(hDC, labelFont));
-                SetBkMode(hDC, TRANSPARENT);
-
-                // Draws text centred at pt on a white background rectangle with 2 px padding.
-                auto drawLabel = [&](POINT pt, const std::string& text, COLORREF col)
-                {
-                    RECT m = {0, 0, 200, 30};
-                    DrawTextA(hDC, text.c_str(), -1, &m, DT_CALCRECT | DT_SINGLELINE);
-                    const int hw = (m.right - m.left) / 2 + 2;
-                    const int hh = (m.bottom - m.top) / 2 + 1;
-                    RECT      bg = {pt.x - hw, pt.y - hh, pt.x + hw, pt.y + hh};
-                    auto      br = CreateSolidBrush(RGB(255, 255, 255));
-                    FillRect(hDC, &bg, br);
-                    DeleteObject(br);
-                    SetTextColor(hDC, col);
-                    DrawTextA(hDC, text.c_str(), -1, &bg, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-                };
-
-                // Pass 3 — holding position nodes: filled orange circles with designator label.
-                // Gated on showTaxiOverlay (geometry, not text).
-                if (this->showTaxiOverlay && !settings->osmData.holdingPositions.empty())
-                {
-                    HPEN   hpPen       = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));
-                    HBRUSH hpBrush     = CreateSolidBrush(RGB(255, 140, 0));
-                    HPEN   prevHpPen   = static_cast<HPEN>(SelectObject(hDC, hpPen));
-                    HBRUSH prevHpBrush = static_cast<HBRUSH>(SelectObject(hDC, hpBrush));
-
-                    for (const auto& hp : settings->osmData.holdingPositions)
-                    {
-                        EuroScopePlugIn::CPosition pos;
-                        pos.m_Latitude  = hp.pos.lat;
-                        pos.m_Longitude = hp.pos.lon;
-                        const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                        Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
-
-                        const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
-                        if (!lbl.empty() && this->showTaxiLabels)
-                            drawLabel({pt.x + 13, pt.y}, lbl, RGB(160, 80, 0));
-                    }
-
-                    SelectObject(hDC, prevHpBrush);
-                    SelectObject(hDC, prevHpPen);
-                    DeleteObject(hpBrush);
-                    DeleteObject(hpPen);
-                }
-
-                // Pass 2 — way labels; gated on showTaxiLabels.
-                if (this->showTaxiLabels)
-                {
-                    // Intersection labels are drawn only once per unique ref/name.
-                    std::set<std::string> drawnIsxLabels;
-                    std::set<std::string> drawnHpLabels;
-                    {
-                        RECT m = {0, 0, 200, 30};
-                        for (const auto& way : settings->osmData.ways)
-                        {
-                            if (way.geometry.size() < 2)
-                                continue;
-
-                            const std::string& lbl = way.ref.empty() ? way.name : way.ref;
-                            if (lbl.empty())
-                                continue;
-
-                            // Skip duplicate intersection labels.
-                            if (way.type == AerowayType::Taxiway_Intersection)
-                            {
-                                if (drawnIsxLabels.contains(lbl))
-                                    continue;
-                                drawnIsxLabels.insert(lbl);
-                            }
-
-                            // Skip duplicate holding-point labels.
-                            if (way.type == AerowayType::Taxiway_HoldingPoint)
-                            {
-                                if (drawnHpLabels.contains(lbl))
-                                    continue;
-                                drawnHpLabels.insert(lbl);
-                            }
-
-                            const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(200, 60, 60)
-                                                     : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 120, 220)
-                                                     : (way.type == AerowayType::Taxilane)             ? RGB(0, 160, 210)
-                                                     : (way.type == AerowayType::Runway)               ? RGB(200, 90, 0)
-                                                                                                       : RGB(180, 140, 0);
-
-                            double accum   = 0.0;
-                            double nextLbl = 250.0;
-                            bool   placed  = false;
-
-                            for (size_t k = 1; k < way.geometry.size(); ++k)
-                            {
-                                const auto&  a    = way.geometry[k - 1];
-                                const auto&  b    = way.geometry[k];
-                                const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
-                                const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
-                                const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
-                                const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
-                                const double h    = std::sin(dLat / 2) * std::sin(dLat / 2) + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
-                                const double seg  = 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
-
-                                if (accum + seg >= nextLbl)
-                                {
-                                    EuroScopePlugIn::CPosition pos;
-                                    pos.m_Latitude  = b.lat;
-                                    pos.m_Longitude = b.lon;
-                                    drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
-                                    nextLbl += 500.0;
-                                    placed = true;
-                                }
-                                accum += seg;
-                            }
-
-                            // Way shorter than 250 m: one label at the middle node.
-                            if (!placed)
-                            {
-                                const size_t               mid = way.geometry.size() / 2;
-                                EuroScopePlugIn::CPosition pos;
-                                pos.m_Latitude  = way.geometry[mid].lat;
-                                pos.m_Longitude = way.geometry[mid].lon;
-                                drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
-                            }
-                        }
-                    }
-
-                }
-
-                SelectObject(hDC, prevFont);
-                DeleteObject(labelFont);
-
-                // Draw confirmed taxi routes; prune entries older than 2 s.
-                if (!this->taxiAssigned.empty())
-                {
-                    const ULONGLONG          now = GetTickCount64();
-                    std::vector<std::string> toErase;
-                    for (const auto& [cs, _] : this->taxiAssigned)
-                    {
-                        auto tIt = this->taxiAssignedTimes.find(cs);
-                        if (tIt == this->taxiAssignedTimes.end() || now - tIt->second >= 2000)
-                            toErase.push_back(cs);
-                    }
-                    for (const auto& cs : toErase)
-                    {
-                        this->taxiAssigned.erase(cs);
-                        this->taxiAssignedTimes.erase(cs);
-                    }
-
-                    HPEN pen  = CreatePen(PS_SOLID, 3, RGB(80, 220, 80));
-                    HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
-                    for (const auto& [cs, route] : this->taxiAssigned)
-                    {
-                        if (!route.valid || route.polyline.empty())
-                            continue;
-                        bool first = true;
-                        for (const auto& gp : route.polyline)
-                        {
-                            EuroScopePlugIn::CPosition pos;
-                            pos.m_Latitude  = gp.lat;
-                            pos.m_Longitude = gp.lon;
-                            POINT pt        = ConvertCoordFromPositionToPixel(pos);
-                            if (first)
-                            {
-                                MoveToEx(hDC, pt.x, pt.y, nullptr);
-                                first = false;
-                            }
-                            else
-                                LineTo(hDC, pt.x, pt.y);
-                        }
-                    }
-                    SelectObject(hDC, prev);
-                    DeleteObject(pen);
-                }
-
-                // Draw persistent tracked routes (remaining portion from current aircraft position).
-                if (this->showTaxiRoutes && !this->taxiTracked.empty())
-                {
-                    HPEN pen  = CreatePen(PS_SOLID, 2, RGB(80, 220, 80));
-                    HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
-
-                    std::vector<std::string> routesDone;
-                    for (const auto& [cs, route] : this->taxiTracked)
-                    {
-                        if (!route.valid || route.polyline.size() < 2)
-                            continue;
-                        auto rt = GetPlugIn()->RadarTargetSelect(cs.c_str());
-                        if (!rt.IsValid() || !rt.GetPosition().IsValid())
-                            continue;
-
-                        // Find the polyline node closest to the aircraft in screen space.
-                        const POINT acPt        = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
-                        size_t      closestIdx  = 0;
-                        long        closestDist = LONG_MAX;
-                        for (size_t i = 0; i < route.polyline.size(); ++i)
-                        {
-                            EuroScopePlugIn::CPosition pos;
-                            pos.m_Latitude  = route.polyline[i].lat;
-                            pos.m_Longitude = route.polyline[i].lon;
-                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                            const long  dx  = pt.x - acPt.x;
-                            const long  dy  = pt.y - acPt.y;
-                            const long  dSq = dx * dx + dy * dy;
-                            if (dSq < closestDist)
-                            {
-                                closestDist = dSq;
-                                closestIdx  = i;
-                            }
-                        }
-
-                        // If the aircraft is at or past the last node, the route is complete — erase it.
-                        if (closestIdx == route.polyline.size() - 1 && closestDist <= 100 * 100)
-                        {
-                            routesDone.push_back(cs);
-                            continue;
-                        }
-
-                        // Draw from aircraft pixel position through the remaining polyline nodes.
-                        MoveToEx(hDC, acPt.x, acPt.y, nullptr);
-                        for (size_t i = closestIdx; i < route.polyline.size(); ++i)
-                        {
-                            EuroScopePlugIn::CPosition pos;
-                            pos.m_Latitude  = route.polyline[i].lat;
-                            pos.m_Longitude = route.polyline[i].lon;
-                            const POINT pt  = ConvertCoordFromPositionToPixel(pos);
-                            LineTo(hDC, pt.x, pt.y);
-                        }
-                    }
-
-                    SelectObject(hDC, prev);
-                    DeleteObject(pen);
-
-                    for (const auto& cs : routesDone)
-                    {
-                        this->taxiTracked.erase(cs);
-                        this->taxiAssigned.erase(cs);
-                        this->taxiAssignedTimes.erase(cs);
-                    }
-                }
-
-                // Shared helper: draw a route polyline in a given colour/width.
-                auto drawRoute = [&](const TaxiRoute& route, COLORREF col, int width)
-                {
-                    if (!route.valid || route.polyline.empty())
-                        return;
-                    HPEN pen   = CreatePen(PS_SOLID, width, col);
-                    HPEN prev  = static_cast<HPEN>(SelectObject(hDC, pen));
-                    bool first = true;
-                    for (const auto& gp : route.polyline)
-                    {
-                        EuroScopePlugIn::CPosition pos;
-                        pos.m_Latitude  = gp.lat;
-                        pos.m_Longitude = gp.lon;
-                        POINT pt        = ConvertCoordFromPositionToPixel(pos);
-                        if (first)
-                        {
-                            MoveToEx(hDC, pt.x, pt.y, nullptr);
-                            first = false;
-                        }
-                        else
-                            LineTo(hDC, pt.x, pt.y);
-                    }
-                    SelectObject(hDC, prev);
-                    DeleteObject(pen);
-                };
-
-                // Draw push routes: red during taxi-planning mode (active obstacle), orange otherwise.
-                if (!this->pushTracked.empty())
-                {
-                    const bool     inTaxiPlan = !this->taxiPlanActive.empty() && !this->taxiPlanIsPush;
-                    const COLORREF pushCol    = inTaxiPlan ? RGB(220, 50, 50) : RGB(255, 140, 0);
-                    for (const auto& [_, pushRoute] : this->pushTracked)
-                        drawRoute(pushRoute, pushCol, 3);
-                }
-
-                // Draw planning mode: yellow suggestion + magenta preview + via-point markers.
-                if (!this->taxiPlanActive.empty())
-                {
-                    // During push planning, skip the yellow suggestion (none exists).
-                    if (!this->taxiPlanIsPush)
-                    {
-                        auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
-                        if (sugIt != this->taxiSuggested.end())
-                            drawRoute(sugIt->second, RGB(255, 220, 0), 2); // yellow suggestion
-                    }
-                    const COLORREF previewCol = this->taxiPlanIsPush ? RGB(100, 200, 255) : RGB(255, 0, 220);
-                    drawRoute(this->taxiGreenPreview, previewCol, 3); // light-blue (push) or magenta (taxi)
-
-                    // Draw via-point markers as small cyan squares.
-                    for (const auto& wp : this->taxiWaypoints)
-                    {
-                        EuroScopePlugIn::CPosition wpos;
-                        wpos.m_Latitude  = wp.lat;
-                        wpos.m_Longitude = wp.lon;
-                        POINT  pt        = ConvertCoordFromPositionToPixel(wpos);
-                        HPEN   wpen      = CreatePen(PS_SOLID, 1, RGB(0, 220, 220));
-                        HBRUSH wbrush    = CreateSolidBrush(RGB(0, 220, 220));
-                        SelectObject(hDC, wpen);
-                        SelectObject(hDC, wbrush);
-                        Rectangle(hDC, pt.x - 4, pt.y - 4, pt.x + 4, pt.y + 4);
-                        DeleteObject(wbrush);
-                        DeleteObject(wpen);
-                    }
-
-                    // Dead-end branch warning: red overlay when taxi destination is isolated.
-                    this->DrawPushDeadEnds(hDC);
-                }
-
-                // Recompute route deviation and conflict state (throttled to ~250 ms).
-                this->UpdateTaxiSafety();
-            }
+            this->DrawTaxiOverlay(hDC);
+            this->DrawTaxiRoutes(hDC);
+            this->DrawPlanningRoutes(hDC);
+            this->UpdateTaxiSafety();
         }
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_TAGS)
@@ -706,6 +261,451 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
     // ─────────────────────────────────────────────────────────────────────────────
     // Private draw helpers — pure GDI output, no state calculations
     // ─────────────────────────────────────────────────────────────────────────────
+
+    /// @brief Detects ALT keypress each BEFORE_TAGS frame and toggles taxiSwingoverActive when it fires.
+    void RadarScreen::UpdateSwingoverState()
+    {
+        if (this->taxiPlanActive.empty() || this->taxiPlanIsPush)
+            return;
+
+        auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
+        const bool vkMenu  = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+        const bool vkLMenu = (GetAsyncKeyState(VK_LMENU) & 0x8000) != 0;
+        const bool vkRMenu = (GetAsyncKeyState(VK_RMENU) & 0x8000) != 0;
+        const bool altNow  = vkMenu || vkLMenu || vkRMenu;
+        if (altNow && !this->taxiAltPrevDown)
+        {
+            this->taxiSwingoverActive = !this->taxiSwingoverActive;
+
+            if (this->taxiSwingoverActive)
+            {
+                this->taxiSwingoverFixedSeg = {};
+                const auto& airports        = settings->GetAirports();
+                auto        rt              = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+                if (!airports.empty() && rt.IsValid())
+                {
+                    const auto&  ap     = airports.begin()->second;
+                    const auto   rpos   = rt.GetPosition().GetPosition();
+                    const double hdg    = rt.GetPosition().GetReportedHeadingTrueNorth();
+                    const double taxiWs = settings->GetAircraftWingspan(
+                        GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
+                    const GeoPoint acPos{rpos.m_Latitude, rpos.m_Longitude};
+
+                    const std::string curRef = settings->osmGraph.WayRefAt(acPos, 40.0);
+                    if (!curRef.empty())
+                    {
+                        auto sr = settings->osmGraph.SwingoverSnap(
+                            acPos, curRef, ap.taxiLaneSwingoverPairs, taxiWs, hdg);
+                        if (sr.valid)
+                        {
+                            TaxiRoute fixedSeg;
+                            fixedSeg.polyline.push_back(acPos);
+                            fixedSeg.polyline.push_back(sr.crossPt);
+                            for (const auto& pt : sr.sbendPts)
+                                fixedSeg.polyline.push_back(pt);
+                            fixedSeg.polyline.push_back(sr.partnerPt);
+                            fixedSeg.valid              = true;
+                            fixedSeg.totalDistM         = HaversineM(acPos, sr.partnerPt);
+                            this->taxiSwingoverFixedSeg = fixedSeg;
+                            this->taxiSwingoverOrigin   = sr.partnerPt;
+                        }
+                        else
+                            this->taxiSwingoverActive = false;
+                    }
+                    else
+                        this->taxiSwingoverActive = false;
+                }
+                else
+                    this->taxiSwingoverActive = false;
+            }
+            else
+            {
+                this->taxiSwingoverFixedSeg = {};
+            }
+
+            if (settings->GetDebug())
+                settings->LogDebugMessage(
+                    std::format("Swingover {} (VK_MENU={} VK_LMENU={} VK_RMENU={})",
+                                this->taxiSwingoverActive ? "ON" : "OFF",
+                                vkMenu, vkLMenu, vkRMenu),
+                    "TAXI");
+        }
+        this->taxiAltPrevDown = altNow;
+    }
+
+    /// @brief Draws the OSM taxiway/taxilane polylines, derived runway centrelines, holding-position circles, and way labels.
+    void RadarScreen::DrawTaxiOverlay(HDC hDC)
+    {
+        auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
+        if (!(this->showTaxiOverlay || this->showTaxiLabels))
+            return;
+        if (settings->osmData.ways.empty() && settings->osmData.holdingPositions.empty())
+            return;
+
+        // Pass 1 — draw polylines, one pen per way.
+        if (this->showTaxiOverlay)
+            for (const auto& way : settings->osmData.ways)
+            {
+                const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
+                                      : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
+                                      : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
+                                      : (way.type == AerowayType::Runway)               ? RGB(255, 140, 0)
+                                                                                        : RGB(255, 220, 0);
+                HPEN           pen  = CreatePen(PS_SOLID, 2, col);
+                HPEN           prev = static_cast<HPEN>(SelectObject(hDC, pen));
+
+                bool first = true;
+                for (const auto& gp : way.geometry)
+                {
+                    EuroScopePlugIn::CPosition pos;
+                    pos.m_Latitude  = gp.lat;
+                    pos.m_Longitude = gp.lon;
+                    const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                    if (first)
+                    {
+                        MoveToEx(hDC, pt.x, pt.y, nullptr);
+                        first = false;
+                    }
+                    else
+                        LineTo(hDC, pt.x, pt.y);
+                }
+
+                SelectObject(hDC, prev);
+                DeleteObject(pen);
+            }
+
+        // Pass 1b — derived runway centrelines (from TaxiGraph, not OSM ways).
+        if (this->showTaxiOverlay)
+        {
+            HPEN rwPen  = CreatePen(PS_SOLID, 3, RGB(255, 140, 0));
+            HPEN rwPrev = static_cast<HPEN>(SelectObject(hDC, rwPen));
+            for (const auto& cl : settings->osmGraph.runwayCentrelines)
+            {
+                bool first = true;
+                for (const auto& gp : cl)
+                {
+                    EuroScopePlugIn::CPosition pos;
+                    pos.m_Latitude  = gp.lat;
+                    pos.m_Longitude = gp.lon;
+                    const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                    if (first)
+                    {
+                        MoveToEx(hDC, pt.x, pt.y, nullptr);
+                        first = false;
+                    }
+                    else
+                        LineTo(hDC, pt.x, pt.y);
+                }
+            }
+            SelectObject(hDC, rwPrev);
+            DeleteObject(rwPen);
+        }
+
+        HFONT labelFont = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                      ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                      DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+        HFONT prevFont  = static_cast<HFONT>(SelectObject(hDC, labelFont));
+        SetBkMode(hDC, TRANSPARENT);
+
+        auto drawLabel = [&](POINT pt, const std::string& text, COLORREF col)
+        {
+            RECT m = {0, 0, 200, 30};
+            DrawTextA(hDC, text.c_str(), -1, &m, DT_CALCRECT | DT_SINGLELINE);
+            const int hw = (m.right - m.left) / 2 + 2;
+            const int hh = (m.bottom - m.top) / 2 + 1;
+            RECT      bg = {pt.x - hw, pt.y - hh, pt.x + hw, pt.y + hh};
+            auto      br = CreateSolidBrush(RGB(255, 255, 255));
+            FillRect(hDC, &bg, br);
+            DeleteObject(br);
+            SetTextColor(hDC, col);
+            DrawTextA(hDC, text.c_str(), -1, &bg, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        };
+
+        // Pass 3 — holding position nodes: filled orange circles with designator label.
+        if (this->showTaxiOverlay && !settings->osmData.holdingPositions.empty())
+        {
+            HPEN   hpPen       = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));
+            HBRUSH hpBrush     = CreateSolidBrush(RGB(255, 140, 0));
+            HPEN   prevHpPen   = static_cast<HPEN>(SelectObject(hDC, hpPen));
+            HBRUSH prevHpBrush = static_cast<HBRUSH>(SelectObject(hDC, hpBrush));
+
+            for (const auto& hp : settings->osmData.holdingPositions)
+            {
+                EuroScopePlugIn::CPosition pos;
+                pos.m_Latitude  = hp.pos.lat;
+                pos.m_Longitude = hp.pos.lon;
+                const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
+
+                const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
+                if (!lbl.empty() && this->showTaxiLabels)
+                    drawLabel({pt.x + 13, pt.y}, lbl, RGB(160, 80, 0));
+            }
+
+            SelectObject(hDC, prevHpBrush);
+            SelectObject(hDC, prevHpPen);
+            DeleteObject(hpBrush);
+            DeleteObject(hpPen);
+        }
+
+        // Pass 2 — way labels; gated on showTaxiLabels.
+        if (this->showTaxiLabels)
+        {
+            std::set<std::string> drawnIsxLabels;
+            std::set<std::string> drawnHpLabels;
+
+            for (const auto& way : settings->osmData.ways)
+            {
+                if (way.geometry.size() < 2)
+                    continue;
+
+                const std::string& lbl = way.ref.empty() ? way.name : way.ref;
+                if (lbl.empty())
+                    continue;
+
+                if (way.type == AerowayType::Taxiway_Intersection)
+                {
+                    if (drawnIsxLabels.contains(lbl))
+                        continue;
+                    drawnIsxLabels.insert(lbl);
+                }
+
+                if (way.type == AerowayType::Taxiway_HoldingPoint)
+                {
+                    if (drawnHpLabels.contains(lbl))
+                        continue;
+                    drawnHpLabels.insert(lbl);
+                }
+
+                const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(200, 60, 60)
+                                         : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 120, 220)
+                                         : (way.type == AerowayType::Taxilane)             ? RGB(0, 160, 210)
+                                         : (way.type == AerowayType::Runway)               ? RGB(200, 90, 0)
+                                                                                           : RGB(180, 140, 0);
+
+                double accum   = 0.0;
+                double nextLbl = 250.0;
+                bool   placed  = false;
+
+                for (size_t k = 1; k < way.geometry.size(); ++k)
+                {
+                    const auto&  a    = way.geometry[k - 1];
+                    const auto&  b    = way.geometry[k];
+                    const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
+                    const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
+                    const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
+                    const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
+                    const double h    = std::sin(dLat / 2) * std::sin(dLat / 2) +
+                                        cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
+                    const double seg  = 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
+
+                    if (accum + seg >= nextLbl)
+                    {
+                        EuroScopePlugIn::CPosition pos;
+                        pos.m_Latitude  = b.lat;
+                        pos.m_Longitude = b.lon;
+                        drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
+                        nextLbl += 500.0;
+                        placed = true;
+                    }
+                    accum += seg;
+                }
+
+                if (!placed)
+                {
+                    const size_t               mid = way.geometry.size() / 2;
+                    EuroScopePlugIn::CPosition pos;
+                    pos.m_Latitude  = way.geometry[mid].lat;
+                    pos.m_Longitude = way.geometry[mid].lon;
+                    drawLabel(ConvertCoordFromPositionToPixel(pos), lbl, textCol);
+                }
+            }
+        }
+
+        SelectObject(hDC, prevFont);
+        DeleteObject(labelFont);
+    }
+
+    /// @brief Draws a single TaxiRoute polyline with the given GDI pen colour and width.
+    void RadarScreen::DrawRoutePolyline(HDC hDC, const TaxiRoute& route, COLORREF col, int width)
+    {
+        if (!route.valid || route.polyline.empty())
+            return;
+        HPEN pen   = CreatePen(PS_SOLID, width, col);
+        HPEN prev  = static_cast<HPEN>(SelectObject(hDC, pen));
+        bool first = true;
+        for (const auto& gp : route.polyline)
+        {
+            EuroScopePlugIn::CPosition pos;
+            pos.m_Latitude  = gp.lat;
+            pos.m_Longitude = gp.lon;
+            POINT pt        = ConvertCoordFromPositionToPixel(pos);
+            if (first)
+            {
+                MoveToEx(hDC, pt.x, pt.y, nullptr);
+                first = false;
+            }
+            else
+                LineTo(hDC, pt.x, pt.y);
+        }
+        SelectObject(hDC, prev);
+        DeleteObject(pen);
+    }
+
+    /// @brief Draws confirmed (2-second flash) and persistently tracked taxi routes.
+    void RadarScreen::DrawTaxiRoutes(HDC hDC)
+    {
+        // Draw confirmed taxi routes (2-second flash); prune entries older than 2 s.
+        if (!this->taxiAssigned.empty())
+        {
+            const ULONGLONG          now = GetTickCount64();
+            std::vector<std::string> toErase;
+            for (const auto& [cs, _] : this->taxiAssigned)
+            {
+                auto tIt = this->taxiAssignedTimes.find(cs);
+                if (tIt == this->taxiAssignedTimes.end() || now - tIt->second >= 2000)
+                    toErase.push_back(cs);
+            }
+            for (const auto& cs : toErase)
+            {
+                this->taxiAssigned.erase(cs);
+                this->taxiAssignedTimes.erase(cs);
+            }
+
+            HPEN pen  = CreatePen(PS_SOLID, 3, RGB(80, 220, 80));
+            HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
+            for (const auto& [cs, route] : this->taxiAssigned)
+            {
+                if (!route.valid || route.polyline.empty())
+                    continue;
+                bool first = true;
+                for (const auto& gp : route.polyline)
+                {
+                    EuroScopePlugIn::CPosition pos;
+                    pos.m_Latitude  = gp.lat;
+                    pos.m_Longitude = gp.lon;
+                    POINT pt        = ConvertCoordFromPositionToPixel(pos);
+                    if (first)
+                    {
+                        MoveToEx(hDC, pt.x, pt.y, nullptr);
+                        first = false;
+                    }
+                    else
+                        LineTo(hDC, pt.x, pt.y);
+                }
+            }
+            SelectObject(hDC, prev);
+            DeleteObject(pen);
+        }
+
+        // Draw persistent tracked routes (remaining portion from current aircraft position).
+        if (!this->showTaxiRoutes || this->taxiTracked.empty())
+            return;
+
+        HPEN pen  = CreatePen(PS_SOLID, 2, RGB(80, 220, 80));
+        HPEN prev = static_cast<HPEN>(SelectObject(hDC, pen));
+
+        std::vector<std::string> routesDone;
+        for (const auto& [cs, route] : this->taxiTracked)
+        {
+            if (!route.valid || route.polyline.size() < 2)
+                continue;
+            auto rt = GetPlugIn()->RadarTargetSelect(cs.c_str());
+            if (!rt.IsValid() || !rt.GetPosition().IsValid())
+                continue;
+
+            const POINT acPt        = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
+            size_t      closestIdx  = 0;
+            long        closestDist = LONG_MAX;
+            for (size_t i = 0; i < route.polyline.size(); ++i)
+            {
+                EuroScopePlugIn::CPosition pos;
+                pos.m_Latitude  = route.polyline[i].lat;
+                pos.m_Longitude = route.polyline[i].lon;
+                const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                const long  dx  = pt.x - acPt.x;
+                const long  dy  = pt.y - acPt.y;
+                const long  dSq = dx * dx + dy * dy;
+                if (dSq < closestDist)
+                {
+                    closestDist = dSq;
+                    closestIdx  = i;
+                }
+            }
+
+            if (closestIdx == route.polyline.size() - 1 && closestDist <= 100 * 100)
+            {
+                routesDone.push_back(cs);
+                continue;
+            }
+
+            MoveToEx(hDC, acPt.x, acPt.y, nullptr);
+            for (size_t i = closestIdx; i < route.polyline.size(); ++i)
+            {
+                EuroScopePlugIn::CPosition pos;
+                pos.m_Latitude  = route.polyline[i].lat;
+                pos.m_Longitude = route.polyline[i].lon;
+                const POINT pt  = ConvertCoordFromPositionToPixel(pos);
+                LineTo(hDC, pt.x, pt.y);
+            }
+        }
+
+        SelectObject(hDC, prev);
+        DeleteObject(pen);
+
+        for (const auto& cs : routesDone)
+        {
+            this->taxiTracked.erase(cs);
+            this->taxiAssigned.erase(cs);
+            this->taxiAssignedTimes.erase(cs);
+        }
+    }
+
+    /// @brief Draws active push routes, the yellow suggested route, and the magenta/light-blue planning preview.
+    void RadarScreen::DrawPlanningRoutes(HDC hDC)
+    {
+        // Draw push routes: red during taxi-planning mode (active obstacle), orange otherwise.
+        if (!this->pushTracked.empty())
+        {
+            const bool     inTaxiPlan = !this->taxiPlanActive.empty() && !this->taxiPlanIsPush;
+            const COLORREF pushCol    = inTaxiPlan ? RGB(220, 50, 50) : RGB(255, 140, 0);
+            for (const auto& [_, pushRoute] : this->pushTracked)
+                this->DrawRoutePolyline(hDC, pushRoute, pushCol, 3);
+        }
+
+        if (this->taxiPlanActive.empty())
+            return;
+
+        if (!this->taxiPlanIsPush)
+        {
+            auto sugIt = this->taxiSuggested.find(this->taxiPlanActive);
+            if (sugIt != this->taxiSuggested.end())
+                this->DrawRoutePolyline(hDC, sugIt->second, RGB(255, 220, 0), 2); // yellow suggestion
+        }
+
+        const COLORREF previewCol = this->taxiPlanIsPush ? RGB(100, 200, 255) : RGB(255, 0, 220);
+        this->DrawRoutePolyline(hDC, this->taxiGreenPreview, previewCol, 3); // light-blue (push) or magenta (taxi)
+
+        // Draw via-point markers as small cyan squares.
+        for (const auto& wp : this->taxiWaypoints)
+        {
+            EuroScopePlugIn::CPosition wpos;
+            wpos.m_Latitude  = wp.lat;
+            wpos.m_Longitude = wp.lon;
+            POINT  pt        = ConvertCoordFromPositionToPixel(wpos);
+            HPEN   wpen      = CreatePen(PS_SOLID, 1, RGB(0, 220, 220));
+            HBRUSH wbrush    = CreateSolidBrush(RGB(0, 220, 220));
+            SelectObject(hDC, wpen);
+            SelectObject(hDC, wbrush);
+            Rectangle(hDC, pt.x - 4, pt.y - 4, pt.x + 4, pt.y + 4);
+            DeleteObject(wbrush);
+            DeleteObject(wpen);
+        }
+
+        this->DrawPushDeadEnds(hDC);
+    }
 
     /// @brief Draws a green filled square near each landed inbound awaiting GND handoff; registers each as a clickable screen object.
     void RadarScreen::DrawGndTransferSquares(HDC hDC)

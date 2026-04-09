@@ -148,7 +148,7 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
                         fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
                         if (!isReqMark)
                         {
-                            fp.GetControllerAssignedData().SetScratchPadString(""); // confirmed: clear pad
+                            fp.GetControllerAssignedData().SetScratchPadString(("." + foundHpName + ".").c_str()); // confirmed: mark as processed (trailing dot prevents re-trigger)
                             this->LogDebugMessage(callSign + " HP assigned via scratchpad: " + foundHpName, "HP");
                         }
                         else
