@@ -374,6 +374,48 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // ── Step 5: stands ───────────────────────────────────────────────────────
     // (Stand nodes are added lazily in StandCentroid and FindRoute; we skip bulk
     //  stand insertion during Build to avoid loading thousands of irrelevant stands.)
+
+    // ── Step 6: cross-way gap bridging ───────────────────────────────────────
+    // OSM ways sometimes have endpoints that are within a few metres of each other
+    // but don't share a node (coordinate precision gaps). For every pair of Waypoint
+    // nodes from different wayRefs that are within GAP_M and have no existing edge,
+    // add a bidirectional connecting edge. This fixes broken intersections without
+    // raising the general merge threshold (which would falsely collapse nearby parallel lanes).
+    {
+        constexpr double GAP_M = 6.0;
+        const int        N     = static_cast<int>(nodes_.size());
+        for (int i = 0; i < N; ++i)
+        {
+            if (nodes_[i].type != TaxiNodeType::Waypoint || nodes_[i].wayRef.empty())
+                continue;
+            for (int j = i + 1; j < N; ++j)
+            {
+                if (nodes_[j].type != TaxiNodeType::Waypoint || nodes_[j].wayRef.empty())
+                    continue;
+                if (nodes_[i].wayRef == nodes_[j].wayRef)
+                    continue; // same way — merge threshold already handled this
+                const double d = HaversineM(nodes_[i].pos, nodes_[j].pos);
+                if (d > GAP_M)
+                    continue;
+
+                // Check no edge already exists i→j.
+                bool alreadyLinked = false;
+                for (const auto& e : adj_[i])
+                    if (e.to == j)
+                    {
+                        alreadyLinked = true;
+                        break;
+                    }
+                if (alreadyLinked)
+                    continue;
+
+                const double bIJ = BearingDeg(nodes_[i].pos, nodes_[j].pos);
+                const double bJI = BearingDeg(nodes_[j].pos, nodes_[i].pos);
+                AddEdge(i, j, d, nodes_[j].wayRef, bIJ);
+                AddEdge(j, i, d, nodes_[i].wayRef, bJI);
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

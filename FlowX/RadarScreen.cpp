@@ -2999,7 +2999,11 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                 {
                     EuroScopePlugIn::CPosition rpos = rt.GetPosition().GetPosition();
                     GeoPoint                   origin{rpos.m_Latitude, rpos.m_Longitude};
-                    const double               heading = rt.GetPosition().GetReportedHeadingTrueNorth();
+                    // Use heading for start-node selection only when the aircraft is moving;
+                    // a parked aircraft faces the terminal so its heading misleads A* into
+                    // snapping to a node behind the stand rather than the taxiway exit.
+                    const int    gs      = rt.GetPosition().GetReportedGS();
+                    const double heading = gs >= 3 ? rt.GetPosition().GetReportedHeadingTrueNorth() : -1.0;
 
                     if (this->taxiPlanIsPush)
                     {
@@ -3388,7 +3392,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     blocked.insert(b.begin(), b.end());
                 }
 
-                const double heading = rt.GetPosition().GetReportedHeadingTrueNorth();
+                const int    gs      = rt.GetPosition().GetReportedGS();
+                const double heading = gs >= 3 ? rt.GetPosition().GetReportedHeadingTrueNorth() : -1.0;
                 const double taxiWs  = settings->GetAircraftWingspan(
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
