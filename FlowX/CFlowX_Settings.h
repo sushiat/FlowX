@@ -39,6 +39,7 @@ class CFlowX_Settings : public CFlowX_Logging
     bool                           autoParked          = true;  ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
     bool                           autoScratchpadClear = false; ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
     bool                           autoRestore         = false; ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    bool                           hpAutoScratch       = true;  ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
     int                            bgOpacity           = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
     bool                           depRateVisible      = true;  ///< Whether the DEP/H departure rate window is visible; restored from settings.json
     int                            depRateWindowX      = -1;    ///< Last-saved X position of the departure rate window; -1 = not yet positioned
@@ -234,6 +235,12 @@ class CFlowX_Settings : public CFlowX_Logging
         return this->autoScratchpadClear;
     }
 
+    /// @brief Returns whether the scratchpad HP shortcut feature is active.
+    [[nodiscard]] bool GetHpAutoScratch() const
+    {
+        return this->hpAutoScratch;
+    }
+
     /// @brief Returns the current background opacity in percent (20–100).
     [[nodiscard]] int GetBgOpacity() const
     {
@@ -357,6 +364,13 @@ class CFlowX_Settings : public CFlowX_Logging
     void ToggleAutoScratchpadClear()
     {
         this->autoScratchpadClear = !this->autoScratchpadClear;
+        SaveSettings();
+    }
+
+    /// @brief Toggles the scratchpad HP shortcut feature and persists it immediately.
+    void ToggleHpAutoScratch()
+    {
+        this->hpAutoScratch = !this->hpAutoScratch;
         SaveSettings();
     }
 

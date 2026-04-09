@@ -213,7 +213,10 @@ void CFlowX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const
             to_upper(oldUpper);
             to_upper(newUpper);
             if (oldUpper == newUpper)
+            {
                 fp.GetControllerAssignedData().SetScratchPadString(("." + oldHpName + " ok").c_str());
+                this->LogDebugMessage(callSign + " HP request approved via popup: " + oldHpName + " → scratchpad set to ." + oldHpName + " ok", "HP");
+            }
         }
     }
 

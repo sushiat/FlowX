@@ -397,6 +397,7 @@ void CFlowX_Settings::LoadSettings()
             this->autoParked          = j["global"].value("autoParked", true);
             this->autoScratchpadClear = j["global"].value("autoScratchpadClear", false);
             this->autoRestore         = j["global"].value("autoRestore", false);
+            this->hpAutoScratch       = j["global"].value("hpAutoScratch", true);
             this->bgOpacity           = j["global"].value("bgOpacity", 100);
             this->debug               = j["global"].value("debug", false);
             this->flashOnMessage      = j["global"].value("flashOnMessage", false);
@@ -474,6 +475,7 @@ void CFlowX_Settings::SaveSettings()
         j["global"]["autoParked"]          = this->autoParked;
         j["global"]["autoScratchpadClear"] = this->autoScratchpadClear;
         j["global"]["autoRestore"]         = this->autoRestore;
+        j["global"]["hpAutoScratch"]       = this->hpAutoScratch;
         j["global"]["bgOpacity"]           = this->bgOpacity;
         j["global"]["debug"]               = this->debug;
         j["global"]["flashOnMessage"]      = this->flashOnMessage;

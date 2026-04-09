@@ -111,7 +111,7 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
 
             // HP shortcut (TWR only): .NAME → assign confirmed and clear pad; .NAME? → register request, leave pad.
             auto me = this->ControllerMyself();
-            if (me.IsValid() && me.GetFacility() == 4 && scratch.size() >= 2 && scratch[0] == '.')
+            if (this->GetHpAutoScratch() && me.IsValid() && me.GetFacility() == 4 && scratch.size() >= 2 && scratch[0] == '.')
             {
                 std::string hpInput   = scratch.substr(1);
                 bool        isReqMark = (!hpInput.empty() && hpInput.back() == '?');
@@ -147,8 +147,14 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
                             AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], newHp);
                         fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
                         if (!isReqMark)
+                        {
                             fp.GetControllerAssignedData().SetScratchPadString(""); // confirmed: clear pad
-                        // Request (.NAME?): leave scratchpad as-is so TWR can see the pending request.
+                            this->LogDebugMessage(callSign + " HP assigned via scratchpad: " + foundHpName, "HP");
+                        }
+                        else
+                        {
+                            this->LogDebugMessage(callSign + " HP request registered via scratchpad: " + foundHpName, "HP");
+                        }
                         this->PushToOtherControllers(fp);
                     }
                 }

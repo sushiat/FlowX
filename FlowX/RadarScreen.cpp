@@ -2560,6 +2560,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Auto-Restore FPLN", true, settings->GetAutoRestore(), 3},
         {false, "Auto PARK", true, settings->GetAutoParked(), 15},
         {false, "Auto-Clear Scratch", true, settings->GetAutoScratchpadClear(), 18},
+        {false, "HP auto-scratch", true, settings->GetHpAutoScratch(), 28},
         {true, "Notifications", false, false, -1},
         {false, "Airborne", true, settings->GetSoundAirborne(), 19},
         {false, "GND Transfer", true, settings->GetSoundGndTransfer(), 20},
@@ -3558,6 +3559,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 else if (idx == 27)
                 {
                     settings->ToggleSoundTaxiConflict();
+                }
+                else if (idx == 28)
+                {
+                    settings->ToggleHpAutoScratch();
                 }
                 else if (idx == 22) // Update TAXI info
                 {
