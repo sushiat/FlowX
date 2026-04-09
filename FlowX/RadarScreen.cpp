@@ -695,10 +695,11 @@ static GeoPoint PushZonePoint(const GeoPoint& origin, double bearingDeg, double 
 /// then concatenates: armB-end → pivot → armA-end.
 static TaxiRoute BuildPushZone(const TaxiGraph& graph, const GeoPoint& pivot,
                                double armABrng, double armADistM,
-                               double armBBrng, double armBDistM)
+                               double armBBrng, double armBDistM,
+                               double wingspanM = 0.0)
 {
-    TaxiRoute armA = graph.WalkGraph(pivot, armABrng, armADistM);
-    TaxiRoute armB = graph.WalkGraph(pivot, armBBrng, armBDistM);
+    TaxiRoute armA = graph.WalkGraph(pivot, armABrng, armADistM, wingspanM);
+    TaxiRoute armB = graph.WalkGraph(pivot, armBBrng, armBDistM, wingspanM);
 
     TaxiRoute combined;
     combined.valid = armA.valid || armB.valid;
@@ -3002,24 +3003,51 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 
                     if (this->taxiPlanIsPush)
                     {
-                        // Push zone: all geometry stays on the taxiway network via WalkGraph.
-                        // Cursor arm uses FindRoute (A*) so it handles junctions/curves correctly.
-                        // Fixed arm uses WalkGraph (greedy 25 m in opposite direction).
-                        // When cursor is too close to pivot (bearing unreliable) or off-network,
-                        // fall back to the symmetric 50 m initial zone.
-                        constexpr double MIN_BEARING_M = 15.0;
-                        const double     cursorDistM =
-                            HaversineM(this->taxiPushOrigin, this->taxiCursorSnap);
                         const double pushDir  = std::fmod(this->taxiPushHeading + 180.0, 360.0);
                         const double taxiDirA = std::fmod(pushDir + 90.0, 360.0);
                         const double taxiDirB = std::fmod(pushDir - 90.0 + 360.0, 360.0);
+                        const double ws       = this->taxiPushWingspan;
+
+                        // Re-run candidate search and select pivot by projecting cursor onto
+                        // the push axis; swap to a farther taxiway when past its midpoint.
+                        auto candidates = settings->osmGraph.PushCandidates(
+                            this->taxiPushStandOrigin, pushDir, ws, 200.0);
+
+                        if (!candidates.empty())
+                        {
+                            // Flat-earth projection of cursor onto push axis from stand.
+                            const double cosLat   = std::cos(this->taxiPushStandOrigin.lat *
+                                                             std::numbers::pi / 180.0);
+                            const double scaleLat = TAXI_EARTH_R * std::numbers::pi / 180.0;
+                            const double scaleLon = TAXI_EARTH_R * cosLat * std::numbers::pi / 180.0;
+                            const double brngRad  = pushDir * std::numbers::pi / 180.0;
+                            const double ux       = std::sin(brngRad);
+                            const double uy       = std::cos(brngRad);
+                            const double dx       = (this->taxiCursorSnap.lon - this->taxiPushStandOrigin.lon) * scaleLon;
+                            const double dy       = (this->taxiCursorSnap.lat - this->taxiPushStandOrigin.lat) * scaleLat;
+                            const double t        = dx * ux + dy * uy; // cursor distance along push axis
+
+                            // Pick the candidate whose midpoint boundary the cursor has passed.
+                            int sel = 0;
+                            for (int i = 1; i < (int)candidates.size(); ++i)
+                            {
+                                const double mid =
+                                    (candidates[i - 1].distM + candidates[i].distM) / 2.0;
+                                if (t >= mid)
+                                    sel = i;
+                            }
+                            this->taxiPushOrigin = candidates[sel].pos;
+                        }
+
+                        // Build zone from selected pivot.
+                        constexpr double MIN_BEARING_M = 15.0;
+                        const double     cursorDistM   = HaversineM(this->taxiPushOrigin, this->taxiCursorSnap);
 
                         if (cursorDistM < MIN_BEARING_M)
                         {
-                            // Too close — keep symmetric zone stable.
                             this->taxiGreenPreview =
                                 BuildPushZone(settings->osmGraph, this->taxiPushOrigin,
-                                              taxiDirA, 50.0, taxiDirB, 50.0);
+                                              taxiDirA, 50.0, taxiDirB, 50.0, ws);
                         }
                         else
                         {
@@ -3028,27 +3056,22 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 
                             TaxiRoute cursorArm = settings->osmGraph.FindRoute(
                                 this->taxiPushOrigin, this->taxiCursorSnap,
-                                0.0, settings->GetActiveDepRunways(), -1.0, {});
+                                ws, settings->GetActiveDepRunways(), -1.0, {});
                             TaxiRoute fixedArm =
-                                settings->osmGraph.WalkGraph(this->taxiPushOrigin, oppBrng, 25.0);
+                                settings->osmGraph.WalkGraph(this->taxiPushOrigin, oppBrng, 25.0, ws);
 
                             if (!cursorArm.valid || cursorArm.polyline.size() <= 1)
                             {
-                                // Cursor off-network — show symmetric zone.
                                 this->taxiGreenPreview =
                                     BuildPushZone(settings->osmGraph, this->taxiPushOrigin,
-                                                  taxiDirA, 50.0, taxiDirB, 50.0);
+                                                  taxiDirA, 50.0, taxiDirB, 50.0, ws);
                             }
                             else
                             {
-                                // Combine: reverse(fixedArm) then cursorArm (skip duplicate pivot).
                                 if (fixedArm.valid && fixedArm.polyline.size() > 1)
-                                {
-                                    cursorArm.polyline.insert(
-                                        cursorArm.polyline.begin(),
-                                        fixedArm.polyline.rbegin(),
-                                        std::prev(fixedArm.polyline.rend()));
-                                }
+                                    cursorArm.polyline.insert(cursorArm.polyline.begin(),
+                                                              fixedArm.polyline.rbegin(),
+                                                              std::prev(fixedArm.polyline.rend()));
                                 this->taxiGreenPreview = cursorArm;
                             }
                         }
@@ -3063,9 +3086,11 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                             blocked.insert(b.begin(), b.end());
                         }
 
+                        const double taxiWs = settings->GetAircraftWingspan(
+                            GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
                         this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
                             origin, this->taxiWaypoints, this->taxiCursorSnap,
-                            0.0, settings->GetActiveDepRunways(), heading, blocked);
+                            taxiWs, settings->GetActiveDepRunways(), heading, blocked);
                     }
                 }
                 this->RequestRefresh();
@@ -3258,20 +3283,37 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
             if (this->taxiPlanIsPush)
             {
-                // Push mode: snap pivot to nearest graph node ~30 m behind stand.
                 const double heading      = rt.GetPosition().GetReportedHeadingTrueNorth();
                 this->taxiPushHeading     = heading;
-                const double   pushDir    = std::fmod(heading + 180.0, 360.0);
-                const GeoPoint rawPivot   = PushZonePoint(origin, pushDir, 30.0);
-                auto [snapped, snapLabel] = settings->osmGraph.SnapNearest(rawPivot, 80.0);
-                this->taxiPushOrigin      = snapped.lat != 0.0 ? snapped : rawPivot;
+                this->taxiPushStandOrigin = origin;
+                const double pushDir      = std::fmod(heading + 180.0, 360.0);
+
+                // Look up aircraft wingspan for restriction filtering.
+                double wingspan = 0.0;
+                {
+                    auto fp = GetPlugIn()->FlightPlanSelect(callsign.c_str());
+                    if (fp.IsValid())
+                        wingspan = settings->GetAircraftWingspan(fp.GetFlightPlanData().GetAircraftFPType());
+                }
+                this->taxiPushWingspan = wingspan;
+
+                // Find viable taxiway pivots in push direction (wingspan-filtered).
+                auto candidates = settings->osmGraph.PushCandidates(origin, pushDir, wingspan, 200.0);
+                if (!candidates.empty())
+                    this->taxiPushOrigin = candidates[0].pos; // nearest allowed taxiway
+                else
+                {
+                    auto [snapped, snapLabel] = settings->osmGraph.SnapNearest(
+                        PushZonePoint(origin, pushDir, 30.0), 80.0);
+                    this->taxiPushOrigin = snapped.lat != 0.0 ? snapped
+                                                              : PushZonePoint(origin, pushDir, 30.0);
+                }
 
                 // Initial zone: 50 m each side along the taxiway (±90° from push direction).
-                // WalkGraph follows actual graph edges so the zone is always on the network.
                 const double taxiDirA  = std::fmod(pushDir + 90.0, 360.0);
                 const double taxiDirB  = std::fmod(pushDir - 90.0 + 360.0, 360.0);
                 this->taxiGreenPreview = BuildPushZone(settings->osmGraph, this->taxiPushOrigin,
-                                                       taxiDirA, 50.0, taxiDirB, 50.0);
+                                                       taxiDirA, 50.0, taxiDirB, 50.0, wingspan);
             }
 
             if (!this->taxiPlanIsPush)
@@ -3346,9 +3388,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     blocked.insert(b.begin(), b.end());
                 }
 
-                const double heading          = rt.GetPosition().GetReportedHeadingTrueNorth();
+                const double heading = rt.GetPosition().GetReportedHeadingTrueNorth();
+                const double taxiWs  = settings->GetAircraftWingspan(
+                    GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
-                    origin, dest, 0.0, settings->GetActiveDepRunways(), heading, blocked);
+                    origin, dest, taxiWs, settings->GetActiveDepRunways(), heading, blocked);
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
             }
             // Push planning: no suggestion; preview computed on first mouse move.

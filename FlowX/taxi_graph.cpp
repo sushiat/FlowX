@@ -686,11 +686,19 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
 // Push zone walk
 // ─────────────────────────────────────────────────────────────────────────────
 
-TaxiRoute TaxiGraph::WalkGraph(const GeoPoint& from, double bearingDeg, double maxDistM) const
+TaxiRoute TaxiGraph::WalkGraph(const GeoPoint& from, double bearingDeg,
+                               double maxDistM, double wingspanM) const
 {
     TaxiRoute result;
     if (nodes_.empty())
         return result;
+
+    // Build wingspan exclusion set.
+    std::set<std::string> excludedRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
+            if (wingspanM > maxWs)
+                excludedRefs.insert(ref);
 
     const int startId = NearestNode(from);
     if (startId < 0)
@@ -714,6 +722,8 @@ TaxiRoute TaxiGraph::WalkGraph(const GeoPoint& from, double bearingDeg, double m
         {
             if (e.to == prev)
                 continue; // no backtracking
+            if (excludedRefs.contains(e.wayRef))
+                continue; // wingspan restriction
             const double diff = BearingDiff(e.bearingDeg, curBrng);
             if (diff < bestDiff)
             {
@@ -747,6 +757,65 @@ TaxiRoute TaxiGraph::WalkGraph(const GeoPoint& from, double bearingDeg, double m
     }
 
     result.totalDistM = accum;
+    return result;
+}
+
+std::vector<TaxiGraph::PushPivotCandidate> TaxiGraph::PushCandidates(
+    const GeoPoint& origin, double bearingDeg, double wingspanM, double maxDistM) const
+{
+    // Build wingspan exclusion set.
+    std::set<std::string> excludedRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
+            if (wingspanM > maxWs)
+                excludedRefs.insert(ref);
+
+    // Flat-earth push-axis unit vector centred on origin.
+    const double cosLat   = std::cos(origin.lat * std::numbers::pi / 180.0);
+    const double scaleLat = TAXI_EARTH_R * std::numbers::pi / 180.0;
+    const double scaleLon = TAXI_EARTH_R * cosLat * std::numbers::pi / 180.0;
+    const double brngRad  = bearingDeg * std::numbers::pi / 180.0;
+    const double ux       = std::sin(brngRad); // lon component of push unit vector
+    const double uy       = std::cos(brngRad); // lat component of push unit vector
+
+    // One representative node per wayRef: keep the one closest to the push axis (lateral).
+    struct Entry
+    {
+        int    nodeId;
+        double t;       ///< Along-axis distance from origin
+        double lateral; ///< Perpendicular distance from push axis
+    };
+    std::map<std::string, Entry> best;
+
+    for (const auto& n : nodes_)
+    {
+        if (n.type != TaxiNodeType::Waypoint || n.wayRef.empty())
+            continue;
+        if (excludedRefs.contains(n.wayRef))
+            continue;
+
+        const double dx = (n.pos.lon - origin.lon) * scaleLon;
+        const double dy = (n.pos.lat - origin.lat) * scaleLat;
+        const double t  = dx * ux + dy * uy; // signed projection onto push axis
+        if (t < 5.0 || t > maxDistM)
+            continue;
+        const double lateral = std::abs(dx * uy - dy * ux); // perp distance from push axis
+        if (lateral > 60.0)
+            continue; // too far to the side — probably a different apron row
+
+        auto it = best.find(n.wayRef);
+        if (it == best.end() || lateral < it->second.lateral)
+            best[n.wayRef] = {n.id, t, lateral};
+    }
+
+    std::vector<PushPivotCandidate> result;
+    result.reserve(best.size());
+    for (const auto& [ref, e] : best)
+        result.push_back({nodes_[e.nodeId].pos, e.t, ref});
+
+    std::sort(result.begin(), result.end(),
+              [](const PushPivotCandidate& a, const PushPivotCandidate& b)
+              { return a.distM < b.distM; });
     return result;
 }
 

@@ -251,8 +251,28 @@ class TaxiGraph
     /// selected (±90° maximum deviation); the travel bearing updates to each chosen edge so curves
     /// are followed naturally. Stops at dead ends or when maxDistM is reached (final segment is
     /// interpolated). The start position is snapped to the nearest graph node.
+    /// Edges on wingspan-restricted taxiways are skipped when @p wingspanM > 0.
     /// @return Polyline starting at the snapped origin; valid = true when at least one node was found.
-    [[nodiscard]] TaxiRoute WalkGraph(const GeoPoint& from, double bearingDeg, double maxDistM) const;
+    [[nodiscard]] TaxiRoute WalkGraph(const GeoPoint& from, double bearingDeg,
+                                      double maxDistM, double wingspanM = 0.0) const;
+
+    /// @brief A candidate taxiway node for push-zone pivot selection.
+    struct PushPivotCandidate
+    {
+        GeoPoint    pos;         ///< Graph node position on the taxiway.
+        double      distM = 0.0; ///< Distance along the push axis from the stand origin.
+        std::string wayRef;      ///< Taxiway ref of the candidate node.
+    };
+
+    /// @brief Finds candidate taxiway pivot points ahead of @p origin in @p bearingDeg.
+    ///
+    /// Scans all Waypoint nodes within @p maxDistM and ±60 m lateral of the push axis.
+    /// Returns one representative node per distinct taxiway ref (the one closest to the axis),
+    /// sorted by along-axis distance. Nodes on wingspan-restricted taxiways are excluded.
+    [[nodiscard]] std::vector<PushPivotCandidate> PushCandidates(const GeoPoint& origin,
+                                                                 double          bearingDeg,
+                                                                 double          wingspanM,
+                                                                 double          maxDistM) const;
 
     /// @brief Returns edge geometry (GeoPoint pairs) forming the dead-end sub-graph that
     ///        contains @p dest but is cut off by @p blockedNodes.

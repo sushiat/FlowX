@@ -289,6 +289,13 @@ class CFlowX_Settings : public CFlowX_Logging
         return this->soundTaxiConflict;
     }
 
+    /// @brief Returns the wingspan in metres for @p acType, or 0 if unknown.
+    [[nodiscard]] double GetAircraftWingspan(const std::string& acType) const
+    {
+        auto it = this->aircraftWingspans.find(acType);
+        return it != this->aircraftWingspans.end() ? it->second : 0.0;
+    }
+
     /// @brief Returns whether the TWR Inbound window is currently visible.
     [[nodiscard]] bool GetTwrInboundVisible() const
     {
