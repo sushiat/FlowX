@@ -413,7 +413,7 @@
             "edgeCosts": {
                 "multIntersection": 1.1,
                 "multTaxilane": 3.0,
-                "multRunway": 20.0
+                "multRunway": 30.0
             },
             "flowRules": {
                 "withFlowMaxDeg": 45.0,
