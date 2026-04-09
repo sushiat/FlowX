@@ -229,12 +229,142 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_AFTER_LISTS)
         {
-            this->DrawApproachEstimateWindow(hDC);
-            this->DrawDepRateWindow(hDC);
-            this->DrawTwrOutbound(hDC);
-            this->DrawTwrInbound(hDC);
+            auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
+            // Cache the EuroScope HWND on first frame so Create*Popout can do ClientToScreen
+            // when called from OnClickScreenObject (which has no HDC).
+            if (!this->esHwnd_)
+                this->esHwnd_ = WindowFromDC(hDC);
+
+            // ── Approach Estimate ──────────────────────────────────────────────
+            if (this->approachEstPopout)
+            {
+                if (this->approachEstPopout->IsCloseRequested())
+                {
+                    settings->SetApproachEstVisible(false);
+                    settings->SetApproachEstPoppedOut(false);
+                    this->approachEstPopout.reset();
+                }
+                else if (this->approachEstPopout->IsPopInRequested())
+                {
+                    settings->SetApproachEstPoppedOut(false);
+                    this->approachEstPopout.reset();
+                }
+            }
+            if (settings->GetApproachEstVisible() && settings->GetApproachEstPoppedOut() &&
+                !this->approachEstPopout)
+            {
+                this->CreateApproachEstPopout(settings);
+            }
+            if (settings->GetApproachEstVisible())
+            {
+                if (this->approachEstPopout)
+                {
+                    if (!this->approachEstPopout->IsDirectDragging())
+                    {
+                        // Sync from the popout's live size — onDirectDrag_ may have already resized
+                        // the HWND directly; reading back prevents ResizeIfNeeded from snapping it back.
+                        this->approachEstWindowW = this->approachEstPopout->GetContentW();
+                        this->approachEstWindowH = this->approachEstPopout->GetContentH();
+                        this->RenderToPopout(hDC, this->approachEstPopout.get(),
+                                             this->approachEstWindowPos,
+                                             this->approachEstWindowW, this->approachEstWindowH,
+                                             [this](HDC dc)
+                                             { this->DrawApproachEstimateWindow(dc); });
+                    }
+                }
+                else
+                {
+                    this->DrawApproachEstimateWindow(hDC);
+                }
+            }
+
+            // ── Departure Rate ─────────────────────────────────────────────────
+            if (this->depRatePopout)
+            {
+                if (this->depRatePopout->IsCloseRequested())
+                {
+                    settings->SetDepRateVisible(false);
+                    settings->SetDepRatePoppedOut(false);
+                    this->depRatePopout.reset();
+                }
+                else if (this->depRatePopout->IsPopInRequested())
+                {
+                    settings->SetDepRatePoppedOut(false);
+                    this->depRatePopout.reset();
+                }
+            }
+            if (settings->GetDepRateVisible() && settings->GetDepRatePoppedOut() &&
+                !this->depRatePopout)
+            {
+                this->CreateDepRatePopout(settings);
+            }
+            if (settings->GetDepRateVisible())
+            {
+                if (this->depRatePopout)
+                {
+                    this->RenderToPopout(hDC, this->depRatePopout.get(),
+                                         this->depRateWindowPos,
+                                         this->depRateWindowW, this->depRateWindowH,
+                                         [this](HDC dc)
+                                         { this->DrawDepRateWindow(dc); });
+                }
+                else
+                {
+                    this->DrawDepRateWindow(hDC);
+                }
+            }
+
+            // ── TWR Outbound ───────────────────────────────────────────────────
+            if (settings->GetTwrOutboundVisible())
+            {
+                this->DrawTwrOutbound(hDC);
+            }
+
+            // ── TWR Inbound ────────────────────────────────────────────────────
+            if (settings->GetTwrInboundVisible())
+            {
+                this->DrawTwrInbound(hDC);
+            }
+
             this->DrawNapReminder(hDC);
-            this->DrawWeatherWindow(hDC);
+
+            // ── Weather ────────────────────────────────────────────────────────
+            if (this->weatherPopout)
+            {
+                if (this->weatherPopout->IsCloseRequested())
+                {
+                    settings->SetWeatherVisible(false);
+                    settings->SetWeatherPoppedOut(false);
+                    this->weatherPopout.reset();
+                }
+                else if (this->weatherPopout->IsPopInRequested())
+                {
+                    settings->SetWeatherPoppedOut(false);
+                    this->weatherPopout.reset();
+                }
+            }
+            if (settings->GetWeatherVisible() && settings->GetWeatherPoppedOut() &&
+                !this->weatherPopout)
+            {
+                this->CreateWeatherPopout(settings);
+            }
+            if (settings->GetWeatherVisible())
+            {
+                if (this->weatherPopout)
+                {
+                    this->RenderToPopout(hDC, this->weatherPopout.get(),
+                                         this->weatherWindowPos,
+                                         this->weatherWindowW, this->weatherWindowH,
+                                         [this](HDC dc)
+                                         { this->DrawWeatherWindow(dc); });
+                }
+                else
+                {
+                    this->DrawWeatherWindow(hDC);
+                }
+            }
+
             this->DrawStartButton(hDC);
             this->DrawStartMenu(hDC);
 
@@ -1578,16 +1708,22 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     }
     int barHeight = scaleBottom - scaleTop;
 
-    // ── Close button hover ──
-    RECT  xRect = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
-    HWND  hwnd  = WindowFromDC(hDC);
-    POINT cursor;
-    GetCursorPos(&cursor);
-    if (hwnd)
+    // ── Close and popout button hover ──
+    RECT  xRect   = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
+    RECT  popRect = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
+    POINT cursor  = {-9999, -9999};
+    if (this->isPopoutRender_)
+        cursor = this->popoutHoverPoint_;
+    else
     {
-        ScreenToClient(hwnd, &cursor);
+        HWND esHwnd = WindowFromDC(hDC);
+        GetCursorPos(&cursor);
+        if (esHwnd)
+            ScreenToClient(esHwnd, &cursor);
     }
-    bool xHovered = PtInRect(&xRect, cursor) != 0;
+    bool xHovered                = PtInRect(&xRect, cursor) != 0;
+    bool popHovered              = PtInRect(&popRect, cursor) != 0;
+    this->winPopoutLastHoverType = -1;
 
     // ── Background ──
     RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
@@ -1607,6 +1743,12 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
         FillRect(hDC, &xRect, xBrush);
         DeleteObject(xBrush);
     }
+    if (popHovered)
+    {
+        auto popBrush = CreateSolidBrush(RGB(40, 100, 160));
+        FillRect(hDC, &popRect, popBrush);
+        DeleteObject(popBrush);
+    }
 
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
@@ -1620,14 +1762,20 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
-    DrawTextA(hDC, "APPROACH ESTIMATE", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    RECT dragRect = {wx, wy, popRect.left - 1, wy + TITLE_H};
+    DrawTextA(hDC, "APPROACH ESTIMATE", -1, &dragRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // "^" sits near the top of its cell at small font sizes; nudge rect down 1 px.
+    RECT popDrawRect = popRect;
+    if (!this->isPopoutRender_)
+        popDrawRect.top += 1;
+    DrawTextA(hDC, this->isPopoutRender_ ? "v" : "^", -1, &popDrawRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
 
-    RECT dragRect = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
-    AddScreenObject(SCREEN_OBJECT_APPROACH_EST_WIN, "APPROACH_EST", dragRect, true, "");
-    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "approachEst", xRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_APPROACH_EST_WIN, "APPROACH_EST", dragRect, true, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_CLOSE, "approachEst", xRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_POPOUT, "approachEst", popRect, false, "");
 
     // ── Runway corner labels — always from config, not from active inbounds ──
     auto [leftLabel, rightLabel] = settings->GetEstimateBarLabels();
@@ -1814,7 +1962,7 @@ void RadarScreen::DrawApproachEstimateWindow(HDC hDC)
     auto resizeBrush = CreateSolidBrush(RGB(100, 100, 100));
     FillRect(hDC, &resizeRect, resizeBrush);
     DeleteObject(resizeBrush);
-    AddScreenObject(SCREEN_OBJECT_APPROACH_EST_RESIZE, "APPROACH_EST_RESIZE", resizeRect, true, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_APPROACH_EST_RESIZE, "APPROACH_EST_RESIZE", resizeRect, true, "");
 }
 
 /// @brief Draws per-aircraft departure info overlays (text, SID dot, HP label, connector line).
@@ -1972,6 +2120,9 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     int       numRows = (int)this->depRateRowsCache.size();
     const int WIN_H   = TITLE_H + HDR_H + numRows * ROW_H + WIN_PAD / 2;
 
+    this->depRateWindowW = WIN_W;
+    this->depRateWindowH = WIN_H;
+
     if (this->depRateWindowPos.x == -1)
     {
         RECT clip;
@@ -1983,17 +2134,23 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
     int wx = this->depRateWindowPos.x;
     int wy = this->depRateWindowPos.y;
 
-    // Close button rect (inside title bar, inset 1 px from border)
-    RECT xRect                  = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
-    this->winCloseLastHoverType = -1;
-    HWND  hwndDep               = WindowFromDC(hDC);
-    POINT cursorDep;
-    GetCursorPos(&cursorDep);
-    if (hwndDep)
+    // Close and popout button rects (inside title bar, inset 1 px from border)
+    RECT xRect                   = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
+    RECT popRect                 = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
+    this->winCloseLastHoverType  = -1;
+    this->winPopoutLastHoverType = -1;
+    POINT cursorDep              = {-9999, -9999};
+    if (this->isPopoutRender_)
+        cursorDep = this->popoutHoverPoint_;
+    else
     {
-        ScreenToClient(hwndDep, &cursorDep);
+        HWND esHwnd = WindowFromDC(hDC);
+        GetCursorPos(&cursorDep);
+        if (esHwnd)
+            ScreenToClient(esHwnd, &cursorDep);
     }
-    bool xHovered = PtInRect(&xRect, cursorDep) != 0;
+    bool xHovered   = PtInRect(&xRect, cursorDep) != 0;
+    bool popHovered = PtInRect(&popRect, cursorDep) != 0;
 
     RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
     RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
@@ -2011,6 +2168,12 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
         FillRect(hDC, &xRect, xBrush);
         DeleteObject(xBrush);
     }
+    if (popHovered)
+    {
+        auto popBrush = CreateSolidBrush(RGB(40, 100, 160));
+        FillRect(hDC, &popRect, popBrush);
+        DeleteObject(popBrush);
+    }
 
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
@@ -2018,21 +2181,24 @@ void RadarScreen::DrawDepRateWindow(HDC hDC)
 
     SetBkMode(hDC, TRANSPARENT);
 
-    // Title row (smaller font, draggable — excludes close button area)
+    // Title row (smaller font, draggable — excludes close and popout button area)
     HFONT titleFont = CreateFontA(-9, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
-    DrawTextA(hDC, "Departures", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    // Close button text
-    SetTextColor(hDC, TAG_COLOR_WHITE);
+    RECT dragRect = {wx, wy, popRect.left - 1, wy + TITLE_H};
+    DrawTextA(hDC, "Departures", -1, &dragRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    RECT popDrawRect = popRect;
+    if (!this->isPopoutRender_)
+        popDrawRect.top += 1;
+    DrawTextA(hDC, this->isPopoutRender_ ? "v" : "^", -1, &popDrawRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    RECT dragRect = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
-    AddScreenObject(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", dragRect, true, "");
-    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "depRate", xRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_DEPRATE_WIN, "DEPRATE", dragRect, true, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_CLOSE, "depRate", xRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_POPOUT, "depRate", popRect, false, "");
 
     HFONT hdrFontDep  = CreateFontA(-12 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                     ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -2134,6 +2300,9 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
 
     const int WIN_H = TITLE_H + HDR_H + totalRowH + numSeps * SEP_H + PAD / 2;
 
+    this->twrOutboundWindowW = WIN_W;
+    this->twrOutboundWindowH = WIN_H;
+
     if (this->twrOutboundWindowPos.x == -1)
     {
         RECT clip;
@@ -2148,12 +2317,12 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     const int X_BTN             = 11;
     RECT      xRect             = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     this->winCloseLastHoverType = -1;
-    HWND  hwndOut               = WindowFromDC(hDC);
-    POINT cursorOut;
-    GetCursorPos(&cursorOut);
-    if (hwndOut)
+    POINT cursorOut             = {-9999, -9999};
     {
-        ScreenToClient(hwndOut, &cursorOut);
+        HWND esHwnd = WindowFromDC(hDC);
+        GetCursorPos(&cursorOut);
+        if (esHwnd)
+            ScreenToClient(esHwnd, &cursorOut);
     }
     bool xHovered = PtInRect(&xRect, cursorOut) != 0;
 
@@ -2173,7 +2342,6 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
         FillRect(hDC, &xRect, xBrush);
         DeleteObject(xBrush);
     }
-
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
     DeleteObject(borderBrush);
@@ -2187,12 +2355,10 @@ void RadarScreen::DrawTwrOutbound(HDC hDC)
     HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Outbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    // Close button text
-    SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    RECT dragRectOut = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
+    RECT dragRectOut = {wx, wy, xRect.left - 1, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_TWR_OUT_WIN, "TWROUT", dragRectOut, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrOut", xRect, false, "");
 
@@ -2448,6 +2614,9 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
 
     const int WIN_H = TITLE_H + HDR_H + totalRowH + numSeps * SEP_H + PAD / 2;
 
+    this->twrInboundWindowW = WIN_W;
+    this->twrInboundWindowH = WIN_H;
+
     if (this->twrInboundWindowPos.x == -1)
     {
         RECT clip;
@@ -2462,12 +2631,12 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     const int X_BTN             = 11;
     RECT      xRect             = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     this->winCloseLastHoverType = -1;
-    HWND  hwndIn                = WindowFromDC(hDC);
-    POINT cursorIn;
-    GetCursorPos(&cursorIn);
-    if (hwndIn)
+    POINT cursorIn              = {-9999, -9999};
     {
-        ScreenToClient(hwndIn, &cursorIn);
+        HWND esHwnd = WindowFromDC(hDC);
+        GetCursorPos(&cursorIn);
+        if (esHwnd)
+            ScreenToClient(esHwnd, &cursorIn);
     }
     bool xHovered = PtInRect(&xRect, cursorIn) != 0;
 
@@ -2487,7 +2656,6 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
         FillRect(hDC, &xRect, xBrush);
         DeleteObject(xBrush);
     }
-
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
     DeleteObject(borderBrush);
@@ -2501,12 +2669,10 @@ void RadarScreen::DrawTwrInbound(HDC hDC)
     HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "TWR Inbound", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    // Close button text
-    SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
-    RECT dragRectIn = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
+    RECT dragRectIn = {wx, wy, xRect.left - 1, wy + TITLE_H};
     AddScreenObject(SCREEN_OBJECT_TWR_IN_WIN, "TWRIN", dragRectIn, true, "");
     AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "twrIn", xRect, false, "");
 
@@ -3248,6 +3414,9 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     int  WIN_W  = WIN_PAD + (line1W > rvrSize.cx ? line1W : rvrSize.cx) + WIN_PAD;
     int  WIN_H  = TITLE_H + DATA_H + (hasRVR ? RVR_H : 0) + WIN_PAD / 2;
 
+    this->weatherWindowW = WIN_W;
+    this->weatherWindowH = WIN_H;
+
     if (this->weatherWindowPos.x == -1)
     {
         RECT clip;
@@ -3259,16 +3428,22 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     int wx = this->weatherWindowPos.x;
     int wy = this->weatherWindowPos.y;
 
-    RECT xRect                  = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
-    this->winCloseLastHoverType = -1;
-    HWND  hwndWx                = WindowFromDC(hDC);
-    POINT cursorWx;
-    GetCursorPos(&cursorWx);
-    if (hwndWx)
+    RECT xRect                   = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
+    this->winCloseLastHoverType  = -1;
+    this->winPopoutLastHoverType = -1;
+    POINT cursorWx               = {-9999, -9999};
+    if (this->isPopoutRender_)
+        cursorWx = this->popoutHoverPoint_;
+    else
     {
-        ScreenToClient(hwndWx, &cursorWx);
+        HWND esHwnd = WindowFromDC(hDC);
+        GetCursorPos(&cursorWx);
+        if (esHwnd)
+            ScreenToClient(esHwnd, &cursorWx);
     }
-    bool xHovered = PtInRect(&xRect, cursorWx) != 0;
+    bool xHovered   = PtInRect(&xRect, cursorWx) != 0;
+    RECT popRectWx  = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
+    bool popHovered = PtInRect(&popRectWx, cursorWx) != 0;
 
     RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
     RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
@@ -3284,6 +3459,12 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
         FillRect(hDC, &xRect, xBrush);
         DeleteObject(xBrush);
     }
+    if (popHovered)
+    {
+        auto popBrush = CreateSolidBrush(RGB(40, 100, 160));
+        FillRect(hDC, &popRectWx, popBrush);
+        DeleteObject(popBrush);
+    }
 
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
@@ -3291,15 +3472,21 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
 
     SetBkMode(hDC, TRANSPARENT);
 
+    RECT dragRectWx = {wx, wy, popRectWx.left - 1, wy + TITLE_H};
+
     SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
-    DrawTextA(hDC, "WX/ATIS", -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    // Close button text
+    DrawTextA(hDC, "WX/ATIS", -1, &dragRectWx, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // Close and popout button text
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    RECT dragRectWx = {wx, wy, wx + WIN_W - X_BTN - 2, wy + TITLE_H};
-    AddScreenObject(SCREEN_OBJECT_WEATHER_WIN, "WXATIS", dragRectWx, true, "");
-    AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "weather", xRect, false, "");
+    RECT popDrawRectWx = popRectWx;
+    if (!this->isPopoutRender_)
+        popDrawRectWx.top += 1;
+    DrawTextA(hDC, this->isPopoutRender_ ? "v" : "^", -1, &popDrawRectWx, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WEATHER_WIN, "WXATIS", dragRectWx, true, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_CLOSE, "weather", xRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_POPOUT, "weather", popRectWx, false, "");
 
     SelectObject(hDC, dataFont);
     int textY = wy + TITLE_H + (DATA_H - spaceSize.cy) / 2;
@@ -3328,7 +3515,7 @@ void RadarScreen::DrawWeatherWindow(HDC hDC)
     }
 
     RECT clickRect = {wx, wy + TITLE_H, wx + WIN_W, wy + WIN_H};
-    AddScreenObject(SCREEN_OBJECT_WEATHER_ROW, r.icao.c_str(), clickRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_WEATHER_ROW, r.icao.c_str(), clickRect, false, "");
 
     SelectObject(hDC, prev);
     DeleteObject(titleFont);
@@ -3373,6 +3560,15 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
             if (ObjectType != this->winCloseLastHoverType)
             {
                 this->winCloseLastHoverType = ObjectType;
+                this->RequestRefresh();
+            }
+        }
+
+        if (ObjectType == SCREEN_OBJECT_WIN_POPOUT)
+        {
+            if (ObjectType != this->winPopoutLastHoverType)
+            {
+                this->winPopoutLastHoverType = ObjectType;
                 this->RequestRefresh();
             }
         }
@@ -3985,6 +4181,29 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             return;
         }
 
+        if (ObjectType == SCREEN_OBJECT_WIN_POPOUT && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            std::string id(sObjectId);
+            auto*       settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+            if (id == "approachEst" && !this->approachEstPopout)
+            {
+                settings->SetApproachEstPoppedOut(true);
+                this->CreateApproachEstPopout(settings);
+            }
+            else if (id == "depRate" && !this->depRatePopout)
+            {
+                settings->SetDepRatePoppedOut(true);
+                this->CreateDepRatePopout(settings);
+            }
+            else if (id == "weather" && !this->weatherPopout)
+            {
+                settings->SetWeatherPoppedOut(true);
+                this->CreateWeatherPopout(settings);
+            }
+            this->RequestRefresh();
+            return;
+        }
+
         if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
         {
             this->startMenuOpen = !this->startMenuOpen;
@@ -4539,6 +4758,19 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
         }
         if (objId == "APPROACH_EST_RESIZE")
         {
+            if (this->approachEstPopout)
+            {
+                // Direct-drag path: onDirectDrag_ already resized the HWND on the popout thread.
+                // approachEstWindowW/H are synced from GetContentW/H() each frame — applying another
+                // delta here would double-count. Just persist the final size on release.
+                if (Released)
+                {
+                    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                    settings->SetApproachEstPopoutSize(this->approachEstWindowW, this->approachEstWindowH);
+                    this->approachEstResizeLastDrag = {-1, -1};
+                }
+                return;
+            }
             if (this->approachEstResizeLastDrag.x == -1 || this->approachEstResizeLastDrag.y == -1)
             {
                 this->approachEstResizeLastDrag = Pt;
@@ -4606,4 +4838,170 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
     {
         WriteExceptionToLog("OnMoveScreenObject", "unknown exception");
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Popout helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @brief Renders a window to a memory DC and pushes the resulting bitmap to a popout window.
+///
+/// Temporarily overrides @p windowPos to {0,0} so the draw function renders at the bitmap origin,
+/// then restores it after the bitmap is transferred. Cursor position, hit areas, and pending events
+/// are exchanged with the popout window so hover highlights and clicks work natively.
+void RadarScreen::RenderToPopout(HDC screenDC, PopoutWindow* popout, POINT& windowPos, int w, int h,
+                                 std::function<void(HDC)> drawFn)
+{
+    if (w <= 0 || h <= 0)
+        return;
+
+    popout->ResizeIfNeeded(w, h);
+    this->popoutHoverPoint_ = popout->GetCursorPosition();
+
+    HDC     memDC  = CreateCompatibleDC(screenDC);
+    HBITMAP bmp    = CreateCompatibleBitmap(screenDC, w, h);
+    HGDIOBJ oldBmp = SelectObject(memDC, bmp);
+
+    RECT r = {0, 0, w, h};
+    FillRect(memDC, &r, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+
+    POINT savedPos        = windowPos;
+    windowPos             = {0, 0};
+    this->isPopoutRender_ = true;
+    this->currentPopout_  = popout;
+    popout->ClearScreenObjects();
+    drawFn(memDC);
+    this->isPopoutRender_ = false;
+    this->currentPopout_  = nullptr;
+    windowPos             = savedPos;
+
+    SelectObject(memDC, oldBmp);
+    DeleteDC(memDC);
+    popout->UpdateContent(bmp, w, h);
+
+    // Dispatch events queued by the popout thread — executed here on the EuroScope main thread.
+    bool hadEvents = false;
+    for (auto& ev : popout->ConsumeEvents())
+    {
+        hadEvents = true;
+        switch (ev.type)
+        {
+        case PendingEvent::Type::Hover:
+            this->OnOverScreenObject(ev.objectType, ev.objectId.c_str(), ev.pt, ev.area);
+            break;
+        case PendingEvent::Type::LClick:
+            this->OnClickScreenObject(ev.objectType, ev.objectId.c_str(), ev.pt, ev.area,
+                                      EuroScopePlugIn::BUTTON_LEFT);
+            break;
+        case PendingEvent::Type::RClick:
+            this->OnClickScreenObject(ev.objectType, ev.objectId.c_str(), ev.pt, ev.area,
+                                      EuroScopePlugIn::BUTTON_RIGHT);
+            break;
+        case PendingEvent::Type::DragMove:
+            this->OnMoveScreenObject(ev.objectType, ev.objectId.c_str(), ev.pt, ev.area, false);
+            break;
+        case PendingEvent::Type::DragRelease:
+            this->OnMoveScreenObject(ev.objectType, ev.objectId.c_str(), ev.pt, ev.area, true);
+            break;
+        }
+    }
+    // Mirror RequestRefresh() — repaint the popout immediately after any event dispatch.
+    if (hadEvents)
+        popout->RequestRepaint();
+}
+
+/// @brief Routes an AddScreenObject call to the active popout (during isPopoutRender_) or to EuroScope.
+void RadarScreen::AddScreenObjectAuto(int objectType, const char* objectId, RECT rect, bool dragable,
+                                      const char* tooltip)
+{
+    if (this->isPopoutRender_ && this->currentPopout_)
+        this->currentPopout_->AddScreenObject(objectType, objectId, rect, dragable, tooltip);
+    else if (!this->isPopoutRender_)
+        AddScreenObject(objectType, objectId, rect, dragable, tooltip);
+}
+
+/// @brief Creates the Approach Estimate popout window, seeding position/size from saved or current values.
+void RadarScreen::CreateApproachEstPopout(CFlowX_Settings* s)
+{
+    int w = (s->GetApproachEstPopoutW() != -1) ? s->GetApproachEstPopoutW() : this->approachEstWindowW;
+    int h = (s->GetApproachEstPopoutH() != -1) ? s->GetApproachEstPopoutH() : this->approachEstWindowH;
+    int x = s->GetApproachEstPopoutX();
+    int y = s->GetApproachEstPopoutY();
+    if (x == -1)
+    {
+        x = this->approachEstWindowPos.x;
+        y = this->approachEstWindowPos.y;
+        if (this->esHwnd_)
+        {
+            POINT pt = {x, y};
+            ClientToScreen(this->esHwnd_, &pt);
+            x = pt.x;
+            y = pt.y;
+        }
+        s->SetApproachEstPopoutPos(x, y);
+        s->SetApproachEstPopoutSize(w, h);
+    }
+    this->approachEstPopout = std::make_unique<PopoutWindow>(
+        "Approach Estimate", x, y, w, h,
+        [s](int nx, int ny)
+        { s->SetApproachEstPopoutPos(nx, ny); },
+        nullptr,
+        [](const HitArea& ha, POINT delta, int currentW, int currentH) -> std::pair<int, int>
+        {
+            if (ha.objectId != "APPROACH_EST_RESIZE")
+                return {0, 0};
+            return {std::max(120, currentW + (int)delta.x), std::max(200, currentH + (int)delta.y)};
+        });
+}
+
+/// @brief Creates the Departure Rate popout window (fixed size — uses current window dimensions).
+void RadarScreen::CreateDepRatePopout(CFlowX_Settings* s)
+{
+    int w = this->depRateWindowW;
+    int h = this->depRateWindowH;
+    int x = s->GetDepRatePopoutX();
+    int y = s->GetDepRatePopoutY();
+    if (x == -1)
+    {
+        x = this->depRateWindowPos.x;
+        y = this->depRateWindowPos.y;
+        if (this->esHwnd_)
+        {
+            POINT pt = {x, y};
+            ClientToScreen(this->esHwnd_, &pt);
+            x = pt.x;
+            y = pt.y;
+        }
+        s->SetDepRatePopoutPos(x, y);
+    }
+    this->depRatePopout = std::make_unique<PopoutWindow>(
+        "Departure Rate", x, y, w, h,
+        [s](int nx, int ny)
+        { s->SetDepRatePopoutPos(nx, ny); });
+}
+
+/// @brief Creates the Weather/ATIS popout window (fixed size — uses current window dimensions).
+void RadarScreen::CreateWeatherPopout(CFlowX_Settings* s)
+{
+    int w = this->weatherWindowW;
+    int h = this->weatherWindowH;
+    int x = s->GetWeatherPopoutX();
+    int y = s->GetWeatherPopoutY();
+    if (x == -1)
+    {
+        x = this->weatherWindowPos.x;
+        y = this->weatherWindowPos.y;
+        if (this->esHwnd_)
+        {
+            POINT pt = {x, y};
+            ClientToScreen(this->esHwnd_, &pt);
+            x = pt.x;
+            y = pt.y;
+        }
+        s->SetWeatherPopoutPos(x, y);
+    }
+    this->weatherPopout = std::make_unique<PopoutWindow>(
+        "WX/ATIS", x, y, w, h,
+        [s](int nx, int ny)
+        { s->SetWeatherPopoutPos(nx, ny); });
 }

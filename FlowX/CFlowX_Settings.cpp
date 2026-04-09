@@ -479,18 +479,26 @@ void CFlowX_Settings::LoadSettings()
                 std::string name = w.value("name", "");
                 if (name == "approachEstWindow")
                 {
-                    this->approachEstWindowX = w.value("x", -1);
-                    this->approachEstWindowY = w.value("y", -1);
-                    this->approachEstWindowW = w.value("w", 180);
-                    this->approachEstWindowH = w.value("h", 380);
-                    this->approachEstVisible = w.value("visible", true);
-                    this->apprEstColors      = w.value("apprEstColors", false);
+                    this->approachEstWindowX   = w.value("x", -1);
+                    this->approachEstWindowY   = w.value("y", -1);
+                    this->approachEstWindowW   = w.value("w", 180);
+                    this->approachEstWindowH   = w.value("h", 380);
+                    this->approachEstVisible   = w.value("visible", true);
+                    this->apprEstColors        = w.value("apprEstColors", false);
+                    this->approachEstPoppedOut = w.value("poppedOut", false);
+                    this->approachEstPopoutX   = w.value("popoutX", -1);
+                    this->approachEstPopoutY   = w.value("popoutY", -1);
+                    this->approachEstPopoutW   = w.value("popoutW", -1);
+                    this->approachEstPopoutH   = w.value("popoutH", -1);
                 }
                 else if (name == "depRateWindow")
                 {
-                    this->depRateWindowX = w.value("x", -1);
-                    this->depRateWindowY = w.value("y", -1);
-                    this->depRateVisible = w.value("visible", true);
+                    this->depRateWindowX   = w.value("x", -1);
+                    this->depRateWindowY   = w.value("y", -1);
+                    this->depRateVisible   = w.value("visible", true);
+                    this->depRatePoppedOut = w.value("poppedOut", false);
+                    this->depRatePopoutX   = w.value("popoutX", -1);
+                    this->depRatePopoutY   = w.value("popoutY", -1);
                 }
                 else if (name == "twrOutboundWindow")
                 {
@@ -512,9 +520,12 @@ void CFlowX_Settings::LoadSettings()
                 }
                 else if (name == "weatherWindow")
                 {
-                    this->weatherWindowX = w.value("x", -1);
-                    this->weatherWindowY = w.value("y", -1);
-                    this->weatherVisible = w.value("visible", true);
+                    this->weatherWindowX   = w.value("x", -1);
+                    this->weatherWindowY   = w.value("y", -1);
+                    this->weatherVisible   = w.value("visible", true);
+                    this->weatherPoppedOut = w.value("poppedOut", false);
+                    this->weatherPopoutX   = w.value("popoutX", -1);
+                    this->weatherPopoutY   = w.value("popoutY", -1);
                 }
             }
         }
@@ -564,11 +575,40 @@ void CFlowX_Settings::SaveSettings()
             w["h"]             = this->approachEstWindowH;
             w["visible"]       = this->approachEstVisible;
             w["apprEstColors"] = this->apprEstColors;
+            w["poppedOut"]     = this->approachEstPoppedOut;
+            w["popoutX"]       = this->approachEstPopoutX;
+            w["popoutY"]       = this->approachEstPopoutY;
+            w["popoutW"]       = this->approachEstPopoutW;
+            w["popoutH"]       = this->approachEstPopoutH;
             windows.push_back(w);
         }
-        addWin("depRateWindow", this->depRateWindowX, this->depRateWindowY, this->depRateVisible);
-        addWin("twrOutboundWindow", this->twrOutboundWindowX, this->twrOutboundWindowY, this->twrOutboundVisible);
-        addWin("twrInboundWindow", this->twrInboundWindowX, this->twrInboundWindowY, this->twrInboundVisible);
+        {
+            json w;
+            w["name"]      = "depRateWindow";
+            w["x"]         = this->depRateWindowX;
+            w["y"]         = this->depRateWindowY;
+            w["visible"]   = this->depRateVisible;
+            w["poppedOut"] = this->depRatePoppedOut;
+            w["popoutX"]   = this->depRatePopoutX;
+            w["popoutY"]   = this->depRatePopoutY;
+            windows.push_back(w);
+        }
+        {
+            json w;
+            w["name"]    = "twrOutboundWindow";
+            w["x"]       = this->twrOutboundWindowX;
+            w["y"]       = this->twrOutboundWindowY;
+            w["visible"] = this->twrOutboundVisible;
+            windows.push_back(w);
+        }
+        {
+            json w;
+            w["name"]    = "twrInboundWindow";
+            w["x"]       = this->twrInboundWindowX;
+            w["y"]       = this->twrInboundWindowY;
+            w["visible"] = this->twrInboundVisible;
+            windows.push_back(w);
+        }
         {
             json w;
             w["name"]              = "napWindow";
@@ -577,7 +617,17 @@ void CFlowX_Settings::SaveSettings()
             w["lastDismissedDate"] = this->napLastDismissedDate;
             windows.push_back(w);
         }
-        addWin("weatherWindow", this->weatherWindowX, this->weatherWindowY, this->weatherVisible);
+        {
+            json w;
+            w["name"]      = "weatherWindow";
+            w["x"]         = this->weatherWindowX;
+            w["y"]         = this->weatherWindowY;
+            w["visible"]   = this->weatherVisible;
+            w["poppedOut"] = this->weatherPoppedOut;
+            w["popoutX"]   = this->weatherPopoutX;
+            w["popoutY"]   = this->weatherPopoutY;
+            windows.push_back(w);
+        }
         j["windowSettings"] = windows;
 
         std::filesystem::path path(GetPluginDirectory());

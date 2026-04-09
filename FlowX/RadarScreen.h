@@ -8,14 +8,18 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "constants.h"
 #include "EuroScope/EuroScopePlugIn.h"
+#include "PopoutWindow.h"
 #include "cachedTagData.h"
 #include "taxi_graph.h"
+
+class CFlowX_Settings; ///< Forward declaration — avoid circular include between RadarScreen.h and CFlowX_Settings.h
 
 /// @brief Per-aircraft departure information rendered as an on-screen overlay near the radar target.
 struct depInfo
@@ -36,7 +40,28 @@ struct depInfo
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
 {
   private:
-    ULONGLONG taxiSafetyLastTickMs = 0; ///< GetTickCount64 timestamp of last UpdateTaxiSafety() run; throttle guard.
+    PopoutWindow* currentPopout_       = nullptr;        ///< Set during RenderToPopout; used by AddScreenObjectAuto to route hit-area registration
+    HWND          esHwnd_              = nullptr;        ///< EuroScope radar screen HWND; cached on first OnRefresh for use in Create*Popout
+    bool          isPopoutRender_      = false;          ///< True while a draw function renders into a memory DC for a popout window
+    POINT         popoutHoverPoint_    = {-9999, -9999}; ///< Cursor position inside the active popout window; {-9999,-9999} when outside
+    ULONGLONG     taxiSafetyLastTickMs = 0;              ///< GetTickCount64 timestamp of last UpdateTaxiSafety() run; throttle guard.
+
+    /// @brief Routes an AddScreenObject call to the active popout (isPopoutRender_) or to EuroScope (normal render).
+    void AddScreenObjectAuto(int objectType, const char* objectId, RECT rect, bool dragable,
+                             const char* tooltip);
+
+    /// @brief Renders a draw function into a memory DC and pushes the bitmap to a popout window.
+    void RenderToPopout(HDC screenDC, PopoutWindow* popout, POINT& windowPos, int w, int h,
+                        std::function<void(HDC)> drawFn);
+
+    /// @brief Creates the Approach Estimate popout window, seeding position/size from settings or in-screen state.
+    void CreateApproachEstPopout(CFlowX_Settings* s);
+
+    /// @brief Creates the DEP/H popout window, seeding position/size from settings or in-screen state.
+    void CreateDepRatePopout(CFlowX_Settings* s);
+
+    /// @brief Creates the WX/ATIS popout window, seeding position/size from settings or in-screen state.
+    void CreateWeatherPopout(CFlowX_Settings* s);
 
     /// @brief Called when a mouse button is pressed on a registered screen object; sets the pressed state.
     void OnButtonDownScreenObject(int ObjectType, const char* sObjectId, POINT Pt, RECT Area, int Button) override;
@@ -151,7 +176,8 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     void DrawWeatherWindow(HDC hDC);
 
   public:
-    POINT                                         approachEstLastDrag       = {-1, -1}; ///< Previous drag cursor position for the Approach Estimate window; (-1,-1) when not dragging
+    POINT                                         approachEstLastDrag = {-1, -1};       ///< Previous drag cursor position for the Approach Estimate window; (-1,-1) when not dragging
+    std::unique_ptr<PopoutWindow>                 approachEstPopout;                    ///< Non-null when the Approach Estimate window is in standalone popout mode
     POINT                                         approachEstResizeLastDrag = {-1, -1}; ///< Previous drag cursor position for the resize handle; (-1,-1) when not dragging
     POINT                                         approachEstWindowPos      = {-1, -1}; ///< Top-left corner of the Approach Estimate window; (-1,-1) until first draw (auto-positioned)
     int                                           approachEstWindowH        = 380;      ///< Current height of the Approach Estimate window in pixels
@@ -161,7 +187,10 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     bool                                          debug;                                ///< When true, controller connect/disconnect events are logged to the chat window
     POINT                                         depRateLastDrag = {-1, -1};           ///< Previous drag cursor position for the departure rate window; (-1,-1) when not dragging
     std::map<std::string, std::vector<ULONGLONG>> depRateLog;                           ///< Runway designator -> list of takeoff timestamps (GetTickCount64 ms) used for per-hour departure rate counting
+    std::unique_ptr<PopoutWindow>                 depRatePopout;                        ///< Non-null when the DEP/H window is in standalone popout mode
     std::vector<DepRateRowCache>                  depRateRowsCache;                     ///< Cached per-runway rows for the DEP/H window; rebuilt every second by UpdateTagCache()
+    int                                           depRateWindowH   = 0;                 ///< Last-rendered height of the DEP/H window in pixels; 0 until first draw
+    int                                           depRateWindowW   = 0;                 ///< Last-rendered width of the DEP/H window in pixels; 0 until first draw
     POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
     std::set<std::string>                         gndTransferSquares;                   ///< Callsigns for which a GND-transfer green square is currently shown on the radar
     std::map<std::string, ULONGLONG>              gndTransferSquareTimes;               ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
@@ -195,40 +224,48 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
         size_t      segB = 0;   ///< Index of the B-end node of the conflicting segment in csB's polyline.
     };
 
-    std::map<std::string, ULONGLONG>   taxiConflictFirstSeen;            ///< Keys "csA|csB" (sorted) -> GetTickCount64 tick when the conflict first entered the <15 s window; cleared when it exits.
-    std::set<std::string>              taxiConflictSoundPlayed;          ///< Keys "csA|csB" (sorted) for conflicts where the <15 s sound has already fired; cleared when conflict resolves.
-    std::map<std::string, TaxiRoute>   pushTracked;                      ///< Callsign -> assigned pushback route; used to block taxi routing and show orange overlay
-    std::map<std::string, TaxiRoute>   taxiAssigned;                     ///< Callsign -> controller-confirmed taxi route (green); auto-removed 2 s after assignment
-    std::map<std::string, TaxiRoute>   taxiTracked;                      ///< Callsign -> persistent taxi route for "Show routes" display; cleared on disconnect or re-assignment
-    std::map<std::string, ULONGLONG>   taxiAssignedTimes;                ///< Tick (GetTickCount64 ms) when each confirmed taxi route was last assigned
-    std::vector<TaxiConflictInfo>      taxiConflicts;                    ///< Active taxi path conflicts; recomputed every ~250 ms by UpdateTaxiSafety()
-    GeoPoint                           taxiCursorSnap;                   ///< Current snapped cursor geo-position; updated every OnRefresh frame during planning mode
-    std::set<std::string>              taxiDeviations;                   ///< Callsigns of moving aircraft currently off their assigned route (GS > 3 kt, dist > 60 m)
-    TaxiRoute                          taxiGreenPreview;                 ///< Current green preview route recomputed each frame from origin through waypoints to cursor snap
-    POINT                              taxiOriginPx = {-1, -1};          ///< Screen pixel where right-click activated planning; used for accept-suggestion proximity test
-    std::string                        taxiPlanActive;                   ///< Callsign currently being planned; empty when not in planning mode
-    bool                               taxiPlanIsPush        = false;    ///< True when the active planning session is a pushback (no suggestion; endpoint only)
-    double                             taxiPushHeading       = 0.0;      ///< Aircraft true-north heading captured at push planning activation; used to compute the reservation zone.
-    GeoPoint                           taxiPushOrigin        = {};       ///< Current push-zone pivot (snapped taxiway node); updated on mouse move when cursor crosses a taxiway midpoint.
-    GeoPoint                           taxiPushStandOrigin   = {};       ///< Aircraft geo-position at push activation; used to project cursor onto push axis for pivot selection.
-    double                             taxiPushWingspan      = 0.0;      ///< Aircraft wingspan (m) captured at push activation; used for taxiway restriction filtering.
-    bool                               taxiAltPrevDown       = false;    ///< Previous-frame ALT key state; used to detect press edges for swingover toggle.
-    TaxiRoute                          taxiSwingoverFixedSeg = {};       ///< Fixed route segment origin→crossPt→s-bend→partnerPt; computed when swingover is toggled ON.
-    GeoPoint                           taxiSwingoverOrigin   = {};       ///< Partner-lane snap point where free routing begins after the swingover crossover.
-    bool                               taxiSwingoverActive   = false;    ///< Toggled by an ALT keypress during taxi planning; routes via a fixed s-bend crossover to the partner taxilane.
-    std::map<std::string, TaxiRoute>   taxiSuggested;                    ///< Callsign -> auto-calculated suggested route (yellow); computed on planning activation
-    std::vector<GeoPoint>              taxiWaypoints;                    ///< Mandatory via-points added by middle-click; route recalculated through all in order
-    std::map<std::string, std::string> towerStations;                    ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)
-    POINT                              twrInboundLastDrag = {-1, -1};    ///< Previous drag cursor position for the TWR Inbound window
-    std::vector<TwrInboundRowCache>    twrInboundRowsCache;              ///< Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates)
-    POINT                              twrInboundWindowPos = {-1, -1};   ///< Top-left corner of the TWR Inbound window; (-1,-1) until first draw
-    POINT                              twrOutboundLastDrag = {-1, -1};   ///< Previous drag cursor position for the TWR Outbound window
-    std::vector<TwrOutboundRowCache>   twrOutboundRowsCache;             ///< Cached per-aircraft rows for the TWR Outbound window; rebuilt every second by UpdateTagCache()
-    POINT                              twrOutboundWindowPos  = {-1, -1}; ///< Top-left corner of the TWR Outbound window; (-1,-1) until first draw
-    int                                winCloseLastHoverType = -1;       ///< Last object type reported by OnOverScreenObject for window close buttons; used to detect enter/leave transitions
-    POINT                              weatherLastDrag       = {-1, -1}; ///< Previous drag cursor position for the WX/ATIS window
-    std::vector<WeatherRowCache>       weatherRowsCache;                 ///< Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache()
-    POINT                              weatherWindowPos = {-1, -1};      ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw
+    std::map<std::string, ULONGLONG>   taxiConflictFirstSeen;             ///< Keys "csA|csB" (sorted) -> GetTickCount64 tick when the conflict first entered the <15 s window; cleared when it exits.
+    std::set<std::string>              taxiConflictSoundPlayed;           ///< Keys "csA|csB" (sorted) for conflicts where the <15 s sound has already fired; cleared when conflict resolves.
+    std::map<std::string, TaxiRoute>   pushTracked;                       ///< Callsign -> assigned pushback route; used to block taxi routing and show orange overlay
+    std::map<std::string, TaxiRoute>   taxiAssigned;                      ///< Callsign -> controller-confirmed taxi route (green); auto-removed 2 s after assignment
+    std::map<std::string, TaxiRoute>   taxiTracked;                       ///< Callsign -> persistent taxi route for "Show routes" display; cleared on disconnect or re-assignment
+    std::map<std::string, ULONGLONG>   taxiAssignedTimes;                 ///< Tick (GetTickCount64 ms) when each confirmed taxi route was last assigned
+    std::vector<TaxiConflictInfo>      taxiConflicts;                     ///< Active taxi path conflicts; recomputed every ~250 ms by UpdateTaxiSafety()
+    GeoPoint                           taxiCursorSnap;                    ///< Current snapped cursor geo-position; updated every OnRefresh frame during planning mode
+    std::set<std::string>              taxiDeviations;                    ///< Callsigns of moving aircraft currently off their assigned route (GS > 3 kt, dist > 60 m)
+    TaxiRoute                          taxiGreenPreview;                  ///< Current green preview route recomputed each frame from origin through waypoints to cursor snap
+    POINT                              taxiOriginPx = {-1, -1};           ///< Screen pixel where right-click activated planning; used for accept-suggestion proximity test
+    std::string                        taxiPlanActive;                    ///< Callsign currently being planned; empty when not in planning mode
+    bool                               taxiPlanIsPush        = false;     ///< True when the active planning session is a pushback (no suggestion; endpoint only)
+    double                             taxiPushHeading       = 0.0;       ///< Aircraft true-north heading captured at push planning activation; used to compute the reservation zone.
+    GeoPoint                           taxiPushOrigin        = {};        ///< Current push-zone pivot (snapped taxiway node); updated on mouse move when cursor crosses a taxiway midpoint.
+    GeoPoint                           taxiPushStandOrigin   = {};        ///< Aircraft geo-position at push activation; used to project cursor onto push axis for pivot selection.
+    double                             taxiPushWingspan      = 0.0;       ///< Aircraft wingspan (m) captured at push activation; used for taxiway restriction filtering.
+    bool                               taxiAltPrevDown       = false;     ///< Previous-frame ALT key state; used to detect press edges for swingover toggle.
+    TaxiRoute                          taxiSwingoverFixedSeg = {};        ///< Fixed route segment origin→crossPt→s-bend→partnerPt; computed when swingover is toggled ON.
+    GeoPoint                           taxiSwingoverOrigin   = {};        ///< Partner-lane snap point where free routing begins after the swingover crossover.
+    bool                               taxiSwingoverActive   = false;     ///< Toggled by an ALT keypress during taxi planning; routes via a fixed s-bend crossover to the partner taxilane.
+    std::map<std::string, TaxiRoute>   taxiSuggested;                     ///< Callsign -> auto-calculated suggested route (yellow); computed on planning activation
+    std::vector<GeoPoint>              taxiWaypoints;                     ///< Mandatory via-points added by middle-click; route recalculated through all in order
+    std::map<std::string, std::string> towerStations;                     ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)
+    POINT                              twrInboundLastDrag = {-1, -1};     ///< Previous drag cursor position for the TWR Inbound window
+    std::vector<TwrInboundRowCache>    twrInboundRowsCache;               ///< Cached per-aircraft rows for the TWR Inbound window; rebuilt every second (and on position updates)
+    int                                twrInboundWindowH   = 0;           ///< Last-rendered height of the TWR Inbound window in pixels; 0 until first draw
+    int                                twrInboundWindowW   = 0;           ///< Last-rendered width of the TWR Inbound window in pixels; 0 until first draw
+    POINT                              twrInboundWindowPos = {-1, -1};    ///< Top-left corner of the TWR Inbound window; (-1,-1) until first draw
+    POINT                              twrOutboundLastDrag = {-1, -1};    ///< Previous drag cursor position for the TWR Outbound window
+    std::vector<TwrOutboundRowCache>   twrOutboundRowsCache;              ///< Cached per-aircraft rows for the TWR Outbound window; rebuilt every second by UpdateTagCache()
+    int                                twrOutboundWindowH     = 0;        ///< Last-rendered height of the TWR Outbound window in pixels; 0 until first draw
+    int                                twrOutboundWindowW     = 0;        ///< Last-rendered width of the TWR Outbound window in pixels; 0 until first draw
+    POINT                              twrOutboundWindowPos   = {-1, -1}; ///< Top-left corner of the TWR Outbound window; (-1,-1) until first draw
+    int                                winCloseLastHoverType  = -1;       ///< Last object type reported by OnOverScreenObject for window close buttons; used to detect enter/leave transitions
+    int                                winPopoutLastHoverType = -1;       ///< Last object type reported by OnOverScreenObject for window popout buttons; used to detect enter/leave transitions
+    POINT                              weatherLastDrag        = {-1, -1}; ///< Previous drag cursor position for the WX/ATIS window
+    std::unique_ptr<PopoutWindow>      weatherPopout;                     ///< Non-null when the WX/ATIS window is in standalone popout mode
+    std::vector<WeatherRowCache>       weatherRowsCache;                  ///< Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache()
+    int                                weatherWindowH   = 0;              ///< Last-rendered height of the WX/ATIS window in pixels; 0 until first draw
+    int                                weatherWindowW   = 0;              ///< Last-rendered width of the WX/ATIS window in pixels; 0 until first draw
+    POINT                              weatherWindowPos = {-1, -1};       ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw
 
     /// @brief Constructs a RadarScreen with debug mode off.
     RadarScreen();

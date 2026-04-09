@@ -119,6 +119,7 @@ const int SCREEN_OBJECT_GND_TRANSFER    = 6694; ///< Green square shown when a l
 const int SCREEN_OBJECT_DEP_TAG_SID_DOT     = 6695; ///< SID colour dot on a departure info overlay — click to freq-transfer (GND only)
 const int SCREEN_OBJECT_APPROACH_EST_WIN    = 6696; ///< Approach Estimate window title bar (drag handle)
 const int SCREEN_OBJECT_APPROACH_EST_RESIZE = 6697; ///< Approach Estimate window resize handle (lower-right corner)
+const int SCREEN_OBJECT_WIN_POPOUT          = 6698; ///< Pop-out (^) button on a custom window title bar
 const int SCREEN_OBJECT_TAXI_TARGET         = 6710; ///< Invisible hit area on each ground aircraft; right-click activates taxi planning mode
 const int SCREEN_OBJECT_TAXI_PLANNING       = 6711; ///< Full-screen overlay registered during taxi planning mode; captures left/middle/right-click
 /// @}

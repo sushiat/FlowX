@@ -27,44 +27,55 @@ class CFlowX_Settings : public CFlowX_Logging
     std::future<TaxiGraph> graphFuture_; ///< Async future for a TaxiGraph build in progress; result swapped into osmGraph by PollGraphFuture()
 
   protected:
-    std::set<std::string>          activeArrRunways;            ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
-    std::set<std::string>          activeDepRunways;            ///< Runway designators currently active for departures (e.g. "16", "29"); refreshed by RefreshActiveRunways.
-    std::map<std::string, double>  aircraftWingspans;           ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
-    std::map<std::string, airport> airports;                    ///< Airport configurations keyed by ICAO code
-    bool                           apprEstColors       = false; ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
-    bool                           approachEstVisible  = true;  ///< Whether the Approach Estimate window is visible; restored from settings.json
-    int                            approachEstWindowH  = 380;   ///< Saved height of the Approach Estimate window; default 380
-    int                            approachEstWindowW  = 260;   ///< Saved width of the Approach Estimate window; default 260
-    int                            approachEstWindowX  = -1;    ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
-    int                            approachEstWindowY  = -1;    ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
-    bool                           autoParked          = true;  ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
-    bool                           autoScratchpadClear = false; ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
-    bool                           autoRestore         = false; ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
-    bool                           hpAutoScratch       = true;  ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
-    int                            bgOpacity           = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
-    bool                           depRateVisible      = true;  ///< Whether the DEP/H departure rate window is visible; restored from settings.json
-    int                            depRateWindowX      = -1;    ///< Last-saved X position of the departure rate window; -1 = not yet positioned
-    int                            depRateWindowY      = -1;    ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
-    int                            fontOffset          = 0;     ///< Font size offset for all custom-window data fonts; positive = larger
-    std::map<std::string, grStand> grStands;                    ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
-    std::future<std::string>       latestVersion;               ///< Async future holding the fetched latest version string
-    std::string                    napLastDismissedDate;        ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
-    int                            napWindowX         = -1;     ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
-    int                            napWindowY         = -1;     ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
-    bool                           soundAirborne      = true;   ///< Whether the airborne audio alert is enabled
-    bool                           soundGndTransfer   = true;   ///< Whether the GND transfer audio alert is enabled
-    bool                           soundReadyTakeoff  = true;   ///< Whether the ready-for-takeoff audio alert is enabled
-    bool                           soundTaxiConflict  = true;   ///< Whether the taxi conflict audio alert is enabled
-    bool                           twrInboundVisible  = true;   ///< Whether the TWR Inbound window is visible; restored from settings.json
-    int                            twrInboundWindowX  = -1;     ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
-    int                            twrInboundWindowY  = -1;     ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
-    bool                           twrOutboundVisible = true;   ///< Whether the TWR Outbound window is visible; restored from settings.json
-    int                            twrOutboundWindowX = -1;     ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
-    int                            twrOutboundWindowY = -1;     ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
-    bool                           updateCheck        = true;   ///< Whether the background update check is enabled
-    bool                           weatherVisible     = true;   ///< Whether the WX/ATIS window is visible; restored from settings.json
-    int                            weatherWindowX     = -1;     ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
-    int                            weatherWindowY     = -1;     ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
+    std::set<std::string>          activeArrRunways;             ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
+    std::set<std::string>          activeDepRunways;             ///< Runway designators currently active for departures (e.g. "16", "29"); refreshed by RefreshActiveRunways.
+    std::map<std::string, double>  aircraftWingspans;            ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
+    std::map<std::string, airport> airports;                     ///< Airport configurations keyed by ICAO code
+    bool                           apprEstColors        = false; ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
+    bool                           approachEstPoppedOut = false; ///< Whether the Approach Estimate window is in standalone popout mode
+    int                            approachEstPopoutH   = -1;    ///< Last-saved standalone-window height; -1 = inherit in-screen height on first popout
+    int                            approachEstPopoutW   = -1;    ///< Last-saved standalone-window width;  -1 = inherit in-screen width on first popout
+    int                            approachEstPopoutX   = -1;    ///< Last-saved standalone-window screen X; -1 = seed from in-screen position on first popout
+    int                            approachEstPopoutY   = -1;    ///< Last-saved standalone-window screen Y; -1 = seed from in-screen position on first popout
+    bool                           approachEstVisible   = true;  ///< Whether the Approach Estimate window is visible; restored from settings.json
+    int                            approachEstWindowH   = 380;   ///< Saved height of the Approach Estimate window; default 380
+    int                            approachEstWindowW   = 260;   ///< Saved width of the Approach Estimate window; default 260
+    int                            approachEstWindowX   = -1;    ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
+    int                            approachEstWindowY   = -1;    ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
+    bool                           autoParked           = true;  ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
+    bool                           autoScratchpadClear  = false; ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
+    bool                           autoRestore          = false; ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    bool                           hpAutoScratch        = true;  ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
+    int                            bgOpacity            = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
+    bool                           depRatePoppedOut     = false; ///< Whether the DEP/H window is in standalone popout mode
+    int                            depRatePopoutX       = -1;    ///< Last-saved standalone screen X; -1 = seed from in-screen position
+    int                            depRatePopoutY       = -1;    ///< Last-saved standalone screen Y; -1 = seed from in-screen position
+    bool                           depRateVisible       = true;  ///< Whether the DEP/H departure rate window is visible; restored from settings.json
+    int                            depRateWindowX       = -1;    ///< Last-saved X position of the departure rate window; -1 = not yet positioned
+    int                            depRateWindowY       = -1;    ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
+    int                            fontOffset           = 0;     ///< Font size offset for all custom-window data fonts; positive = larger
+    std::map<std::string, grStand> grStands;                     ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
+    std::future<std::string>       latestVersion;                ///< Async future holding the fetched latest version string
+    std::string                    napLastDismissedDate;         ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
+    int                            napWindowX         = -1;      ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
+    int                            napWindowY         = -1;      ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
+    bool                           soundAirborne      = true;    ///< Whether the airborne audio alert is enabled
+    bool                           soundGndTransfer   = true;    ///< Whether the GND transfer audio alert is enabled
+    bool                           soundReadyTakeoff  = true;    ///< Whether the ready-for-takeoff audio alert is enabled
+    bool                           soundTaxiConflict  = true;    ///< Whether the taxi conflict audio alert is enabled
+    bool                           twrInboundVisible  = true;    ///< Whether the TWR Inbound window is visible; restored from settings.json
+    int                            twrInboundWindowX  = -1;      ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
+    int                            twrInboundWindowY  = -1;      ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
+    bool                           twrOutboundVisible = true;    ///< Whether the TWR Outbound window is visible; restored from settings.json
+    int                            twrOutboundWindowX = -1;      ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
+    int                            twrOutboundWindowY = -1;      ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
+    bool                           updateCheck        = true;    ///< Whether the background update check is enabled
+    bool                           weatherPoppedOut   = false;   ///< Whether the WX/ATIS window is in standalone popout mode
+    int                            weatherPopoutX     = -1;      ///< Last-saved standalone screen X; -1 = seed from in-screen position
+    int                            weatherPopoutY     = -1;      ///< Last-saved standalone screen Y; -1 = seed from in-screen position
+    bool                           weatherVisible     = true;    ///< Whether the WX/ATIS window is visible; restored from settings.json
+    int                            weatherWindowX     = -1;      ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
+    int                            weatherWindowY     = -1;      ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
 
     /// @brief Compares the fetched latest version against the running version and logs a message if outdated.
     /// @note Must only be called after the @c latestVersion future has become ready.
@@ -212,6 +223,72 @@ class CFlowX_Settings : public CFlowX_Logging
     [[nodiscard]] int GetApproachEstY() const
     {
         return this->approachEstWindowY;
+    }
+
+    /// @brief Returns whether the Approach Estimate window is in standalone popout mode.
+    [[nodiscard]] bool GetApproachEstPoppedOut() const
+    {
+        return this->approachEstPoppedOut;
+    }
+
+    /// @brief Returns the last-saved standalone-window height; -1 = not yet saved.
+    [[nodiscard]] int GetApproachEstPopoutH() const
+    {
+        return this->approachEstPopoutH;
+    }
+
+    /// @brief Returns the last-saved standalone-window width; -1 = not yet saved.
+    [[nodiscard]] int GetApproachEstPopoutW() const
+    {
+        return this->approachEstPopoutW;
+    }
+
+    /// @brief Returns the last-saved standalone-window screen X; -1 = not yet saved.
+    [[nodiscard]] int GetApproachEstPopoutX() const
+    {
+        return this->approachEstPopoutX;
+    }
+
+    /// @brief Returns the last-saved standalone-window screen Y; -1 = not yet saved.
+    [[nodiscard]] int GetApproachEstPopoutY() const
+    {
+        return this->approachEstPopoutY;
+    }
+
+    /// @brief Returns whether the DEP/H window is in standalone popout mode.
+    [[nodiscard]] bool GetDepRatePoppedOut() const
+    {
+        return this->depRatePoppedOut;
+    }
+
+    /// @brief Returns the last-saved DEP/H standalone-window screen X; -1 = not yet saved.
+    [[nodiscard]] int GetDepRatePopoutX() const
+    {
+        return this->depRatePopoutX;
+    }
+
+    /// @brief Returns the last-saved DEP/H standalone-window screen Y; -1 = not yet saved.
+    [[nodiscard]] int GetDepRatePopoutY() const
+    {
+        return this->depRatePopoutY;
+    }
+
+    /// @brief Returns whether the WX/ATIS window is in standalone popout mode.
+    [[nodiscard]] bool GetWeatherPoppedOut() const
+    {
+        return this->weatherPoppedOut;
+    }
+
+    /// @brief Returns the last-saved WX/ATIS standalone-window screen X; -1 = not yet saved.
+    [[nodiscard]] int GetWeatherPopoutX() const
+    {
+        return this->weatherPopoutX;
+    }
+
+    /// @brief Returns the last-saved WX/ATIS standalone-window screen Y; -1 = not yet saved.
+    [[nodiscard]] int GetWeatherPopoutY() const
+    {
+        return this->weatherPopoutY;
     }
 
     /// @brief Decreases the background opacity by 10 pp (floor 20%) and persists immediately.
@@ -470,5 +547,88 @@ class CFlowX_Settings : public CFlowX_Logging
     void ToggleWeatherVisible()
     {
         this->weatherVisible = !this->weatherVisible;
+    }
+
+    /// @brief Sets the Approach Estimate popout state and persists immediately.
+    void SetApproachEstPoppedOut(bool v)
+    {
+        this->approachEstPoppedOut = v;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the Approach Estimate standalone-window position and persists immediately.
+    void SetApproachEstPopoutPos(int x, int y)
+    {
+        this->approachEstPopoutX = x;
+        this->approachEstPopoutY = y;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the Approach Estimate standalone-window size and persists immediately.
+    void SetApproachEstPopoutSize(int w, int h)
+    {
+        this->approachEstPopoutW = w;
+        this->approachEstPopoutH = h;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the Approach Estimate window visibility (does not persist; use SaveWindowPositions to persist).
+    void SetApproachEstVisible(bool v)
+    {
+        this->approachEstVisible = v;
+    }
+
+    /// @brief Sets the DEP/H popout state and persists immediately.
+    void SetDepRatePoppedOut(bool v)
+    {
+        this->depRatePoppedOut = v;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the DEP/H standalone-window position and persists immediately.
+    void SetDepRatePopoutPos(int x, int y)
+    {
+        this->depRatePopoutX = x;
+        this->depRatePopoutY = y;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the DEP/H window visibility (does not persist; use SaveWindowPositions to persist).
+    void SetDepRateVisible(bool v)
+    {
+        this->depRateVisible = v;
+    }
+
+    /// @brief Sets the TWR Inbound window visibility (does not persist; use SaveWindowPositions to persist).
+    void SetTwrInboundVisible(bool v)
+    {
+        this->twrInboundVisible = v;
+    }
+
+    /// @brief Sets the TWR Outbound window visibility (does not persist; use SaveWindowPositions to persist).
+    void SetTwrOutboundVisible(bool v)
+    {
+        this->twrOutboundVisible = v;
+    }
+
+    /// @brief Sets the WX/ATIS popout state and persists immediately.
+    void SetWeatherPoppedOut(bool v)
+    {
+        this->weatherPoppedOut = v;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the WX/ATIS standalone-window position and persists immediately.
+    void SetWeatherPopoutPos(int x, int y)
+    {
+        this->weatherPopoutX = x;
+        this->weatherPopoutY = y;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the WX/ATIS window visibility (does not persist; use SaveWindowPositions to persist).
+    void SetWeatherVisible(bool v)
+    {
+        this->weatherVisible = v;
     }
 };
