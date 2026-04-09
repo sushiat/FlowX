@@ -314,8 +314,9 @@ void CFlowX_Settings::PollOsmFuture()
             kept.reserve(this->osmData.ways.size());
             for (auto& way : this->osmData.ways)
             {
-                // Holding-point ways are kept as-is; no config entry required.
-                if (way.type == AerowayType::Taxiway_HoldingPoint)
+                // Holding-point and runway ways are kept as-is; no config entry required.
+                if (way.type == AerowayType::Taxiway_HoldingPoint ||
+                    way.type == AerowayType::Runway)
                 {
                     kept.push_back(std::move(way));
                     continue;

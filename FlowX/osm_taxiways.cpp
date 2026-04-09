@@ -27,6 +27,7 @@ static constexpr const char* OVERPASS_QUERY =
     "(\n"
     "  way[\"aeroway\"=\"taxiway\"](around:6500,48.1103,16.5697);\n"
     "  way[\"aeroway\"=\"taxilane\"](around:6500,48.1103,16.5697);\n"
+    "  way[\"aeroway\"=\"runway\"](around:6500,48.1103,16.5697);\n"
     "  node[\"aeroway\"=\"holding_position\"](around:6500,48.1103,16.5697);\n"
     ");\n"
     "out geom;";
@@ -55,7 +56,7 @@ static OsmResult ParseOsmJson(const std::string& raw)
 {
     try
     {
-        const auto j = json::parse(raw);
+        const auto     j = json::parse(raw);
         OsmAirportData data;
 
         if (j.contains("elements"))
@@ -69,12 +70,12 @@ static OsmResult ParseOsmJson(const std::string& raw)
                 {
                     OsmHoldingPosition hp;
                     hp.id  = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
-                    hp.pos = { el.value("lat", 0.0), el.value("lon", 0.0) };
+                    hp.pos = {el.value("lat", 0.0), el.value("lon", 0.0)};
                     if (el.contains("tags"))
                     {
                         const auto& tags = el.at("tags");
-                        hp.ref  = tags.value("ref",  std::string{});
-                        hp.name = tags.value("name", std::string{});
+                        hp.ref           = tags.value("ref", std::string{});
+                        hp.name          = tags.value("name", std::string{});
                     }
                     data.holdingPositions.push_back(std::move(hp));
                 }
@@ -84,18 +85,23 @@ static OsmResult ParseOsmJson(const std::string& raw)
                     way.id = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
                     if (el.contains("tags"))
                     {
-                        const auto& tags = el.at("tags");
+                        const auto&       tags    = el.at("tags");
                         const std::string aeroway = tags.value("aeroway", std::string{});
-                        if      (aeroway == "taxiway")  way.type = AerowayType::Taxiway;
-                        else if (aeroway == "taxilane") way.type = AerowayType::Taxilane;
-                        else                            way.type = AerowayType::Unknown;
-                        way.ref  = tags.value("ref",  std::string{});
+                        if (aeroway == "taxiway")
+                            way.type = AerowayType::Taxiway;
+                        else if (aeroway == "taxilane")
+                            way.type = AerowayType::Taxilane;
+                        else if (aeroway == "runway")
+                            way.type = AerowayType::Runway;
+                        else
+                            way.type = AerowayType::Unknown;
+                        way.ref  = tags.value("ref", std::string{});
                         way.name = tags.value("name", std::string{});
                     }
                     if (el.contains("geometry"))
                     {
                         for (const auto& gp : el.at("geometry"))
-                            way.geometry.push_back({ gp.value("lat", 0.0), gp.value("lon", 0.0) });
+                            way.geometry.push_back({gp.value("lat", 0.0), gp.value("lon", 0.0)});
                     }
                     if (!way.geometry.empty())
                         data.ways.push_back(std::move(way));
@@ -108,20 +114,26 @@ static OsmResult ParseOsmJson(const std::string& raw)
             for (const auto& el : j.at("ways"))
             {
                 OsmWay way;
-                way.id = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
+                way.id                    = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
                 const std::string typeStr = el.value("type", std::string{});
-                if      (typeStr == "taxiway")               way.type = AerowayType::Taxiway;
-                else if (typeStr == "taxilane")              way.type = AerowayType::Taxilane;
-                else if (typeStr == "taxiway_holdingpoint")  way.type = AerowayType::Taxiway_HoldingPoint;
-                else if (typeStr == "taxiway_intersection")  way.type = AerowayType::Taxiway_Intersection;
-                else if (typeStr == "runway")                way.type = AerowayType::Runway;
-                else                                         way.type = AerowayType::Unknown;
-                way.ref  = el.value("ref",  std::string{});
+                if (typeStr == "taxiway")
+                    way.type = AerowayType::Taxiway;
+                else if (typeStr == "taxilane")
+                    way.type = AerowayType::Taxilane;
+                else if (typeStr == "taxiway_holdingpoint")
+                    way.type = AerowayType::Taxiway_HoldingPoint;
+                else if (typeStr == "taxiway_intersection")
+                    way.type = AerowayType::Taxiway_Intersection;
+                else if (typeStr == "runway")
+                    way.type = AerowayType::Runway;
+                else
+                    way.type = AerowayType::Unknown;
+                way.ref  = el.value("ref", std::string{});
                 way.name = el.value("name", std::string{});
                 if (el.contains("geometry"))
                 {
                     for (const auto& gp : el.at("geometry"))
-                        way.geometry.push_back({ gp.value("lat", 0.0), gp.value("lon", 0.0) });
+                        way.geometry.push_back({gp.value("lat", 0.0), gp.value("lon", 0.0)});
                 }
                 if (!way.geometry.empty())
                     data.ways.push_back(std::move(way));
@@ -133,9 +145,9 @@ static OsmResult ParseOsmJson(const std::string& raw)
                 {
                     OsmHoldingPosition hp;
                     hp.id   = el.contains("id") ? el.at("id").get<int64_t>() : int64_t{0};
-                    hp.ref  = el.value("ref",  std::string{});
+                    hp.ref  = el.value("ref", std::string{});
                     hp.name = el.value("name", std::string{});
-                    hp.pos  = { el.value("lat", 0.0), el.value("lon", 0.0) };
+                    hp.pos  = {el.value("lat", 0.0), el.value("lon", 0.0)};
                     data.holdingPositions.push_back(std::move(hp));
                 }
             }
@@ -158,22 +170,23 @@ void SaveOsmCache(const OsmAirportData& data)
     try
     {
         json j;
-        j["annotated"]    = true;
+        j["annotated"] = true;
         auto& waysArr = j["ways"] = json::array();
         for (const auto& w : data.ways)
         {
             json wj;
             wj["id"]   = w.id;
-            wj["type"] = (w.type == AerowayType::Taxiway_HoldingPoint)  ? "taxiway_holdingpoint"
-                       : (w.type == AerowayType::Taxiway_Intersection)  ? "taxiway_intersection"
-                       : (w.type == AerowayType::Taxiway)               ? "taxiway"
-                       : (w.type == AerowayType::Taxilane)              ? "taxilane"
-                                                                        : "unknown";
+            wj["type"] = (w.type == AerowayType::Taxiway_HoldingPoint)   ? "taxiway_holdingpoint"
+                         : (w.type == AerowayType::Taxiway_Intersection) ? "taxiway_intersection"
+                         : (w.type == AerowayType::Taxiway)              ? "taxiway"
+                         : (w.type == AerowayType::Taxilane)             ? "taxilane"
+                         : (w.type == AerowayType::Runway)               ? "runway"
+                                                                         : "unknown";
             wj["ref"]  = w.ref;
             wj["name"] = w.name;
             auto& geom = wj["geometry"] = json::array();
             for (const auto& gp : w.geometry)
-                geom.push_back({ {"lat", gp.lat}, {"lon", gp.lon} });
+                geom.push_back({{"lat", gp.lat}, {"lon", gp.lon}});
             waysArr.push_back(std::move(wj));
         }
 
@@ -190,10 +203,13 @@ void SaveOsmCache(const OsmAirportData& data)
         }
 
         const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
-        std::ofstream f(path);
-        if (f) f << j.dump(2);
+        std::ofstream               f(path);
+        if (f)
+            f << j.dump(2);
     }
-    catch (...) {} // best-effort
+    catch (...)
+    {
+    } // best-effort
 }
 
 void DeleteOsmCache()
@@ -203,7 +219,9 @@ void DeleteOsmCache()
         const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
         std::filesystem::remove(path);
     }
-    catch (...) {} // best-effort
+    catch (...)
+    {
+    } // best-effort
 }
 
 double WayLengthM(const OsmWay& way)
@@ -211,14 +229,13 @@ double WayLengthM(const OsmWay& way)
     double total = 0.0;
     for (size_t k = 1; k < way.geometry.size(); ++k)
     {
-        const auto& a = way.geometry[k - 1];
-        const auto& b = way.geometry[k];
+        const auto&  a    = way.geometry[k - 1];
+        const auto&  b    = way.geometry[k];
         const double dLat = (b.lat - a.lat) * std::numbers::pi / 180.0;
         const double dLon = (b.lon - a.lon) * std::numbers::pi / 180.0;
         const double cosA = std::cos(a.lat * std::numbers::pi / 180.0);
         const double cosB = std::cos(b.lat * std::numbers::pi / 180.0);
-        const double h    = std::sin(dLat / 2) * std::sin(dLat / 2)
-                          + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
+        const double h    = std::sin(dLat / 2) * std::sin(dLat / 2) + cosA * cosB * std::sin(dLon / 2) * std::sin(dLon / 2);
         total += 6'371'000.0 * 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
     }
     return total;
@@ -250,7 +267,7 @@ OsmResult fetchLOWWTaxiways()
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt)
     {
         const DWORD flags = INTERNET_FLAG_SECURE | INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
-        HINTERNET hReq = HttpOpenRequest(hConn, "POST", OVERPASS_PATH, NULL, NULL, NULL, flags, 0);
+        HINTERNET   hReq  = HttpOpenRequest(hConn, "POST", OVERPASS_PATH, NULL, NULL, NULL, flags, 0);
         if (!hReq)
         {
             InternetCloseHandle(hConn);

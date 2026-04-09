@@ -199,6 +199,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             (way.type == AerowayType::Taxiway_HoldingPoint)   ? MULT_HOLDINGPOINT
             : (way.type == AerowayType::Taxiway_Intersection) ? MULT_INTERSECTION
             : (way.type == AerowayType::Taxilane)             ? MULT_TAXILANE
+            : (way.type == AerowayType::Runway)               ? MULT_RUNWAY
                                                               : MULT_TAXIWAY;
 
         const std::string& ref = way.ref.empty() ? way.name : way.ref;
@@ -259,7 +260,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // typically already on the taxiway centreline; snapping within 25 m is sufficient.
     for (const auto& hp : osm.holdingPositions)
     {
-        const std::string& label   = hp.ref.empty() ? hp.name : hp.ref;
+        const std::string& label    = hp.ref.empty() ? hp.name : hp.ref;
         double             bestDist = 25.0;
         int                bestId   = -1;
         for (const auto& n : nodes_)
@@ -308,161 +309,6 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             {
                 nodes_[bestId].type  = TaxiNodeType::HoldingPoint;
                 nodes_[bestId].label = hpName;
-            }
-        }
-    }
-
-    // ── Step 4: runway centrelines derived from config thresholds ────────────────
-    // Runways are not downloaded from OSM (their polygon geometry produces perimeter
-    // routing, not centrelines). Instead, for each runway pair we:
-    //   1. Build a centreline from threshold A to threshold B.
-    //   2. Find all taxiway Waypoint nodes within connRadius of that centreline.
-    //   3. Project each onto the centreline, add a centreline node there, and chain
-    //      all centreline nodes in order with MULT_RUNWAY edges.
-    //   4. Add a short perpendicular edge from each centreline node to its source
-    //      taxiway node (the actual runway entry/exit point).
-    {
-        runwayCentrelines.clear();
-        std::set<std::string> processedPairs; // avoid processing each A/B pair twice
-
-        for (const auto& [rwyDes, rwy] : ap.runways)
-        {
-            if (rwy.opposite.empty())
-                continue;
-            if (rwy.thresholdLat == 0.0 && rwy.thresholdLon == 0.0)
-                continue;
-
-            // Canonical pair key: lower designator first.
-            const std::string pairKey = (rwyDes < rwy.opposite)
-                                            ? rwyDes + "/" + rwy.opposite
-                                            : rwy.opposite + "/" + rwyDes;
-            if (processedPairs.contains(pairKey))
-                continue;
-            processedPairs.insert(pairKey);
-
-            auto oppIt = ap.runways.find(rwy.opposite);
-            if (oppIt == ap.runways.end())
-                continue;
-            const auto& oppRwy = oppIt->second;
-            if (oppRwy.thresholdLat == 0.0 && oppRwy.thresholdLon == 0.0)
-                continue;
-
-            const GeoPoint thrA{rwy.thresholdLat, rwy.thresholdLon};
-            const GeoPoint thrB{oppRwy.thresholdLat, oppRwy.thresholdLon};
-
-            // halfWidth used to identify nodes sitting right at the runway edge (perpDist ≈ halfWidth).
-            const double halfWidth = (rwy.widthMeters > 0) ? rwy.widthMeters / 2.0 : 22.5;
-
-            // Flat-earth scale factors centred on thrA.
-            const double cosLat   = std::cos(thrA.lat * std::numbers::pi / 180.0);
-            const double scaleLat = TAXI_EARTH_R * std::numbers::pi / 180.0;
-            const double scaleLon = TAXI_EARTH_R * cosLat * std::numbers::pi / 180.0;
-
-            const double abx  = (thrB.lon - thrA.lon) * scaleLon;
-            const double aby  = (thrB.lat - thrA.lat) * scaleLat;
-            const double len2 = abx * abx + aby * aby;
-            if (len2 < 1.0)
-                continue; // degenerate
-
-            // Find taxiway Waypoint nodes within connRadius of the centreline.
-            struct ConnPt
-            {
-                GeoPoint proj; ///< Projected point on centreline.
-                int      nodeId;
-                double   t; ///< Parameter along centreline [0,1]; used for sorting.
-            };
-            std::vector<ConnPt> connPts;
-            const size_t        snapCount = nodes_.size(); // only consider pre-existing nodes
-            for (size_t idx = 0; idx < snapCount; ++idx)
-            {
-                const auto& n = nodes_[idx];
-                if (n.type != TaxiNodeType::Waypoint)
-                    continue;
-
-                const double apx = (n.pos.lon - thrA.lon) * scaleLon;
-                const double apy = (n.pos.lat - thrA.lat) * scaleLat;
-                const double t   = std::clamp((apx * abx + apy * aby) / len2, 0.0, 1.0);
-
-                const GeoPoint proj{thrA.lat + aby * t / scaleLat,
-                                    thrA.lon + abx * t / scaleLon};
-                const double perpDist = HaversineM(n.pos, proj);
-
-                // Only connect nodes that sit approximately at the runway edge.
-                // Nodes further along an exit curve have a larger perpDist and must be
-                // excluded — connecting them produces one rung per subdivision step.
-                // Tolerance: -5 m inward (GPS/OSM precision) to +2 m outward.
-                if (perpDist < halfWidth - 5.0 || perpDist > halfWidth + 2.0)
-                    continue;
-
-                // Skip nodes projecting within 15 m of a threshold.
-                if (HaversineM(proj, thrA) < 15.0 || HaversineM(proj, thrB) < 15.0)
-                    continue;
-
-                connPts.push_back({proj, n.id, t});
-            }
-
-            // Sort by t so we chain threshold → conn[0] → ... → conn[n] → threshold.
-            std::ranges::sort(connPts, {}, &ConnPt::t);
-
-            // Record centreline geometry for overlay rendering.
-            {
-                std::vector<GeoPoint> cl;
-                cl.push_back(thrA);
-                for (const auto& cp : connPts)
-                    cl.push_back(cp.proj);
-                cl.push_back(thrB);
-                runwayCentrelines.push_back(std::move(cl));
-            }
-
-            // Create threshold nodes and chain all centreline nodes.
-            const int nodeA = FindOrCreateNode(thrA, 5.0, TaxiNodeType::Waypoint, rwyDes, rwyDes);
-            const int nodeB = FindOrCreateNode(thrB, 5.0, TaxiNodeType::Waypoint, rwy.opposite, rwy.opposite);
-
-            int prev = nodeA;
-            for (const auto& cp : connPts)
-            {
-                // Centreline node at projected point (5 m merge collapses near-identical projections).
-                const int clNode = FindOrCreateNode(cp.proj, 5.0, TaxiNodeType::Waypoint, rwyDes, rwyDes);
-                if (clNode == prev)
-                    continue;
-
-                // Centreline edge: prev → clNode.
-                const double clDist = HaversineM(nodes_[prev].pos, nodes_[clNode].pos);
-                if (clDist > 0.1)
-                {
-                    AddEdge(prev, clNode, clDist * MULT_RUNWAY, rwyDes,
-                            BearingDeg(nodes_[prev].pos, nodes_[clNode].pos));
-                    AddEdge(clNode, prev, clDist * MULT_RUNWAY, rwyDes,
-                            BearingDeg(nodes_[clNode].pos, nodes_[prev].pos));
-                }
-
-                // Perpendicular edge: centreline node ↔ taxiway exit node.
-                if (clNode != cp.nodeId)
-                {
-                    const double d = HaversineM(nodes_[clNode].pos, nodes_[cp.nodeId].pos);
-                    if (d > 0.1)
-                    {
-                        AddEdge(clNode, cp.nodeId, d * MULT_RUNWAY, rwyDes,
-                                BearingDeg(nodes_[clNode].pos, nodes_[cp.nodeId].pos));
-                        AddEdge(cp.nodeId, clNode, d * MULT_RUNWAY, rwyDes,
-                                BearingDeg(nodes_[cp.nodeId].pos, nodes_[clNode].pos));
-                    }
-                }
-
-                prev = clNode;
-            }
-
-            // Final edge to thrB.
-            if (prev != nodeB)
-            {
-                const double d = HaversineM(nodes_[prev].pos, nodes_[nodeB].pos);
-                if (d > 0.1)
-                {
-                    AddEdge(prev, nodeB, d * MULT_RUNWAY, rwyDes,
-                            BearingDeg(nodes_[prev].pos, nodes_[nodeB].pos));
-                    AddEdge(nodeB, prev, d * MULT_RUNWAY, rwyDes,
-                            BearingDeg(nodes_[nodeB].pos, nodes_[prev].pos));
-                }
             }
         }
     }
