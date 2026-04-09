@@ -735,6 +735,11 @@ void CFlowX_Settings::LoadConfig()
         if (json_airport.contains("taxiWingspanMax"))
             for (const auto& [ref, ws] : json_airport["taxiWingspanMax"].items())
                 ap.taxiWingspanMax[ref] = ws.get<double>();
+        if (json_airport.contains("taxiLaneSwingoverPairs"))
+            for (const auto& pair : json_airport["taxiLaneSwingoverPairs"])
+                if (pair.is_array() && pair.size() == 2)
+                    ap.taxiLaneSwingoverPairs.push_back(
+                        {pair[0].get<std::string>(), pair[1].get<std::string>()});
 
         json json_geoGnds;
         try

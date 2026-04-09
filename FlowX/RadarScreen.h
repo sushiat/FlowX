@@ -180,11 +180,15 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     TaxiRoute                          taxiGreenPreview;                 ///< Current green preview route recomputed each frame from origin through waypoints to cursor snap
     POINT                              taxiOriginPx = {-1, -1};          ///< Screen pixel where right-click activated planning; used for accept-suggestion proximity test
     std::string                        taxiPlanActive;                   ///< Callsign currently being planned; empty when not in planning mode
-    bool                               taxiPlanIsPush      = false;      ///< True when the active planning session is a pushback (no suggestion; endpoint only)
-    double                             taxiPushHeading     = 0.0;        ///< Aircraft true-north heading captured at push planning activation; used to compute the reservation zone.
-    GeoPoint                           taxiPushOrigin      = {};         ///< Current push-zone pivot (snapped taxiway node); updated on mouse move when cursor crosses a taxiway midpoint.
-    GeoPoint                           taxiPushStandOrigin = {};         ///< Aircraft geo-position at push activation; used to project cursor onto push axis for pivot selection.
-    double                             taxiPushWingspan    = 0.0;        ///< Aircraft wingspan (m) captured at push activation; used for taxiway restriction filtering.
+    bool                               taxiPlanIsPush        = false;    ///< True when the active planning session is a pushback (no suggestion; endpoint only)
+    double                             taxiPushHeading       = 0.0;      ///< Aircraft true-north heading captured at push planning activation; used to compute the reservation zone.
+    GeoPoint                           taxiPushOrigin        = {};       ///< Current push-zone pivot (snapped taxiway node); updated on mouse move when cursor crosses a taxiway midpoint.
+    GeoPoint                           taxiPushStandOrigin   = {};       ///< Aircraft geo-position at push activation; used to project cursor onto push axis for pivot selection.
+    double                             taxiPushWingspan      = 0.0;      ///< Aircraft wingspan (m) captured at push activation; used for taxiway restriction filtering.
+    bool                               taxiAltPrevDown       = false;    ///< Previous-frame ALT key state; used to detect press edges for swingover toggle.
+    TaxiRoute                          taxiSwingoverFixedSeg = {};       ///< Fixed route segment origin→crossPt→s-bend→partnerPt; computed when swingover is toggled ON.
+    GeoPoint                           taxiSwingoverOrigin   = {};       ///< Partner-lane snap point where free routing begins after the swingover crossover.
+    bool                               taxiSwingoverActive   = false;    ///< Toggled by an ALT keypress during taxi planning; routes via a fixed s-bend crossover to the partner taxilane.
     std::map<std::string, TaxiRoute>   taxiSuggested;                    ///< Callsign -> auto-calculated suggested route (yellow); computed on planning activation
     std::vector<GeoPoint>              taxiWaypoints;                    ///< Mandatory via-points added by middle-click; route recalculated through all in order
     std::map<std::string, std::string> towerStations;                    ///< Callsign -> primary frequency string for online TWR controllers (facility 4, excluding ATIS)

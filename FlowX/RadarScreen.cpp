@@ -191,6 +191,77 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         {
             auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
 
+            // Swingover toggle: detect ALT keypress during taxi (non-push) planning.
+            if (!this->taxiPlanActive.empty() && !this->taxiPlanIsPush)
+            {
+                const bool vkMenu  = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                const bool vkLMenu = (GetAsyncKeyState(VK_LMENU) & 0x8000) != 0;
+                const bool vkRMenu = (GetAsyncKeyState(VK_RMENU) & 0x8000) != 0;
+                const bool altNow  = vkMenu || vkLMenu || vkRMenu;
+                if (altNow && !this->taxiAltPrevDown)
+                {
+                    this->taxiSwingoverActive = !this->taxiSwingoverActive;
+
+                    if (this->taxiSwingoverActive)
+                    {
+                        // Compute fixed crossover from current aircraft position.
+                        this->taxiSwingoverFixedSeg = {};
+                        const auto& airports        = settings->GetAirports();
+                        auto        rt              = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+                        if (!airports.empty() && rt.IsValid())
+                        {
+                            const auto&  ap     = airports.begin()->second;
+                            const auto   rpos   = rt.GetPosition().GetPosition();
+                            const double hdg    = rt.GetPosition().GetReportedHeadingTrueNorth();
+                            const double taxiWs = settings->GetAircraftWingspan(
+                                GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
+                            const GeoPoint acPos{rpos.m_Latitude, rpos.m_Longitude};
+
+                            const std::string curRef = settings->osmGraph.WayRefAt(acPos, 40.0);
+                            if (!curRef.empty())
+                            {
+                                auto sr = settings->osmGraph.SwingoverSnap(
+                                    acPos, curRef, ap.taxiLaneSwingoverPairs, taxiWs, hdg);
+                                if (sr.valid)
+                                {
+                                    // Fixed segment: origin → startBend (5m+ ahead on current lane)
+                                    // → s-bend control points → endBend (20m+ ahead on partner lane).
+                                    // crossPt == startBend, guaranteed ahead of aircraft.
+                                    TaxiRoute fixedSeg;
+                                    fixedSeg.polyline.push_back(acPos);
+                                    fixedSeg.polyline.push_back(sr.crossPt); // startBend
+                                    for (const auto& pt : sr.sbendPts)
+                                        fixedSeg.polyline.push_back(pt);
+                                    fixedSeg.polyline.push_back(sr.partnerPt);
+                                    fixedSeg.valid              = true;
+                                    fixedSeg.totalDistM         = HaversineM(acPos, sr.partnerPt);
+                                    this->taxiSwingoverFixedSeg = fixedSeg;
+                                    this->taxiSwingoverOrigin   = sr.partnerPt;
+                                }
+                                else
+                                    this->taxiSwingoverActive = false;
+                            }
+                            else
+                                this->taxiSwingoverActive = false;
+                        }
+                        else
+                            this->taxiSwingoverActive = false;
+                    }
+                    else
+                    {
+                        this->taxiSwingoverFixedSeg = {};
+                    }
+
+                    if (settings->GetDebug())
+                        settings->LogDebugMessage(
+                            std::format("Swingover {} (VK_MENU={} VK_LMENU={} VK_RMENU={})",
+                                        this->taxiSwingoverActive ? "ON" : "OFF",
+                                        vkMenu, vkLMenu, vkRMenu),
+                            "TAXI");
+                }
+                this->taxiAltPrevDown = altNow;
+            }
+
             // Draw taxiway/taxilane overlay when enabled (before planning routes so routes paint on top).
             if ((this->showTaxiOverlay || this->showTaxiLabels) &&
                 (!settings->osmData.ways.empty() || !settings->osmData.holdingPositions.empty()))
@@ -3003,7 +3074,7 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                     // a parked aircraft faces the terminal so its heading misleads A* into
                     // snapping to a node behind the stand rather than the taxiway exit.
                     const int    gs      = rt.GetPosition().GetReportedGS();
-                    const double heading = gs >= 3 ? rt.GetPosition().GetReportedHeadingTrueNorth() : -1.0;
+                    const double heading = rt.GetPosition().GetReportedHeadingTrueNorth();
 
                     if (this->taxiPlanIsPush)
                     {
@@ -3092,9 +3163,33 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 
                         const double taxiWs = settings->GetAircraftWingspan(
                             GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
-                        this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
-                            origin, this->taxiWaypoints, this->taxiCursorSnap,
-                            taxiWs, settings->GetActiveDepRunways(), heading, blocked);
+
+                        if (this->taxiSwingoverActive && this->taxiSwingoverFixedSeg.valid)
+                        {
+                            // Fixed segment is baked; route freely from partner-lane origin to cursor.
+                            TaxiRoute tail = settings->osmGraph.FindWaypointRoute(
+                                this->taxiSwingoverOrigin, this->taxiWaypoints, this->taxiCursorSnap,
+                                taxiWs, settings->GetActiveDepRunways(), -1.0, blocked);
+                            if (tail.valid)
+                            {
+                                TaxiRoute combined = this->taxiSwingoverFixedSeg;
+                                combined.totalDistM += tail.totalDistM;
+                                combined.exitBearing = tail.exitBearing;
+                                for (const auto& pt : tail.polyline)
+                                    combined.polyline.push_back(pt);
+                                this->taxiGreenPreview = combined;
+                            }
+                            else
+                            {
+                                this->taxiGreenPreview = this->taxiSwingoverFixedSeg;
+                            }
+                        }
+                        else
+                        {
+                            this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
+                                origin, this->taxiWaypoints, this->taxiCursorSnap,
+                                taxiWs, settings->GetActiveDepRunways(), heading, blocked);
+                        }
                     }
                 }
                 this->RequestRefresh();
@@ -3393,7 +3488,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
 
                 const int    gs      = rt.GetPosition().GetReportedGS();
-                const double heading = gs >= 3 ? rt.GetPosition().GetReportedHeadingTrueNorth() : -1.0;
+                const double heading = rt.GetPosition().GetReportedHeadingTrueNorth();
                 const double taxiWs  = settings->GetAircraftWingspan(
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
@@ -3478,7 +3573,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             }
 
             this->taxiPlanActive.clear();
-            this->taxiPlanIsPush = false;
+            this->taxiPlanIsPush        = false;
+            this->taxiSwingoverActive   = false;
+            this->taxiSwingoverFixedSeg = {};
+            this->taxiSwingoverOrigin   = {};
+            this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
             this->RequestRefresh();
@@ -3496,7 +3595,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
         {
             this->taxiSuggested.erase(this->taxiPlanActive);
             this->taxiPlanActive.clear();
-            this->taxiPlanIsPush = false;
+            this->taxiPlanIsPush        = false;
+            this->taxiSwingoverActive   = false;
+            this->taxiSwingoverFixedSeg = {};
+            this->taxiSwingoverOrigin   = {};
+            this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
             this->RequestRefresh();
@@ -3915,7 +4018,11 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
             if (this->taxiPlanActive == cs)
             {
                 this->taxiPlanActive.clear();
-                this->taxiPlanIsPush = false;
+                this->taxiPlanIsPush        = false;
+                this->taxiSwingoverActive   = false;
+                this->taxiSwingoverFixedSeg = {};
+                this->taxiSwingoverOrigin   = {};
+                this->taxiAltPrevDown       = false;
                 this->taxiWaypoints.clear();
                 this->taxiGreenPreview = {};
             }
@@ -4027,7 +4134,11 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
         if (this->taxiPlanActive == cs)
         {
             this->taxiPlanActive.clear();
-            this->taxiPlanIsPush = false;
+            this->taxiPlanIsPush        = false;
+            this->taxiSwingoverActive   = false;
+            this->taxiSwingoverFixedSeg = {};
+            this->taxiSwingoverOrigin   = {};
+            this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
         }

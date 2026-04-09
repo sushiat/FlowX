@@ -862,6 +862,221 @@ std::vector<TaxiGraph::PushPivotCandidate> TaxiGraph::PushCandidates(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Swingover
+// ─────────────────────────────────────────────────────────────────────────────
+
+double TaxiGraph::NodeLaneBearing(int nodeId, const std::string& wayRef) const
+{
+    if (nodeId < 0 || nodeId >= static_cast<int>(adj_.size()))
+        return 0.0;
+    double sumSin = 0.0, sumCos = 0.0;
+    int    count = 0;
+    for (const auto& e : adj_[nodeId])
+    {
+        if (e.wayRef == wayRef)
+        {
+            const double rad = e.bearingDeg * std::numbers::pi / 180.0;
+            sumSin += std::sin(rad);
+            sumCos += std::cos(rad);
+            ++count;
+        }
+    }
+    if (count == 0)
+        return 0.0;
+    double mean = std::atan2(sumSin / count, sumCos / count) * 180.0 / std::numbers::pi;
+    return std::fmod(mean + 360.0, 360.0);
+}
+
+double TaxiGraph::ForwardEdgeBearing(int nodeId, const std::string& wayRef, double headingDeg) const
+{
+    if (nodeId < 0 || nodeId >= static_cast<int>(adj_.size()))
+        return headingDeg;
+    double bestBrng = headingDeg;
+    double bestDiff = 361.0;
+    for (const auto& e : adj_[nodeId])
+    {
+        if (e.wayRef != wayRef)
+            continue;
+        const double diff = BearingDiff(e.bearingDeg, headingDeg);
+        if (diff < bestDiff)
+        {
+            bestDiff = diff;
+            bestBrng = e.bearingDeg;
+        }
+    }
+    return bestBrng;
+}
+
+/// @brief Samples a cubic Bezier S-bend between ptA and ptB as a polyline.
+/// Control points depart ptA along brngA and arrive at ptB from behind along brngB.
+/// Returns @p samples intermediate points (ptA and ptB excluded — they are already in the caller's polyline).
+static std::vector<GeoPoint> MakeSBend(const GeoPoint& ptA, double brngA,
+                                       const GeoPoint& ptB, double brngB,
+                                       double offsetM = 8.0,
+                                       int    samples = 10)
+{
+    const double cosLat   = std::cos(ptA.lat * std::numbers::pi / 180.0);
+    const double scaleLat = TAXI_EARTH_R * std::numbers::pi / 180.0;
+    const double scaleLon = TAXI_EARTH_R * cosLat * std::numbers::pi / 180.0;
+
+    // Scale control-point distance to 40 % of the span so arcs are pronounced regardless of distance.
+    const double span = HaversineM(ptA, ptB);
+    const double d    = std::max(offsetM, span * 0.4);
+
+    auto offsetPt = [&](const GeoPoint& pt, double bearingDeg, double distM) -> GeoPoint
+    {
+        const double rad = bearingDeg * std::numbers::pi / 180.0;
+        return {pt.lat + distM * std::cos(rad) / scaleLat,
+                pt.lon + distM * std::sin(rad) / scaleLon};
+    };
+
+    // Cubic Bezier control points.
+    const GeoPoint P1 = offsetPt(ptA, brngA, d);  // depart ptA forward along lane A
+    const GeoPoint P2 = offsetPt(ptB, brngB, -d); // arrive at ptB from behind along lane B
+
+    // Sample the curve at t = 1/N … (N-1)/N (skip endpoints).
+    std::vector<GeoPoint> pts;
+    pts.reserve(samples - 1);
+    for (int i = 1; i < samples; ++i)
+    {
+        const double t   = static_cast<double>(i) / samples;
+        const double mt  = 1.0 - t;
+        const double mt2 = mt * mt;
+        const double mt3 = mt2 * mt;
+        const double t2  = t * t;
+        const double t3  = t2 * t;
+        pts.push_back({mt3 * ptA.lat + 3.0 * mt2 * t * P1.lat + 3.0 * mt * t2 * P2.lat + t3 * ptB.lat,
+                       mt3 * ptA.lon + 3.0 * mt2 * t * P1.lon + 3.0 * mt * t2 * P2.lon + t3 * ptB.lon});
+    }
+    return pts;
+}
+
+TaxiGraph::SwingoverResult TaxiGraph::SwingoverSnap(
+    const GeoPoint&                                rawPos,
+    const std::string&                             currentRef,
+    const std::vector<std::array<std::string, 2>>& pairs,
+    double                                         wingspanM,
+    double                                         headingDeg,
+    double                                         maxM) const
+{
+    // Find partner ref from pairs.
+    std::string partnerRef;
+    for (const auto& pair : pairs)
+    {
+        if (pair[0] == currentRef)
+        {
+            partnerRef = pair[1];
+            break;
+        }
+        if (pair[1] == currentRef)
+        {
+            partnerRef = pair[0];
+            break;
+        }
+    }
+    if (partnerRef.empty())
+        return {};
+
+    // Wingspan check on partner.
+    if (wingspanM > 0.0)
+    {
+        auto it = apt_.taxiWingspanMax.find(partnerRef);
+        if (it != apt_.taxiWingspanMax.end() && wingspanM > it->second)
+            return {};
+    }
+
+    constexpr double START_MIN_M = 5.0;  ///< Minimum forward distance on current lane to startBend.
+    constexpr double END_MIN_M   = 20.0; ///< Minimum forward distance on partner lane to endBend.
+    constexpr double SBEND_TAN_M = 8.0;  ///< Tangent offset for MakeSBend control points.
+
+    // Use aircraft heading as the forward direction for both forward filters.
+    // NodeLaneBearing averages forward+backward edges and gives a nonsense result at interior nodes.
+    const double cosLat   = std::cos(rawPos.lat * std::numbers::pi / 180.0);
+    const double scaleLat = TAXI_EARTH_R * std::numbers::pi / 180.0;
+    const double scaleLon = TAXI_EARTH_R * cosLat * std::numbers::pi / 180.0;
+    const double hdgRad   = headingDeg * std::numbers::pi / 180.0;
+    const double ux       = std::sin(hdgRad); // forward unit vector (lon component)
+    const double uy       = std::cos(hdgRad); // forward unit vector (lat component)
+
+    // Step 1: startBend = nearest current-lane node >= START_MIN_M ahead of rawPos.
+    double bestStartD = maxM;
+    int    startNode  = -1;
+    for (const auto& n : nodes_)
+    {
+        if (n.type != TaxiNodeType::Waypoint || n.wayRef != currentRef)
+            continue;
+        const double dx      = (n.pos.lon - rawPos.lon) * scaleLon;
+        const double dy      = (n.pos.lat - rawPos.lat) * scaleLat;
+        const double forward = dx * ux + dy * uy;
+        if (forward < START_MIN_M)
+            continue;
+        const double d = HaversineM(n.pos, rawPos);
+        if (d < bestStartD)
+        {
+            bestStartD = d;
+            startNode  = n.id;
+        }
+    }
+    if (startNode < 0)
+        return {};
+
+    const GeoPoint& startBend   = nodes_[startNode].pos;
+    const double    brngAtStart = ForwardEdgeBearing(startNode, currentRef, headingDeg);
+
+    // Step 2: crossPt = nearest partner-lane node to startBend (lateral jump).
+    double bestCrossD = maxM;
+    int    crossNode  = -1;
+    for (const auto& n : nodes_)
+    {
+        if (n.type != TaxiNodeType::Waypoint || n.wayRef != partnerRef)
+            continue;
+        const double d = HaversineM(n.pos, startBend);
+        if (d < bestCrossD)
+        {
+            bestCrossD = d;
+            crossNode  = n.id;
+        }
+    }
+    if (crossNode < 0)
+        return {};
+
+    const GeoPoint& crossPt = nodes_[crossNode].pos;
+
+    // Step 3: endBend = nearest partner-lane node >= END_MIN_M ahead of crossPt,
+    // using the same aircraft heading as the forward direction.
+    double bestEndD = maxM;
+    int    endNode  = -1;
+    for (const auto& n : nodes_)
+    {
+        if (n.type != TaxiNodeType::Waypoint || n.wayRef != partnerRef)
+            continue;
+        const double dx      = (n.pos.lon - crossPt.lon) * scaleLon;
+        const double dy      = (n.pos.lat - crossPt.lat) * scaleLat;
+        const double forward = dx * ux + dy * uy;
+        if (forward < END_MIN_M)
+            continue;
+        const double d = HaversineM(n.pos, crossPt);
+        if (d < bestEndD)
+        {
+            bestEndD = d;
+            endNode  = n.id;
+        }
+    }
+    if (endNode < 0)
+        return {};
+
+    SwingoverResult res;
+    res.crossPt       = startBend;
+    res.partnerPt     = nodes_[endNode].pos;
+    res.brngAtCross   = brngAtStart;
+    res.brngAtPartner = ForwardEdgeBearing(endNode, partnerRef, headingDeg);
+    res.sbendPts      = MakeSBend(res.crossPt, res.brngAtCross, res.partnerPt, res.brngAtPartner, SBEND_TAN_M);
+    res.partnerRef    = partnerRef;
+    res.valid         = true;
+    return res;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Snapping
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -882,6 +1097,26 @@ std::pair<GeoPoint, std::string> TaxiGraph::SnapNearest(const GeoPoint& rawPos,
     if (bestId < 0)
         return {rawPos, ""};
     return {nodes_[bestId].pos, nodes_[bestId].label};
+}
+
+std::string TaxiGraph::WayRefAt(const GeoPoint& rawPos, double maxM) const
+{
+    double bestD  = maxM;
+    int    bestId = -1;
+    for (const auto& n : nodes_)
+    {
+        if (n.type != TaxiNodeType::Waypoint || n.wayRef.empty())
+            continue;
+        const double d = HaversineM(n.pos, rawPos);
+        if (d < bestD)
+        {
+            bestD  = d;
+            bestId = n.id;
+        }
+    }
+    if (bestId < 0)
+        return {};
+    return nodes_[bestId].wayRef;
 }
 
 GeoPoint TaxiGraph::SnapForPlanning(const GeoPoint&  rawPos,

@@ -83,6 +83,9 @@
             "TL 40 \"Blue Line\"": 36,
             "TL 40 \"Orange Line\"": 36
         },
+        "taxiLaneSwingoverPairs": [
+            ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]
+        ],
         "taxiFlowGeneric": [
             { "taxiway": "P", "direction": "N" },
             { "taxiway": "Q", "direction": "S" }

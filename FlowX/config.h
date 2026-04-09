@@ -151,4 +151,5 @@ struct airport
     std::vector<std::string>                        scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
     std::vector<TaxiFlowRule>                       taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway selection.
     std::map<std::string, double>                   taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
+    std::vector<std::array<std::string, 2>>         taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
 };

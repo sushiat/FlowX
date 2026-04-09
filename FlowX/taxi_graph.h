@@ -216,6 +216,10 @@ class TaxiGraph
     [[nodiscard]] std::pair<GeoPoint, std::string> SnapNearest(const GeoPoint& rawPos,
                                                                double          maxM) const;
 
+    /// @brief Returns the wayRef of the nearest Waypoint node within @p maxM metres of @p rawPos.
+    /// @return Empty string if no Waypoint node is within range.
+    [[nodiscard]] std::string WayRefAt(const GeoPoint& rawPos, double maxM) const;
+
     /// @brief Determines the best snap point for interactive planning mode.
     ///
     /// Priority order:
@@ -274,6 +278,34 @@ class TaxiGraph
                                                                  double          wingspanM,
                                                                  double          maxDistM) const;
 
+    /// @brief Result of a swingover snap: cross-point on the current lane, partner point,
+    ///        pre-computed s-bend intermediate points, and lane bearings.
+    ///        valid = false when no swingover applies.
+    struct SwingoverResult
+    {
+        GeoPoint              crossPt;             ///< Nearest node on the current lane to the partner snap.
+        GeoPoint              partnerPt;           ///< Nearest node on the partner lane to the cursor.
+        double                brngAtCross   = 0.0; ///< Mean bearing of current-lane edges at crossPt.
+        double                brngAtPartner = 0.0; ///< Mean bearing of partner-lane edges at partnerPt.
+        std::vector<GeoPoint> sbendPts;            ///< Two intermediate GeoPoints forming the s-bend crossover from crossPt to partnerPt.
+        std::string           partnerRef;          ///< WayRef of the partner taxilane.
+        bool                  valid = false;
+    };
+
+    /// @brief Finds the swingover partner snap for @p rawPos on @p currentRef.
+    ///
+    /// Looks up the swingover pair containing @p currentRef, checks wingspan restriction on the
+    /// partner, then returns the nearest partner-lane node and the cross-point on the current lane.
+    /// Returns SwingoverResult{valid=false} if no pair matches, partner is wingspan-restricted,
+    /// or no partner node is within @p maxM metres.
+    [[nodiscard]] SwingoverResult SwingoverSnap(
+        const GeoPoint&                                rawPos,
+        const std::string&                             currentRef,
+        const std::vector<std::array<std::string, 2>>& pairs,
+        double                                         wingspanM,
+        double                                         headingDeg,
+        double                                         maxM = 80.0) const;
+
     /// @brief Returns edge geometry (GeoPoint pairs) forming the dead-end sub-graph that
     ///        contains @p dest but is cut off by @p blockedNodes.
     /// Returns empty when @p dest is still reachable through unblocked paths.
@@ -330,4 +362,13 @@ class TaxiGraph
     ///        (bearing from @p pos to node more than ±90° from @p headingDeg).
     /// @return Node index, or -1 if no qualifying node is found.
     [[nodiscard]] int NearestBackwardNode(const GeoPoint& pos, double headingDeg, double maxM) const;
+
+    /// @brief Returns mean bearing of all edges on @p wayRef leaving node @p nodeId.
+    /// @return 0.0 if no matching edges found.
+    [[nodiscard]] double NodeLaneBearing(int nodeId, const std::string& wayRef) const;
+
+    /// @brief Returns the bearing of the outgoing edge on @p wayRef at @p nodeId
+    ///        most closely aligned with @p headingDeg.
+    /// @return @p headingDeg if no matching edges found.
+    [[nodiscard]] double ForwardEdgeBearing(int nodeId, const std::string& wayRef, double headingDeg) const;
 };
