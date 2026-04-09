@@ -227,10 +227,39 @@ void CFlowX_Settings::RebuildTaxiGraph()
 {
     if (this->osmData.ways.empty() || this->airports.empty())
         return;
-    const auto& ap = this->airports.begin()->second;
-    this->osmGraph.Build(this->osmData, ap);
+    if (this->IsGraphBusy())
+        return; // previous build still running; it will complete and be picked up by PollGraphFuture
+
+    // Capture by value so the background thread is fully independent of the main-thread state.
+    OsmAirportData osmSnap = this->osmData;
+    airport        apSnap  = this->airports.begin()->second;
+
+    this->LogDebugMessage("Building TaxiGraph (background)", "TAXI");
+    this->graphFuture_ = std::async(std::launch::async,
+                                    [osmSnap = std::move(osmSnap), apSnap = std::move(apSnap)]() mutable
+                                    {
+                                        TaxiGraph g;
+                                        g.Build(osmSnap, apSnap);
+                                        return g;
+                                    });
+}
+
+bool CFlowX_Settings::IsGraphBusy() const
+{
+    return this->graphFuture_.valid() &&
+           this->graphFuture_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready;
+}
+
+void CFlowX_Settings::PollGraphFuture()
+{
+    if (!this->graphFuture_.valid())
+        return;
+    if (this->graphFuture_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+        return;
+
+    this->osmGraph = this->graphFuture_.get();
     this->LogDebugMessage(
-        std::format("TaxiGraph built: {} nodes", this->osmGraph.NodeCount()), "TAXI");
+        std::format("TaxiGraph ready: {} nodes", this->osmGraph.NodeCount()), "TAXI");
 }
 
 void CFlowX_Settings::StartOsmCacheLoad()

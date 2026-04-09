@@ -23,7 +23,8 @@ using json = nlohmann::json;
 class CFlowX_Settings : public CFlowX_Logging
 {
   private:
-    std::future<OsmResult> osmFuture; ///< Async future for an in-flight OSM taxiway fetch or cache load
+    std::future<OsmResult> osmFuture;    ///< Async future for an in-flight OSM taxiway fetch or cache load
+    std::future<TaxiGraph> graphFuture_; ///< Async future for a TaxiGraph build in progress; result swapped into osmGraph by PollGraphFuture()
 
   protected:
     std::set<std::string>          activeArrRunways;            ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
@@ -85,9 +86,13 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @note Call at startup and from OnAirportRunwayActivityChanged.
     void RefreshActiveRunways();
 
-    /// @brief (Re)builds osmGraph from the current osmData and primary airport config.
-    /// @note Called automatically by PollOsmFuture after each successful data load.
+    /// @brief Launches an async TaxiGraph build from the current osmData and primary airport config.
+    /// @note Returns immediately; result is consumed by PollGraphFuture. Safe to call while the old graph is in use.
     void RebuildTaxiGraph();
+
+    /// @brief Polls graphFuture_; on completion swaps the finished TaxiGraph into osmGraph.
+    /// @note Called every timer tick from CFlowX::OnTimer, after PollOsmFuture.
+    void PollGraphFuture();
 
     /// @brief Launches an async load of previously cached OSM taxiway data from disk.
     /// @note Called once at startup; result is consumed by PollOsmFuture.
@@ -267,6 +272,9 @@ class CFlowX_Settings : public CFlowX_Logging
 
     /// @brief Returns true while an OSM taxiway fetch or cache load is in progress.
     [[nodiscard]] bool IsOsmBusy() const;
+
+    /// @brief Returns true while a TaxiGraph build is running on the background thread.
+    [[nodiscard]] bool IsGraphBusy() const;
 
     /// @brief Launches a background Overpass API fetch for LOWW taxiway/taxilane data; no-op if already busy.
     void StartOsmFetch();

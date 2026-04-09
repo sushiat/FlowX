@@ -776,6 +776,7 @@ void CFlowX::OnTimer(int Counter)
 
         this->PollAtisLetters(Counter);
         this->PollOsmFuture();
+        this->PollGraphFuture();
     }
     catch (const std::exception& e)
     {
