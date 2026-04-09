@@ -159,6 +159,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     nodes_.clear();
     adj_.clear();
     grid_.clear();
+    isxWayRefs_.clear();
     apt_ = ap;
 
     // Initialise grid step sizes from the first available geometry point.
@@ -200,6 +201,9 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                                                               : MULT_TAXIWAY;
 
         const std::string& ref = way.ref.empty() ? way.name : way.ref;
+
+        if (way.type == AerowayType::Taxiway_Intersection && !ref.empty())
+            isxWayRefs_.insert(ref);
 
         for (size_t k = 1; k < way.geometry.size(); ++k)
         {
@@ -326,6 +330,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     // ── Step 7: build typed node indices ────────────────────────────────────
     // hpNodeIds_ / isxNodeIds_ for O(k) SnapForPlanning scans.
     // wayRefNodes_ for O(k) SwingoverSnap wayRef-filtered scans.
+    // isxWayRefs_ was populated during Step 1 from way.type == Taxiway_Intersection.
     hpNodeIds_.clear();
     isxNodeIds_.clear();
     wayRefNodes_.clear();
@@ -607,7 +612,9 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
             }
 
             if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
-                incomingWayRef[cur] != edge.wayRef)
+                incomingWayRef[cur] != edge.wayRef &&
+                !isxWayRefs_.count(incomingWayRef[cur]) &&
+                !isxWayRefs_.count(edge.wayRef))
                 turnPenalty += WAYREF_CHANGE_PENALTY;
 
             const double ng = g[cur] + edge.cost * depMult + turnPenalty;
@@ -709,14 +716,27 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             if (wingspanM > maxWs)
                 excludedRefs.insert(ref);
 
-    // Try A* from each candidate; keep the shortest valid result.
+    // Try A* from each candidate; keep the shortest result when measured from the
+    // aircraft's actual position. totalDistM is from the start node to the goal —
+    // add the snap distance (aircraft → start node) so that backward candidates
+    // naturally pay for the backward travel they impose. Forward candidates pay
+    // only their small forward snap distance, so they are preferred unless a
+    // backward start genuinely produces a shorter overall path.
     TaxiRoute best;
+    double    bestScore = std::numeric_limits<double>::max();
     for (const int startId : candidates)
     {
         TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
                                activeArrRwys, initialBearingDeg);
-        if (r.valid && (!best.valid || r.totalDistM < best.totalDistM))
-            best = std::move(r);
+        if (!r.valid)
+            continue;
+        const double snapDist = HaversineM(from, nodes_[startId].pos);
+        const double score    = r.totalDistM + snapDist;
+        if (score < bestScore)
+        {
+            bestScore = score;
+            best      = std::move(r);
+        }
     }
     return best;
 }

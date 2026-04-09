@@ -18,6 +18,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -363,6 +364,8 @@ class TaxiGraph
     std::vector<int> isxNodeIds_; ///< IDs of all intersection Waypoint nodes (label contains "Exit"); built in Build() for O(k) SnapForPlanning priority-2 scan.
     std::unordered_map<std::string, std::vector<int>>
         wayRefNodes_; ///< wayRef → node IDs for all Waypoint nodes on that ref; built in Build() for O(k) SwingoverSnap scans.
+    std::unordered_set<std::string>
+        isxWayRefs_; ///< Set of wayRef strings for intersection ways (from apt_.taxiIntersections); built in Build() to suppress WAYREF_CHANGE_PENALTY at Exit transitions in RunAStar.
 
     // ── Build helpers ────────────────────────────────────────────────────────
 
