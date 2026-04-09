@@ -318,7 +318,7 @@ class TaxiGraph
     /// Used for overlay rendering; not part of the OSM way data set.
     std::vector<std::vector<GeoPoint>> runwayCentrelines;
 
-  private:
+    /// @brief A directed edge in the routing graph.
     struct Edge
     {
         int         to;
@@ -327,6 +327,19 @@ class TaxiGraph
         double      bearingDeg; ///< Direction of travel (for turn-penalty calculation).
     };
 
+    /// @brief Read-only access to the node list; used for graph overlay rendering.
+    [[nodiscard]] const std::vector<TaxiNode>& Nodes() const
+    {
+        return nodes_;
+    }
+
+    /// @brief Read-only access to the adjacency list; used for graph overlay rendering.
+    [[nodiscard]] const std::vector<std::vector<Edge>>& Adj() const
+    {
+        return adj_;
+    }
+
+  private:
     std::vector<TaxiNode>          nodes_;
     std::vector<std::vector<Edge>> adj_;
     airport                        apt_;           ///< Snapshot of airport config used during build.

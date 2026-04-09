@@ -262,6 +262,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 this->taxiAltPrevDown = altNow;
             }
 
+            // Draw routing graph diagnostic overlay (edges then nodes, before planning routes).
+            if (this->showTaxiGraph)
+                this->DrawTaxiGraph(hDC);
+
             // Draw taxiway/taxilane overlay when enabled (before planning routes so routes paint on top).
             if ((this->showTaxiOverlay || this->showTaxiLabels) &&
                 (!settings->osmData.ways.empty() || !settings->osmData.holdingPositions.empty()))
@@ -1008,6 +1012,60 @@ void RadarScreen::UpdateTaxiSafety()
     std::erase_if(this->taxiConflictSoundPlayed,
                   [&](const std::string& k)
                   { return !activeKeys.contains(k); });
+}
+
+void RadarScreen::DrawTaxiGraph(HDC hDC)
+{
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    if (!settings->osmGraph.IsBuilt())
+        return;
+
+    const auto& nodes = settings->osmGraph.Nodes();
+    const auto& adj   = settings->osmGraph.Adj();
+
+    auto toPixel = [&](const GeoPoint& gp) -> POINT
+    {
+        EuroScopePlugIn::CPosition pos;
+        pos.m_Latitude  = gp.lat;
+        pos.m_Longitude = gp.lon;
+        return ConvertCoordFromPositionToPixel(pos);
+    };
+
+    // Pass 1 — edges (draw each undirected pair once; skip reverse duplicates via i < e.to).
+    HPEN edgePen = CreatePen(PS_SOLID, 1, RGB(80, 80, 80));
+    HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, edgePen));
+    for (int i = 0; i < static_cast<int>(adj.size()); ++i)
+    {
+        const POINT ptA = toPixel(nodes[i].pos);
+        for (const auto& e : adj[i])
+        {
+            if (e.to <= i)
+                continue; // draw each edge once
+            const POINT ptB = toPixel(nodes[e.to].pos);
+            MoveToEx(hDC, ptA.x, ptA.y, nullptr);
+            LineTo(hDC, ptB.x, ptB.y);
+        }
+    }
+    SelectObject(hDC, prevPen);
+    DeleteObject(edgePen);
+
+    // Pass 2 — nodes: 3 × 3 px square coloured by type.
+    //   Waypoint       → cyan
+    //   HoldingPoint   → red
+    //   HoldingPosition→ orange
+    //   Stand          → green
+    for (const auto& n : nodes)
+    {
+        const COLORREF col = (n.type == TaxiNodeType::HoldingPoint)      ? RGB(220, 50, 50)
+                             : (n.type == TaxiNodeType::HoldingPosition) ? RGB(255, 140, 0)
+                             : (n.type == TaxiNodeType::Stand)           ? RGB(50, 220, 50)
+                                                                         : RGB(0, 200, 255);
+        const POINT    pt  = toPixel(n.pos);
+        HBRUSH         br  = CreateSolidBrush(col);
+        const RECT     r   = {pt.x - 2, pt.y - 2, pt.x + 2, pt.y + 2};
+        FillRect(hDC, &r, br);
+        DeleteObject(br);
+    }
 }
 
 void RadarScreen::DrawTaxiConflicts(HDC hDC)
@@ -2651,6 +2709,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Show TAXI network", true, this->showTaxiOverlay, 23},
         {false, "Show TAXI labels", true, this->showTaxiLabels, 24},
         {false, "Show TAXI routes", true, this->showTaxiRoutes, 25},
+        {false, "Show TAXI graph", true, this->showTaxiGraph, 28},
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -3296,16 +3355,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
             // Determine push vs. taxi.
             // taxiOnlyZones (config) always force taxi regardless of other conditions.
-            // Push = clearance flag set + ground state empty + inside grStands + NOT inside taxiOutStands.
-            // Taxi = everything else.
+            // Push = inside grStands + NOT inside taxiOutStands.
+            // Taxi = everything else (including inbounds with no flight plan).
             {
                 bool isPush = false;
-                auto fp2    = GetPlugIn()->FlightPlanSelect(callsign.c_str());
-
-                if (!fp2.IsValid() || !fp2.GetClearenceFlag())
-                {
-                    return;
-                }
 
                 if (!settings->GetAirports().empty())
                 {
@@ -3731,6 +3784,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 else if (idx == 25) // Show TAXI routes
                 {
                     this->showTaxiRoutes = !this->showTaxiRoutes;
+                }
+                else if (idx == 28) // Show TAXI graph
+                {
+                    this->showTaxiGraph = !this->showTaxiGraph;
                 }
                 else if (idx == 26) // Clear all TAXI routes
                 {
