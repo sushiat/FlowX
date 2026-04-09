@@ -666,8 +666,8 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
             SelectObject(hDC, prev);
             DeleteObject(pen);
         }
-        else
-            this->hoveredTaxiTarget.clear();
+        else if (!this->pushTracked.count(this->hoveredTaxiTarget))
+            this->hoveredTaxiTarget.clear(); // push-only aircraft: keep for DrawPlanningRoutes
     }
 
     if (!this->showTaxiRoutes || this->taxiTracked.empty())
@@ -705,13 +705,30 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
 /// @brief Draws active push routes, the yellow suggested route, and the magenta/light-blue planning preview.
 void RadarScreen::DrawPlanningRoutes(HDC hDC)
 {
-    // Draw push routes: red during taxi-planning mode (active obstacle), orange otherwise.
+    // Draw push routes: only when "Show routes" is on or the pushing aircraft is hovered.
+    // Red during taxi-planning mode (active obstacle), orange otherwise.
     if (!this->pushTracked.empty())
     {
         const bool     inTaxiPlan = !this->taxiPlanActive.empty() && !this->taxiPlanIsPush;
         const COLORREF pushCol    = inTaxiPlan ? RGB(220, 50, 50) : RGB(255, 140, 0);
-        for (const auto& [_, pushRoute] : this->pushTracked)
-            this->DrawRoutePolyline(hDC, pushRoute, pushCol, 3);
+        const COLORREF pushHovCol = inTaxiPlan ? RGB(255, 80, 80) : RGB(255, 180, 60);
+        const bool     hoverFresh =
+            !this->hoveredTaxiTarget.empty() &&
+            GetTickCount64() - this->hoveredTaxiTargetTick < 1000ULL;
+        const bool hoverIsPush =
+            hoverFresh && this->pushTracked.count(this->hoveredTaxiTarget);
+
+        if (hoverIsPush)
+            this->DrawRoutePolyline(hDC, this->pushTracked.at(this->hoveredTaxiTarget),
+                                    pushHovCol, 3);
+
+        if (this->showTaxiRoutes)
+            for (const auto& [cs, pushRoute] : this->pushTracked)
+            {
+                if (cs == this->hoveredTaxiTarget)
+                    continue; // already drawn above with highlight colour
+                this->DrawRoutePolyline(hDC, pushRoute, pushCol, 3);
+            }
     }
 
     if (this->taxiPlanActive.empty())
@@ -3361,7 +3378,8 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
         }
 
         // Hover over a ground aircraft with a tracked route: show that route individually.
-        if (ObjectType == SCREEN_OBJECT_TAXI_TARGET && this->taxiTracked.count(sObjectId))
+        if (ObjectType == SCREEN_OBJECT_TAXI_TARGET &&
+            (this->taxiTracked.count(sObjectId) || this->pushTracked.count(sObjectId)))
         {
             this->hoveredTaxiTarget     = sObjectId;
             this->hoveredTaxiTargetTick = GetTickCount64();
@@ -3840,6 +3858,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 if (this->taxiGreenPreview.valid)
                 {
                     this->pushTracked[this->taxiPlanActive] = this->taxiGreenPreview;
+                    this->hoveredTaxiTarget                 = this->taxiPlanActive;
+                    this->hoveredTaxiTargetTick             = GetTickCount64();
 
                     // Set ground state to PUSH.
                     auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
@@ -3891,9 +3911,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                         }
                         if (inbound)
                         {
-                            auto* timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
-                            timers->gndTransfer_list.erase(this->taxiPlanActive);
-                            timers->gndTransfer_soundPlayed.erase(this->taxiPlanActive);
+                            static_cast<CFlowX_Timers*>(this->GetPlugIn())
+                                ->ClearGndTransfer(this->taxiPlanActive);
                             this->gndTransferSquares.erase(this->taxiPlanActive);
                             this->gndTransferSquareTimes.erase(this->taxiPlanActive);
                         }

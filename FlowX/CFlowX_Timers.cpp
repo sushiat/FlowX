@@ -1045,7 +1045,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                 auto& cachedPos = this->lastHpCheckPos[callSign];
                 auto  curPos    = pos.GetPosition();
                 bool  moved     = (std::abs(curPos.m_Latitude - cachedPos.m_Latitude) > 0.0002 ||
-                              std::abs(curPos.m_Longitude - cachedPos.m_Longitude) > 0.0002);
+                                   std::abs(curPos.m_Longitude - cachedPos.m_Longitude) > 0.0002);
                 if (moved)
                 {
                     cachedPos = curPos;
@@ -1661,4 +1661,10 @@ void CFlowX_Timers::AckWeather(const std::string& icao)
     this->qnhUnacked.erase(icao);
     this->atisUnacked.erase(icao);
     this->rvrUnacked.erase(icao);
+}
+
+void CFlowX_Timers::ClearGndTransfer(const std::string& callsign)
+{
+    this->gndTransfer_list.erase(callsign);
+    this->gndTransfer_soundPlayed.erase(callsign);
 }

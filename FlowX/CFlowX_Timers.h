@@ -176,6 +176,10 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @note Called from RadarScreen when the user clicks the WX/ATIS window row.
     void AckWeather(const std::string& icao);
 
+    /// @brief Removes a callsign from the GND-transfer tracking state (list + soundPlayed).
+    /// @note Called from RadarScreen when a taxi route is assigned to an inbound aircraft.
+    void ClearGndTransfer(const std::string& callsign);
+
     /// @brief Returns the callsign→stand assignment map (populated from Ground Radar scratch-pad).
     [[nodiscard]] const std::map<std::string, std::string>& GetStandAssignment() const
     {
