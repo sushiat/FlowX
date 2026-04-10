@@ -4328,7 +4328,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             {
                                 if (i > 0)
                                     wayRefsJson += ",";
-                                wayRefsJson += "\"" + finalRoute.wayRefs[i] + "\"";
+                                std::string escaped = finalRoute.wayRefs[i];
+                                for (size_t p = 0; (p = escaped.find('"', p)) != std::string::npos; p += 2)
+                                    escaped.insert(p, 1, '\\');
+                                wayRefsJson += "\"" + escaped + "\"";
                             }
                             wayRefsJson += "]";
 
