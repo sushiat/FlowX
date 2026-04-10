@@ -244,6 +244,13 @@ class TaxiGraph
     /// @return Empty string if no Waypoint node is within range.
     [[nodiscard]] std::string WayRefAt(const GeoPoint& rawPos, double maxM) const;
 
+    /// @brief Returns the wayRef of the edge the aircraft is currently on, detected by
+    /// perpendicular distance (< @p maxDistM) and heading alignment (< @p maxBearingDiff).
+    /// Uses the spatial grid for efficient lookup.
+    /// @return Empty string if no matching edge is found.
+    [[nodiscard]] std::string WayRefOnEdge(const GeoPoint& pos, double headingDeg,
+                                           double maxDistM = 5.0, double maxBearingDiff = 20.0) const;
+
     /// @brief Returns the ID of the nearest node of any type within @p maxM metres of @p rawPos.
     /// @return Node ID, or -1 if no node is within range.
     [[nodiscard]] int NearestNodeId(const GeoPoint& rawPos, double maxM) const;

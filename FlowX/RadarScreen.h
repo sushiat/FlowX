@@ -246,6 +246,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     bool                               taxiAltPrevDown       = false;     ///< Previous-frame ALT key state; used to detect press edges for swingover toggle.
     TaxiRoute                          taxiSwingoverFixedSeg = {};        ///< Fixed route segment origin→crossPt→s-bend→partnerPt; computed when swingover is toggled ON.
     GeoPoint                           taxiSwingoverOrigin   = {};        ///< Partner-lane snap point where free routing begins after the swingover crossover.
+    double                             taxiSwingoverBearing  = -1.0;      ///< Forward bearing on the partner lane at the swingover origin; passed to FindWaypointRoute so WayRefOnEdge can lock onto the correct lane.
     bool                               taxiSwingoverActive   = false;     ///< Toggled by an ALT keypress during taxi planning; routes via a fixed s-bend crossover to the partner taxilane.
     std::map<std::string, TaxiRoute>   taxiSuggested;                     ///< Callsign -> auto-calculated suggested route (yellow); computed on planning activation
     std::vector<GeoPoint>              taxiWaypoints;                     ///< Mandatory via-points added by middle-click; route recalculated through all in order

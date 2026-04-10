@@ -804,29 +804,50 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     if (pool.empty())
         pool.push_back(NearestNode(from));
 
-    // Build candidates: keep the 3 nearest overall, then add the nearest node
-    // from each wayRef not already represented.  This ensures that e.g. an
-    // intersection node slightly farther than the closest taxiway nodes is
-    // still evaluated as a potential start.
+    // If the aircraft is directly on an edge (perpendicular distance < 5 m and
+    // heading aligned within 20°), restrict candidates to that wayRef.  This
+    // prevents jumping to a parallel taxilane (e.g. TL40 centre vs Blue Line).
+    // When the aircraft is off-network (at a stand), diversify candidates by
+    // wayRef so that nearby intersections are also evaluated as potential starts.
+    const std::string onEdgeRef = WayRefOnEdge(from, initialBearingDeg);
+
     std::vector<int>      candidates;
     std::set<int>         seen;
     std::set<std::string> seenRefs;
-    for (size_t i = 0; i < pool.size() && candidates.size() < 3; ++i)
+    if (!onEdgeRef.empty())
     {
-        candidates.push_back(pool[i]);
-        seen.insert(pool[i]);
-        seenRefs.insert(nodes_[pool[i]].wayRef);
+        // On-network: only use candidates matching the detected wayRef.
+        for (const int id : pool)
+        {
+            if (nodes_[id].wayRef == onEdgeRef)
+            {
+                candidates.push_back(id);
+                if (candidates.size() >= 3)
+                    break;
+            }
+        }
     }
-    for (const int id : pool)
+    else
     {
-        if (seen.count(id))
-            continue;
-        const std::string& ref = nodes_[id].wayRef;
-        if (ref.empty() || seenRefs.count(ref))
-            continue;
-        candidates.push_back(id);
-        seen.insert(id);
-        seenRefs.insert(ref);
+        // Off-network: keep the 3 nearest overall, then add the nearest node
+        // from each additional wayRef for diversity.
+        for (size_t i = 0; i < pool.size() && candidates.size() < 3; ++i)
+        {
+            candidates.push_back(pool[i]);
+            seen.insert(pool[i]);
+            seenRefs.insert(nodes_[pool[i]].wayRef);
+        }
+        for (const int id : pool)
+        {
+            if (seen.count(id))
+                continue;
+            const std::string& ref = nodes_[id].wayRef;
+            if (ref.empty() || seenRefs.count(ref))
+                continue;
+            candidates.push_back(id);
+            seen.insert(id);
+            seenRefs.insert(ref);
+        }
     }
 
     const int goalId = NearestNode(to);
@@ -1340,6 +1361,48 @@ std::string TaxiGraph::WayRefAt(const GeoPoint& rawPos, double maxM) const
     if (bestId < 0)
         return {};
     return nodes_[bestId].wayRef;
+}
+
+std::string TaxiGraph::WayRefOnEdge(const GeoPoint& pos, double headingDeg,
+                                    double maxDistM, double maxBearingDiff) const
+{
+    if (headingDeg < 0.0)
+        return {};
+
+    const int rings   = static_cast<int>(std::ceil(maxDistM / GRID_CELL_M)) + 1;
+    auto [cx0, cy0]   = GridCell(pos);
+    double      bestD = maxDistM;
+    std::string bestRef;
+
+    for (int dx = -rings; dx <= rings; ++dx)
+    {
+        for (int dy = -rings; dy <= rings; ++dy)
+        {
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int id : it->second)
+            {
+                for (const auto& edge : adj_[id])
+                {
+                    if (edge.wayRef.empty())
+                        continue;
+                    // Check heading alignment (either direction along the edge).
+                    const double bd = BearingDiff(headingDeg, edge.bearingDeg);
+                    if (bd > maxBearingDiff && (180.0 - bd) > maxBearingDiff)
+                        continue;
+                    // Check perpendicular distance to the edge segment.
+                    const double d = PointToSegmentDistM(pos, nodes_[id].pos, nodes_[edge.to].pos);
+                    if (d < bestD)
+                    {
+                        bestD   = d;
+                        bestRef = edge.wayRef;
+                    }
+                }
+            }
+        }
+    }
+    return bestRef;
 }
 
 int TaxiGraph::NearestNodeId(const GeoPoint& rawPos, double maxM) const

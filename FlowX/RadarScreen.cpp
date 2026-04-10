@@ -423,7 +423,8 @@ void RadarScreen::RecalculateTaxiPreview()
     {
         TaxiRoute tail = settings->osmGraph.FindWaypointRoute(
             this->taxiSwingoverOrigin, this->taxiWaypoints, this->taxiCursorSnap,
-            taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), -1.0, blocked);
+            taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
+            this->taxiSwingoverBearing, blocked);
         if (tail.valid)
         {
             TaxiRoute combined = this->taxiSwingoverFixedSeg;
@@ -495,6 +496,7 @@ void RadarScreen::UpdateSwingoverState()
                         fixedSeg.totalDistM         = HaversineM(acPos, sr.partnerPt);
                         this->taxiSwingoverFixedSeg = fixedSeg;
                         this->taxiSwingoverOrigin   = sr.partnerPt;
+                        this->taxiSwingoverBearing  = sr.brngAtPartner;
                     }
                     else
                         this->taxiSwingoverActive = false;
@@ -3141,7 +3143,7 @@ void RadarScreen::DrawStartButton(HDC hDC)
     GetClipBox(hDC, &clip);
     RECT chat     = GetChatArea();
     bool chatOpen = (chat.bottom > chat.top);
-    int  bottom   = chatOpen ? chat.top : clip.bottom;
+    int  bottom   = chatOpen ? chat.top : clip.bottom + 5; // +5: EuroScope clip-box excludes the 5 px status-bar gap when chat is closed
     int  bx       = clip.right - BTN_W;
     int  by       = bottom - BTN_H;
 
@@ -3277,7 +3279,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     GetClipBox(hDC, &clip);
     RECT chat     = GetChatArea();
     bool chatOpen = (chat.bottom > chat.top);
-    int  bottom   = chatOpen ? chat.top : clip.bottom;
+    int  bottom   = chatOpen ? chat.top : clip.bottom + 5; // +5: matches DrawStartButton's status-bar gap offset
     int  mx       = clip.right - MENU_W;
     int  my       = bottom - BTN_H - MENU_H;
 
@@ -4263,6 +4265,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             this->taxiSwingoverActive   = false;
             this->taxiSwingoverFixedSeg = {};
             this->taxiSwingoverOrigin   = {};
+            this->taxiSwingoverBearing  = -1.0;
             this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
             this->taxiMidDrawing = false;
@@ -4292,6 +4295,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             this->taxiSwingoverActive   = false;
             this->taxiSwingoverFixedSeg = {};
             this->taxiSwingoverOrigin   = {};
+            this->taxiSwingoverBearing  = -1.0;
             this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
             this->taxiMidDrawing = false;
@@ -4747,6 +4751,7 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
                 this->taxiSwingoverActive   = false;
                 this->taxiSwingoverFixedSeg = {};
                 this->taxiSwingoverOrigin   = {};
+                this->taxiSwingoverBearing  = -1.0;
                 this->taxiAltPrevDown       = false;
                 this->taxiWaypoints.clear();
                 this->taxiGreenPreview = {};
@@ -4863,6 +4868,7 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
             this->taxiSwingoverActive   = false;
             this->taxiSwingoverFixedSeg = {};
             this->taxiSwingoverOrigin   = {};
+            this->taxiSwingoverBearing  = -1.0;
             this->taxiAltPrevDown       = false;
             this->taxiWaypoints.clear();
             this->taxiGreenPreview = {};
