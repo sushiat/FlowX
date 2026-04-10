@@ -90,8 +90,8 @@
             ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]
         ],
         "taxiFlowGeneric": [
-            { "taxiway": "P", "direction": "N" },
-            { "taxiway": "Q", "direction": "S" }
+            { "taxiway": "P", "direction": "N", "againstFlowMult": 5.0 },
+            { "taxiway": "Q", "direction": "S", "againstFlowMult": 5.0 }
         ],
         "taxiFlowConfigs": {
             "11_11":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "S" } ],
@@ -420,7 +420,7 @@
                 "withFlowMaxDeg": 45.0,
                 "withFlowMult": 0.9,
                 "againstFlowMinDeg": 135.0,
-                "againstFlowMult": 3.0
+                "againstFlowMult": 3.5
             },
             "routing": {
                 "hardTurnDeg": 50.0,

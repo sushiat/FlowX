@@ -121,7 +121,7 @@ double TaxiGraph::FlowMult(double bearingDeg, const std::string& wayRef) const
         if (diff <= WITH_FLOW_MAX)
             return WITH_FLOW_MULT;
         if (diff >= AGAINST_FLOW)
-            return AGAINST_MULT;
+            return (rule.againstFlowMult > 0.0) ? rule.againstFlowMult : AGAINST_MULT;
     }
     return 1.0;
 }
@@ -226,13 +226,15 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
         if (way.type == AerowayType::Taxiway_Intersection && !ref.empty())
             isxWayRefs_.insert(ref);
 
-        // Ref priority for junction conflict resolution: taxiway beats taxilane
-        // beats intersection.  Higher value wins when two ways share a node.
+        // Ref priority for junction conflict resolution: higher value wins when
+        // two ways share a node.  Taxiway > taxilane > intersection > runway > holding point.
         const uint8_t refPriority =
-            (way.type == AerowayType::Taxiway || way.type == AerowayType::Taxiway_HoldingPoint) ? 3
-            : (way.type == AerowayType::Taxilane)                                               ? 2
-            : (way.type == AerowayType::Taxiway_Intersection)                                   ? 1
-                                                                                                : 0;
+            (way.type == AerowayType::Taxiway)                ? 5
+            : (way.type == AerowayType::Taxilane)             ? 4
+            : (way.type == AerowayType::Taxiway_Intersection) ? 3
+            : (way.type == AerowayType::Runway)               ? 2
+            : (way.type == AerowayType::Taxiway_HoldingPoint) ? 1
+                                                              : 0;
 
         for (size_t k = 1; k < way.geometry.size(); ++k)
         {
@@ -696,7 +698,8 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                             continue;
                         if (BearingDiff(edge.bearingDeg, rb) >=
                             apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
-                            depMult = apt_.taxiNetworkConfig.flowRules.againstFlowMult;
+                            depMult = (rule.againstFlowMult > 0.0) ? rule.againstFlowMult
+                                                                   : apt_.taxiNetworkConfig.flowRules.againstFlowMult;
                         break;
                     }
                 }
@@ -820,7 +823,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                const std::set<std::string>& suppressFlowWayRefs,
                                bool                         ignoreAllPenalties,
                                const std::set<int>&         preferredNodes,
-                               bool                         emitDebugTrace) const
+                               bool                         emitDebugTrace,
+                               bool                         forwardOnly) const
 {
     if (nodes_.empty())
         return {};
@@ -830,8 +834,16 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     const double FORWARD_SNAP_M  = apt_.taxiNetworkConfig.routing.forwardSnapM;
     const double BACKWARD_SNAP_M = apt_.taxiNetworkConfig.routing.backwardSnapM;
 
+    // When forwardOnly is set (taxi-out stands), exclude backward candidates so
+    // the route always starts on the taxiway ahead of the aircraft.  If no
+    // forward candidates exist, fall back to the normal backward range.
     std::vector<int> pool = NearestCandidateNodes(from, initialBearingDeg,
-                                                  FORWARD_SNAP_M, BACKWARD_SNAP_M, 15, 5);
+                                                  FORWARD_SNAP_M,
+                                                  forwardOnly ? 0.0 : BACKWARD_SNAP_M,
+                                                  15, forwardOnly ? 0 : 5);
+    if (pool.empty() && forwardOnly)
+        pool = NearestCandidateNodes(from, initialBearingDeg,
+                                     FORWARD_SNAP_M, BACKWARD_SNAP_M, 15, 5);
     if (pool.empty())
     {
         const int fallback = NearestNode(from);
@@ -934,7 +946,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                                        const std::set<int>&         blockedNodes,
                                        bool                         ignoreAllPenalties,
                                        const std::set<int>&         preferredNodes,
-                                       bool                         emitDebugTrace) const
+                                       bool                         emitDebugTrace,
+                                       bool                         forwardOnly) const
 {
     std::vector<GeoPoint> stops;
     stops.push_back(origin);
@@ -955,7 +968,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
     {
         TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
                                   segInitBearing, blockedNodes, suppressFlowWayRefs,
-                                  ignoreAllPenalties, preferredNodes, emitDebugTrace);
+                                  ignoreAllPenalties, preferredNodes, emitDebugTrace,
+                                  (i == 1) ? forwardOnly : false);
         if (!seg.valid)
         {
             combined.valid = false;

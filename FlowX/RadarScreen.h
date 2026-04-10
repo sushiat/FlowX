@@ -239,6 +239,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     TaxiRoute                          taxiGreenPreview;                  ///< Current green preview route recomputed each frame from origin through waypoints to cursor snap
     POINT                              taxiOriginPx = {-1, -1};           ///< Screen pixel where right-click activated planning; used for accept-suggestion proximity test
     std::string                        taxiPlanActive;                    ///< Callsign currently being planned; empty when not in planning mode
+    bool                               taxiPlanForwardOnly   = false;     ///< True when aircraft is in a taxiOutStand/taxiOnlyZone; suppresses backward start candidates
     bool                               taxiPlanIsPush        = false;     ///< True when the active planning session is a pushback (no suggestion; endpoint only)
     double                             taxiPushHeading       = 0.0;       ///< Aircraft true-north heading captured at push planning activation; used to compute the reservation zone.
     GeoPoint                           taxiPushOrigin        = {};        ///< Current push-zone pivot (snapped taxiway node); updated on mouse move when cursor crosses a taxiway midpoint.

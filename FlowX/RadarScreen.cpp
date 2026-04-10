@@ -459,7 +459,8 @@ void RadarScreen::RecalculateTaxiPreview()
         this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
             origin, wps, dest,
             taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
-            heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet);
+            heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet, false,
+            this->taxiPlanForwardOnly);
     }
 }
 
@@ -3962,12 +3963,29 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             // Push = inside grStands + NOT inside taxiOutStands.
             // Taxi = everything else (including inbounds with no flight plan).
             {
-                bool isPush = false;
+                bool isPush    = false;
+                bool inTaxiOut = false;
 
                 if (!settings->GetAirports().empty())
                 {
                     const auto& ap  = settings->GetAirports().begin()->second;
                     const auto  pos = rt.GetPosition().GetPosition();
+
+                    // taxiOutStands check: used for both push/taxi detection and
+                    // forwardOnly routing.  Checked first so the result is available
+                    // regardless of taxiOnlyZone membership.
+                    for (const auto& [_, poly] : ap.taxiOutStands)
+                    {
+                        if (CFlowX_LookupsTools::PointInsidePolygon(
+                                static_cast<int>(poly.lat.size()),
+                                const_cast<double*>(poly.lon.data()),
+                                const_cast<double*>(poly.lat.data()),
+                                pos.m_Longitude, pos.m_Latitude))
+                        {
+                            inTaxiOut = true;
+                            break;
+                        }
+                    }
 
                     // taxiOnlyZones override: always taxi from these aprons.
                     bool inTaxiOnlyZone = false;
@@ -3984,49 +4002,32 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                         }
                     }
 
-                    if (!inTaxiOnlyZone)
+                    if (!inTaxiOnlyZone && !inTaxiOut)
                     {
-                        // Not inside any taxiOutStands polygon (that would make T/P show "T").
-                        bool inTaxiOut = false;
-                        for (const auto& [_, poly] : ap.taxiOutStands)
+                        // Inside a grStands parking spot → push planning.
+                        const std::string ourIcao = settings->GetAirports().begin()->first;
+                        const std::string prefix  = ourIcao + ":";
+                        for (const auto& [key, stand] : settings->GetGrStands())
                         {
+                            if (key.size() < prefix.size() ||
+                                key.substr(0, prefix.size()) != prefix)
+                                continue;
+                            if (stand.lat.empty())
+                                continue;
                             if (CFlowX_LookupsTools::PointInsidePolygon(
-                                    static_cast<int>(poly.lat.size()),
-                                    const_cast<double*>(poly.lon.data()),
-                                    const_cast<double*>(poly.lat.data()),
+                                    static_cast<int>(stand.lat.size()),
+                                    const_cast<double*>(stand.lon.data()),
+                                    const_cast<double*>(stand.lat.data()),
                                     pos.m_Longitude, pos.m_Latitude))
                             {
-                                inTaxiOut = true;
+                                isPush = true;
                                 break;
-                            }
-                        }
-
-                        if (!inTaxiOut)
-                        {
-                            // Inside a grStands parking spot.
-                            const std::string ourIcao = settings->GetAirports().begin()->first;
-                            const std::string prefix  = ourIcao + ":";
-                            for (const auto& [key, stand] : settings->GetGrStands())
-                            {
-                                if (key.size() < prefix.size() ||
-                                    key.substr(0, prefix.size()) != prefix)
-                                    continue;
-                                if (stand.lat.empty())
-                                    continue;
-                                if (CFlowX_LookupsTools::PointInsidePolygon(
-                                        static_cast<int>(stand.lat.size()),
-                                        const_cast<double*>(stand.lon.data()),
-                                        const_cast<double*>(stand.lat.data()),
-                                        pos.m_Longitude, pos.m_Latitude))
-                                {
-                                    isPush = true;
-                                    break;
-                                }
                             }
                         }
                     }
                 }
-                this->taxiPlanIsPush = isPush;
+                this->taxiPlanIsPush      = isPush;
+                this->taxiPlanForwardOnly = inTaxiOut;
             }
 
             this->taxiPlanActive = callsign;
@@ -4166,7 +4167,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
                     origin, dest, taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked,
-                    {}, false, {}, settings->GetDebug());
+                    {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly);
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
             }
             // Push planning: no suggestion; preview computed on first mouse move.
@@ -4293,17 +4294,55 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             std::string rwyCfg = depStr + "_" + arrStr;
 
                             // Resolve from/to as type-prefixed labels (HP:/STAND:/GEO:).
-                            // For inbound routes the polyline ends at the taxiway node adjacent
-                            // to the stand, not at the stand itself — use the assigned stand name
-                            // directly so the fixture round-trips correctly.
-                            std::string fromLabel = settings->osmGraph.PrefixedLabel(finalRoute.polyline.front(), 50.0);
-                            std::string toLabel   = settings->osmGraph.PrefixedLabel(finalRoute.polyline.back(), 50.0);
+                            std::string fromLabel, toLabel;
                             if (inbound)
                             {
+                                fromLabel = settings->osmGraph.PrefixedLabel(finalRoute.polyline.front(), 50.0);
+                                // Use stand assignment for inbound destination.
                                 auto* timers  = static_cast<CFlowX_Timers*>(this->GetPlugIn());
                                 auto  standIt = timers->GetStandAssignment().find(cs);
-                                if (standIt != timers->GetStandAssignment().end() && !standIt->second.empty())
-                                    toLabel = "STAND:" + standIt->second;
+                                toLabel       = (standIt != timers->GetStandAssignment().end() && !standIt->second.empty())
+                                                    ? "STAND:" + standIt->second
+                                                    : settings->osmGraph.PrefixedLabel(finalRoute.polyline.back(), 50.0);
+                            }
+                            else
+                            {
+                                // Outbound: detect stand from raw aircraft position via
+                                // grStands point-in-polygon.  Exclude taxiOnlyZones (e.g.
+                                // GAC) — these are large areas, not individual stands.
+                                auto        posIt   = this->taxiAssignedPos.find(cs);
+                                GeoPoint    rawFrom = (posIt != this->taxiAssignedPos.end())
+                                                          ? posIt->second
+                                                          : finalRoute.polyline.front();
+                                std::string standName;
+                                if (!settings->GetAirports().empty())
+                                {
+                                    const std::string ourIcao = settings->GetAirports().begin()->first;
+                                    const auto&       ap      = settings->GetAirports().begin()->second;
+                                    const std::string prefix  = ourIcao + ":";
+                                    for (const auto& [key, stand] : settings->GetGrStands())
+                                    {
+                                        if (key.size() < prefix.size() || key.substr(0, prefix.size()) != prefix)
+                                            continue;
+                                        if (stand.lat.empty())
+                                            continue;
+                                        if (CFlowX_LookupsTools::PointInsidePolygon(
+                                                static_cast<int>(stand.lat.size()),
+                                                const_cast<double*>(stand.lon.data()),
+                                                const_cast<double*>(stand.lat.data()),
+                                                rawFrom.lon, rawFrom.lat))
+                                        {
+                                            std::string sn = key.substr(prefix.size());
+                                            if (!ap.taxiOnlyZones.contains(sn))
+                                                standName = sn;
+                                            break;
+                                        }
+                                    }
+                                }
+                                fromLabel = standName.empty()
+                                                ? std::format("GEO:{:.6f},{:.6f}", rawFrom.lat, rawFrom.lon)
+                                                : "STAND:" + standName;
+                                toLabel   = settings->osmGraph.PrefixedLabel(finalRoute.polyline.back(), 50.0);
                             }
 
                             // Get wingspan
@@ -4375,6 +4414,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
             this->taxiPlanActive.clear();
             this->taxiPlanIsPush        = false;
+            this->taxiPlanForwardOnly   = false;
             this->taxiSwingoverActive   = false;
             this->taxiSwingoverFixedSeg = {};
             this->taxiSwingoverOrigin   = {};
@@ -4423,6 +4463,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             this->taxiSuggested.erase(this->taxiPlanActive);
             this->taxiPlanActive.clear();
             this->taxiPlanIsPush        = false;
+            this->taxiPlanForwardOnly   = false;
             this->taxiSwingoverActive   = false;
             this->taxiSwingoverFixedSeg = {};
             this->taxiSwingoverOrigin   = {};
@@ -4887,6 +4928,7 @@ void RadarScreen::OnDoubleClickScreenObject(int ObjectType, const char* sObjectI
             {
                 this->taxiPlanActive.clear();
                 this->taxiPlanIsPush        = false;
+                this->taxiPlanForwardOnly   = false;
                 this->taxiSwingoverActive   = false;
                 this->taxiSwingoverFixedSeg = {};
                 this->taxiSwingoverOrigin   = {};
@@ -5004,6 +5046,7 @@ void RadarScreen::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan
         {
             this->taxiPlanActive.clear();
             this->taxiPlanIsPush        = false;
+            this->taxiPlanForwardOnly   = false;
             this->taxiSwingoverActive   = false;
             this->taxiSwingoverFixedSeg = {};
             this->taxiSwingoverOrigin   = {};

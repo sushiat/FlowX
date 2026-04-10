@@ -842,7 +842,7 @@ void CFlowX_Settings::LoadConfig()
             ap.taxiWays = json_airport["taxiWays"].get<std::vector<std::string>>();
         if (json_airport.contains("taxiFlowGeneric"))
             for (const auto& r : json_airport["taxiFlowGeneric"])
-                ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{})});
+                ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});
         if (json_airport.contains("taxiFlowConfigs"))
         {
             // Normalise each key: split on '_', sort each side on '/', rejoin.
@@ -876,7 +876,7 @@ void CFlowX_Settings::LoadConfig()
                         : normSide(rawKey.substr(0, sep)) + '_' + normSide(rawKey.substr(sep + 1));
                 for (const auto& r : json_rules)
                     ap.taxiFlowConfigs[normKey].push_back(
-                        {r.value("taxiway", std::string{}), r.value("direction", std::string{})});
+                        {r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});
             }
         }
         if (json_airport.contains("taxiWingspanMax"))

@@ -102,8 +102,9 @@ struct approachPath
 /// @brief A directional flow rule for a single taxiway.
 struct TaxiFlowRule
 {
-    std::string taxiway;   ///< Taxiway ref (e.g. "P", "M").
-    std::string direction; ///< Preferred direction: "N", "S", "E", or "W".
+    std::string taxiway;               ///< Taxiway ref (e.g. "P", "M").
+    std::string direction;             ///< Preferred direction: "N", "S", "E", or "W".
+    double      againstFlowMult = 0.0; ///< Per-rule against-flow multiplier override; 0 = use global default.
 };
 
 /// @brief Tunable parameters for taxi graph construction, routing, and safety monitoring.
