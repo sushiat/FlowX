@@ -916,21 +916,15 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
 
     for (size_t i = 1; i < stops.size(); ++i)
     {
-        // In drawn-path mode bias each sub-segment toward the direction of the next stop
-        // Drawn-path mode uses -1 (unconstrained) so the hard-turn block doesn't fire at
-        // sub-segment entries.  Loops are prevented by the closed set in RunAStar instead.
-        const double thisBearing = ignoreAllPenalties ? -1.0 : segInitBearing;
-        TaxiRoute    seg         = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
-                                             thisBearing, blockedNodes, suppressFlowWayRefs,
-                                             ignoreAllPenalties, preferredNodes, emitDebugTrace);
+        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
+                                  segInitBearing, blockedNodes, suppressFlowWayRefs,
+                                  ignoreAllPenalties, preferredNodes, emitDebugTrace);
         if (!seg.valid)
         {
             combined.valid = false;
             return combined;
         }
-        // Chain exit bearing for normal mode only.
-        if (!ignoreAllPenalties)
-            segInitBearing = seg.exitBearing;
+        segInitBearing = seg.exitBearing;
 
         // After each segment that ends at a user waypoint (not the last stop),
         // record the wayRef so the next segment can continue on that taxiway against flow.

@@ -442,8 +442,19 @@ void RadarScreen::RecalculateTaxiPreview()
     else
     {
         const bool hasDrawnNodes = !this->taxiDrawnNodeSet.empty() && !this->taxiWaypoints.empty();
-        this->taxiGreenPreview   = settings->osmGraph.FindWaypointRoute(
-            origin, this->taxiWaypoints, this->taxiCursorSnap,
+        // If the cursor is still on top of the last waypoint (e.g. right after
+        // middle-button release), route to the waypoint only — avoids a degenerate
+        // zero-length final segment that loops back on itself.
+        const bool cursorAtLastWp =
+            !this->taxiWaypoints.empty() &&
+            HaversineM(this->taxiCursorSnap, this->taxiWaypoints.back()) < 5.0;
+        const GeoPoint        dest = cursorAtLastWp ? this->taxiWaypoints.back() : this->taxiCursorSnap;
+        std::vector<GeoPoint> wps =
+            cursorAtLastWp
+                ? std::vector<GeoPoint>(this->taxiWaypoints.begin(), this->taxiWaypoints.end() - 1)
+                : this->taxiWaypoints;
+        this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
+            origin, wps, dest,
             taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
             heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet);
     }
@@ -3248,6 +3259,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Airborne", true, settings->GetSoundAirborne(), 19},
         {false, "GND Transfer", true, settings->GetSoundGndTransfer(), 20},
         {false, "Ready T/O", true, settings->GetSoundReadyTakeoff(), 21},
+        {false, "No Route", true, settings->GetSoundNoRoute(), 30},
         {false, "Taxi Conflict", true, settings->GetSoundTaxiConflict(), 27},
         {true, "Options", false, false, -1},
         {false, "Debug mode", true, base->GetDebug(), 2},
@@ -4278,11 +4290,29 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
         if (ObjectType == SCREEN_OBJECT_TAXI_PLANNING && Button == EuroScopePlugIn::BUTTON_MIDDLE)
         {
+            const bool wasDraw   = this->taxiMidDrawing;
             this->taxiMidDrawing = false;
             this->taxiDrawPolyline.clear();
             // taxiDrawnNodeSet stays active — it was populated during OnOverScreenObject
             // sampling and will bias the next FindWaypointRoute call toward the drawn path.
             this->taxiWaypoints.push_back(this->taxiCursorSnap);
+            this->RecalculateTaxiPreview();
+            if (!this->taxiGreenPreview.valid)
+            {
+                // Route failed — undo the waypoint so the user can retry.
+                this->taxiWaypoints.pop_back();
+                if (wasDraw)
+                {
+                    this->taxiDrawnNodeSet.clear();
+                }
+                this->RecalculateTaxiPreview();
+                auto* snd = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                if (snd->GetSoundNoRoute())
+                {
+                    std::string wav = (std::filesystem::path(GetPluginDirectory()) / "noRoute.wav").string();
+                    PlaySoundA(wav.c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+                }
+            }
             this->RequestRefresh();
             return;
         }
@@ -4434,6 +4464,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 else if (idx == 27)
                 {
                     settings->ToggleSoundTaxiConflict();
+                }
+                else if (idx == 30)
+                {
+                    settings->ToggleSoundNoRoute();
                 }
                 else if (idx == 28)
                 {
