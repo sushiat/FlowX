@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <set>
+#include <sstream>
 #include <algorithm>
 #include "test_accessor.h"
 #include "taxi_graph.h"
@@ -117,6 +118,14 @@ TEST_CASE("TaxiRoute - real world taxi tests")
     int   cases = 0;
     int   pass  = 0;
 
+    bool allPassed = true;
+
+    constexpr const char* RED    = "\x1b[31m";
+    constexpr const char* GREEN  = "\x1b[32m";
+    constexpr const char* YELLOW = "\x1b[33m";
+    constexpr const char* GRAY   = "\x1b[90m";
+    constexpr const char* RESET  = "\x1b[0m";
+
     for (const auto& tc : j)
     {
         const std::string name      = tc.at("name").get<std::string>();
@@ -132,18 +141,21 @@ TEST_CASE("TaxiRoute - real world taxi tests")
         GeoPoint to   = ResolvePosition(toLabel, acc.osmGraph, acc.grStands, acc.airports);
 
         ++cases;
-        bool caseOk = true;
+        bool               caseOk = true;
+        std::ostringstream buf;
 
         if (from.lat == 0.0 && from.lon == 0.0)
         {
-            std::cout << "  [" << name << "] FAIL: cannot resolve 'from' position: " << fromLabel << "\n";
-            CHECK(false);
+            std::cout << "\n  " << RED << "[FAIL]" << RESET << " -------- " << name << " --------\n";
+            std::cout << "    FAIL: cannot resolve 'from' position: " << fromLabel << "\n\n";
+            allPassed = false;
             continue;
         }
         if (to.lat == 0.0 && to.lon == 0.0)
         {
-            std::cout << "  [" << name << "] FAIL: cannot resolve 'to' position: " << toLabel << "\n";
-            CHECK(false);
+            std::cout << "\n  " << RED << "[FAIL]" << RESET << " -------- " << name << " --------\n";
+            std::cout << "    FAIL: cannot resolve 'to' position: " << toLabel << "\n\n";
+            allPassed = false;
             continue;
         }
 
@@ -161,6 +173,8 @@ TEST_CASE("TaxiRoute - real world taxi tests")
         // Parse optional swingover object: {"origin":{lat,lon},"bearing":270.5}
         // When present, routing starts from swingoverOrigin with the captured bearing,
         // reproducing the tail segment that A* computed after the lane-crossing maneuver.
+        // distanceRange is skipped for swingover cases because the test only routes the
+        // tail; the fixed crossing segment's distance cannot be reproduced here.
         GeoPoint swingoverOrigin  = {};
         double   swingoverBearing = -1.0;
         if (tc.contains("swingover") && tc["swingover"].is_object())
@@ -177,18 +191,32 @@ TEST_CASE("TaxiRoute - real world taxi tests")
         const bool     hasSwingover = (swingoverOrigin.lat != 0.0 || swingoverOrigin.lon != 0.0);
         const GeoPoint routeFrom    = hasSwingover ? swingoverOrigin : from;
 
-        TaxiRoute route = (waypoints.empty() && !hasSwingover)
-                              ? acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys)
-                              : acc.osmGraph.FindWaypointRoute(routeFrom, waypoints, to, wingspan, depRwys, arrRwys,
-                                                               swingoverBearing);
+        TaxiRoute tail = (waypoints.empty() && !hasSwingover)
+                             ? acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys)
+                             : acc.osmGraph.FindWaypointRoute(routeFrom, waypoints, to, wingspan, depRwys, arrRwys,
+                                                              swingoverBearing);
 
-        std::string formatted = FormatTaxiRoute(route);
-        std::cout << "  [" << name << "] " << formatted << "\n";
+        // For swingover cases, replicate the combined route that RadarScreen builds:
+        // fixed crossing segment (from → swingoverOrigin) + tail (swingoverOrigin → to).
+        // This gives the full distance and wayRefs including the blue line.
+        TaxiRoute route = tail;
+        if (hasSwingover && tail.valid)
+        {
+            std::string fromWayRef = acc.osmGraph.WayRefAt(from, 50.0);
+            route.polyline.insert(route.polyline.begin(), from);
+            if (!fromWayRef.empty())
+                route.wayRefs.insert(route.wayRefs.begin(), fromWayRef);
+            route.totalDistM += HaversineM(from, swingoverOrigin);
+        }
+
+        buf << "  " << FormatTaxiRoute(route) << "\n";
 
         if (!route.valid)
         {
-            std::cout << "    FAIL: route is invalid\n";
-            CHECK(false);
+            std::cout << "\n  " << RED << "[FAIL]" << RESET << " -------- " << name << " --------\n";
+            std::cout << buf.str();
+            std::cout << "    FAIL: route is invalid\n\n";
+            allPassed = false;
             continue;
         }
 
@@ -201,10 +229,11 @@ TEST_CASE("TaxiRoute - real world taxi tests")
                 bool        found = std::find(route.wayRefs.begin(), route.wayRefs.end(), r) != route.wayRefs.end();
                 if (!found)
                 {
-                    std::cout << "    VIOLATION: mustInclude \"" << r << "\" not found in route\n";
-                    caseOk = false;
+                    buf << "    " << YELLOW << "VIOLATION: mustInclude \"" << r << "\" not found in route" << RESET
+                        << "\n";
+                    caseOk    = false;
+                    allPassed = false;
                 }
-                CHECK_MESSAGE(found, ("mustInclude '" + r + "' not found in route for: " + name).c_str());
             }
         }
 
@@ -217,10 +246,11 @@ TEST_CASE("TaxiRoute - real world taxi tests")
                 bool        absent = std::find(route.wayRefs.begin(), route.wayRefs.end(), r) == route.wayRefs.end();
                 if (!absent)
                 {
-                    std::cout << "    VIOLATION: mustNotInclude \"" << r << "\" found in route\n";
-                    caseOk = false;
+                    buf << "    " << YELLOW << "VIOLATION: mustNotInclude \"" << r << "\" found in route" << RESET
+                        << "\n";
+                    caseOk    = false;
+                    allPassed = false;
                 }
-                CHECK_MESSAGE(absent, ("mustNotInclude '" + r + "' found in route for: " + name).c_str());
             }
         }
 
@@ -233,17 +263,29 @@ TEST_CASE("TaxiRoute - real world taxi tests")
             bool   inRange = route.totalDistM >= minD && route.totalDistM <= maxD;
             if (!inRange)
             {
-                std::cout << "    VIOLATION: distance " << route.totalDistM
-                          << " m outside range [" << minD << ", " << maxD << "]\n";
-                caseOk = false;
+                buf << "    " << YELLOW << "VIOLATION: distance " << route.totalDistM << " m outside range [" << minD
+                    << ", " << maxD << "]" << RESET << "\n";
+                caseOk    = false;
+                allPassed = false;
             }
-            CHECK_MESSAGE(inRange,
-                          std::format("distance {:.0f} m outside [{:.0f}, {:.0f}] for: {}", route.totalDistM, minD, maxD, name).c_str());
         }
+
+        const char* color = caseOk ? GREEN : RED;
+        std::cout << "\n  " << color << "[" << (caseOk ? "PASS" : "FAIL") << "]" << RESET << " -------- " << name
+                  << " --------\n";
+        std::cout << buf.str() << "\n";
 
         if (caseOk)
             ++pass;
     }
 
-    std::cout << "  " << pass << "/" << cases << " taxi route test(s) passed\n";
+    const int fail = cases - pass;
+    std::cout << "\n  " << cases << " tests"
+              << "  " << GREEN << pass << " passed" << RESET
+              << "  " << (fail > 0 ? RED : GRAY) << fail << " failed" << RESET
+              << "\n"
+              << std::flush;
+
+    // Single check — details are already printed above.
+    CHECK(allPassed);
 }

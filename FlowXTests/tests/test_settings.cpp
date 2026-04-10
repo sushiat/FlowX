@@ -177,9 +177,9 @@ TEST_CASE("LoadConfig - taxiWays has 7 entries")
 
 // ─── LoadAircraftData ─────────────────────────────────────────────────────────
 
-TEST_CASE("LoadAircraftData - five types loaded")
+TEST_CASE("LoadAircraftData - six types loaded")
 {
-    CHECK(accessor().aircraftWingspans.size() == 5);
+    CHECK(accessor().aircraftWingspans.size() == 6);
 }
 
 TEST_CASE("LoadAircraftData - A320 wingspan is 35.8 m")
@@ -206,11 +206,18 @@ TEST_CASE("LoadAircraftData - A359 gets explicit wingspan 64.75 m (WTC-H)")
     CHECK(accessor().aircraftWingspans.at("A359") == doctest::Approx(64.75));
 }
 
+TEST_CASE("LoadAircraftData - B38M (no Wingspan in JSON) gets WTC-M average (~35.8 m)")
+{
+    // A320 + B737 are both WTC-M with wingspan 35.8 m, so the average is 35.8 m.
+    REQUIRE(accessor().aircraftWingspans.count("B38M") == 1);
+    CHECK(accessor().aircraftWingspans.at("B38M") == doctest::Approx(35.8));
+}
+
 // ─── LoadGroundRadarStands ────────────────────────────────────────────────────
 
-TEST_CASE("LoadGroundRadarStands - two stands loaded (A92 and B05)")
+TEST_CASE("LoadGroundRadarStands - full LOWW stand set loaded (>= 300 stands, including A92 and B05)")
 {
-    CHECK(accessor().grStands.size() == 2);
+    CHECK(accessor().grStands.size() >= 300);
 }
 
 TEST_CASE("LoadGroundRadarStands - LOWW:A92 stand exists")
@@ -218,53 +225,75 @@ TEST_CASE("LoadGroundRadarStands - LOWW:A92 stand exists")
     CHECK(accessor().grStands.count("LOWW:A92") == 1);
 }
 
-TEST_CASE("LoadGroundRadarStands - LOWW:A92 has 4 coordinate vertices")
+TEST_CASE("LoadGroundRadarStands - LOWW:A92 has 5 coordinate vertices (closed polygon)")
 {
+    // Real A92 polygon: 4 unique corners + repeated closing vertex = 5 entries.
     const auto& s = accessor().grStands.at("LOWW:A92");
-    CHECK(s.lat.size() == 4);
-    CHECK(s.lon.size() == 4);
+    CHECK(s.lat.size() == 5);
+    CHECK(s.lon.size() == 5);
 }
 
 TEST_CASE("LoadGroundRadarStands - LOWW:A92 first coordinate parsed correctly (DMS)")
 {
-    // COORD:N048.07.14.709:E016.33.00.259
-    // lat = 48 + 7/60 + 14.709/3600 ≈ 48.120753
-    // lon = 16 + 33/60 + 0.259/3600 ≈ 16.550072
+    // COORD:N048.07.24.793:E016.32.30.220
+    // lat = 48 + 7/60 + 24.793/3600
+    // lon = 16 + 32/60 + 30.220/3600
     const auto& s = accessor().grStands.at("LOWW:A92");
-    CHECK(s.lat[0] == doctest::Approx(48.0 + 7.0 / 60.0 + 14.709 / 3600.0).epsilon(1e-5));
-    CHECK(s.lon[0] == doctest::Approx(16.0 + 33.0 / 60.0 + 0.259 / 3600.0).epsilon(1e-5));
+    CHECK(s.lat[0] == doctest::Approx(48.0 + 7.0 / 60.0 + 24.793 / 3600.0).epsilon(1e-5));
+    CHECK(s.lon[0] == doctest::Approx(16.0 + 32.0 / 60.0 + 30.220 / 3600.0).epsilon(1e-5));
 }
 
-TEST_CASE("LoadGroundRadarStands - LOWW:A92 has 2 blocks")
+TEST_CASE("LoadGroundRadarStands - LOWW:A94 has 2 blocks sharing the same wingspan threshold")
 {
-    const auto& s = accessor().grStands.at("LOWW:A92");
-    CHECK(s.blocks.size() == 2);
+    // BLOCKS:A93,A96:31.99 — comma-separated names share one threshold value.
+    REQUIRE(accessor().grStands.count("LOWW:A94") == 1);
+    const auto& blocks = accessor().grStands.at("LOWW:A94").blocks;
+    CHECK(blocks.size() == 2);
+
+    auto a93 = std::find_if(blocks.begin(), blocks.end(),
+                            [](const standBlock& b)
+                            { return b.standName == "A93"; });
+    REQUIRE(a93 != blocks.end());
+    CHECK(a93->minWingspan == doctest::Approx(31.99));
+
+    auto a96 = std::find_if(blocks.begin(), blocks.end(),
+                            [](const standBlock& b)
+                            { return b.standName == "A96"; });
+    REQUIRE(a96 != blocks.end());
+    CHECK(a96->minWingspan == doctest::Approx(31.99));
 }
 
-TEST_CASE("LoadGroundRadarStands - LOWW:A92 block A93 has minWingspan 31.99")
+TEST_CASE("LoadGroundRadarStands - LOWW:A96 block A95 has minWingspan 0 (always blocked)")
 {
-    const auto& blocks = accessor().grStands.at("LOWW:A92").blocks;
-    auto        it     = std::find_if(blocks.begin(), blocks.end(),
-                                      [](const standBlock& b)
-                                      { return b.standName == "A93"; });
-    REQUIRE(it != blocks.end());
-    CHECK(it->minWingspan == doctest::Approx(31.99));
+    // BLOCKS:A95 — no wingspan suffix → minWingspan 0 (always blocked).
+    REQUIRE(accessor().grStands.count("LOWW:A96") == 1);
+    const auto& blocks = accessor().grStands.at("LOWW:A96").blocks;
+
+    auto a95 = std::find_if(blocks.begin(), blocks.end(),
+                            [](const standBlock& b)
+                            { return b.standName == "A95"; });
+    REQUIRE(a95 != blocks.end());
+    CHECK(a95->minWingspan == doctest::Approx(0.0));
 }
 
-TEST_CASE("LoadGroundRadarStands - LOWW:A92 block A96 has minWingspan 0 (always blocked)")
+TEST_CASE("LoadGroundRadarStands - LOWW:A96 block A94 has minWingspan 64.99")
 {
-    const auto& blocks = accessor().grStands.at("LOWW:A92").blocks;
-    auto        it     = std::find_if(blocks.begin(), blocks.end(),
-                                      [](const standBlock& b)
-                                      { return b.standName == "A96"; });
-    REQUIRE(it != blocks.end());
-    CHECK(it->minWingspan == doctest::Approx(0.0));
+    // BLOCKS:A94:64.99 — wingspan suffix parsed correctly.
+    REQUIRE(accessor().grStands.count("LOWW:A96") == 1);
+    const auto& blocks = accessor().grStands.at("LOWW:A96").blocks;
+
+    auto a94 = std::find_if(blocks.begin(), blocks.end(),
+                            [](const standBlock& b)
+                            { return b.standName == "A94"; });
+    REQUIRE(a94 != blocks.end());
+    CHECK(a94->minWingspan == doctest::Approx(64.99));
 }
 
-TEST_CASE("LoadGroundRadarStands - LOWW:B05 stand exists with 4 vertices and no blocks")
+TEST_CASE("LoadGroundRadarStands - LOWW:GAC stand exists with 4 vertices and no blocks")
 {
-    REQUIRE(accessor().grStands.count("LOWW:B05") == 1);
-    const auto& s = accessor().grStands.at("LOWW:B05");
+    // GAC is the one LOWW stand with exactly 4 coords and no BLOCKS entry.
+    REQUIRE(accessor().grStands.count("LOWW:GAC") == 1);
+    const auto& s = accessor().grStands.at("LOWW:GAC");
     CHECK(s.lat.size() == 4);
     CHECK(s.blocks.empty());
 }
@@ -328,8 +357,8 @@ TEST_CASE("TaxiGraph - graph is non-empty after cache load")
     CHECK(accessor().osmGraph.NodeCount() > 0);
 }
 
-TEST_CASE("TaxiGraph - node count is substantial (> 500 for LOWW)")
+TEST_CASE("TaxiGraph - node count is substantial (> 3000 for LOWW)")
 {
-    // 216 ways with long segments subdivided every 15 m yields well over 500 nodes.
-    CHECK(accessor().osmGraph.NodeCount() > 500);
+    // 216 ways with long segments subdivided every 15 m yields well over 3000 nodes.
+    CHECK(accessor().osmGraph.NodeCount() > 3000);
 }

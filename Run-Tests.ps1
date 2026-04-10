@@ -110,7 +110,7 @@ foreach ($test in $tests) {
         if ($filterActive) {
             foreach ($line in ($output -split "`n")) {
                 $l = $line.TrimEnd()
-                if ($l -ne '') { Write-Host "          $l" }
+                if ($l -ne '') { Write-Host "          $l" } else { Write-Host "" }
             }
         }
         $pass++
@@ -119,7 +119,7 @@ foreach ($test in $tests) {
         Write-Host "[FAIL   ] $timeStr  $groupStr$testName" -ForegroundColor Red
         foreach ($line in ($output -split "`n")) {
             $l = $line.TrimEnd()
-            if ($l -ne '') { Write-Host "          $l" }
+            if ($l -ne '') { Write-Host "          $l" } else { Write-Host "" }
         }
         $fail++
     }
