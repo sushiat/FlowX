@@ -76,9 +76,16 @@ static GeoPoint ResolvePosition(const std::string&                    label,
     if (label.starts_with("STAND:"))
     {
         std::string standName = label.substr(6);
-        // Try with each airport ICAO prefix
-        for (const auto& [icao, _] : airports)
+        // Honour standRoutingTargets override — mirrors RadarScreen's inbound routing logic.
+        for (const auto& [icao, ap] : airports)
         {
+            auto ovIt = ap.standRoutingTargets.find(standName);
+            if (ovIt != ap.standRoutingTargets.end())
+            {
+                GeoPoint hp = graph.HoldingPositionByLabel(ovIt->second);
+                if (hp.lat != 0.0 || hp.lon != 0.0)
+                    return hp;
+            }
             GeoPoint pt = TaxiGraph::StandCentroid(icao + ":" + standName, grStands);
             if (pt.lat != 0.0 || pt.lon != 0.0)
                 return pt;
