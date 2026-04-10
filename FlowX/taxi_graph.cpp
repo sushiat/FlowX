@@ -42,7 +42,8 @@ static constexpr double GRID_CELL_M = 15.0; ///< Spatial grid cell size in metre
 int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                                 TaxiNodeType     type,
                                 std::string_view label,
-                                std::string_view wayRef)
+                                std::string_view wayRef,
+                                uint8_t          wayPriority)
 {
     // Grid-accelerated lookup: only scan cells within mergeThreshM.
     const int rings = static_cast<int>(std::ceil(mergeThreshM / GRID_CELL_M)) + 1;
@@ -66,23 +67,31 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                 if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
                     nodes_[nid].wayRef != wayRef && d > 1.0)
                     continue;
-                // At a genuine OSM junction (d ≤ 1 m), prefer the more generic parent
-                // ref over a lane-variant name, e.g. "TL 40" over "TL 40 'Blue Line'".
-                // A ref is a parent if the existing ref starts with it followed by a space.
+                // At a genuine OSM junction (d ≤ 1 m), resolve ref conflicts by
+                // preferring the higher-priority way type (taxiway > taxilane >
+                // intersection), and within the same priority prefer a parent name
+                // over a lane-variant (e.g. "TL 40" over "TL 40 'Blue Line'").
                 if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
-                    nodes_[nid].wayRef != wayRef && d <= 1.0 &&
-                    nodes_[nid].wayRef.starts_with(wayRef) &&
-                    nodes_[nid].wayRef.size() > wayRef.size() &&
-                    nodes_[nid].wayRef[wayRef.size()] == ' ')
+                    nodes_[nid].wayRef != wayRef && d <= 1.0)
                 {
-                    nodes_[nid].wayRef = std::string(wayRef);
+                    const bool higherPriority = wayPriority > nodes_[nid].wayPriority;
+                    const bool samePriorityParent =
+                        wayPriority == nodes_[nid].wayPriority &&
+                        nodes_[nid].wayRef.starts_with(wayRef) &&
+                        nodes_[nid].wayRef.size() > wayRef.size() &&
+                        nodes_[nid].wayRef[wayRef.size()] == ' ';
+                    if (higherPriority || samePriorityParent)
+                    {
+                        nodes_[nid].wayRef      = std::string(wayRef);
+                        nodes_[nid].wayPriority = wayPriority;
+                    }
                 }
                 return nid;
             }
         }
     }
     const int id = static_cast<int>(nodes_.size());
-    nodes_.push_back({id, pos, type, std::string(label), std::string(wayRef)});
+    nodes_.push_back({id, pos, type, std::string(label), std::string(wayRef), wayPriority});
     adj_.emplace_back();
     GridInsert(id);
     return id;
@@ -217,6 +226,14 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
         if (way.type == AerowayType::Taxiway_Intersection && !ref.empty())
             isxWayRefs_.insert(ref);
 
+        // Ref priority for junction conflict resolution: taxiway beats taxilane
+        // beats intersection.  Higher value wins when two ways share a node.
+        const uint8_t refPriority =
+            (way.type == AerowayType::Taxiway || way.type == AerowayType::Taxiway_HoldingPoint) ? 3
+            : (way.type == AerowayType::Taxilane)                                               ? 2
+            : (way.type == AerowayType::Taxiway_Intersection)                                   ? 1
+                                                                                                : 0;
+
         for (size_t k = 1; k < way.geometry.size(); ++k)
         {
             const GeoPoint& a    = way.geometry[k - 1];
@@ -243,14 +260,14 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             const double SUBDIV_M = apt_.taxiNetworkConfig.graph.subdivisionIntervalM;
             const int    nSteps   = static_cast<int>(std::floor(dist / SUBDIV_M));
 
-            int prev = FindOrCreateNode(a, 1.0, TaxiNodeType::Waypoint, ref, ref);
+            int prev = FindOrCreateNode(a, 1.0, TaxiNodeType::Waypoint, ref, ref, refPriority);
 
             for (int s = 1; s < nSteps; ++s)
             {
                 const double   t   = static_cast<double>(s) * SUBDIV_M / dist;
                 const GeoPoint mid = {a.lat + (b.lat - a.lat) * t,
                                       a.lon + (b.lon - a.lon) * t};
-                const int      cur = FindOrCreateNode(mid, 0.001, TaxiNodeType::Waypoint, ref, ref);
+                const int      cur = FindOrCreateNode(mid, 0.001, TaxiNodeType::Waypoint, ref, ref, refPriority);
                 if (cur == prev)
                     continue;
                 const double d = HaversineM(nodes_[prev].pos, nodes_[cur].pos);
@@ -259,7 +276,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 prev = cur;
             }
 
-            const int nB = FindOrCreateNode(b, 1.0, TaxiNodeType::Waypoint, ref, ref);
+            const int nB = FindOrCreateNode(b, 1.0, TaxiNodeType::Waypoint, ref, ref, refPriority);
             if (nB != prev)
             {
                 const double d = HaversineM(nodes_[prev].pos, nodes_[nB].pos);

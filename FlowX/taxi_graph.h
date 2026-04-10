@@ -41,8 +41,9 @@ struct TaxiNode
     int          id;
     GeoPoint     pos;
     TaxiNodeType type;
-    std::string  label;  ///< ref or name (for debug output and snap labels).
-    std::string  wayRef; ///< Taxiway ref this node belongs to; empty for stand/HP nodes.
+    std::string  label;       ///< ref or name (for debug output and snap labels).
+    std::string  wayRef;      ///< Taxiway ref this node belongs to; empty for stand/HP nodes.
+    uint8_t      wayPriority; ///< Way-type priority used to resolve ref conflicts at junctions (taxiway > taxilane > intersection).
 };
 
 /// @brief An ordered sequence of geographic positions forming a taxi path.
@@ -406,7 +407,8 @@ class TaxiGraph
     int FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                          TaxiNodeType     type,
                          std::string_view label,
-                         std::string_view wayRef);
+                         std::string_view wayRef,
+                         uint8_t          wayPriority = 0);
 
     /// @brief Returns the (cx, cy) spatial grid cell for @p p.
     [[nodiscard]] std::pair<int, int> GridCell(const GeoPoint& p) const;
