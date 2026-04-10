@@ -4351,14 +4351,19 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                     this->taxiSwingoverBearing);
                             }
 
+                            const double distMin = std::max(0.0, finalRoute.totalDistM - 50.0);
+                            const double distMax = finalRoute.totalDistM + 50.0;
+
                             std::string testJson = std::format(
                                 R"({{"name":"{}_{}/{} to {}","type":"{}","runwayConfig":"{}",)"
                                 R"("from":"{}","to":"{}","wingspan":{:.1f},)"
                                 R"("waypoints":{},"swingover":{},)"
+                                R"("distanceRange":[{:.0f},{:.0f}],)"
                                 R"("mustInclude":[],"mustNotInclude":[],"wayRefs":{}}})",
                                 rwyCfg, cs, direction, toLabel, typeStr, rwyCfg,
                                 fromLabel, toLabel, wingspan,
-                                waypointsJson, swingoverJson, wayRefsJson);
+                                waypointsJson, swingoverJson,
+                                distMin, distMax, wayRefsJson);
 
                             this->GetPlugIn()->DisplayUserMessage(
                                 PLUGIN_NAME, "TAXI", testJson.c_str(), true, true, true, false, false);
