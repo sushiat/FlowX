@@ -200,11 +200,10 @@ TEST_CASE("LoadAircraftData - C172 wingspan is 11.0 m (light)")
     CHECK(accessor().aircraftWingspans.at("C172") == doctest::Approx(11.0));
 }
 
-TEST_CASE("LoadAircraftData - A359 (no Wingspan in JSON) gets WTC-M average (~35.8 m)")
+TEST_CASE("LoadAircraftData - A359 gets explicit wingspan 64.75 m (WTC-H)")
 {
-    // A320 + B737 are both M category with wingspan 35.8, so average is 35.8.
     REQUIRE(accessor().aircraftWingspans.count("A359") == 1);
-    CHECK(accessor().aircraftWingspans.at("A359") == doctest::Approx(35.8));
+    CHECK(accessor().aircraftWingspans.at("A359") == doctest::Approx(64.75));
 }
 
 // ─── LoadGroundRadarStands ────────────────────────────────────────────────────

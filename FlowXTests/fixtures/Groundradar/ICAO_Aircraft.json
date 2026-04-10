@@ -3,5 +3,5 @@
     {"ICAO": "B737", "Description": "L2J", "WTC": "M", "Wingspan": 35.8, "Length": 39.47, "MTOW": 79016},
     {"ICAO": "B748", "Description": "L4J", "WTC": "H", "Wingspan": 68.4, "Length": 76.3,  "MTOW": 447696},
     {"ICAO": "C172", "Description": "L1P", "WTC": "L", "Wingspan": 11.0, "Length": 8.28,  "MTOW": 1111},
-    {"ICAO": "A359", "Description": "L2J", "WTC": "M",                                    "MTOW": 280000}
+    {"ICAO": "A359", "Description": "L2J", "WTC": "H", "Wingspan": 64.75, "Length": 66.8,  "MTOW": 280000}
 ]
