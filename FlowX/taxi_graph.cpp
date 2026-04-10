@@ -66,6 +66,17 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                 if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
                     nodes_[nid].wayRef != wayRef && d > 1.0)
                     continue;
+                // At a genuine OSM junction (d ≤ 1 m), prefer the more generic parent
+                // ref over a lane-variant name, e.g. "TL 40" over "TL 40 'Blue Line'".
+                // A ref is a parent if the existing ref starts with it followed by a space.
+                if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
+                    nodes_[nid].wayRef != wayRef && d <= 1.0 &&
+                    nodes_[nid].wayRef.starts_with(wayRef) &&
+                    nodes_[nid].wayRef.size() > wayRef.size() &&
+                    nodes_[nid].wayRef[wayRef.size()] == ' ')
+                {
+                    nodes_[nid].wayRef = std::string(wayRef);
+                }
                 return nid;
             }
         }
@@ -1348,6 +1359,25 @@ std::pair<GeoPoint, std::string> TaxiGraph::SnapNearest(const GeoPoint& rawPos,
 
 std::string TaxiGraph::PrefixedLabel(const GeoPoint& rawPos, double maxM) const
 {
+    // Priority 1: nearest HoldingPoint / HoldingPosition within an extended
+    // radius.  A taxiway Waypoint node that is closer should not shadow a
+    // nearby HP — the HP is always the more meaningful label.
+    constexpr double HP_RADIUS_M = 80.0;
+    double           bestHpD     = HP_RADIUS_M;
+    int              bestHpId    = -1;
+    for (const int id : hpNodeIds_)
+    {
+        const double d = HaversineM(nodes_[id].pos, rawPos);
+        if (d < bestHpD)
+        {
+            bestHpD  = d;
+            bestHpId = id;
+        }
+    }
+    if (bestHpId >= 0)
+        return "HP:" + nodes_[bestHpId].label;
+
+    // Priority 2: nearest node of any type within maxM.
     double bestD  = maxM;
     int    bestId = -1;
     for (const auto& n : nodes_)
@@ -1361,18 +1391,10 @@ std::string TaxiGraph::PrefixedLabel(const GeoPoint& rawPos, double maxM) const
     }
 
     if (bestId < 0)
-    {
-        // No node within range — fall back to raw coordinates.
         return std::format("GEO:{:.6f},{:.6f}", rawPos.lat, rawPos.lon);
-    }
 
     const TaxiNode& n = nodes_[bestId];
-    switch (n.type)
-    {
-    case TaxiNodeType::HoldingPoint:
-    case TaxiNodeType::HoldingPosition:
-        return "HP:" + n.label;
-    case TaxiNodeType::Stand:
+    if (n.type == TaxiNodeType::Stand)
     {
         // Stand labels are stored as "ICAO:designator" — strip the ICAO prefix.
         std::string label = n.label;
@@ -1380,10 +1402,9 @@ std::string TaxiGraph::PrefixedLabel(const GeoPoint& rawPos, double maxM) const
             label = label.substr(colon + 1);
         return "STAND:" + label;
     }
-    default:
-        // Waypoint: no canonical single position — use coordinates.
-        return std::format("GEO:{:.6f},{:.6f}", rawPos.lat, rawPos.lon);
-    }
+
+    // Waypoint: no canonical single position — use coordinates.
+    return std::format("GEO:{:.6f},{:.6f}", rawPos.lat, rawPos.lon);
 }
 
 std::string TaxiGraph::WayRefAt(const GeoPoint& rawPos, double maxM) const

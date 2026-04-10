@@ -429,9 +429,12 @@ void RadarScreen::RecalculateTaxiPreview()
         {
             TaxiRoute combined = this->taxiSwingoverFixedSeg;
             combined.totalDistM += tail.totalDistM;
+            combined.totalCost += tail.totalCost;
             combined.exitBearing = tail.exitBearing;
             for (const auto& pt : tail.polyline)
                 combined.polyline.push_back(pt);
+            for (const auto& ref : tail.wayRefs)
+                combined.wayRefs.push_back(ref);
             this->taxiGreenPreview = combined;
         }
         else
@@ -503,6 +506,7 @@ void RadarScreen::UpdateSwingoverState()
                         for (const auto& pt : sr.sbendPts)
                             fixedSeg.polyline.push_back(pt);
                         fixedSeg.polyline.push_back(sr.partnerPt);
+                        fixedSeg.wayRefs            = {curRef};
                         fixedSeg.valid              = true;
                         fixedSeg.totalDistM         = HaversineM(acPos, sr.partnerPt);
                         this->taxiSwingoverFixedSeg = fixedSeg;
@@ -4288,15 +4292,37 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             }
                             std::string rwyCfg = depStr + "_" + arrStr;
 
-                            // Resolve from/to as type-prefixed labels (HP:/STAND:/GEO:)
+                            // Resolve from/to as type-prefixed labels (HP:/STAND:/GEO:).
+                            // For inbound routes the polyline ends at the taxiway node adjacent
+                            // to the stand, not at the stand itself — use the assigned stand name
+                            // directly so the fixture round-trips correctly.
                             std::string fromLabel = settings->osmGraph.PrefixedLabel(finalRoute.polyline.front(), 50.0);
                             std::string toLabel   = settings->osmGraph.PrefixedLabel(finalRoute.polyline.back(), 50.0);
+                            if (inbound)
+                            {
+                                auto* timers  = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                                auto  standIt = timers->GetStandAssignment().find(cs);
+                                if (standIt != timers->GetStandAssignment().end() && !standIt->second.empty())
+                                    toLabel = "STAND:" + standIt->second;
+                            }
 
                             // Get wingspan
                             double wingspan = settings->GetAircraftWingspan(
                                 fp.GetFlightPlanData().GetAircraftFPType());
 
-                            // Build wayRefs as JSON array string
+                            // Build waypoints JSON array (intermediate planning points)
+                            std::string waypointsJson = "[";
+                            for (size_t i = 0; i < this->taxiWaypoints.size(); ++i)
+                            {
+                                if (i > 0)
+                                    waypointsJson += ",";
+                                waypointsJson += std::format(R"({{"lat":{:.6f},"lon":{:.6f}}})",
+                                                             this->taxiWaypoints[i].lat,
+                                                             this->taxiWaypoints[i].lon);
+                            }
+                            waypointsJson += "]";
+
+                            // Build wayRefs JSON array (reference; not part of test schema)
                             std::string wayRefsJson = "[";
                             for (size_t i = 0; i < finalRoute.wayRefs.size(); ++i)
                             {
@@ -4309,12 +4335,27 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             std::string typeStr   = inbound ? "inbound" : "outbound";
                             std::string direction = inbound ? "IN" : "OUT";
 
+                            // Swingover origin/bearing — only emitted when swingover was active.
+                            // The test replays the tail segment from swingoverOrigin with the
+                            // captured bearing so A* locks onto the correct lane.
+                            std::string swingoverJson = "false";
+                            if (this->taxiSwingoverActive && this->taxiSwingoverFixedSeg.valid)
+                            {
+                                swingoverJson = std::format(
+                                    R"({{"origin":{{"lat":{:.6f},"lon":{:.6f}}},"bearing":{:.2f}}})",
+                                    this->taxiSwingoverOrigin.lat,
+                                    this->taxiSwingoverOrigin.lon,
+                                    this->taxiSwingoverBearing);
+                            }
+
                             std::string testJson = std::format(
                                 R"({{"name":"{}_{}/{} to {}","type":"{}","runwayConfig":"{}",)"
                                 R"("from":"{}","to":"{}","wingspan":{:.1f},)"
+                                R"("waypoints":{},"swingover":{},)"
                                 R"("mustInclude":[],"mustNotInclude":[],"wayRefs":{}}})",
                                 rwyCfg, cs, direction, toLabel, typeStr, rwyCfg,
-                                fromLabel, toLabel, wingspan, wayRefsJson);
+                                fromLabel, toLabel, wingspan,
+                                waypointsJson, swingoverJson, wayRefsJson);
 
                             this->GetPlugIn()->DisplayUserMessage(
                                 PLUGIN_NAME, "TAXI", testJson.c_str(), true, true, true, false, false);

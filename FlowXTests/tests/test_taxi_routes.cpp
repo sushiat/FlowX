@@ -147,7 +147,40 @@ TEST_CASE("TaxiRoute - real world taxi tests")
             continue;
         }
 
-        TaxiRoute route = acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys);
+        // Parse optional waypoints array
+        std::vector<GeoPoint> waypoints;
+        if (tc.contains("waypoints") && tc["waypoints"].is_array())
+        {
+            for (const auto& wp : tc["waypoints"])
+            {
+                if (wp.contains("lat") && wp.contains("lon"))
+                    waypoints.push_back({wp["lat"].get<double>(), wp["lon"].get<double>()});
+            }
+        }
+
+        // Parse optional swingover object: {"origin":{lat,lon},"bearing":270.5}
+        // When present, routing starts from swingoverOrigin with the captured bearing,
+        // reproducing the tail segment that A* computed after the lane-crossing maneuver.
+        GeoPoint swingoverOrigin  = {};
+        double   swingoverBearing = -1.0;
+        if (tc.contains("swingover") && tc["swingover"].is_object())
+        {
+            const auto& sw = tc["swingover"];
+            if (sw.contains("origin"))
+            {
+                swingoverOrigin.lat = sw["origin"]["lat"].get<double>();
+                swingoverOrigin.lon = sw["origin"]["lon"].get<double>();
+            }
+            swingoverBearing = sw.value("bearing", -1.0);
+        }
+
+        const bool     hasSwingover = (swingoverOrigin.lat != 0.0 || swingoverOrigin.lon != 0.0);
+        const GeoPoint routeFrom    = hasSwingover ? swingoverOrigin : from;
+
+        TaxiRoute route = (waypoints.empty() && !hasSwingover)
+                              ? acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys)
+                              : acc.osmGraph.FindWaypointRoute(routeFrom, waypoints, to, wingspan, depRwys, arrRwys,
+                                                               swingoverBearing);
 
         std::string formatted = FormatTaxiRoute(route);
         std::cout << "  [" << name << "] " << formatted << "\n";
