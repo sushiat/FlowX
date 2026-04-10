@@ -142,13 +142,12 @@ struct TaxiNetworkConfig
     /// @brief A* routing algorithm parameters.
     struct Routing
     {
-        double backwardSnapM           = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
-        double forwardSnapM            = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
-        double hardTurnDeg             = 45.0;  ///< Bearing change (deg) above which an edge is hard-blocked during A*. OSM data shows max ~28 deg between consecutive edges on real taxiways.
-        double intersectionExitPenalty = 500.0; ///< Cost added when A* arrives at a named taxiway from an intersection way (e.g. Exit_X → E). Kept higher than wayrefChangePenalty to prevent hopping between parallel taxiways via intersection shortcuts.
-        double wayrefChangePenalty     = 200.0; ///< Cost added when the route changes directly from one named taxiway to another (neither side is an intersection).
-        double heuristicWeight         = 1.0;   ///< Weight applied to the A* heuristic (W > 1.0 = more goal-directed but may close nodes suboptimally; 1.0 is correct for small graphs).
-        int    maxNodeExpansions       = 5000;  ///< Maximum number of nodes A* expands before giving up; higher values find better routes but cost more CPU.
+        double backwardSnapM       = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
+        double forwardSnapM        = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
+        double hardTurnDeg         = 50.0;  ///< Bearing change (deg) above which an edge is hard-blocked during A*. Applies within the same wayRef (prevents kinks, OSM max ~28°) and between two non-intersection wayRefs (forces use of smooth intersection curves; LOWW M↔E junctions are ~47°).
+        double wayrefChangePenalty = 200.0; ///< Cost added when leaving a named taxiway for a different wayRef (entering an intersection or switching to another taxiway). Exiting an intersection to a named taxiway is free so that A* correctly evaluates early vs. late taxiway switches.
+        double heuristicWeight     = 1.0;   ///< Weight applied to the A* heuristic (W > 1.0 = more goal-directed but may close nodes suboptimally; 1.0 is correct for small graphs).
+        int    maxNodeExpansions   = 5000;  ///< Maximum number of nodes A* expands before giving up; higher values find better routes but cost more CPU.
     } routing;
 
     /// @brief Cursor snap radii used during interactive taxi planning.

@@ -827,8 +827,25 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
             return;
         }
 
-        MoveToEx(dc, acPt.x, acPt.y, nullptr);
-        for (size_t i = closestIdx; i < route.polyline.size(); ++i)
+        // Connector from aircraft to nearest route point: yellow to indicate
+        // the aircraft is off-network or has deviated from the assigned route.
+        EuroScopePlugIn::CPosition snapPos;
+        snapPos.m_Latitude  = route.polyline[closestIdx].lat;
+        snapPos.m_Longitude = route.polyline[closestIdx].lon;
+        const POINT snapPt  = ConvertCoordFromPositionToPixel(snapPos);
+        if (acPt.x != snapPt.x || acPt.y != snapPt.y)
+        {
+            HPEN yellowPen = CreatePen(PS_SOLID, 2, RGB(255, 220, 0));
+            HPEN savedPen  = static_cast<HPEN>(SelectObject(dc, yellowPen));
+            MoveToEx(dc, acPt.x, acPt.y, nullptr);
+            LineTo(dc, snapPt.x, snapPt.y);
+            SelectObject(dc, savedPen);
+            DeleteObject(yellowPen);
+        }
+
+        // Remaining route in the caller's pen colour (green).
+        MoveToEx(dc, snapPt.x, snapPt.y, nullptr);
+        for (size_t i = closestIdx + 1; i < route.polyline.size(); ++i)
         {
             EuroScopePlugIn::CPosition pos;
             pos.m_Latitude  = route.polyline[i].lat;

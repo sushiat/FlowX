@@ -617,14 +617,18 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
             if (!blockedNodes.empty() && blockedNodes.contains(edge.to) && edge.to != goalId)
                 continue;
 
-            // Hard-turn block: prevent physically impossible kinks between consecutive
-            // edges on the same way. Junction turns between different ways are allowed —
-            // their cost is handled by distance and wayref-change penalties.
-            if (incomingBearing[cur] >= 0.0 &&
-                !incomingWayRef[cur].empty() && incomingWayRef[cur] == edge.wayRef)
+            // Hard-turn block: any turn exceeding hardTurnDeg is physically
+            // impossible and blocked outright.  OSM data shows max ~28° between
+            // consecutive edges; LOWW's steepest legit junction (M↔E) is ~47°.
+            // At the start node (no incomingWayRef) a looser 135° limit applies
+            // because the aircraft heading reflects its stand/ramp orientation.
+            if (incomingBearing[cur] >= 0.0)
             {
-                if (BearingDiff(incomingBearing[cur], edge.bearingDeg) >
-                    apt_.taxiNetworkConfig.routing.hardTurnDeg)
+                const double bd_turn = BearingDiff(incomingBearing[cur], edge.bearingDeg);
+                const double limit   = incomingWayRef[cur].empty()
+                                           ? 135.0
+                                           : apt_.taxiNetworkConfig.routing.hardTurnDeg;
+                if (bd_turn > limit)
                     continue;
             }
 
@@ -669,21 +673,16 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 if (incomingBearing[cur] >= 0.0)
                     bd = BearingDiff(incomingBearing[cur], edge.bearingDeg);
 
-                // Entering an intersection way is always free; the connector itself carries
-                // no meaningful wayRef-change cost.  Arriving at a named taxiway from a
-                // different wayRef always pays a penalty — but the amount differs:
-                //   • From another named taxiway directly  → wayrefChangePenalty (low, ~200)
-                //   • From an intersection way             → intersectionExitPenalty (high, ~500)
-                // The higher intersection-exit penalty prevents "E → Exit_X (free) → D (500)"
-                // shortcuts that exploit the free intersection entry to bypass against-flow costs
-                // on parallel taxiways.
+                // Penalty when LEAVING a named taxiway for a different wayRef.  Exiting
+                // an intersection to a named taxiway is free.  This keeps onward costs
+                // identical at junction nodes reachable via different paths, so A*'s
+                // closed-set correctly picks the cheapest total route (e.g. early vs. late
+                // taxiway switch).
                 if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
                     incomingWayRef[cur] != edge.wayRef &&
-                    !isxWayRefs_.count(edge.wayRef))
+                    !isxWayRefs_.count(incomingWayRef[cur]))
                 {
-                    turnPenalty += isxWayRefs_.count(incomingWayRef[cur])
-                                       ? apt_.taxiNetworkConfig.routing.intersectionExitPenalty
-                                       : WAYREF_CHANGE_PENALTY;
+                    turnPenalty += WAYREF_CHANGE_PENALTY;
                 }
 
                 const double baseCost = suppress ? edge.cost / edge.flowMult : edge.cost;
@@ -795,34 +794,39 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     if (nodes_.empty())
         return {};
 
-    // Collect candidate start nodes: up to 3 nearest forward (within 120 m) and up to 2 nearest
-    // backward (within 300 m). A* runs from each candidate; the shortest valid route wins.
-    // This handles curve intersections where the closest forward node is on the wrong branch.
+    // Collect a broad pool of candidate start nodes, then diversify by wayRef so
+    // that nearby nodes on different taxiways/intersections are always tested.
     const double FORWARD_SNAP_M  = apt_.taxiNetworkConfig.routing.forwardSnapM;
     const double BACKWARD_SNAP_M = apt_.taxiNetworkConfig.routing.backwardSnapM;
 
-    std::vector<int> candidates = NearestCandidateNodes(from, initialBearingDeg,
-                                                        FORWARD_SNAP_M, BACKWARD_SNAP_M, 3, 2);
-    if (candidates.empty())
-        candidates.push_back(NearestNode(from));
+    std::vector<int> pool = NearestCandidateNodes(from, initialBearingDeg,
+                                                  FORWARD_SNAP_M, BACKWARD_SNAP_M, 15, 5);
+    if (pool.empty())
+        pool.push_back(NearestNode(from));
 
-    // Restrict candidates to the same taxiway ref as the nearest one.
-    // This prevents A* from starting on a different taxiway (e.g. centre line
-    // instead of the blue taxilane) whose nodes happen to be within the snap radius.
-    if (candidates.size() > 1)
+    // Build candidates: keep the 3 nearest overall, then add the nearest node
+    // from each wayRef not already represented.  This ensures that e.g. an
+    // intersection node slightly farther than the closest taxiway nodes is
+    // still evaluated as a potential start.
+    std::vector<int>      candidates;
+    std::set<int>         seen;
+    std::set<std::string> seenRefs;
+    for (size_t i = 0; i < pool.size() && candidates.size() < 3; ++i)
     {
-        const std::string& primaryRef = nodes_[candidates[0]].wayRef;
-        if (!primaryRef.empty())
-        {
-            candidates.erase(
-                std::remove_if(candidates.begin() + 1, candidates.end(),
-                               [&](int id)
-                               {
-                                   const std::string& r = nodes_[id].wayRef;
-                                   return !r.empty() && r != primaryRef;
-                               }),
-                candidates.end());
-        }
+        candidates.push_back(pool[i]);
+        seen.insert(pool[i]);
+        seenRefs.insert(nodes_[pool[i]].wayRef);
+    }
+    for (const int id : pool)
+    {
+        if (seen.count(id))
+            continue;
+        const std::string& ref = nodes_[id].wayRef;
+        if (ref.empty() || seenRefs.count(ref))
+            continue;
+        candidates.push_back(id);
+        seen.insert(id);
+        seenRefs.insert(ref);
     }
 
     const int goalId = NearestNode(to);
@@ -834,12 +838,10 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             if (wingspanM > maxWs)
                 excludedRefs.insert(ref);
 
-    // Try A* from each candidate; keep the shortest result when measured from the
-    // aircraft's actual position. totalDistM is from the start node to the goal —
-    // add the snap distance (aircraft → start node) so that backward candidates
-    // naturally pay for the backward travel they impose. Forward candidates pay
-    // only their small forward snap distance, so they are preferred unless a
-    // backward start genuinely produces a shorter overall path.
+    // Try A* from each candidate; keep the cheapest result (by cost, not distance)
+    // when measured from the aircraft's actual position.  Using totalCost ensures
+    // that a start node on an intersection (slightly farther) beats a start node
+    // on an against-flow taxiway (closer but 3× cost penalty).
     TaxiRoute best;
     double    bestScore = std::numeric_limits<double>::max();
     for (const int startId : candidates)
@@ -850,7 +852,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         if (!r.valid)
             continue;
         const double snapDist = HaversineM(from, nodes_[startId].pos);
-        const double score    = r.totalDistM + snapDist;
+        const double score    = r.totalCost + snapDist;
         if (score < bestScore)
         {
             bestScore = score;

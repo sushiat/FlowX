@@ -915,14 +915,13 @@ void CFlowX_Settings::LoadConfig()
             }
             if (jnc.contains("routing"))
             {
-                const auto& r                      = jnc["routing"];
-                nc.routing.hardTurnDeg             = r.value("hardTurnDeg", 45.0);
-                nc.routing.intersectionExitPenalty = r.value("intersectionExitPenalty", 500.0);
-                nc.routing.wayrefChangePenalty     = r.value("wayrefChangePenalty", 200.0);
-                nc.routing.forwardSnapM            = r.value("forwardSnapM", 120.0);
-                nc.routing.backwardSnapM           = r.value("backwardSnapM", 300.0);
-                nc.routing.heuristicWeight         = r.value("heuristicWeight", 1.5);
-                nc.routing.maxNodeExpansions       = r.value("maxNodeExpansions", 5000);
+                const auto& r                  = jnc["routing"];
+                nc.routing.hardTurnDeg         = r.value("hardTurnDeg", 50.0);
+                nc.routing.wayrefChangePenalty = r.value("wayrefChangePenalty", 200.0);
+                nc.routing.forwardSnapM        = r.value("forwardSnapM", 120.0);
+                nc.routing.backwardSnapM       = r.value("backwardSnapM", 300.0);
+                nc.routing.heuristicWeight     = r.value("heuristicWeight", 1.0);
+                nc.routing.maxNodeExpansions   = r.value("maxNodeExpansions", 5000);
             }
             if (jnc.contains("snapping"))
             {

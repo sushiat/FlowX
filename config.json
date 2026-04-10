@@ -102,7 +102,7 @@
             "16_11/16": [ { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
             "29_16":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "29/16_16": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
-            "29_34":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
+            "29_34":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "29/34_34": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "11_16":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ]
         },
@@ -423,8 +423,7 @@
                 "againstFlowMult": 3.0
             },
             "routing": {
-                "hardTurnDeg": 45.0,
-                "intersectionExitPenalty": 500.0,
+                "hardTurnDeg": 50.0,
                 "wayrefChangePenalty": 200.0,
                 "forwardSnapM": 120.0,
                 "backwardSnapM": 300.0,
