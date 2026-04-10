@@ -1,0 +1,3 @@
+[
+    {"name":"29_34_CFG7AT/OUT to HP:A1","type":"outbound","runwayConfig":"29_34","from":"GEO:48.116614,16.561662","to":"HP:A1","wingspan":35.8,"mustInclude":["Exit 7"],"mustNotInclude":[],"wayRefs":["L","Exit 7","M","Exit 1","M","Exit 1","A1"]}
+]

@@ -206,6 +206,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::string                                   napReminderAirport;                   ///< ICAO code of the airport whose NAP reminder is currently active
     POINT                                         napWindowPos = {-1, -1};              ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
     std::map<std::string, depInfo>                radarTargetDepartureInfos;            ///< Callsign -> departure overlay data for aircraft currently shown on the radar
+    bool                                          logTaxiTests           = false;       ///< When true, assigned taxi routes are logged as JSON test case templates
     bool                                          showTaxiGraph          = false;       ///< When true, the routing graph nodes and edges are drawn as a diagnostic overlay
     bool                                          showTaxiLabels         = false;       ///< When true, taxiway name labels are drawn over the TAXI network overlay
     bool                                          showTaxiOverlay        = false;       ///< When true, taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay

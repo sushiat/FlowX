@@ -1346,6 +1346,46 @@ std::pair<GeoPoint, std::string> TaxiGraph::SnapNearest(const GeoPoint& rawPos,
     return {nodes_[bestId].pos, nodes_[bestId].label};
 }
 
+std::string TaxiGraph::PrefixedLabel(const GeoPoint& rawPos, double maxM) const
+{
+    double bestD  = maxM;
+    int    bestId = -1;
+    for (const auto& n : nodes_)
+    {
+        const double d = HaversineM(n.pos, rawPos);
+        if (d < bestD)
+        {
+            bestD  = d;
+            bestId = n.id;
+        }
+    }
+
+    if (bestId < 0)
+    {
+        // No node within range — fall back to raw coordinates.
+        return std::format("GEO:{:.6f},{:.6f}", rawPos.lat, rawPos.lon);
+    }
+
+    const TaxiNode& n = nodes_[bestId];
+    switch (n.type)
+    {
+    case TaxiNodeType::HoldingPoint:
+    case TaxiNodeType::HoldingPosition:
+        return "HP:" + n.label;
+    case TaxiNodeType::Stand:
+    {
+        // Stand labels are stored as "ICAO:designator" — strip the ICAO prefix.
+        std::string label = n.label;
+        if (const auto colon = label.find(':'); colon != std::string::npos)
+            label = label.substr(colon + 1);
+        return "STAND:" + label;
+    }
+    default:
+        // Waypoint: no canonical single position — use coordinates.
+        return std::format("GEO:{:.6f},{:.6f}", rawPos.lat, rawPos.lon);
+    }
+}
+
 std::string TaxiGraph::WayRefAt(const GeoPoint& rawPos, double maxM) const
 {
     double bestD  = maxM;

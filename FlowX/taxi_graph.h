@@ -240,6 +240,13 @@ class TaxiGraph
     [[nodiscard]] std::pair<GeoPoint, std::string> SnapNearest(const GeoPoint& rawPos,
                                                                double          maxM) const;
 
+    /// @brief Returns a type-prefixed label for the nearest graph node within @p maxM metres.
+    ///   - HoldingPoint / HoldingPosition → "HP:label"
+    ///   - Stand → "STAND:label" (ICAO prefix stripped; just the stand designator)
+    ///   - Waypoint or no match → "GEO:lat,lon" using @p rawPos
+    /// Intended for generating taxi-test.json fixture entries.
+    [[nodiscard]] std::string PrefixedLabel(const GeoPoint& rawPos, double maxM) const;
+
     /// @brief Returns the wayRef of the nearest Waypoint node within @p maxM metres of @p rawPos.
     /// @return Empty string if no Waypoint node is within range.
     [[nodiscard]] std::string WayRefAt(const GeoPoint& rawPos, double maxM) const;

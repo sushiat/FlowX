@@ -160,6 +160,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="tests\test_taxi_routes.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
   </ItemGroup>
 
   <!-- ── Post-build: copy fixture files to the output directory ── -->
@@ -170,7 +174,8 @@ xcopy /Y /Q "$(ProjectDir)fixtures\settings.json" "$(OutDir)"
 xcopy /Y /Q "$(ProjectDir)fixtures\osm_taxiways_LOWW.json" "$(OutDir)"
 if not exist "$(SolutionDir)Groundradar\" md "$(SolutionDir)Groundradar"
 xcopy /Y /Q "$(ProjectDir)fixtures\Groundradar\ICAO_Aircraft.json" "$(SolutionDir)Groundradar\"
-xcopy /Y /Q "$(ProjectDir)fixtures\Groundradar\GRpluginStands.txt" "$(SolutionDir)Groundradar\"</Command>
+xcopy /Y /Q "$(ProjectDir)fixtures\Groundradar\GRpluginStands.txt" "$(SolutionDir)Groundradar\"
+xcopy /Y /Q "$(ProjectDir)fixtures\taxi-test.json" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
 

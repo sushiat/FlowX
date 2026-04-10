@@ -13,65 +13,19 @@
 //   $(SolutionDir)Groundradar\          ← fixtures/Groundradar/*
 
 #include <doctest/doctest.h>
-#include <thread>
-#include "CFlowX_Tags.h"   // pulls in the full chain, including CFlowX_Settings
-
-// ─── Test accessor ────────────────────────────────────────────────────────────
-
-/// @brief Thin subclass that exposes the protected Settings members for inspection.
-class SettingsTestAccessor : public CFlowX_Tags
-{
-  public:
-    using CFlowX_Settings::airports;
-    using CFlowX_Settings::aircraftWingspans;
-    using CFlowX_Settings::grStands;
-    using CFlowX_Settings::updateCheck;
-    using CFlowX_Settings::autoParked;
-    using CFlowX_Settings::autoScratchpadClear;
-    using CFlowX_Settings::hpAutoScratch;
-    using CFlowX_Settings::bgOpacity;
-    using CFlowX_Settings::soundAirborne;
-    using CFlowX_Settings::soundGndTransfer;
-    using CFlowX_Settings::soundReadyTakeoff;
-    using CFlowX_Settings::soundNoRoute;
-    using CFlowX_Settings::soundTaxiConflict;
-    using CFlowX_Settings::fontOffset;
-    using CFlowX_Settings::approachEstWindowX;
-    using CFlowX_Settings::approachEstWindowY;
-    using CFlowX_Settings::approachEstWindowW;
-    using CFlowX_Settings::approachEstWindowH;
-    using CFlowX_Settings::approachEstVisible;
-    using CFlowX_Settings::apprEstColors;
-    using CFlowX_Settings::twrOutboundWindowX;
-    using CFlowX_Settings::twrOutboundWindowY;
-    using CFlowX_Settings::twrOutboundVisible;
-    using CFlowX_Base::debug;
-    using CFlowX_Logging::flashOnMessage;
-    using CFlowX_Settings::PollOsmFuture;
-    using CFlowX_Settings::PollGraphFuture;
-
-    /// @brief Blocks until both the OSM cache load and the TaxiGraph build complete.
-    void DrainAsyncWork()
-    {
-        while (IsOsmBusy())
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        PollOsmFuture();   // moves osmData in; starts graphFuture_
-
-        while (IsGraphBusy())
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        PollGraphFuture(); // moves osmGraph in
-    }
-};
+#include "test_accessor.h"
 
 // ─── Global accessor ─────────────────────────────────────────────────────────
-// Constructed once.  DrainAsyncWork() blocks until the OSM cache load and graph
-// build both complete so that OSM/graph tests can assert on the final state.
 
-static SettingsTestAccessor& accessor()
+SettingsTestAccessor& accessor()
 {
-    struct Init {
+    struct Init
+    {
         SettingsTestAccessor acc;
-        Init() { acc.DrainAsyncWork(); }
+        Init()
+        {
+            acc.DrainAsyncWork();
+        }
     };
     static Init init;
     return init.acc;
@@ -86,7 +40,7 @@ TEST_CASE("LoadSettings - updateCheck is false (prevents async HTTP in construct
 
 TEST_CASE("LoadSettings - debug and flashOnMessage are false")
 {
-    CHECK(accessor().debug         == false);
+    CHECK(accessor().debug == false);
     CHECK(accessor().flashOnMessage == false);
 }
 
@@ -122,9 +76,9 @@ TEST_CASE("LoadSettings - soundAirborne is false (non-default)")
 
 TEST_CASE("LoadSettings - sound flags that remain default-true")
 {
-    CHECK(accessor().soundGndTransfer  == true);
+    CHECK(accessor().soundGndTransfer == true);
     CHECK(accessor().soundReadyTakeoff == true);
-    CHECK(accessor().soundNoRoute      == true);
+    CHECK(accessor().soundNoRoute == true);
     CHECK(accessor().soundTaxiConflict == true);
 }
 
@@ -142,7 +96,7 @@ TEST_CASE("LoadSettings - approachEstWindow position and size loaded correctly")
     CHECK(accessor().approachEstWindowW == 300);
     CHECK(accessor().approachEstWindowH == 450);
     CHECK(accessor().approachEstVisible == true);
-    CHECK(accessor().apprEstColors      == true);
+    CHECK(accessor().apprEstColors == true);
 }
 
 // ─── LoadConfig ───────────────────────────────────────────────────────────────
@@ -155,8 +109,8 @@ TEST_CASE("LoadConfig - LOWW airport is present")
 TEST_CASE("LoadConfig - LOWW field elevation and basic frequencies")
 {
     const auto& ap = accessor().airports.at("LOWW");
-    CHECK(ap.fieldElevation   == 600);
-    CHECK(ap.gndFreq          == "121.6");
+    CHECK(ap.fieldElevation == 600);
+    CHECK(ap.gndFreq == "121.6");
     CHECK(ap.airborneTransfer == 1500);
 }
 
@@ -190,7 +144,7 @@ TEST_CASE("LoadConfig - napReminder enabled at hour 20")
 {
     const auto& ap = accessor().airports.at("LOWW");
     CHECK(ap.nap_reminder.enabled == true);
-    CHECK(ap.nap_reminder.hour    == 20);
+    CHECK(ap.nap_reminder.hour == 20);
 }
 
 TEST_CASE("LoadConfig - runway 11 present with correct twrFreq and opposite")
@@ -198,7 +152,7 @@ TEST_CASE("LoadConfig - runway 11 present with correct twrFreq and opposite")
     const auto& ap = accessor().airports.at("LOWW");
     REQUIRE(ap.runways.count("11") == 1);
     const auto& rwy = ap.runways.at("11");
-    CHECK(rwy.twrFreq  == "119.4");
+    CHECK(rwy.twrFreq == "119.4");
     CHECK(rwy.opposite == "29");
 }
 
@@ -291,8 +245,9 @@ TEST_CASE("LoadGroundRadarStands - LOWW:A92 has 2 blocks")
 TEST_CASE("LoadGroundRadarStands - LOWW:A92 block A93 has minWingspan 31.99")
 {
     const auto& blocks = accessor().grStands.at("LOWW:A92").blocks;
-    auto it = std::find_if(blocks.begin(), blocks.end(),
-                           [](const standBlock& b) { return b.standName == "A93"; });
+    auto        it     = std::find_if(blocks.begin(), blocks.end(),
+                                      [](const standBlock& b)
+                                      { return b.standName == "A93"; });
     REQUIRE(it != blocks.end());
     CHECK(it->minWingspan == doctest::Approx(31.99));
 }
@@ -300,8 +255,9 @@ TEST_CASE("LoadGroundRadarStands - LOWW:A92 block A93 has minWingspan 31.99")
 TEST_CASE("LoadGroundRadarStands - LOWW:A92 block A96 has minWingspan 0 (always blocked)")
 {
     const auto& blocks = accessor().grStands.at("LOWW:A92").blocks;
-    auto it = std::find_if(blocks.begin(), blocks.end(),
-                           [](const standBlock& b) { return b.standName == "A96"; });
+    auto        it     = std::find_if(blocks.begin(), blocks.end(),
+                                      [](const standBlock& b)
+                                      { return b.standName == "A96"; });
     REQUIRE(it != blocks.end());
     CHECK(it->minWingspan == doctest::Approx(0.0));
 }
@@ -336,25 +292,28 @@ TEST_CASE("OSM cache - all seven main LOWW taxiway refs are present")
     for (const auto& ref : {"D", "E", "L", "M", "P", "Q", "W"})
     {
         bool found = std::any_of(ways.begin(), ways.end(),
-                                 [&](const OsmWay& w) { return w.ref == ref; });
+                                 [&](const OsmWay& w)
+                                 { return w.ref == ref; });
         CHECK_MESSAGE(found, "taxiway ref not found: ", ref);
     }
 }
 
 TEST_CASE("OSM cache - holding position A12 is present")
 {
-    const auto& hps = accessor().osmData.holdingPositions;
-    bool found = std::any_of(hps.begin(), hps.end(),
-                             [](const OsmHoldingPosition& h) { return h.ref == "A12"; });
+    const auto& hps   = accessor().osmData.holdingPositions;
+    bool        found = std::any_of(hps.begin(), hps.end(),
+                                    [](const OsmHoldingPosition& h)
+                                    { return h.ref == "A12"; });
     CHECK(found);
 }
 
 TEST_CASE("OSM cache - ways include all expected aeroway types")
 {
-    const auto& ways = accessor().osmData.ways;
-    auto hasType = [&](AerowayType t)
+    const auto& ways    = accessor().osmData.ways;
+    auto        hasType = [&](AerowayType t)
     {
-        return std::any_of(ways.begin(), ways.end(), [t](const OsmWay& w) { return w.type == t; });
+        return std::any_of(ways.begin(), ways.end(), [t](const OsmWay& w)
+                           { return w.type == t; });
     };
     CHECK(hasType(AerowayType::Taxiway));
     CHECK(hasType(AerowayType::Taxilane));

@@ -3275,6 +3275,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "Show TAXI labels", true, this->showTaxiLabels, 24},
         {false, "Show TAXI routes", true, this->showTaxiRoutes, 25},
         {false, "Show TAXI graph", true, this->showTaxiGraph, 29},
+        {false, "Log TAXI tests", true, this->logTaxiTests, 31},
     };
     const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
 
@@ -4261,12 +4262,63 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             {
                                 settings->LogDebugMessage(
                                     cs + " suggested: " + FormatTaxiRoute(sugIt->second), "TAXI");
-                                if (!sugIt->second.debugTrace.empty())
-                                    settings->LogDebugMessage(
-                                        cs + " suggested breakdown:\n" + sugIt->second.debugTrace, "TAXI");
                             }
                             settings->LogDebugMessage(
                                 cs + " assigned:  " + FormatTaxiRoute(finalRoute), "TAXI");
+                        }
+
+                        // Log test case template when "Log TAXI tests" is enabled.
+                        if (this->logTaxiTests && finalRoute.valid && !finalRoute.polyline.empty())
+                        {
+                            const std::string& cs = this->taxiPlanActive;
+
+                            // Build runway config string
+                            std::string depStr, arrStr;
+                            for (const auto& r : settings->GetActiveDepRunways())
+                            {
+                                if (!depStr.empty())
+                                    depStr += '/';
+                                depStr += r;
+                            }
+                            for (const auto& r : settings->GetActiveArrRunways())
+                            {
+                                if (!arrStr.empty())
+                                    arrStr += '/';
+                                arrStr += r;
+                            }
+                            std::string rwyCfg = depStr + "_" + arrStr;
+
+                            // Resolve from/to as type-prefixed labels (HP:/STAND:/GEO:)
+                            std::string fromLabel = settings->osmGraph.PrefixedLabel(finalRoute.polyline.front(), 50.0);
+                            std::string toLabel   = settings->osmGraph.PrefixedLabel(finalRoute.polyline.back(), 50.0);
+
+                            // Get wingspan
+                            double wingspan = settings->GetAircraftWingspan(
+                                fp.GetFlightPlanData().GetAircraftFPType());
+
+                            // Build wayRefs as JSON array string
+                            std::string wayRefsJson = "[";
+                            for (size_t i = 0; i < finalRoute.wayRefs.size(); ++i)
+                            {
+                                if (i > 0)
+                                    wayRefsJson += ",";
+                                wayRefsJson += "\"" + finalRoute.wayRefs[i] + "\"";
+                            }
+                            wayRefsJson += "]";
+
+                            std::string typeStr   = inbound ? "inbound" : "outbound";
+                            std::string direction = inbound ? "IN" : "OUT";
+
+                            std::string testJson = std::format(
+                                R"({{"name":"{}_{}/{} to {}","type":"{}","runwayConfig":"{}",)"
+                                R"("from":"{}","to":"{}","wingspan":{:.1f},)"
+                                R"("mustInclude":[],"mustNotInclude":[],"wayRefs":{}}})",
+                                rwyCfg, cs, direction, toLabel, typeStr, rwyCfg,
+                                fromLabel, toLabel, wingspan, wayRefsJson);
+
+                            this->GetPlugIn()->DisplayUserMessage(
+                                PLUGIN_NAME, "TAXI", testJson.c_str(), true, true, true, false, false);
+                            settings->LogToFile(testJson, "TAXI");
                         }
                     }
                 }
@@ -4492,6 +4544,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 else if (idx == 29) // Show TAXI graph
                 {
                     this->showTaxiGraph = !this->showTaxiGraph;
+                }
+                else if (idx == 31) // Log TAXI tests
+                {
+                    this->logTaxiTests = !this->logTaxiTests;
                 }
                 else if (idx == 26) // Clear all TAXI routes
                 {
