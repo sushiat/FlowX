@@ -1678,6 +1678,21 @@ GeoPoint TaxiGraph::StandCentroid(const std::string&                    icaoStan
             sumLon / static_cast<double>(st.lat.size())};
 }
 
+GeoPoint TaxiGraph::StandApproachPoint(const std::string&                    icaoStandKey,
+                                       const std::map<std::string, grStand>& grStands)
+{
+    GeoPoint centroid = StandCentroid(icaoStandKey, grStands);
+    if (centroid.lat == 0.0 && centroid.lon == 0.0)
+        return centroid;
+    auto it = grStands.find(icaoStandKey);
+    if (it == grStands.end() || !it->second.heading.has_value())
+        return centroid;
+    // Aircraft parks nose-in at heading H, so it approached from bearing H+180.
+    // Offset the target toward the approach side so NearestNode picks the correct taxiway.
+    const double approachBearing = std::fmod(it->second.heading.value() + 180.0, 360.0);
+    return OffsetPoint(centroid, approachBearing, 20.0);
+}
+
 GeoPoint TaxiGraph::HoldingPositionByLabel(const std::string& label) const
 {
     for (const int id : hpNodeIds_)

@@ -38,7 +38,7 @@ ParseRunwayConfig(const std::string& cfg)
 /// @brief Resolves a position label to a GeoPoint.
 ///   - "GEO:lat,lon" → raw WGS-84 coordinates (used for waypoint-type positions)
 ///   - "RWY:29"    → runway threshold
-///   - "STAND:B67"        → stand centroid (prepends "LOWW:")
+///   - "STAND:B67"        → stand approach point (prepends "LOWW:")
 ///   - "HP:A12"           → holding position/point by label
 ///   - "GEO:lat,lon"      → raw WGS-84 coordinates
 static GeoPoint ResolvePosition(const std::string&                    label,
@@ -87,7 +87,7 @@ static GeoPoint ResolvePosition(const std::string&                    label,
                 if (hp.lat != 0.0 || hp.lon != 0.0)
                     return hp;
             }
-            GeoPoint pt = TaxiGraph::StandCentroid(icao + ":" + standName, grStands);
+            GeoPoint pt = TaxiGraph::StandApproachPoint(icao + ":" + standName, grStands);
             if (pt.lat != 0.0 || pt.lon != 0.0)
                 return pt;
         }

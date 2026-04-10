@@ -780,6 +780,11 @@ void CFlowX_Settings::LoadGroundRadarStands()
                     current.lon.push_back(parseDMS(coords[1]));
                 }
             }
+            else if (inStand && starts_with(line, "HEADING:"))
+            {
+                // "HEADING:200"
+                current.heading = std::stoi(line.substr(8));
+            }
             else if (inStand && starts_with(line, "BLOCKS:"))
             {
                 // "BLOCKS:B68"  |  "BLOCKS:B69:35.99"  |  "BLOCKS:A93,A96:31.99"

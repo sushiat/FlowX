@@ -98,6 +98,19 @@ inline double BearingDiff(double a, double b)
     return d > 180.0 ? 360.0 - d : d;
 }
 
+/// @brief Returns the point at distance @p distM from @p pos along bearing @p bearingDeg.
+inline GeoPoint OffsetPoint(const GeoPoint& pos, double bearingDeg, double distM)
+{
+    const double d    = distM / TAXI_EARTH_R;
+    const double lat1 = pos.lat * std::numbers::pi / 180.0;
+    const double lon1 = pos.lon * std::numbers::pi / 180.0;
+    const double brng = bearingDeg * std::numbers::pi / 180.0;
+    const double lat2 = std::asin(std::sin(lat1) * std::cos(d) + std::cos(lat1) * std::sin(d) * std::cos(brng));
+    const double lon2 = lon1 + std::atan2(std::sin(brng) * std::sin(d) * std::cos(lat1),
+                                          std::cos(d) - std::sin(lat1) * std::sin(lat2));
+    return {lat2 * 180.0 / std::numbers::pi, lon2 * 180.0 / std::numbers::pi};
+}
+
 /// @brief Flat-earth perpendicular distance from point @p P to segment [@p A, @p B], in metres.
 inline double PointToSegmentDistM(const GeoPoint& P, const GeoPoint& A, const GeoPoint& B)
 {
@@ -288,6 +301,15 @@ class TaxiGraph
     /// @return {0,0} if the key is not found.
     [[nodiscard]] static GeoPoint StandCentroid(const std::string&                    icaoStandKey,
                                                 const std::map<std::string, grStand>& grStands);
+
+    /// @brief Routing destination for an inbound aircraft assigned to @p icaoStandKey.
+    /// If the stand has a nose-in heading, returns the centroid offset 20 m toward the approach
+    /// side (bearing = heading + 180°) so that NearestNode snaps to the correct entry taxiway.
+    /// Falls back to StandCentroid when no heading is available.
+    /// @param icaoStandKey  Key in the grStands map, e.g. "LOWW:B67".
+    /// @param grStands      The stands map from CFlowX_Settings.
+    [[nodiscard]] static GeoPoint StandApproachPoint(const std::string&                    icaoStandKey,
+                                                     const std::map<std::string, grStand>& grStands);
 
     /// @brief Returns the position of the HoldingPoint or HoldingPosition node whose label
     ///        matches @p label (case-sensitive), or {0,0} if not found.

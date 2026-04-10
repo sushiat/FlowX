@@ -298,6 +298,42 @@ TEST_CASE("LoadGroundRadarStands - LOWW:GAC stand exists with 4 vertices and no 
     CHECK(s.blocks.empty());
 }
 
+TEST_CASE("LoadGroundRadarStands - LOWW:A92 heading parsed correctly")
+{
+    // HEADING:332 — nose-in heading stored as optional<int>.
+    REQUIRE(accessor().grStands.count("LOWW:A92") == 1);
+    const auto& s = accessor().grStands.at("LOWW:A92");
+    REQUIRE(s.heading.has_value());
+    CHECK(s.heading.value() == 332);
+}
+
+TEST_CASE("LoadGroundRadarStands - LOWW:GAC has no heading")
+{
+    // GAC has no HEADING line — optional must be empty.
+    REQUIRE(accessor().grStands.count("LOWW:GAC") == 1);
+    CHECK_FALSE(accessor().grStands.at("LOWW:GAC").heading.has_value());
+}
+
+TEST_CASE("StandApproachPoint - LOWW:A92 is offset from centroid toward approach bearing")
+{
+    // A92 heading = 332 → approach bearing = 332 + 180 = 152°.
+    const auto& grStands = accessor().grStands;
+    GeoPoint    centroid = TaxiGraph::StandCentroid("LOWW:A92", grStands);
+    GeoPoint    approach = TaxiGraph::StandApproachPoint("LOWW:A92", grStands);
+    REQUIRE(centroid.lat != approach.lat);
+    CHECK(BearingDiff(BearingDeg(centroid, approach), 152.0) < 1.0);
+}
+
+TEST_CASE("StandApproachPoint - LOWW:GAC (no heading) equals StandCentroid")
+{
+    // GAC has no HEADING — approach point must match centroid exactly.
+    const auto& grStands = accessor().grStands;
+    GeoPoint    centroid = TaxiGraph::StandCentroid("LOWW:GAC", grStands);
+    GeoPoint    approach = TaxiGraph::StandApproachPoint("LOWW:GAC", grStands);
+    CHECK(centroid.lat == doctest::Approx(approach.lat));
+    CHECK(centroid.lon == doctest::Approx(approach.lon));
+}
+
 // ─── OSM cache load ───────────────────────────────────────────────────────────
 // The fixture osm_taxiways_LOWW.json is a snapshot of the real LOWW OSM cache.
 // DrainAsyncWork() (called at accessor construction) blocks until PollOsmFuture

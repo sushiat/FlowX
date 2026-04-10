@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <map>
 #include <vector>
@@ -61,11 +62,12 @@ struct standBlock
 /// @brief A stand polygon loaded from GRpluginStands.txt.
 struct grStand
 {
-    std::string             icao;   ///< Airport ICAO code
-    std::string             name;   ///< Stand designator (e.g. "B67")
-    std::vector<double>     lat;    ///< Polygon vertex latitudes
-    std::vector<double>     lon;    ///< Polygon vertex longitudes
-    std::vector<standBlock> blocks; ///< Stands blocked when this one is occupied
+    std::string             icao;    ///< Airport ICAO code
+    std::string             name;    ///< Stand designator (e.g. "B67")
+    std::vector<double>     lat;     ///< Polygon vertex latitudes
+    std::vector<double>     lon;     ///< Polygon vertex longitudes
+    std::vector<standBlock> blocks;  ///< Stands blocked when this one is occupied
+    std::optional<int>      heading; ///< Nose-in heading in degrees true, if specified in GRpluginStands.txt
 };
 
 /// @brief Suggested runway vacate point with a minimum gap requirement and associated stands.

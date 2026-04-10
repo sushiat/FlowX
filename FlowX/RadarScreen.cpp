@@ -1742,11 +1742,11 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
                 GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(ovIt->second);
                 dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                   ? hp
-                                  : TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+                                  : TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
             }
             else
             {
-                dest = TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+                dest = TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
             }
         }
     }
@@ -4109,11 +4109,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(ovIt->second);
                             dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                               ? hp
-                                              : TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+                                              : TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
                         }
                         else
                         {
-                            dest = TaxiGraph::StandCentroid(ourIcao + ":" + standName, settings->GetGrStands());
+                            dest = TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
                         }
                     }
                 }
