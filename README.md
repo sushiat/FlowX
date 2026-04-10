@@ -17,6 +17,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 - [Chat Commands](#chat-commands)
 - [Start Menu](#start-menu)
 - [config.json Reference](#configjson-reference)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -606,6 +607,58 @@ Vacate points define recommended runway exit points for arriving aircraft based 
 
 ---
 
+## Testing
+
+FlowX includes a companion **FlowXTests** project — a standalone Win32 console executable that runs unit tests against the core plugin logic without requiring a live EuroScope installation.
+
+### Test framework
+
+[doctest](https://github.com/doctest/doctest) v2.5.1 (single-header, bundled at `include/doctest/doctest.h`).
+
+### Building
+
+Open `FlowX.sln` in Visual Studio 2022 and build the **FlowXTests** project (`Debug|Win32` or `Release|Win32`). The output is `Debug\FlowXTests.exe` or `Release\FlowXTests.exe` in the solution root.
+
+A post-build event copies the required fixture files into the output directory automatically:
+
+| Fixture | Destination | Purpose |
+|---|---|---|
+| `config.json` (solution root) | `$(OutDir)` | Real LOWW airport configuration |
+| `FlowXTests/fixtures/settings.json` | `$(OutDir)` | Test settings with `updateCheck: false` |
+| `FlowXTests/fixtures/osm_taxiways_LOWW.json` | `$(OutDir)` | Snapshot of the OSM taxiway cache |
+| `FlowXTests/fixtures/Groundradar/ICAO_Aircraft.json` | `$(SolutionDir)Groundradar\` | Aircraft wingspan data |
+| `FlowXTests/fixtures/Groundradar/GRpluginStands.txt` | `$(SolutionDir)Groundradar\` | Stand polygon data |
+
+### Running
+
+```
+Release\FlowXTests.exe
+```
+
+A non-zero exit code means one or more tests failed. Pass `--help` for doctest options (e.g. `--tc=*OSM*` to filter by name).
+
+### What is tested
+
+| File | Real source compiled | Coverage |
+|---|---|---|
+| `test_geometry.cpp` | `taxi_graph.h` | Haversine distance, bearing, bearing-diff, point-to-segment distance, segment intersection |
+| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan filtering |
+| `test_osm.cpp` | `osm_taxiways.cpp` | OSM JSON parsing (taxiways, taxilanes, runways, holding positions, stands) |
+| `test_lookups.cpp` | `CFlowX_LookupsTools.cpp` | Point-in-polygon, colour parsing, holding-point annotation encoding, weight category ranking |
+| `test_helpers.cpp` | *(helpers are inline/header-only)* | String split/join, trim, upper-case, frequency annotation formatting |
+| `test_tags.cpp` | `CFlowX_Tags.cpp` | Tag text and colour generation (Push+Start helper, Same-SID, ADES, QNH marker) using EuroScope stubs |
+| `test_settings.cpp` | `CFlowX_Settings.cpp` | `LoadSettings`, `LoadConfig`, `LoadAircraftData`, `LoadGroundRadarStands` against real fixture files; OSM cache load and TaxiGraph build from the LOWW snapshot |
+
+### EuroScope stub
+
+`FlowXTests/stubs/EuroScope/EuroScopePlugIn.h` shadows the real SDK header via include-path ordering. It provides the same types and method signatures as the production header, implemented as plain data-holder structs with no DLL linkage. Tests set member variables directly to simulate flight-plan and radar-target state.
+
+### OSM cache snapshot
+
+`FlowXTests/fixtures/osm_taxiways_LOWW.json` is a point-in-time snapshot of the LOWW taxiway data (216 ways, 47 holding positions). It is used to verify that the cache loader and TaxiGraph builder work end-to-end without a network connection. If the OSM data changes significantly and you regenerate the cache from EuroScope, copy the new `osm_taxiways_LOWW.json` from the plugin directory into `FlowXTests/fixtures/` and update the way/holding-position count assertions in `test_settings.cpp`.
+
+---
+
 ## Contributing
 
 If you have a suggestion or encountered a bug, please open an [issue](https://github.com/sushiat/FlowX/issues) on GitHub. Include a description of the problem, relevant logs, and steps to reproduce.
@@ -614,8 +667,9 @@ If you have a suggestion or encountered a bug, please open an [issue](https://gi
 
 ### Development setup
 
-- **Visual Studio 2022** (no other build system is supported)
-- Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration
+Primary development is done in **VS Code** with the Microsoft C/C++ extension and CMake Tools; **Visual Studio 2022** is also fully supported and remains the reference build environment.
+
+- Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration in VS2022
 - Avoid breakpoints during live controlling — use `.flowx debug` instead
 - Target: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`), C++23, Windows SDK 11.0
 
