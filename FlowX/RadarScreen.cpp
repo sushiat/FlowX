@@ -392,6 +392,62 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
 // Private draw helpers — pure GDI output, no state calculations
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// @brief Recomputes taxiGreenPreview from the current taxiCursorSnap and planning state.
+/// Called from OnOverScreenObject on every mouse move and from UpdateSwingoverState on ALT toggle
+/// so the new route is visible immediately without waiting for the next mouse event.
+void RadarScreen::RecalculateTaxiPreview()
+{
+    if (this->taxiPlanActive.empty() || this->taxiPlanIsPush || this->taxiMidDrawing)
+        return;
+
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    auto  rt       = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+    if (!rt.IsValid())
+        return;
+
+    const EuroScopePlugIn::CPosition rpos    = rt.GetPosition().GetPosition();
+    const GeoPoint                   origin  = {rpos.m_Latitude, rpos.m_Longitude};
+    const double                     heading = rt.GetPosition().GetReportedHeadingTrueNorth();
+
+    std::set<int> blocked;
+    for (const auto& [_, pushRoute] : this->pushTracked)
+    {
+        auto b = settings->osmGraph.NodesToBlock(pushRoute.polyline, 3.0);
+        blocked.insert(b.begin(), b.end());
+    }
+
+    const double taxiWs = settings->GetAircraftWingspan(
+        GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
+
+    if (this->taxiSwingoverActive && this->taxiSwingoverFixedSeg.valid)
+    {
+        TaxiRoute tail = settings->osmGraph.FindWaypointRoute(
+            this->taxiSwingoverOrigin, this->taxiWaypoints, this->taxiCursorSnap,
+            taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), -1.0, blocked);
+        if (tail.valid)
+        {
+            TaxiRoute combined = this->taxiSwingoverFixedSeg;
+            combined.totalDistM += tail.totalDistM;
+            combined.exitBearing = tail.exitBearing;
+            for (const auto& pt : tail.polyline)
+                combined.polyline.push_back(pt);
+            this->taxiGreenPreview = combined;
+        }
+        else
+        {
+            this->taxiGreenPreview = this->taxiSwingoverFixedSeg;
+        }
+    }
+    else
+    {
+        const bool hasDrawnNodes = !this->taxiDrawnNodeSet.empty() && !this->taxiWaypoints.empty();
+        this->taxiGreenPreview   = settings->osmGraph.FindWaypointRoute(
+            origin, this->taxiWaypoints, this->taxiCursorSnap,
+            taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
+            heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet);
+    }
+}
+
 /// @brief Detects ALT keypress each BEFORE_TAGS frame and toggles taxiSwingoverActive when it fires.
 void RadarScreen::UpdateSwingoverState()
 {
@@ -460,6 +516,11 @@ void RadarScreen::UpdateSwingoverState()
                             this->taxiSwingoverActive ? "ON" : "OFF",
                             vkMenu, vkLMenu, vkRMenu),
                 "TAXI");
+
+        // Recompute and redraw immediately so the controller sees the new route
+        // without having to nudge the mouse first.
+        this->RecalculateTaxiPreview();
+        this->RequestRefresh();
     }
     this->taxiAltPrevDown = altNow;
 }
@@ -3739,51 +3800,7 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
                     }
                     else if (!this->taxiMidDrawing)
                     {
-                        // For taxi planning, route around active push routes.
-                        std::set<int> blocked;
-                        for (const auto& [_, pushRoute] : this->pushTracked)
-                        {
-                            auto b = settings->osmGraph.NodesToBlock(pushRoute.polyline, 3.0);
-                            blocked.insert(b.begin(), b.end());
-                        }
-
-                        const double taxiWs = settings->GetAircraftWingspan(
-                            GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str()).GetFlightPlanData().GetAircraftFPType());
-
-                        if (this->taxiSwingoverActive && this->taxiSwingoverFixedSeg.valid)
-                        {
-                            // Fixed segment is baked; route freely from partner-lane origin to cursor.
-                            TaxiRoute tail = settings->osmGraph.FindWaypointRoute(
-                                this->taxiSwingoverOrigin, this->taxiWaypoints, this->taxiCursorSnap,
-                                taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), -1.0, blocked);
-                            if (tail.valid)
-                            {
-                                TaxiRoute combined = this->taxiSwingoverFixedSeg;
-                                combined.totalDistM += tail.totalDistM;
-                                combined.exitBearing = tail.exitBearing;
-                                for (const auto& pt : tail.polyline)
-                                    combined.polyline.push_back(pt);
-                                this->taxiGreenPreview = combined;
-                            }
-                            else
-                            {
-                                this->taxiGreenPreview = this->taxiSwingoverFixedSeg;
-                            }
-                        }
-                        else
-                        {
-                            // When a draw gesture produced preferred nodes, pass them to
-                            // FindWaypointRoute which forwards them to A* as a soft discount
-                            // (0.2x cost) to bias the route toward the drawn path.  Using
-                            // preferred nodes instead of hard intermediate waypoints avoids
-                            // backtracking loops when sampled points are close together.
-                            const bool hasDrawnNodes = !this->taxiDrawnNodeSet.empty() &&
-                                                       !this->taxiWaypoints.empty();
-                            this->taxiGreenPreview   = settings->osmGraph.FindWaypointRoute(
-                                origin, this->taxiWaypoints, this->taxiCursorSnap,
-                                taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
-                                heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet);
-                        }
+                        this->RecalculateTaxiPreview();
                     }
                 }
                 this->RequestRefresh();
@@ -4112,7 +4129,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 const double taxiWs  = settings->GetAircraftWingspan(
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
-                    origin, dest, taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked);
+                    origin, dest, taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked,
+                    {}, false, {}, settings->GetDebug());
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
             }
             // Push planning: no suggestion; preview computed on first mouse move.
@@ -4150,7 +4168,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     }
                     if (settings->GetDebug())
                         settings->LogDebugMessage(
-                            "Push route assigned: " + FormatTaxiRoute(this->taxiGreenPreview), "TAXI");
+                            this->taxiPlanActive + " push route assigned: " + FormatTaxiRoute(this->taxiGreenPreview), "TAXI");
                 }
             }
             else
@@ -4205,7 +4223,20 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             this->gndTransferSquareTimes.erase(this->taxiPlanActive);
                         }
                         if (settings->GetDebug())
-                            settings->LogDebugMessage("Taxi route assigned: " + FormatTaxiRoute(finalRoute), "TAXI");
+                        {
+                            const std::string& cs    = this->taxiPlanActive;
+                            auto               sugIt = this->taxiSuggested.find(cs);
+                            if (sugIt != this->taxiSuggested.end())
+                            {
+                                settings->LogDebugMessage(
+                                    cs + " suggested: " + FormatTaxiRoute(sugIt->second), "TAXI");
+                                if (!sugIt->second.debugTrace.empty())
+                                    settings->LogDebugMessage(
+                                        cs + " suggested breakdown:\n" + sugIt->second.debugTrace, "TAXI");
+                            }
+                            settings->LogDebugMessage(
+                                cs + " assigned:  " + FormatTaxiRoute(finalRoute), "TAXI");
+                        }
                     }
                 }
             }

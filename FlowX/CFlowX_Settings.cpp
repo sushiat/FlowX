@@ -899,27 +899,30 @@ void CFlowX_Settings::LoadConfig()
             }
             if (jnc.contains("edgeCosts"))
             {
-                const auto& e                 = jnc["edgeCosts"];
-                nc.edgeCosts.multIntersection = e.value("multIntersection", 1.1);
-                nc.edgeCosts.multTaxilane     = e.value("multTaxilane", 3.0);
-                nc.edgeCosts.multRunway       = e.value("multRunway", 20.0);
+                const auto& e                   = jnc["edgeCosts"];
+                nc.edgeCosts.multIntersection   = e.value("multIntersection", 1.1);
+                nc.edgeCosts.multTaxilane       = e.value("multTaxilane", 3.0);
+                nc.edgeCosts.multRunway         = e.value("multRunway", 20.0);
+                nc.edgeCosts.multRunwayApproach = e.value("multRunwayApproach", 18.0);
             }
             if (jnc.contains("flowRules"))
             {
                 const auto& f                  = jnc["flowRules"];
                 nc.flowRules.withFlowMaxDeg    = f.value("withFlowMaxDeg", 45.0);
+                nc.flowRules.withFlowMult      = f.value("withFlowMult", 0.9);
                 nc.flowRules.againstFlowMinDeg = f.value("againstFlowMinDeg", 135.0);
                 nc.flowRules.againstFlowMult   = f.value("againstFlowMult", 3.0);
             }
             if (jnc.contains("routing"))
             {
-                const auto& r                  = jnc["routing"];
-                nc.routing.hardTurnDeg         = r.value("hardTurnDeg", 120.0);
-                nc.routing.softTurnDeg         = r.value("softTurnDeg", 85.0);
-                nc.routing.turnPenalty         = r.value("turnPenalty", 200.0);
-                nc.routing.wayrefChangePenalty = r.value("wayrefChangePenalty", 500.0);
-                nc.routing.forwardSnapM        = r.value("forwardSnapM", 120.0);
-                nc.routing.backwardSnapM       = r.value("backwardSnapM", 300.0);
+                const auto& r                      = jnc["routing"];
+                nc.routing.hardTurnDeg             = r.value("hardTurnDeg", 45.0);
+                nc.routing.intersectionExitPenalty = r.value("intersectionExitPenalty", 500.0);
+                nc.routing.wayrefChangePenalty     = r.value("wayrefChangePenalty", 200.0);
+                nc.routing.forwardSnapM            = r.value("forwardSnapM", 120.0);
+                nc.routing.backwardSnapM           = r.value("backwardSnapM", 300.0);
+                nc.routing.heuristicWeight         = r.value("heuristicWeight", 1.5);
+                nc.routing.maxNodeExpansions       = r.value("maxNodeExpansions", 5000);
             }
             if (jnc.contains("snapping"))
             {

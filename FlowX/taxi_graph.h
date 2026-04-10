@@ -48,9 +48,11 @@ struct TaxiNode
 /// @brief An ordered sequence of geographic positions forming a taxi path.
 struct TaxiRoute
 {
-    std::vector<GeoPoint>    polyline; ///< Screen-rendered path.
-    std::vector<std::string> wayRefs;  ///< Taxiway refs traversed in order (for debug).
+    std::vector<GeoPoint>    polyline;   ///< Screen-rendered path.
+    std::vector<std::string> wayRefs;    ///< Taxiway refs traversed in order (for debug).
+    std::string              debugTrace; ///< Per-edge breakdown of costs and penalties (populated only when debug is on).
     double                   totalDistM  = 0.0;
+    double                   totalCost   = 0.0;  ///< Sum of A* edge costs + penalties (for debug cost comparison).
     double                   exitBearing = -1.0; ///< True bearing (°) of the final path edge; -1 = unknown.
     bool                     valid       = false;
 };
@@ -202,7 +204,8 @@ class TaxiGraph
                                       const std::set<int>&         blockedNodes        = {},
                                       const std::set<std::string>& suppressFlowWayRefs = {},
                                       bool                         ignoreAllPenalties  = false,
-                                      const std::set<int>&         preferredNodes      = {}) const;
+                                      const std::set<int>&         preferredNodes      = {},
+                                      bool                         emitDebugTrace      = false) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
     /// @param origin            Route start.
@@ -222,7 +225,8 @@ class TaxiGraph
                                               double                       initialBearingDeg  = -1.0,
                                               const std::set<int>&         blockedNodes       = {},
                                               bool                         ignoreAllPenalties = false,
-                                              const std::set<int>&         preferredNodes     = {}) const;
+                                              const std::set<int>&         preferredNodes     = {},
+                                              bool                         emitDebugTrace     = false) const;
 
     /// @brief Returns the merged set of flow rules for the given active runway configuration.
     /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.
@@ -461,5 +465,6 @@ class TaxiGraph
                                      double                       initialBearingDeg,
                                      const std::set<std::string>& suppressFlowWayRefs = {},
                                      bool                         ignoreAllPenalties  = false,
-                                     const std::set<int>&         preferredNodes      = {}) const;
+                                     const std::set<int>&         preferredNodes      = {},
+                                     bool                         emitDebugTrace      = false) const;
 };

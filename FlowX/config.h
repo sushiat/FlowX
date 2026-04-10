@@ -124,9 +124,10 @@ struct TaxiNetworkConfig
     /// @brief Base edge-cost multipliers applied per aeroway type at build time.
     struct EdgeCosts
     {
-        double multIntersection = 1.1;  ///< Cost multiplier for taxiway-intersection edges (slight penalty).
-        double multRunway       = 20.0; ///< Cost multiplier for runway edges (strongly discouraged; only used to vacate the runway).
-        double multTaxilane     = 3.0;  ///< Cost multiplier for stand-access taxilane edges (prefer main taxiways).
+        double multIntersection   = 1.1;  ///< Cost multiplier for taxiway-intersection edges (slight penalty).
+        double multRunway         = 20.0; ///< Cost multiplier for runway edges (strongly discouraged; only used to vacate the runway).
+        double multRunwayApproach = 18.0; ///< Cost multiplier applied to edges arriving at a HoldingPoint/HoldingPosition node (approaching the runway threshold); slightly below multRunway so vacating via the HP is still preferred over staying on the runway.
+        double multTaxilane       = 3.0;  ///< Cost multiplier for stand-access taxilane edges (prefer main taxiways).
     } edgeCosts;
 
     /// @brief Bearing-difference thresholds for taxiway flow-rule enforcement.
@@ -135,17 +136,19 @@ struct TaxiNetworkConfig
         double againstFlowMinDeg = 135.0; ///< Bearing difference (deg) at or above which an edge is considered against the flow rule.
         double againstFlowMult   = 3.0;   ///< Additional cost multiplier applied to edges that go against an active flow rule.
         double withFlowMaxDeg    = 45.0;  ///< Bearing difference (deg) at or below which an edge is considered to follow the flow rule.
+        double withFlowMult      = 0.9;   ///< Cost multiplier for edges following the flow direction (< 1.0 gives a slight preference over uncontrolled taxiways).
     } flowRules;
 
     /// @brief A* routing algorithm parameters.
     struct Routing
     {
-        double backwardSnapM       = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
-        double forwardSnapM        = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
-        double hardTurnDeg         = 120.0; ///< Bearing change (deg) above which an edge is hard-blocked during A*.
-        double softTurnDeg         = 85.0;  ///< Bearing change (deg) above which a turn penalty is applied during A*.
-        double turnPenalty         = 200.0; ///< Cost added for turns exceeding softTurnDeg.
-        double wayrefChangePenalty = 500.0; ///< Cost added when the route changes from one named taxiway to another.
+        double backwardSnapM           = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
+        double forwardSnapM            = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
+        double hardTurnDeg             = 45.0;  ///< Bearing change (deg) above which an edge is hard-blocked during A*. OSM data shows max ~28 deg between consecutive edges on real taxiways.
+        double intersectionExitPenalty = 500.0; ///< Cost added when A* arrives at a named taxiway from an intersection way (e.g. Exit_X → E). Kept higher than wayrefChangePenalty to prevent hopping between parallel taxiways via intersection shortcuts.
+        double wayrefChangePenalty     = 200.0; ///< Cost added when the route changes directly from one named taxiway to another (neither side is an intersection).
+        double heuristicWeight         = 1.0;   ///< Weight applied to the A* heuristic (W > 1.0 = more goal-directed but may close nodes suboptimally; 1.0 is correct for small graphs).
+        int    maxNodeExpansions       = 5000;  ///< Maximum number of nodes A* expands before giving up; higher values find better routes but cost more CPU.
     } routing;
 
     /// @brief Cursor snap radii used during interactive taxi planning.

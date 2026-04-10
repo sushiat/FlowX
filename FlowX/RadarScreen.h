@@ -115,6 +115,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// Computes the fixed swingover segment (taxiSwingoverFixedSeg / taxiSwingoverOrigin) on activation.
     /// No-op when not in non-push taxi planning mode.
     void UpdateSwingoverState();
+    void RecalculateTaxiPreview();
 
     /// @brief Draws the OSM taxiway/taxilane polylines, derived runway centrelines, holding-position
     /// circles, and way labels. Gated on showTaxiOverlay / showTaxiLabels.

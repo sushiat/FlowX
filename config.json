@@ -413,20 +413,23 @@
             "edgeCosts": {
                 "multIntersection": 1.1,
                 "multTaxilane": 3.0,
-                "multRunway": 30.0
+                "multRunway": 30.0,
+                "multRunwayApproach": 25.0
             },
             "flowRules": {
                 "withFlowMaxDeg": 45.0,
+                "withFlowMult": 0.9,
                 "againstFlowMinDeg": 135.0,
                 "againstFlowMult": 3.0
             },
             "routing": {
-                "hardTurnDeg": 120.0,
-                "softTurnDeg": 85.0,
-                "turnPenalty": 200.0,
-                "wayrefChangePenalty": 500.0,
+                "hardTurnDeg": 45.0,
+                "intersectionExitPenalty": 500.0,
+                "wayrefChangePenalty": 200.0,
                 "forwardSnapM": 120.0,
-                "backwardSnapM": 300.0
+                "backwardSnapM": 300.0,
+                "heuristicWeight": 1.0,
+                "maxNodeExpansions": 5000
             },
             "snapping": {
                 "holdingPointM": 30.0,
