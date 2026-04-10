@@ -484,10 +484,16 @@ static OsmAirportData MakeDisconnectedWays()
     GeoPoint Q{48.2000, 16.5427};
 
     OsmWay way1;
-    way1.id = 1; way1.type = AerowayType::Taxiway; way1.ref = "M"; way1.geometry = {A, B};
+    way1.id       = 1;
+    way1.type     = AerowayType::Taxiway;
+    way1.ref      = "M";
+    way1.geometry = {A, B};
 
     OsmWay way2;
-    way2.id = 2; way2.type = AerowayType::Taxiway; way2.ref = "M"; way2.geometry = {P, Q};
+    way2.id       = 2;
+    way2.type     = AerowayType::Taxiway;
+    way2.ref      = "M";
+    way2.geometry = {P, Q};
 
     OsmAirportData osm;
     osm.ways.push_back(way1);
@@ -504,10 +510,16 @@ static OsmAirportData MakeForkWays()
     GeoPoint C{48.1118, 16.5400}; // north destination (~200 m north of A)
 
     OsmWay eastWay;
-    eastWay.id = 1; eastWay.type = AerowayType::Taxiway; eastWay.ref = "E"; eastWay.geometry = {A, B};
+    eastWay.id       = 1;
+    eastWay.type     = AerowayType::Taxiway;
+    eastWay.ref      = "E";
+    eastWay.geometry = {A, B};
 
     OsmWay northWay;
-    northWay.id = 2; northWay.type = AerowayType::Taxiway; northWay.ref = "N"; northWay.geometry = {A, C};
+    northWay.id       = 2;
+    northWay.type     = AerowayType::Taxiway;
+    northWay.ref      = "N";
+    northWay.geometry = {A, C};
 
     OsmAirportData osm;
     osm.ways.push_back(eastWay);
@@ -545,7 +557,9 @@ TEST_CASE("TaxiGraph - Taxilane edges cost 3x base distance (multTaxilane)")
     TaxiGraph taxiway, taxilane;
 
     OsmWay plain;
-    plain.id = 1; plain.type = AerowayType::Taxiway; plain.ref = "TL1";
+    plain.id       = 1;
+    plain.type     = AerowayType::Taxiway;
+    plain.ref      = "TL1";
     plain.geometry = {{48.1100, 16.5400}, {48.1100, 16.5427}};
     OsmAirportData osmPlain;
     osmPlain.ways.push_back(plain);
@@ -563,7 +577,7 @@ TEST_CASE("TaxiGraph - Taxilane edges cost 3x base distance (multTaxilane)")
     REQUIRE(rTaxilane.valid);
 
     // Taxiway: cost/distM = 1.0;  Taxilane: cost/distM ≈ 3.0
-    CHECK(rTaxiway.totalCost  == doctest::Approx(rTaxiway.totalDistM  * 1.0).epsilon(0.05));
+    CHECK(rTaxiway.totalCost == doctest::Approx(rTaxiway.totalDistM * 1.0).epsilon(0.05));
     CHECK(rTaxilane.totalCost == doctest::Approx(rTaxilane.totalDistM * 3.0).epsilon(0.10));
 }
 
@@ -579,7 +593,7 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node incurs approach 
     // B is a way node → within the 25 m snap radius → B is promoted to
     // HoldingPosition; all edges arriving at B gain the multRunwayApproach (18×)
     // multiplier, making the A→C route considerably more expensive.
-    OsmAirportData osmWithHp = MakeStraightWay();
+    OsmAirportData     osmWithHp = MakeStraightWay();
     OsmHoldingPosition osmHp;
     osmHp.id  = 100;
     osmHp.ref = "M1";
@@ -608,13 +622,13 @@ TEST_CASE("TaxiGraph - config holdingPoint snapped to way node incurs approach p
     // Same effect as the OSM snap test, but triggered via airport runway config
     // (configHoldingPointSnapM = 40 m default).  B is promoted to HoldingPoint type.
     airport ap = MakeAirport();
-    runway rwy;
+    runway  rwy;
     rwy.designator = "11";
     holdingPoint hp;
-    hp.name       = "M1";
-    hp.assignable = true; // required: snap is skipped for non-assignable HPs
-    hp.centerLat  = 48.1100;
-    hp.centerLon  = 16.5427; // exactly at B
+    hp.name                 = "M1";
+    hp.assignable           = true; // required: snap is skipped for non-assignable HPs
+    hp.centerLat            = 48.1100;
+    hp.centerLon            = 16.5427; // exactly at B
     rwy.holdingPoints["M1"] = hp;
     ap.runways["11"]        = rwy;
 
@@ -639,7 +653,7 @@ TEST_CASE("TaxiGraph - HP node beyond snap radius does not incur approach penalt
     // OSM HP placed ~30 m north of B (> osmHoldingPositionSnapM = 25 m).
     // No snap → no cost penalty; route cost equals the baseline.
     // 30 m ≈ 30 / 111 195 ≈ 0.000270° of latitude.
-    OsmAirportData osmFarHp = MakeStraightWay();
+    OsmAirportData     osmFarHp = MakeStraightWay();
     OsmHoldingPosition farHp;
     farHp.id  = 101;
     farHp.ref = "FAR";
@@ -668,13 +682,13 @@ TEST_CASE("TaxiGraph - route to a promoted HoldingPoint node succeeds")
     // Config HP at B promotes B to a HoldingPoint node.  Routing A→B must still
     // return a valid route (approach cost is high but the route exists).
     airport ap = MakeAirport();
-    runway rwy;
+    runway  rwy;
     rwy.designator = "11";
     holdingPoint hp;
-    hp.name       = "M1";
-    hp.assignable = true; // required: snap is skipped for non-assignable HPs
-    hp.centerLat  = 48.1100;
-    hp.centerLon  = 16.5427; // exactly at B
+    hp.name                 = "M1";
+    hp.assignable           = true; // required: snap is skipped for non-assignable HPs
+    hp.centerLat            = 48.1100;
+    hp.centerLon            = 16.5427; // exactly at B
     rwy.holdingPoints["M1"] = hp;
     ap.runways["11"]        = rwy;
 
@@ -696,11 +710,138 @@ TEST_CASE("TaxiGraph - start equals goal returns valid zero-distance route")
     TaxiGraph g;
     g.Build(MakeStraightWay(), MakeAirport());
 
-    GeoPoint A{48.1100, 16.5400};
+    GeoPoint  A{48.1100, 16.5400};
     TaxiRoute route = g.FindRoute(A, A, 0.0, {}, {});
 
     CHECK(route.valid);
     CHECK(route.totalDistM == doctest::Approx(0.0).epsilon(1.0));
+}
+
+// ─── Junction wayRef priority ─────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph - taxiway ref wins over intersection ref at shared junction node")
+{
+    // Taxiway "L":            A ──── B ──── C   (B is the shared junction node)
+    // Intersection "Exit 14":        B ──── D
+    // Node B is shared (d = 0 m).  Taxiway priority (3) > intersection priority (1),
+    // so routing A→C should produce wayRefs containing only "L", not "Exit 14".
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint C{48.1100, 16.5454};
+    GeoPoint D{48.1118, 16.5427}; // ~200 m north of B
+
+    OsmWay taxiway;
+    taxiway.id       = 1;
+    taxiway.type     = AerowayType::Taxiway;
+    taxiway.ref      = "L";
+    taxiway.geometry = {A, B, C};
+
+    OsmWay intersection;
+    intersection.id       = 2;
+    intersection.type     = AerowayType::Taxiway_Intersection;
+    intersection.ref      = "Exit 14";
+    intersection.geometry = {B, D};
+
+    OsmAirportData osm;
+    osm.ways.push_back(taxiway);
+    osm.ways.push_back(intersection);
+
+    TaxiGraph g;
+    g.Build(osm, MakeAirport({"L"}));
+
+    GeoPoint from{48.1100, 16.5400};
+    GeoPoint to{48.1100, 16.5454};
+
+    TaxiRoute route = g.FindRoute(from, to, 0.0, {}, {});
+    REQUIRE(route.valid);
+
+    // Junction node B must carry the taxiway ref, not the intersection ref.
+    const auto& refs = route.wayRefs;
+    CHECK(std::find(refs.begin(), refs.end(), "L") != refs.end());
+    CHECK(std::find(refs.begin(), refs.end(), "Exit 14") == refs.end());
+}
+
+TEST_CASE("TaxiGraph - taxiway ref wins over taxilane ref at shared junction node")
+{
+    // Taxiway "M":   A ──── B ──── C   (B is the shared junction node)
+    // Taxilane "TL": D ──── B
+    // Taxiway priority (3) > taxilane priority (2), so the junction node B
+    // gets labelled "M" and routing A→C produces only "M" in wayRefs.
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint C{48.1100, 16.5454};
+    GeoPoint D{48.1118, 16.5427}; // ~200 m north of B
+
+    OsmWay taxiway;
+    taxiway.id       = 1;
+    taxiway.type     = AerowayType::Taxiway;
+    taxiway.ref      = "M";
+    taxiway.geometry = {A, B, C};
+
+    OsmWay taxilane;
+    taxilane.id       = 2;
+    taxilane.type     = AerowayType::Taxilane;
+    taxilane.ref      = "TL";
+    taxilane.geometry = {D, B};
+
+    OsmAirportData osm;
+    osm.ways.push_back(taxiway);
+    osm.ways.push_back(taxilane);
+
+    TaxiGraph g;
+    g.Build(osm, MakeAirport({"M"}, {"TL"}));
+
+    GeoPoint from{48.1100, 16.5400};
+    GeoPoint to{48.1100, 16.5454};
+
+    TaxiRoute route = g.FindRoute(from, to, 0.0, {}, {});
+    REQUIRE(route.valid);
+
+    // Junction node B must carry the taxiway ref, not the taxilane ref.
+    const auto& refs = route.wayRefs;
+    CHECK(std::find(refs.begin(), refs.end(), "M") != refs.end());
+    CHECK(std::find(refs.begin(), refs.end(), "TL") == refs.end());
+}
+
+TEST_CASE("TaxiGraph - parent taxiway ref wins over lane-variant at shared junction node")
+{
+    // Taxiway "TL 40":             A ──── B ──── C
+    // Taxiway "TL 40 'Blue Line'": D ──── B
+    // Same priority (both Taxiway), but "TL 40" is a prefix of the variant name,
+    // so B gets the parent ref "TL 40" regardless of OSM processing order.
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint C{48.1100, 16.5454};
+    GeoPoint D{48.1118, 16.5427}; // ~200 m north of B
+
+    OsmWay parent;
+    parent.id       = 1;
+    parent.type     = AerowayType::Taxiway;
+    parent.ref      = "TL 40";
+    parent.geometry = {A, B, C};
+
+    OsmWay variant;
+    variant.id       = 2;
+    variant.type     = AerowayType::Taxiway;
+    variant.ref      = "TL 40 'Blue Line'";
+    variant.geometry = {D, B};
+
+    OsmAirportData osm;
+    osm.ways.push_back(parent);
+    osm.ways.push_back(variant);
+
+    TaxiGraph g;
+    g.Build(osm, MakeAirport({"TL 40", "TL 40 'Blue Line'"}));
+
+    GeoPoint from{48.1100, 16.5400};
+    GeoPoint to{48.1100, 16.5454};
+
+    TaxiRoute route = g.FindRoute(from, to, 0.0, {}, {});
+    REQUIRE(route.valid);
+
+    const auto& refs = route.wayRefs;
+    CHECK(std::find(refs.begin(), refs.end(), "TL 40") != refs.end());
+    CHECK(std::find(refs.begin(), refs.end(), "TL 40 'Blue Line'") == refs.end());
 }
 
 // ─── Disconnected components ──────────────────────────────────────────────────
@@ -790,7 +931,7 @@ TEST_CASE("TaxiGraph::DeadEndEdges - no blocked nodes returns empty")
     g.Build(MakeStraightWay(), MakeAirport());
 
     GeoPoint C{48.1100, 16.5454};
-    auto result = g.DeadEndEdges(C, {});
+    auto     result = g.DeadEndEdges(C, {});
     CHECK(result.empty());
 }
 
