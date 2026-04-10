@@ -12,6 +12,7 @@
 #include <algorithm>
 #include "test_accessor.h"
 #include "taxi_graph.h"
+#include "CFlowX_LookupsTools.h"
 #include "helpers.h"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -102,6 +103,26 @@ static GeoPoint ResolvePosition(const std::string&                    label,
     return graph.HoldingPositionByLabel(label);
 }
 
+/// @brief Returns true when the position lies inside any taxiOutStands polygon.
+static bool InTaxiOutStand(const GeoPoint& pos, const std::map<std::string, airport>& airports)
+{
+    for (const auto& [_, ap] : airports)
+    {
+        for (const auto& [__, poly] : ap.taxiOutStands)
+        {
+            if (poly.lat.empty())
+                continue;
+            if (CFlowX_LookupsTools::PointInsidePolygon(
+                    static_cast<int>(poly.lat.size()),
+                    const_cast<double*>(poly.lon.data()),
+                    const_cast<double*>(poly.lat.data()),
+                    pos.lon, pos.lat))
+                return true;
+        }
+    }
+    return false;
+}
+
 // ─── Fixture test ────────────────────────────────────────────────────────────
 
 TEST_CASE("TaxiRoute - real world taxi tests")
@@ -141,6 +162,7 @@ TEST_CASE("TaxiRoute - real world taxi tests")
         const std::string fromLabel = tc.at("from").get<std::string>();
         const std::string toLabel   = tc.at("to").get<std::string>();
         const double      wingspan  = tc.value("wingspan", 0.0);
+        const double      heading   = tc.value("heading", -1.0);
 
         auto [depRwys, arrRwys] = ParseRunwayConfig(rwyCfg);
 
@@ -197,11 +219,18 @@ TEST_CASE("TaxiRoute - real world taxi tests")
 
         const bool     hasSwingover = (swingoverOrigin.lat != 0.0 || swingoverOrigin.lon != 0.0);
         const GeoPoint routeFrom    = hasSwingover ? swingoverOrigin : from;
+        const bool     forwardOnly  = InTaxiOutStand(from, acc.airports);
+
+        // Use the same heading / forwardOnly logic as the live RadarScreen:
+        // heading steers forward/backward candidate split, forwardOnly
+        // (taxiOutStand) suppresses backward candidates entirely.
+        const double routeBearing = hasSwingover ? swingoverBearing : heading;
 
         TaxiRoute tail = (waypoints.empty() && !hasSwingover)
-                             ? acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys)
+                             ? acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys,
+                                                      heading, {}, {}, false, {}, false, forwardOnly)
                              : acc.osmGraph.FindWaypointRoute(routeFrom, waypoints, to, wingspan, depRwys, arrRwys,
-                                                              swingoverBearing);
+                                                              routeBearing, {}, false, {}, false, forwardOnly);
 
         // For swingover cases, replicate the combined route that RadarScreen builds:
         // fixed crossing segment (from → swingoverOrigin) + tail (swingoverOrigin → to).

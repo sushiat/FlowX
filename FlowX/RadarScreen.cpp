@@ -4390,17 +4390,22 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                     this->taxiSwingoverBearing);
                             }
 
+                            // Heading for forward-only candidate selection in test replay.
+                            const double hdg = (rtNow.IsValid() && rtNow.GetPosition().IsValid())
+                                                   ? rtNow.GetPosition().GetReportedHeadingTrueNorth()
+                                                   : -1.0;
+
                             const double distMin = std::max(0.0, finalRoute.totalDistM - 50.0);
                             const double distMax = finalRoute.totalDistM + 50.0;
 
                             std::string testJson = std::format(
                                 R"({{"name":"{}_{}/{} to {}","type":"{}","runwayConfig":"{}",)"
-                                R"("from":"{}","to":"{}","wingspan":{:.1f},)"
+                                R"("from":"{}","to":"{}","wingspan":{:.1f},"heading":{:.1f},)"
                                 R"("waypoints":{},"swingover":{},)"
                                 R"("distanceRange":[{:.0f},{:.0f}],)"
                                 R"("mustInclude":[],"mustNotInclude":[],"wayRefs":{}}})",
                                 rwyCfg, cs, direction, toLabel, typeStr, rwyCfg,
-                                fromLabel, toLabel, wingspan,
+                                fromLabel, toLabel, wingspan, hdg,
                                 waypointsJson, swingoverJson,
                                 distMin, distMax, wayRefsJson);
 
