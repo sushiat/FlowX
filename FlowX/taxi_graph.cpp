@@ -1684,14 +1684,17 @@ std::vector<std::pair<GeoPoint, GeoPoint>> TaxiGraph::DeadEndEdges(
     if (!isCutOff)
         return {}; // dest is still reachable normally
 
-    // Truly isolated — collect undirected edge segments within the reachable set.
+    // Truly isolated — collect undirected edge segments in the UNREACHABLE part
+    // (nodes that cannot reach destId without crossing blockedNodes).
     std::vector<std::pair<GeoPoint, GeoPoint>> edges;
     std::set<std::pair<int, int>>              seen;
-    for (const int nodeId : reachable)
+    for (int nodeId = 0; nodeId < static_cast<int>(adj_.size()); ++nodeId)
     {
+        if (reachable.contains(nodeId) || blockedNodes.contains(nodeId))
+            continue;
         for (const auto& edge : adj_[nodeId])
         {
-            if (!reachable.contains(edge.to))
+            if (reachable.contains(edge.to) || blockedNodes.contains(edge.to))
                 continue;
             const int lo = std::min(nodeId, edge.to);
             const int hi = std::max(nodeId, edge.to);
