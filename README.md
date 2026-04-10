@@ -32,7 +32,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 ### Installation
 
 1. Download the latest `FlowX.zip` from the [Releases](https://github.com/sushiat/FlowX/releases/latest) page.
-2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, and `click.wav` into your plugin directory.
+2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, `click.wav`, `noRoute.wav`, and `taxiConflict.wav` into your plugin directory.
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `FlowX.dll`.
 4. Successful load is confirmed in the **Messages** chat:
    ```
@@ -46,6 +46,8 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 > - `readyTakeoff.wav` — plays when a lined-up aircraft has been clear for takeoff for 5 seconds (departure separation resolved).
 > - `gndtransfer.wav` — plays when a landed inbound transitions to GND frequency.
 > - `click.wav` — plays on start-menu clicks.
+> - `noRoute.wav` — plays when the taxi router cannot find a valid route to the assigned holding point.
+> - `taxiConflict.wav` — plays when a taxi conflict is detected between two aircraft with active routes.
 
 > **`settings.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores all plugin preferences, the screen positions of all custom windows, and the last NAP reminder dismissal date. Delete it to reset everything to defaults.
 
@@ -210,6 +212,8 @@ Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
 | Auto Parked | On | Automatically sets arriving aircraft to PARK when they stop at their assigned stand |
 | Appr Est Colors | Off | Uses inbound-list colours in the Approach Estimate window instead of always-green |
 | Auto-Clear Scratch | Off | Automatically clears the scratchpad when this controller clicks LINEUP or DEPA, unless the content starts with a prefix in `scratchpadClearExclusions` |
+| HP auto-scratch | On | When a GND controller sets a scratchpad entry beginning with `.`, automatically assigns the matching holding point and confirms it via scratchpad |
+| Show TAXI routes | Off | Show all active taxi routes and push zone reservations on the radar screen (individual routes are always shown on hover regardless of this setting) |
 | Fonts | — | Increase / decrease font size offset for all custom windows |
 | BG opacity | 100% | Increase / decrease background opacity of all custom windows (20–100%) |
 
@@ -456,6 +460,7 @@ Applied at graph-build time to all edges of the corresponding aeroway type. High
 | `multIntersection` | number | `1.1` | Slight penalty for taxiway-intersection edges. |
 | `multTaxilane` | number | `3.0` | Stand-access taxilane edges are strongly discouraged vs main taxiways. |
 | `multRunway` | number | `20.0` | Runway edges are only traversed to vacate the runway; never preferred for taxi. |
+| `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding point / holding position node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
 
 #### `flowRules` — direction enforcement
 
@@ -463,7 +468,8 @@ Controls how heavily active taxiway flow rules penalise against-flow routing.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `withFlowMaxDeg` | number | `45.0` | Bearing difference (°) at or below which an edge is considered to follow the active flow rule (no penalty). |
+| `withFlowMaxDeg` | number | `45.0` | Bearing difference (°) at or below which an edge is considered to follow the active flow rule. |
+| `withFlowMult` | number | `0.9` | Cost multiplier applied to edges that follow the active flow direction (< 1.0 gives a slight preference over uncontrolled taxiways). |
 | `againstFlowMinDeg` | number | `135.0` | Bearing difference (°) at or above which an edge is considered against the flow rule. |
 | `againstFlowMult` | number | `3.0` | Additional cost multiplier applied to edges that go against an active flow rule. |
 
@@ -471,12 +477,12 @@ Controls how heavily active taxiway flow rules penalise against-flow routing.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `hardTurnDeg` | number | `120.0` | Bearing change (°) above which an edge is hard-blocked during A\* (path cannot turn that sharply). |
-| `softTurnDeg` | number | `85.0` | Bearing change (°) above which a turn penalty is added. |
-| `turnPenalty` | number | `200.0` | Cost added for turns exceeding `softTurnDeg`. |
-| `wayrefChangePenalty` | number | `500.0` | Cost added when the route transitions from one named taxiway to another. |
+| `hardTurnDeg` | number | `50.0` | Bearing change (°) above which an edge is hard-blocked during A\* within the same taxiway or between two non-intersection taxiways (prevents kinks and forces use of smooth intersection curves). |
+| `wayrefChangePenalty` | number | `200.0` | Cost added when the route transitions from one named taxiway to another. |
 | `forwardSnapM` | number | `120.0` | Radius (m) used to collect up to 3 forward start-node candidates for A\*. |
 | `backwardSnapM` | number | `300.0` | Radius (m) used to collect up to 2 backward start-node candidates for A\*. |
+| `heuristicWeight` | number | `1.0` | Weight applied to the A\* heuristic. Values above 1.0 are more goal-directed but may expand nodes sub-optimally; 1.0 is correct for small graphs. |
+| `maxNodeExpansions` | integer | `5000` | Maximum number of nodes A\* expands before giving up. Higher values find better routes at greater CPU cost. |
 
 #### `snapping` — interactive planning
 
@@ -502,9 +508,9 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 ```json
 "taxiNetworkConfig": {
     "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0, "configHoldingPointSnapM": 40.0 },
-    "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0 },
-    "flowRules": { "withFlowMaxDeg": 45.0, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
-    "routing":   { "hardTurnDeg": 120.0, "softTurnDeg": 85.0, "turnPenalty": 200.0, "wayrefChangePenalty": 500.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0 },
+    "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0 },
+    "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
+    "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
     "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
     "safety":    { "deviationThreshM": 40.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
 }
