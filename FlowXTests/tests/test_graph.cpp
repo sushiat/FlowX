@@ -454,3 +454,376 @@ TEST_CASE("TaxiGraph::NearestNodeId - returns -1 beyond radius")
     int id = g.NearestNodeId({48.2000, 17.0000}, 100.0);
     CHECK(id == -1);
 }
+
+// ─── Additional helpers ───────────────────────────────────────────────────────
+
+// A→B typed Taxilane (~200 m, ref "TL1").
+static OsmAirportData MakeTaxilaneWay()
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+
+    OsmWay way;
+    way.id       = 1;
+    way.type     = AerowayType::Taxilane;
+    way.ref      = "TL1";
+    way.geometry = {A, B};
+
+    OsmAirportData osm;
+    osm.ways.push_back(way);
+    return osm;
+}
+
+// Two separate short ways with no shared nodes and coordinates far apart
+// (way 1: A→B east;  way 2: P→Q east at lat 48.20).
+static OsmAirportData MakeDisconnectedWays()
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint P{48.2000, 16.5400};
+    GeoPoint Q{48.2000, 16.5427};
+
+    OsmWay way1;
+    way1.id = 1; way1.type = AerowayType::Taxiway; way1.ref = "M"; way1.geometry = {A, B};
+
+    OsmWay way2;
+    way2.id = 2; way2.type = AerowayType::Taxiway; way2.ref = "M"; way2.geometry = {P, Q};
+
+    OsmAirportData osm;
+    osm.ways.push_back(way1);
+    osm.ways.push_back(way2);
+    return osm;
+}
+
+// Fork: A is the junction.  East branch A→B is a dead end.  North branch A→C
+// leads to the destination.  Blocking B does not disconnect C.
+static OsmAirportData MakeForkWays()
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427}; // east dead end
+    GeoPoint C{48.1118, 16.5400}; // north destination (~200 m north of A)
+
+    OsmWay eastWay;
+    eastWay.id = 1; eastWay.type = AerowayType::Taxiway; eastWay.ref = "E"; eastWay.geometry = {A, B};
+
+    OsmWay northWay;
+    northWay.id = 2; northWay.type = AerowayType::Taxiway; northWay.ref = "N"; northWay.geometry = {A, C};
+
+    OsmAirportData osm;
+    osm.ways.push_back(eastWay);
+    osm.ways.push_back(northWay);
+    return osm;
+}
+
+// ─── Start-node turn limit ────────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph - 90 degree turn at start node is allowed (135 degree start limit)")
+{
+    // L-shaped graph: A–B–C (east), B–D (north).
+    // Start exactly at B with initialBearingDeg=70° (ENE).  The route must turn
+    // ~70° to reach D (north, ~0°).  70° < 135° (start-node limit) → valid.
+    //
+    // Contrast: the existing "L-shaped: 90 degree branch is hard-blocked" test
+    // routes A→D where the 90° turn occurs mid-route at B (uses hardTurnDeg 50°)
+    // and is therefore blocked.
+    TaxiGraph g;
+    g.Build(MakeLShapedWay(), MakeAirport());
+
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint D{48.1118, 16.5427};
+
+    TaxiRoute route = g.FindRoute(B, D, 0.0, {}, {}, 70.0);
+    CHECK(route.valid);
+}
+
+// ─── Taxilane multiplier ──────────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph - Taxilane edges cost 3x base distance (multTaxilane)")
+{
+    // Plain Taxiway baseline vs. Taxilane way of identical 200 m geometry.
+    // multTaxilane default = 3.0; cost/distM ratio should reflect the multiplier.
+    TaxiGraph taxiway, taxilane;
+
+    OsmWay plain;
+    plain.id = 1; plain.type = AerowayType::Taxiway; plain.ref = "TL1";
+    plain.geometry = {{48.1100, 16.5400}, {48.1100, 16.5427}};
+    OsmAirportData osmPlain;
+    osmPlain.ways.push_back(plain);
+    taxiway.Build(osmPlain, MakeAirport({"TL1"}));
+
+    taxilane.Build(MakeTaxilaneWay(), MakeAirport({}, {"TL1"}));
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+
+    TaxiRoute rTaxiway  = taxiway.FindRoute(A, B, 0.0, {}, {});
+    TaxiRoute rTaxilane = taxilane.FindRoute(A, B, 0.0, {}, {});
+
+    REQUIRE(rTaxiway.valid);
+    REQUIRE(rTaxilane.valid);
+
+    // Taxiway: cost/distM = 1.0;  Taxilane: cost/distM ≈ 3.0
+    CHECK(rTaxiway.totalCost  == doctest::Approx(rTaxiway.totalDistM  * 1.0).epsilon(0.05));
+    CHECK(rTaxilane.totalCost == doctest::Approx(rTaxilane.totalDistM * 3.0).epsilon(0.10));
+}
+
+// ─── Holding point node promotion ────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph - OSM holding position snapped to way node incurs approach penalty")
+{
+    // Baseline: straight way A–B–C with no holding positions.
+    TaxiGraph baseline;
+    baseline.Build(MakeStraightWay(), MakeAirport());
+
+    // With HP: same way but an OsmHoldingPosition placed exactly at B.
+    // B is a way node → within the 25 m snap radius → B is promoted to
+    // HoldingPosition; all edges arriving at B gain the multRunwayApproach (18×)
+    // multiplier, making the A→C route considerably more expensive.
+    OsmAirportData osmWithHp = MakeStraightWay();
+    OsmHoldingPosition osmHp;
+    osmHp.id  = 100;
+    osmHp.ref = "M1";
+    osmHp.pos = GeoPoint{48.1100, 16.5427}; // exactly at B
+    osmWithHp.holdingPositions.push_back(osmHp);
+
+    TaxiGraph withHp;
+    withHp.Build(osmWithHp, MakeAirport());
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint C{48.1100, 16.5454};
+
+    TaxiRoute rBaseline = baseline.FindRoute(A, C, 0.0, {}, {});
+    TaxiRoute rWithHp   = withHp.FindRoute(A, C, 0.0, {}, {});
+
+    REQUIRE(rBaseline.valid);
+    REQUIRE(rWithHp.valid);
+
+    // The approach-penalty multiplier (18×) on the final edge into B makes the
+    // with-HP route clearly more expensive than the baseline.
+    CHECK(rWithHp.totalCost > rBaseline.totalCost * 1.5);
+}
+
+TEST_CASE("TaxiGraph - config holdingPoint snapped to way node incurs approach penalty")
+{
+    // Same effect as the OSM snap test, but triggered via airport runway config
+    // (configHoldingPointSnapM = 40 m default).  B is promoted to HoldingPoint type.
+    airport ap = MakeAirport();
+    runway rwy;
+    rwy.designator = "11";
+    holdingPoint hp;
+    hp.name       = "M1";
+    hp.assignable = true; // required: snap is skipped for non-assignable HPs
+    hp.centerLat  = 48.1100;
+    hp.centerLon  = 16.5427; // exactly at B
+    rwy.holdingPoints["M1"] = hp;
+    ap.runways["11"]        = rwy;
+
+    TaxiGraph baseline, withHp;
+    baseline.Build(MakeStraightWay(), MakeAirport());
+    withHp.Build(MakeStraightWay(), ap);
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint C{48.1100, 16.5454};
+
+    TaxiRoute rBaseline = baseline.FindRoute(A, C, 0.0, {}, {});
+    TaxiRoute rWithHp   = withHp.FindRoute(A, C, 0.0, {}, {});
+
+    REQUIRE(rBaseline.valid);
+    REQUIRE(rWithHp.valid);
+
+    CHECK(rWithHp.totalCost > rBaseline.totalCost * 1.5);
+}
+
+TEST_CASE("TaxiGraph - HP node beyond snap radius does not incur approach penalty")
+{
+    // OSM HP placed ~30 m north of B (> osmHoldingPositionSnapM = 25 m).
+    // No snap → no cost penalty; route cost equals the baseline.
+    // 30 m ≈ 30 / 111 195 ≈ 0.000270° of latitude.
+    OsmAirportData osmFarHp = MakeStraightWay();
+    OsmHoldingPosition farHp;
+    farHp.id  = 101;
+    farHp.ref = "FAR";
+    farHp.pos = GeoPoint{48.1103, 16.5427}; // ~30 m north of B, outside 25 m snap
+    osmFarHp.holdingPositions.push_back(farHp);
+
+    TaxiGraph baseline, withFarHp;
+    baseline.Build(MakeStraightWay(), MakeAirport());
+    withFarHp.Build(osmFarHp, MakeAirport());
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint C{48.1100, 16.5454};
+
+    TaxiRoute rBaseline = baseline.FindRoute(A, C, 0.0, {}, {});
+    TaxiRoute rFarHp    = withFarHp.FindRoute(A, C, 0.0, {}, {});
+
+    REQUIRE(rBaseline.valid);
+    REQUIRE(rFarHp.valid);
+
+    // Costs must be identical — the far HP changes nothing.
+    CHECK(rFarHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.01));
+}
+
+TEST_CASE("TaxiGraph - route to a promoted HoldingPoint node succeeds")
+{
+    // Config HP at B promotes B to a HoldingPoint node.  Routing A→B must still
+    // return a valid route (approach cost is high but the route exists).
+    airport ap = MakeAirport();
+    runway rwy;
+    rwy.designator = "11";
+    holdingPoint hp;
+    hp.name       = "M1";
+    hp.assignable = true; // required: snap is skipped for non-assignable HPs
+    hp.centerLat  = 48.1100;
+    hp.centerLon  = 16.5427; // exactly at B
+    rwy.holdingPoints["M1"] = hp;
+    ap.runways["11"]        = rwy;
+
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), ap);
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+
+    TaxiRoute route = g.FindRoute(A, B, 0.0, {}, {});
+    REQUIRE(route.valid);
+    CHECK(route.totalDistM == doctest::Approx(200.0).epsilon(0.25));
+}
+
+// ─── Start == goal ────────────────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph - start equals goal returns valid zero-distance route")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    GeoPoint A{48.1100, 16.5400};
+    TaxiRoute route = g.FindRoute(A, A, 0.0, {}, {});
+
+    CHECK(route.valid);
+    CHECK(route.totalDistM == doctest::Approx(0.0).epsilon(1.0));
+}
+
+// ─── Disconnected components ──────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph - route between disconnected components returns invalid")
+{
+    // Both components have valid nodes; the goal node exists in the graph but
+    // is unreachable from the start node.
+    TaxiGraph g;
+    g.Build(MakeDisconnectedWays(), MakeAirport());
+
+    GeoPoint A{48.1100, 16.5400}; // component 1
+    GeoPoint Q{48.2000, 16.5427}; // component 2 — exists in graph, unreachable
+
+    TaxiRoute route = g.FindRoute(A, Q, 0.0, {}, {});
+    CHECK_FALSE(route.valid);
+}
+
+// ─── FindWaypointRoute ────────────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph::FindWaypointRoute - routes through forced intermediate waypoint")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint C{48.1100, 16.5454};
+
+    TaxiRoute route = g.FindWaypointRoute(A, {B}, C, 0.0, {}, {});
+    REQUIRE(route.valid);
+    // Total distance through the forced waypoint equals the direct distance (same path).
+    CHECK(route.totalDistM == doctest::Approx(400.0).epsilon(0.25));
+}
+
+TEST_CASE("TaxiGraph::FindWaypointRoute - unreachable waypoint makes route invalid")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint C{48.1100, 16.5454};
+    GeoPoint unreachable{48.5000, 17.0000}; // nowhere near the graph
+
+    TaxiRoute route = g.FindWaypointRoute(A, {unreachable}, C, 0.0, {}, {});
+    CHECK_FALSE(route.valid);
+}
+
+// ─── WalkGraph ────────────────────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph::WalkGraph - stops at distance limit")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    // Walk east from A for 150 m — the way is 400 m long, so the limit triggers first.
+    TaxiRoute walk = g.WalkGraph({48.1100, 16.5400}, 90.0, 150.0);
+    CHECK(walk.totalDistM == doctest::Approx(150.0).epsilon(0.15));
+}
+
+TEST_CASE("TaxiGraph::WalkGraph - stops at dead end before reaching distance limit")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    // Walk east from A with a 600 m budget.  The way ends at C (~400 m); the
+    // walk must stop there, not crash or return 600 m.
+    TaxiRoute walk = g.WalkGraph({48.1100, 16.5400}, 90.0, 600.0);
+    CHECK(walk.totalDistM == doctest::Approx(400.0).epsilon(0.20));
+}
+
+TEST_CASE("TaxiGraph::WalkGraph - no forward edges produces degenerate route")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    // Start at C (east terminus) and walk east.  No edges leave C eastward.
+    TaxiRoute walk = g.WalkGraph({48.1100, 16.5454}, 90.0, 300.0);
+    CHECK(walk.totalDistM < 1.0);
+}
+
+// ─── DeadEndEdges ─────────────────────────────────────────────────────────────
+
+TEST_CASE("TaxiGraph::DeadEndEdges - no blocked nodes returns empty")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    GeoPoint C{48.1100, 16.5454};
+    auto result = g.DeadEndEdges(C, {});
+    CHECK(result.empty());
+}
+
+TEST_CASE("TaxiGraph::DeadEndEdges - bridge node blocked exposes unreachable sub-graph")
+{
+    // Straight A–B–C.  Blocking B cuts C off from A.
+    // DeadEndEdges(C, {B}) must return a non-empty set of edges (the C side).
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    GeoPoint B{48.1100, 16.5427};
+    GeoPoint C{48.1100, 16.5454};
+
+    int bId = g.NearestNodeId(B, 5.0);
+    REQUIRE(bId >= 0);
+
+    auto result = g.DeadEndEdges(C, {bId});
+    CHECK_FALSE(result.empty());
+}
+
+TEST_CASE("TaxiGraph::DeadEndEdges - non-bridge dead-end blocked leaves dest reachable")
+{
+    // Fork graph: A is the junction.  East branch A→B is a dead end; north
+    // branch A→C leads to the destination.  Blocking B does not disconnect C.
+    TaxiGraph g;
+    g.Build(MakeForkWays(), MakeAirport({"E", "N"}));
+
+    GeoPoint B{48.1100, 16.5427}; // east dead end
+    GeoPoint C{48.1118, 16.5400}; // north destination
+
+    int bId = g.NearestNodeId(B, 5.0);
+    REQUIRE(bId >= 0);
+
+    auto result = g.DeadEndEdges(C, {bId});
+    CHECK(result.empty()); // C still reachable via A→C; no dead-end sub-graph exposed
+}
