@@ -19,3 +19,6 @@ jobs:
 
       - name: Build Release Win32
         run: msbuild FlowX.sln /p:Configuration=Release /p:Platform=x86 /m /v:minimal
+
+      - name: Run tests
+        run: pwsh -File Run-Tests.ps1 -Exe Release\FlowXTests.exe

@@ -39,10 +39,12 @@ std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airpor
 /// @brief Base class for all plugin exceptions that can display a Win32 MessageBox.
 class flowxexception : public std::exception
 {
-public:
+  public:
     /// @brief Constructs the exception with the given message string.
     /// @param what Human-readable error description.
-    explicit flowxexception(const std::string& what) : std::exception{ what.c_str() } {}
+    explicit flowxexception(const std::string& what) : std::exception{what.c_str()}
+    {
+    }
 
     /// @brief Returns the Win32 MB_ICON* constant appropriate for this exception type.
     /// @return Win32 message-box icon flag (e.g. MB_ICONERROR).
@@ -58,10 +60,12 @@ public:
 /// @brief Exception type for fatal errors, shown with an error icon.
 class error : public flowxexception
 {
-public:
+  public:
     /// @brief Constructs an error exception.
     /// @param what Human-readable error description.
-    explicit error(const std::string& what) : flowxexception{ what } {}
+    explicit error(const std::string& what) : flowxexception{what}
+    {
+    }
 
     /// @brief Returns MB_ICONERROR.
     const long icon() const override
@@ -73,10 +77,12 @@ public:
 /// @brief Exception type for non-fatal warnings, shown with a warning icon.
 class warning : public flowxexception
 {
-public:
+  public:
     /// @brief Constructs a warning exception.
     /// @param what Human-readable warning description.
-    explicit warning(const std::string& what) : flowxexception{ what } {}
+    explicit warning(const std::string& what) : flowxexception{what}
+    {
+    }
 
     /// @brief Returns MB_ICONWARNING.
     const long icon() const override
@@ -88,10 +94,12 @@ public:
 /// @brief Exception type for informational messages, shown with an information icon.
 class information : public flowxexception
 {
-public:
+  public:
     /// @brief Constructs an information exception.
     /// @param what Human-readable information message.
-    explicit information(std::string& what) : flowxexception{ what } {}
+    explicit information(std::string& what) : flowxexception{what}
+    {
+    }
 
     /// @brief Returns MB_ICONINFORMATION.
     const long icon() const override
@@ -104,7 +112,7 @@ public:
 /// @return Absolute path string of the plugin's directory, without trailing separator.
 inline std::string GetPluginDirectory()
 {
-    char buf[MAX_PATH] = { 0 };
+    char buf[MAX_PATH] = {0};
     GetModuleFileName(HINSTANCE(&__ImageBase), buf, MAX_PATH);
 
     std::string::size_type pos = std::string(buf).find_last_of("\\/");
@@ -135,14 +143,14 @@ inline void WriteExceptionToLog(const std::string& context, const std::string& w
 /// @return Vector of token strings in order of appearance.
 inline std::vector<std::string> split(const std::string& s, char delim = ' ')
 {
-    std::istringstream ss(s);
-    std::string item;
+    std::istringstream       ss(s);
+    std::string              item;
     std::vector<std::string> res;
 
-    while (std::getline(ss, item, delim)) {
+    while (std::getline(ss, item, delim))
         res.push_back(item);
-    }
-
+    if (res.empty())
+        res.push_back("");
     return res;
 }
 
@@ -171,7 +179,8 @@ inline bool starts_with(const std::string& str, const std::string& pre)
 inline void to_upper(std::string& str)
 {
     std::transform(str.begin(), str.end(), str.begin(),
-        [](unsigned char c) -> unsigned char { return std::toupper(c); });
+                   [](unsigned char c) -> unsigned char
+                   { return std::toupper(c); });
 }
 
 /// @brief Formats a VHF frequency as a 6-character dot-free annotation token.
@@ -189,8 +198,14 @@ inline std::string freqToAnnotation(double freq)
 /// @return 6-character string with the dot removed and 3 decimal digits normalised (e.g. "121600").
 inline std::string freqToAnnotation(const std::string& freq)
 {
-    try   { return freqToAnnotation(std::stod(freq)); }
-    catch (...) { return freq; } // caller will notice the wrong length and can handle it
+    try
+    {
+        return freqToAnnotation(std::stod(freq));
+    }
+    catch (...)
+    {
+        return freq;
+    } // caller will notice the wrong length and can handle it
 }
 
 /// @brief Rounds an integer to the nearest multiple of @p closest.
@@ -209,7 +224,8 @@ inline int round_to_closest(int num, int closest)
 inline std::string trim(const std::string& str, const std::string& charset = " \t\r\n")
 {
     size_t begin = str.find_first_not_of(charset);
-    if (begin == std::string::npos) {
+    if (begin == std::string::npos)
+    {
         // Empty string or only characters from charset provided
         return "";
     }

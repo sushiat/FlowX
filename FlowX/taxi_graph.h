@@ -422,8 +422,9 @@ class TaxiGraph
 
     // ── A* helpers ───────────────────────────────────────────────────────────
 
-    /// @brief Returns the index of the node nearest to @p pos, or -1 if graph is empty.
-    [[nodiscard]] int NearestNode(const GeoPoint& pos) const;
+    /// @brief Returns the index of the node nearest to @p pos within @p maxM metres,
+    ///        or -1 if the graph is empty or no node falls within that radius.
+    [[nodiscard]] int NearestNode(const GeoPoint& pos, double maxM = 5000.0) const;
 
     /// @brief Returns the nearest node within @p maxM metres that lies in the forward hemisphere
     ///        (bearing from @p pos to node within ±90° of @p headingDeg).

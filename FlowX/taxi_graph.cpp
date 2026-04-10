@@ -371,21 +371,24 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 // A* helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-int TaxiGraph::NearestNode(const GeoPoint& pos) const
+int TaxiGraph::NearestNode(const GeoPoint& pos, double maxM) const
 {
     if (nodes_.empty())
         return -1;
 
     // Expanding-ring search: start at the cell containing pos, expand one ring at a time.
-    // Stop once the inner edge of the next ring is further than the current best distance.
+    // Stop once the inner edge of the next ring is further than the current best distance,
+    // or once the ring's minimum distance exceeds maxM (hard cap to avoid O(n²) expansion
+    // when the query point is far from the graph).
     auto [cx0, cy0] = GridCell(pos);
     double bestD    = std::numeric_limits<double>::max();
-    int    bestId   = 0;
+    int    bestId   = -1;
 
     for (int ring = 0;; ++ring)
     {
         // Inner edge of this ring is at least (ring - 1) * GRID_CELL_M away.
-        if (ring > 0 && (ring - 1) * GRID_CELL_M >= bestD)
+        const double ringMinDist = (ring - 1) * GRID_CELL_M;
+        if (ring > 0 && (ringMinDist >= bestD || ringMinDist > maxM))
             break;
 
         for (int dx = -ring; dx <= ring; ++dx)
@@ -802,7 +805,11 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     std::vector<int> pool = NearestCandidateNodes(from, initialBearingDeg,
                                                   FORWARD_SNAP_M, BACKWARD_SNAP_M, 15, 5);
     if (pool.empty())
-        pool.push_back(NearestNode(from));
+    {
+        const int fallback = NearestNode(from);
+        if (fallback >= 0)
+            pool.push_back(fallback);
+    }
 
     // If the aircraft is directly on an edge (perpendicular distance < 5 m and
     // heading aligned within 20°), restrict candidates to that wayRef.  This
@@ -851,6 +858,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     }
 
     const int goalId = NearestNode(to);
+    if (goalId < 0)
+        return {};
 
     // Per-edge wingspan check: build a set of excluded wayRefs.
     std::set<std::string> excludedRefs;

@@ -1,0 +1,36 @@
+{
+    "global": {
+        "updateCheck": false,
+        "debug": false,
+        "flashOnMessage": false,
+        "autoParked": false,
+        "autoScratchpadClear": true,
+        "autoRestore": false,
+        "hpAutoScratch": true,
+        "bgOpacity": 75,
+        "fontOffset": 2,
+        "soundAirborne": false,
+        "soundGndTransfer": true,
+        "soundReadyTakeoff": true,
+        "soundNoRoute": true,
+        "soundTaxiConflict": true
+    },
+    "windowSettings": [
+        {
+            "name": "twrOutboundWindow",
+            "x": 100,
+            "y": 200,
+            "visible": false
+        },
+        {
+            "name": "approachEstWindow",
+            "x": 50,
+            "y": 100,
+            "w": 300,
+            "h": 450,
+            "visible": true,
+            "poppedOut": false,
+            "apprEstColors": true
+        }
+    ]
+}
