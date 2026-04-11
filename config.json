@@ -429,7 +429,7 @@
                 "backwardSnapM": 300.0,
                 "heuristicWeight": 1.0,
                 "maxNodeExpansions": 5000,
-                "softTurnCostPerDeg": 3.0
+                "softTurnCostPerDeg": 0.5
             },
             "snapping": {
                 "holdingPointM": 30.0,
