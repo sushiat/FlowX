@@ -1147,7 +1147,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                             !this->readyTakeoff_soundPlayed.contains(callSign))
                         {
                             this->readyTakeoff_soundPlayed.insert(callSign);
-                            if (this->GetSoundReadyTakeoff())
+                            if (this->GetSoundReadyTakeoff() && this->ControllerMyself().GetFacility() >= 4)
                             {
                                 std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "readyTakeoff.wav";
                                 PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
@@ -1472,7 +1472,7 @@ void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget 
             this->radarScreen->gndTransferSquares.insert(callSign);
             this->radarScreen->gndTransferSquareTimes[callSign] = GetTickCount64();
         }
-        if (this->GetSoundGndTransfer())
+        if (this->GetSoundGndTransfer() && this->ControllerMyself().GetFacility() >= 4)
         {
             std::filesystem::path wav = std::filesystem::path(GetPluginDirectory()) / "gndtransfer.wav";
             PlaySoundA(wav.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);

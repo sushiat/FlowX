@@ -342,7 +342,7 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 
         this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
 
-        if (this->GetSoundAirborne())
+        if (this->GetSoundAirborne() && this->ControllerMyself().GetFacility() >= 4)
         {
             std::filesystem::path wavPath = std::filesystem::path(GetPluginDirectory()) / "airbourne.wav";
             PlaySoundA(wavPath.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
