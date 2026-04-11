@@ -28,5 +28,7 @@
 	{"name":"16_11/16_AUA640/IN to STAND:F37","type":"inbound","runwayConfig":"16_11/16","from":"GEO:48.112992,16.564237","to":"STAND:F37","wingspan":35.8,"heading":99.0,"waypoints":[{"lat":48.114060,"lon":16.568272}],"swingover":false,"distanceRange":[529,629],"mustInclude":["TL 37"],"mustNotInclude":["W"],"wayRefs":["A4","Exit 4","L","TL 37"]},
 	
 	{"name":"11/16_AUA62/IN to STAND:G16","type":"inbound","runwayConfig":"16_11/16","from":"GEO:48.112941,16.564846","to":"STAND:G16","wingspan":60.9,"heading":98.0,"waypoints":[],"swingover":false,"distanceRange":[1653,1753],"mustInclude":["TL 40"],"mustNotInclude":["TL 40 \"Blue Line\"","TL 40 \"Orange Line\""],"wayRefs":["A4","Exit 4","L","W","TL 40"]},
-	{"name":"16_11/16_UPS275/IN to STAND:A93","type":"inbound","runwayConfig":"16_11/16","from":"HP:A6","to":"STAND:A93","wingspan":44.8,"heading":66.0,"waypoints":[],"swingover":false,"distanceRange":[1800,1900],"mustInclude":["Exit 15"],"mustNotInclude":[],"wayRefs":["A6","M","Exit 15"]}
+	{"name":"16_11/16_UPS275/IN to STAND:A93","type":"inbound","runwayConfig":"16_11/16","from":"HP:A6","to":"STAND:A93","wingspan":44.8,"heading":66.0,"waypoints":[],"swingover":false,"distanceRange":[1800,1900],"mustInclude":["Exit 15"],"mustNotInclude":[],"wayRefs":["A6","M","Exit 15"]},
+	
+	{"name":"16_11/16_AUA243/IN to STAND:F16","type":"inbound","runwayConfig":"16_11/16","from":"GEO:48.103416,16.584640","to":"STAND:F16","wingspan":35.8,"heading":179.0,"waypoints":[],"swingover":false,"distanceRange":[2750,2850],"mustInclude":[],"mustNotInclude":["E","W"],"wayRefs":["B8","D","Exit 32","Exit 22","TL 40","TL 40 \"Blue Line\""]}
 ]

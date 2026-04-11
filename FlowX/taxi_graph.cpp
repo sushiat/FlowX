@@ -183,6 +183,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     nodes_.clear();
     adj_.clear();
     grid_.clear();
+    hpWayRefs_.clear();
     isxWayRefs_.clear();
     apt_ = ap;
 
@@ -206,7 +207,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
     // Type multipliers (distance × mult = base cost).
     constexpr double MULT_TAXIWAY      = 1.0;
-    const double     MULT_HOLDINGPOINT = apt_.taxiNetworkConfig.edgeCosts.multRunwayApproach;
+    constexpr double MULT_HOLDINGPOINT = 1.0;
     const double     MULT_INTERSECTION = apt_.taxiNetworkConfig.edgeCosts.multIntersection;
     const double     MULT_TAXILANE     = apt_.taxiNetworkConfig.edgeCosts.multTaxilane;
     const double     MULT_RUNWAY       = apt_.taxiNetworkConfig.edgeCosts.multRunway;
@@ -228,6 +229,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
         if (way.type == AerowayType::Taxiway_Intersection && !ref.empty())
             isxWayRefs_.insert(ref);
+        if (way.type == AerowayType::Taxiway_HoldingPoint && !ref.empty())
+            hpWayRefs_.insert(ref);
 
         // Ref priority for junction conflict resolution: higher value wins when
         // two ways share a node.  Taxiway > taxilane > intersection > runway > holding point.
@@ -383,10 +386,28 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
         }
     }
 
-    // Note: runway-approach penalty is now applied at build time via
-    // MULT_HOLDINGPOINT on Taxiway_HoldingPoint way edges (step 1), so only
-    // the multi-node runway entry/exit paths (A1, B4) are penalised — not
-    // single-point OSM stop bars (W1, W2).
+    // ── Step 8: runway-approach penalty ──────────────────────────────────────
+    // Penalise edges that ENTER a Taxiway_HoldingPoint wayRef (A1, B8, etc.)
+    // from a different wayRef.  This discourages the router from cutting through
+    // runway entry/exit paths.  Edges already on the HP wayRef (aircraft exiting
+    // the runway) are unaffected.  OSM stop bars (W1, W2) are not HP wayRefs so
+    // they are naturally exempt.
+    const double approachMult = apt_.taxiNetworkConfig.edgeCosts.multRunwayApproach;
+    if (approachMult > 1.0)
+    {
+        for (size_t fromId = 0; fromId < adj_.size(); ++fromId)
+        {
+            const std::string& fromRef = nodes_[fromId].wayRef;
+            for (auto& edge : adj_[fromId])
+            {
+                if (!hpWayRefs_.count(edge.wayRef))
+                    continue; // edge is not on a HP way
+                if (fromRef == edge.wayRef)
+                    continue; // staying on the same HP way — no penalty
+                edge.cost *= approachMult;
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -636,9 +657,6 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
 
         for (const auto& edge : adj_[cur])
         {
-            // Never update a closed node — its cost is already final.
-            if (closed[edge.to])
-                continue;
             if (!excludedRefs.empty() && excludedRefs.contains(edge.wayRef))
                 continue;
             if (!blockedNodes.empty() && blockedNodes.contains(edge.to) && edge.to != goalId)
@@ -714,11 +732,10 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                     !isxWayRefs_.count(incomingWayRef[cur]))
                     turnPenalty += (bd - SOFT_TURN_THRESH) * SOFT_TURN_COST;
 
-                // Penalty when LEAVING a named taxiway for a different wayRef.  Exiting
-                // an intersection to a named taxiway is free.  This keeps onward costs
-                // identical at junction nodes reachable via different paths, so A*'s
-                // closed-set correctly picks the cheapest total route (e.g. early vs. late
-                // taxiway switch).
+                // Penalty when changing wayRef.  Only intersection→intersection
+                // transitions are exempt (chaining through a junction complex is
+                // free, but exiting an intersection to a taxiway costs the penalty
+                // just like any other wayRef change).
                 //
                 // A wayRef used for only a single edge (one-node pass-through) is a graph
                 // artifact — no real taxiway or intersection consists of one node.
@@ -728,7 +745,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                     prev[cur] >= 0 && incomingWayRef[prev[cur]] != incomingWayRef[cur];
                 if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
                     incomingWayRef[cur] != edge.wayRef &&
-                    !isxWayRefs_.count(incomingWayRef[cur]) &&
+                    !(isxWayRefs_.count(incomingWayRef[cur]) && isxWayRefs_.count(edge.wayRef)) &&
                     !singleNodeRef)
                 {
                     turnPenalty += WAYREF_CHANGE_PENALTY;
@@ -741,6 +758,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
             }
 
             const double ng = g[cur] + edgeCost + turnPenalty;
+
             if (ng < g[edge.to])
             {
                 g[edge.to]               = ng;
@@ -835,6 +853,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} softTurn={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
                                         dbgSegRef, dbgSegDist, dbgSegCost, dbgSegPenalty,
                                         dbgSegSoftTurn, dbgSegDepMult, dbgSegMaxBd);
+
 
     if (path.size() >= 2)
     {
@@ -982,6 +1001,11 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                 continue;
             const double snapDist = HaversineM(from, nodes_[startId].pos) + HaversineM(to, nodes_[goalId].pos);
             const double score    = r.totalCost + snapDist;
+            if (emitDebugTrace)
+                r.debugTrace = std::format("start #{} [{}] goal #{} [{}] score={:.0f} (cost={:.0f} snap={:.0f})\n",
+                                           startId, nodes_[startId].wayRef, goalId, nodes_[goalId].wayRef,
+                                           score, r.totalCost, snapDist) +
+                               r.debugTrace;
             if (score < bestScore)
             {
                 bestScore = score;

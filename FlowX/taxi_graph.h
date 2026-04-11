@@ -422,6 +422,8 @@ class TaxiGraph
     std::unordered_map<std::string, std::vector<int>>
         wayRefNodes_; ///< wayRef → node IDs for all Waypoint nodes on that ref; built in Build() for O(k) SwingoverSnap scans.
     std::unordered_set<std::string>
+        hpWayRefs_; ///< Set of wayRef strings for Taxiway_HoldingPoint ways (e.g. A1, B8); built in Build() for runway-approach penalty targeting.
+    std::unordered_set<std::string>
         isxWayRefs_; ///< Set of wayRef strings for intersection ways (from apt_.taxiIntersections); built in Build() to suppress WAYREF_CHANGE_PENALTY at Exit transitions in RunAStar.
 
     // ── Build helpers ────────────────────────────────────────────────────────
