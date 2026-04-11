@@ -151,6 +151,7 @@ struct TaxiNetworkConfig
         double wayrefChangePenalty = 200.0; ///< Cost added when leaving a named taxiway for a different wayRef (entering an intersection or switching to another taxiway). Exiting an intersection to a named taxiway is free so that A* correctly evaluates early vs. late taxiway switches.
         double heuristicWeight     = 1.0;   ///< Weight applied to the A* heuristic (W > 1.0 = more goal-directed but may close nodes suboptimally; 1.0 is correct for small graphs).
         int    maxNodeExpansions   = 5000;  ///< Maximum number of nodes A* expands before giving up; higher values find better routes but cost more CPU.
+        double softTurnCostPerDeg  = 0.0;   ///< Cost added per degree of bearing change at each edge; 0 disables. Penalises winding routes and favours straight paths.
     } routing;
 
     /// @brief Cursor snap radii used during interactive taxi planning.

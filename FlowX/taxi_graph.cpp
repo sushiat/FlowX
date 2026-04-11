@@ -70,7 +70,8 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                 // At a genuine OSM junction (d ≤ 1 m), resolve ref conflicts by
                 // preferring the higher-priority way type (taxiway > taxilane >
                 // intersection), and within the same priority prefer a parent name
-                // over a lane-variant (e.g. "TL 40" over "TL 40 'Blue Line'").
+                // over a lane-variant (e.g. "TL 40" over "TL 40 'Blue Line'"),
+                // or the alphabetically smaller ref (e.g. "TL36" over "TL37").
                 if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
                     nodes_[nid].wayRef != wayRef && d <= 1.0)
                 {
@@ -80,7 +81,9 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                         nodes_[nid].wayRef.starts_with(wayRef) &&
                         nodes_[nid].wayRef.size() > wayRef.size() &&
                         nodes_[nid].wayRef[wayRef.size()] == ' ';
-                    if (higherPriority || samePriorityParent)
+                    const bool samePriorityAlpha =
+                        wayPriority == nodes_[nid].wayPriority && wayRef < nodes_[nid].wayRef;
+                    if (higherPriority || samePriorityParent || samePriorityAlpha)
                     {
                         nodes_[nid].wayRef      = std::string(wayRef);
                         nodes_[nid].wayPriority = wayPriority;
@@ -585,6 +588,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
 
     const int    MAX_NODES             = apt_.taxiNetworkConfig.routing.maxNodeExpansions;
     const double WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
+    const double SOFT_TURN_COST        = apt_.taxiNetworkConfig.routing.softTurnCostPerDeg;
     const double MIN_COST_PER_M        = apt_.taxiNetworkConfig.flowRules.withFlowMult; // admissibility bound
     const double HEURISTIC_W           = apt_.taxiNetworkConfig.routing.heuristicWeight * MIN_COST_PER_M;
 
@@ -615,6 +619,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     std::vector<bool>        closed(nodes_.size(), false);
     std::vector<double>      dbgEdgeCost(emitDebugTrace ? nodes_.size() : 0, 0.0);
     std::vector<double>      dbgTurnPenalty(emitDebugTrace ? nodes_.size() : 0, 0.0);
+    std::vector<double>      dbgSoftTurn(emitDebugTrace ? nodes_.size() : 0, 0.0);
     std::vector<double>      dbgDepMult(emitDebugTrace ? nodes_.size() : 0, 1.0);
     std::vector<double>      dbgBearingDiff(emitDebugTrace ? nodes_.size() : 0, 0.0);
     int                      nodesExpanded = 0;
@@ -669,6 +674,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
             double turnPenalty = 0.0;
             double depMult     = 1.0;
             double bd          = 0.0;
+            constexpr double SOFT_TURN_THRESH = 5.0;
 
             if (ignoreAllPenalties)
             {
@@ -707,14 +713,32 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 if (incomingBearing[cur] >= 0.0)
                     bd = BearingDiff(incomingBearing[cur], edge.bearingDeg);
 
+                // Soft turn penalty: proportional to bearing change above a small
+                // threshold.  Only applied when the incoming wayRef is a named
+                // taxiway/taxilane (not an intersection) — this preserves the
+                // natural cost ordering at junction curves so the arrival bearing
+                // at junction nodes stays the same as baseline, avoiding
+                // hard-turn blocks on the continuation due to a changed approach.
+                if (bd > SOFT_TURN_THRESH && SOFT_TURN_COST > 0.0 &&
+                    !isxWayRefs_.count(incomingWayRef[cur]))
+                    turnPenalty += (bd - SOFT_TURN_THRESH) * SOFT_TURN_COST;
+
                 // Penalty when LEAVING a named taxiway for a different wayRef.  Exiting
                 // an intersection to a named taxiway is free.  This keeps onward costs
                 // identical at junction nodes reachable via different paths, so A*'s
                 // closed-set correctly picks the cheapest total route (e.g. early vs. late
                 // taxiway switch).
+                //
+                // A wayRef used for only a single edge (one-node pass-through) is a graph
+                // artifact — no real taxiway or intersection consists of one node.
+                // Suppress the penalty so routing isn't distorted by (e.g.) a single
+                // TL42 node embedded at Exit 21.
+                const bool singleNodeRef =
+                    prev[cur] >= 0 && incomingWayRef[prev[cur]] != incomingWayRef[cur];
                 if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
                     incomingWayRef[cur] != edge.wayRef &&
-                    !isxWayRefs_.count(incomingWayRef[cur]))
+                    !isxWayRefs_.count(incomingWayRef[cur]) &&
+                    !singleNodeRef)
                 {
                     turnPenalty += WAYREF_CHANGE_PENALTY;
                 }
@@ -734,6 +758,9 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 {
                     dbgEdgeCost[edge.to]    = edgeCost;
                     dbgTurnPenalty[edge.to] = turnPenalty;
+                    dbgSoftTurn[edge.to]    = (bd > SOFT_TURN_THRESH && !isxWayRefs_.count(incomingWayRef[cur]))
+                                                  ? (bd - SOFT_TURN_THRESH) * SOFT_TURN_COST
+                                                  : 0.0;
                     dbgDepMult[edge.to]     = depMult;
                     dbgBearingDiff[edge.to] = bd;
                 }
@@ -756,11 +783,12 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
 
     std::string lastRef;
     // Debug: accumulate per-wayRef segment stats for the trace.
-    double      dbgSegDist    = 0.0; // distance accumulated on the current wayRef
-    double      dbgSegCost    = 0.0; // edge cost accumulated on the current wayRef
-    double      dbgSegPenalty = 0.0; // turn/wayref penalties accumulated on the current wayRef
-    double      dbgSegMaxBd   = 0.0; // max bearing diff seen on the current wayRef
-    double      dbgSegDepMult = 1.0; // depMult on the current wayRef (constant per segment)
+    double      dbgSegDist     = 0.0; // distance accumulated on the current wayRef
+    double      dbgSegCost     = 0.0; // edge cost accumulated on the current wayRef
+    double      dbgSegPenalty  = 0.0; // turn/wayref penalties accumulated on the current wayRef
+    double      dbgSegSoftTurn = 0.0; // soft turn cost accumulated on the current wayRef
+    double      dbgSegMaxBd    = 0.0; // max bearing diff seen on the current wayRef
+    double      dbgSegDepMult  = 1.0; // depMult on the current wayRef (constant per segment)
     std::string dbgSegRef;
     for (const int nId : path)
     {
@@ -770,17 +798,18 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         {
             // Flush the previous debug segment.
             if (emitDebugTrace && !dbgSegRef.empty())
-                route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
+                route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} softTurn={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
                                                 dbgSegRef, dbgSegDist, dbgSegCost, dbgSegPenalty,
-                                                dbgSegDepMult, dbgSegMaxBd);
+                                                dbgSegSoftTurn, dbgSegDepMult, dbgSegMaxBd);
             route.wayRefs.push_back(ref);
-            lastRef       = ref;
-            dbgSegRef     = ref;
-            dbgSegDist    = 0.0;
-            dbgSegCost    = 0.0;
-            dbgSegPenalty = 0.0;
-            dbgSegMaxBd   = 0.0;
-            dbgSegDepMult = 1.0;
+            lastRef        = ref;
+            dbgSegRef      = ref;
+            dbgSegDist     = 0.0;
+            dbgSegCost     = 0.0;
+            dbgSegPenalty  = 0.0;
+            dbgSegSoftTurn = 0.0;
+            dbgSegMaxBd    = 0.0;
+            dbgSegDepMult  = 1.0;
         }
         if (nId != path.front())
         {
@@ -791,6 +820,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 dbgSegDist += stepDist;
                 dbgSegCost += dbgEdgeCost[nId];
                 dbgSegPenalty += dbgTurnPenalty[nId];
+                dbgSegSoftTurn += dbgSoftTurn[nId];
                 dbgSegDepMult = dbgDepMult[nId];
                 if (dbgBearingDiff[nId] > dbgSegMaxBd)
                     dbgSegMaxBd = dbgBearingDiff[nId];
@@ -799,9 +829,9 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     }
     // Flush last segment.
     if (emitDebugTrace && !dbgSegRef.empty())
-        route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
+        route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} softTurn={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
                                         dbgSegRef, dbgSegDist, dbgSegCost, dbgSegPenalty,
-                                        dbgSegDepMult, dbgSegMaxBd);
+                                        dbgSegSoftTurn, dbgSegDepMult, dbgSegMaxBd);
 
     if (path.size() >= 2)
     {

@@ -929,6 +929,7 @@ void CFlowX_Settings::LoadConfig()
                 nc.routing.backwardSnapM       = r.value("backwardSnapM", 300.0);
                 nc.routing.heuristicWeight     = r.value("heuristicWeight", 1.0);
                 nc.routing.maxNodeExpansions   = r.value("maxNodeExpansions", 5000);
+                nc.routing.softTurnCostPerDeg  = r.value("softTurnCostPerDeg", 0.0);
             }
             if (jnc.contains("snapping"))
             {

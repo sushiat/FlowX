@@ -98,8 +98,8 @@
             "16_16":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "M", "direction": "W" } ],
             "29_29":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "S" } ],
             "34_34":    [ { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" } ],
-            "16_11":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
-            "16_11/16": [ { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
+            "16_11":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
+            "16_11/16": [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
             "29_16":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "29/16_16": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "29_34":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
@@ -428,7 +428,8 @@
                 "forwardSnapM": 120.0,
                 "backwardSnapM": 300.0,
                 "heuristicWeight": 1.0,
-                "maxNodeExpansions": 5000
+                "maxNodeExpansions": 5000,
+                "softTurnCostPerDeg": 3.0
             },
             "snapping": {
                 "holdingPointM": 30.0,
