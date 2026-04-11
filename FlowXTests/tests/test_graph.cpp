@@ -316,12 +316,12 @@ TEST_CASE("TaxiGraph flow - runway-conditional flow rule raises against-flow cos
     CHECK(fwdOff.totalCost == doctest::Approx(fwdOff.totalDistM).epsilon(0.01));
     CHECK(revOff.totalCost == doctest::Approx(revOff.totalDistM).epsilon(0.01));
 
-    // With dep runway "29" active: A→C (with flow) stays at 1.0×; C→A (against flow) rises to 3.0×.
+    // With dep runway "29" active: A→C (with flow) gets 0.9× discount; C→A (against flow) rises to 3.0×.
     TaxiRoute fwdOn = g.FindRoute(A, C, 0.0, {"29"}, {});
     TaxiRoute revOn = g.FindRoute(C, A, 0.0, {"29"}, {});
     REQUIRE(fwdOn.valid);
     REQUIRE(revOn.valid);
-    CHECK(fwdOn.totalCost == doctest::Approx(fwdOn.totalDistM).epsilon(0.01));
+    CHECK(fwdOn.totalCost == doctest::Approx(fwdOn.totalDistM * 0.9).epsilon(0.05));
     CHECK(revOn.totalCost == doctest::Approx(revOn.totalDistM * 3.0).epsilon(0.05));
 }
 
@@ -352,7 +352,7 @@ TEST_CASE("TaxiGraph flow - wayRef change adds penalty once per transition")
           doctest::Approx(200.0).epsilon(0.01));
 }
 
-TEST_CASE("TaxiGraph flow - leaving an intersection wayRef carries no penalty")
+TEST_CASE("TaxiGraph flow - only intersection-to-intersection wayRef transitions are free")
 {
     // Three-segment route: "M" A→B, intersection "ISX" B→C, "M" C→D.
     // Entering ISX from M costs the wayref penalty; leaving ISX to M does not.
@@ -405,12 +405,13 @@ TEST_CASE("TaxiGraph flow - leaving an intersection wayRef carries no penalty")
     REQUIRE(routeStraight.valid);
 
     // cost - distM = flat penalties + edge-multiplier extras (snap offset cancels).
-    // One wayref penalty entering ISX (200), zero leaving ISX, plus the 1.1× multiplier
-    // on the 200 m ISX segment adds 200 * 0.1 = 20 above its geometric length.
+    // Wayref penalty entering ISX from M (200) + wayref penalty leaving ISX to M (200),
+    // plus the 1.1× multiplier on the 200 m ISX segment adds 200 * 0.1 = 20.
+    // Only intersection→intersection transitions are free; ISX→taxiway is not.
     // Straight baseline has no penalties or multipliers: cost - distM = 0.
     CHECK(routeStraight.totalCost == doctest::Approx(routeStraight.totalDistM).epsilon(0.01));
     CHECK(routeViaIsx.totalCost - routeViaIsx.totalDistM ==
-          doctest::Approx(200.0 + 200.0 * 0.1).epsilon(0.05));
+          doctest::Approx(200.0 * 2 + 200.0 * 0.1).epsilon(0.05));
 }
 
 TEST_CASE("TaxiGraph flow - Taxiway_Intersection edges cost more than plain taxiway edges")
@@ -583,7 +584,7 @@ TEST_CASE("TaxiGraph - Taxilane edges cost 3x base distance (multTaxilane)")
 
 // ─── Holding point node promotion ────────────────────────────────────────────
 
-TEST_CASE("TaxiGraph - OSM holding position snapped to way node incurs approach penalty")
+TEST_CASE("TaxiGraph - OSM holding position snapped to way node does not incur approach penalty")
 {
     // Baseline: straight way A–B–C with no holding positions.
     TaxiGraph baseline;
@@ -591,8 +592,9 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node incurs approach 
 
     // With HP: same way but an OsmHoldingPosition placed exactly at B.
     // B is a way node → within the 25 m snap radius → B is promoted to
-    // HoldingPosition; all edges arriving at B gain the multRunwayApproach (18×)
-    // multiplier, making the A→C route considerably more expensive.
+    // HoldingPosition type, but its wayRef remains "M" (a plain taxiway).
+    // The approach penalty (step 8) only fires on Taxiway_HoldingPoint wayRefs
+    // (e.g. "A1", "B4"), so stop bars on plain taxiways are NOT penalised.
     OsmAirportData     osmWithHp = MakeStraightWay();
     OsmHoldingPosition osmHp;
     osmHp.id  = 100;
@@ -612,15 +614,17 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node incurs approach 
     REQUIRE(rBaseline.valid);
     REQUIRE(rWithHp.valid);
 
-    // The approach-penalty multiplier (18×) on the final edge into B makes the
-    // with-HP route clearly more expensive than the baseline.
-    CHECK(rWithHp.totalCost > rBaseline.totalCost * 1.5);
+    // Cost must be equal: snapping an OSM stop bar to a plain taxiway node adds
+    // no routing penalty.
+    CHECK(rWithHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.05));
 }
 
-TEST_CASE("TaxiGraph - config holdingPoint snapped to way node incurs approach penalty")
+TEST_CASE("TaxiGraph - config holdingPoint snapped to way node does not incur approach penalty")
 {
-    // Same effect as the OSM snap test, but triggered via airport runway config
-    // (configHoldingPointSnapM = 40 m default).  B is promoted to HoldingPoint type.
+    // Same as the OSM snap test, but triggered via airport runway config
+    // (configHoldingPointSnapM = 40 m default).  B is promoted to HoldingPoint type,
+    // but its wayRef remains "M".  The approach penalty only fires on Taxiway_HoldingPoint
+    // wayRefs, so config HP snaps on plain taxiways carry no penalty.
     airport ap = MakeAirport();
     runway  rwy;
     rwy.designator = "11";
@@ -645,7 +649,7 @@ TEST_CASE("TaxiGraph - config holdingPoint snapped to way node incurs approach p
     REQUIRE(rBaseline.valid);
     REQUIRE(rWithHp.valid);
 
-    CHECK(rWithHp.totalCost > rBaseline.totalCost * 1.5);
+    CHECK(rWithHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.05));
 }
 
 TEST_CASE("TaxiGraph - HP node beyond snap radius does not incur approach penalty")

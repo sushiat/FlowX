@@ -1130,11 +1130,21 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
         for (const auto& ref : seg.wayRefs)
             if (combined.wayRefs.empty() || combined.wayRefs.back() != ref)
                 combined.wayRefs.push_back(ref);
-        combined.totalDistM += seg.totalDistM;
+        // totalDistM is recomputed from the polyline at the end (see below).
         combined.totalCost += seg.totalCost;
         combined.debugTrace += seg.debugTrace;
         combined.exitBearing = seg.exitBearing;
     }
+
+    // Recompute totalDistM from the combined polyline.  Accumulating
+    // seg.totalDistM would undercount when a segment's A* start node doesn't
+    // align exactly with the previous segment's end node (which can happen due
+    // to goal-candidate snapping): the polyline contains the junction gap as a
+    // direct edge and therefore always sums to the true geometric path length.
+    combined.totalDistM = 0.0;
+    for (size_t pi = 1; pi < combined.polyline.size(); ++pi)
+        combined.totalDistM += HaversineM(combined.polyline[pi - 1], combined.polyline[pi]);
+
     return combined;
 }
 
