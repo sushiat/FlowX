@@ -820,9 +820,11 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
         if (!rt.IsValid() || !rt.GetPosition().IsValid())
             return;
 
-        const POINT acPt        = ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());
-        size_t      closestIdx  = 0;
-        long        closestDist = LONG_MAX;
+        const EuroScopePlugIn::CPosition rawPos = rt.GetPosition().GetPosition();
+        const GeoPoint                   acGeo{rawPos.m_Latitude, rawPos.m_Longitude};
+        const POINT                      acPt        = ConvertCoordFromPositionToPixel(rawPos);
+        size_t                           closestIdx  = 0;
+        long                             closestDist = LONG_MAX;
         for (size_t i = 0; i < route.polyline.size(); ++i)
         {
             EuroScopePlugIn::CPosition pos;
@@ -839,10 +841,45 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
             }
         }
 
-        if (closestIdx == route.polyline.size() - 1 && closestDist <= 100 * 100)
+        // (c) Airborne fallback: aircraft is above field elevation + margin.
+        // Clears stale routes after takeoff (fast-forwarded replay, missed TAKE OFF press, etc.).
+        auto*         settings           = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+        const int     fieldElevFt        = settings->GetAirports().empty()
+                                               ? 0
+                                               : settings->GetAirports().begin()->second.fieldElevation;
+        constexpr int AIRBORNE_MARGIN_FT = 50;
+        if (rt.GetPosition().GetPressureAltitude() > fieldElevFt + AIRBORNE_MARGIN_FT)
         {
             done.push_back(cs);
             return;
+        }
+
+        if (closestIdx == route.polyline.size() - 1)
+        {
+            const GeoPoint& finalPt = route.polyline[closestIdx];
+
+            // (a) Aircraft is geographically close to the final node.
+            constexpr double ARRIVAL_THRESH_M = 80.0;
+            const bool       nearEnd          = HaversineM(acGeo, finalPt) <= ARRIVAL_THRESH_M;
+
+            // (b) Aircraft has passed the final node (skipped over due to infrequent
+            //     position updates): dot(A→B, B→P) > 0.
+            bool pastEnd = false;
+            if (route.polyline.size() >= 2)
+            {
+                const GeoPoint& prevPt = route.polyline[closestIdx - 1];
+                const double    abLat  = finalPt.lat - prevPt.lat;
+                const double    abLon  = finalPt.lon - prevPt.lon;
+                const double    bpLat  = acGeo.lat - finalPt.lat;
+                const double    bpLon  = acGeo.lon - finalPt.lon;
+                pastEnd                = (abLat * bpLat + abLon * bpLon) > 0.0;
+            }
+
+            if (nearEnd || pastEnd)
+            {
+                done.push_back(cs);
+                return;
+            }
         }
 
         // Connector from aircraft to nearest route point: yellow to indicate
