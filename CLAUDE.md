@@ -15,7 +15,7 @@ Open `FlowX.sln` in **Visual Studio 2022** and build with MSBuild. No CLI build 
 - EuroScope lib: `lib\EuroScope\EuroScopePlugInDll.lib`
 - External headers: `include/` (nlohmann/json, semver, date/tz)
 
-**Debug setup:** Set `EUROSCOPE_ROOT` environment variable to the EuroScope install directory. The debugger launches EuroScope.exe automatically. Avoid breakpoints during live sessions — use `.flowx debug` instead.
+**Debug setup:** Set `EUROSCOPE_ROOT` environment variable to the EuroScope install directory. The debugger launches EuroScope.exe automatically. Debug mode is toggled via the plugin's right-click menu.
 
 ## Architecture
 

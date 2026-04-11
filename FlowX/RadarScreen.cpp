@@ -459,7 +459,7 @@ void RadarScreen::RecalculateTaxiPreview()
         this->taxiGreenPreview = settings->osmGraph.FindWaypointRoute(
             origin, wps, dest,
             taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(),
-            heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet, false,
+            heading, blocked, hasDrawnNodes, this->taxiDrawnNodeSet, settings->GetDebug(),
             this->taxiPlanForwardOnly);
     }
 }
@@ -4270,9 +4270,13 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             {
                                 settings->LogDebugMessage(
                                     cs + " suggested: " + FormatTaxiRoute(sugIt->second), "TAXI");
+                                if (!sugIt->second.debugTrace.empty())
+                                    settings->LogDebugMessage(cs + " sug trace:\n" + sugIt->second.debugTrace, "TAXI");
                             }
                             settings->LogDebugMessage(
                                 cs + " assigned:  " + FormatTaxiRoute(finalRoute), "TAXI");
+                            if (!finalRoute.debugTrace.empty())
+                                settings->LogDebugMessage(cs + " asg trace:\n" + finalRoute.debugTrace, "TAXI");
                         }
 
                         // Log test case template when "Log TAXI tests" is enabled.

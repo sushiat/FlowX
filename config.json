@@ -98,8 +98,8 @@
             "16_16":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "M", "direction": "W" } ],
             "29_29":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "S" } ],
             "34_34":    [ { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" } ],
-            "16_11":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
-            "16_11/16": [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" } ],
+            "16_11":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "D", "direction": "N" } ],
+            "16_11/16": [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "D", "direction": "N" } ],
             "29_16":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "29/16_16": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "29_34":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
@@ -418,13 +418,13 @@
             },
             "flowRules": {
                 "withFlowMaxDeg": 45.0,
-                "withFlowMult": 0.9,
+                "withFlowMult": 0.7,
                 "againstFlowMinDeg": 135.0,
                 "againstFlowMult": 3.5
             },
             "routing": {
                 "hardTurnDeg": 50.0,
-                "wayrefChangePenalty": 200.0,
+                "wayrefChangePenalty": 300.0,
                 "forwardSnapM": 120.0,
                 "backwardSnapM": 300.0,
                 "heuristicWeight": 1.0,

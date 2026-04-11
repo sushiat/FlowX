@@ -206,7 +206,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
 
     // Type multipliers (distance × mult = base cost).
     constexpr double MULT_TAXIWAY      = 1.0;
-    constexpr double MULT_HOLDINGPOINT = 1.0;
+    const double     MULT_HOLDINGPOINT = apt_.taxiNetworkConfig.edgeCosts.multRunwayApproach;
     const double     MULT_INTERSECTION = apt_.taxiNetworkConfig.edgeCosts.multIntersection;
     const double     MULT_TAXILANE     = apt_.taxiNetworkConfig.edgeCosts.multTaxilane;
     const double     MULT_RUNWAY       = apt_.taxiNetworkConfig.edgeCosts.multRunway;
@@ -383,21 +383,10 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
         }
     }
 
-    // ── Step 8: runway-approach penalty ──────────────────────────────────────
-    // Edges arriving at a HoldingPoint or HoldingPosition node are the last step
-    // before the runway threshold. Applying a high multiplier here (slightly below
-    // multRunway) discourages the router from routing through these nodes when there
-    // is any viable alternative, while still allowing the route to exit the runway
-    // via the holding point when truly needed.
-    const double approachMult = apt_.taxiNetworkConfig.edgeCosts.multRunwayApproach;
-    if (approachMult > 1.0)
-    {
-        const std::unordered_set<int> hpSet(hpNodeIds_.begin(), hpNodeIds_.end());
-        for (auto& edgeList : adj_)
-            for (auto& edge : edgeList)
-                if (hpSet.count(edge.to))
-                    edge.cost *= approachMult;
-    }
+    // Note: runway-approach penalty is now applied at build time via
+    // MULT_HOLDINGPOINT on Taxiway_HoldingPoint way edges (step 1), so only
+    // the multi-node runway entry/exit paths (A1, B4) are penalised — not
+    // single-point OSM stop bars (W1, W2).
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -702,10 +691,12 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                         const double rb = CardinalToBearing(rule.direction);
                         if (rb < 0.0)
                             continue;
-                        if (BearingDiff(edge.bearingDeg, rb) >=
-                            apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
+                        const double diff = BearingDiff(edge.bearingDeg, rb);
+                        if (diff >= apt_.taxiNetworkConfig.flowRules.againstFlowMinDeg)
                             depMult = (rule.againstFlowMult > 0.0) ? rule.againstFlowMult
                                                                    : apt_.taxiNetworkConfig.flowRules.againstFlowMult;
+                        else if (diff <= apt_.taxiNetworkConfig.flowRules.withFlowMaxDeg)
+                            depMult = apt_.taxiNetworkConfig.flowRules.withFlowMult;
                         break;
                     }
                 }
@@ -743,7 +734,9 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                     turnPenalty += WAYREF_CHANGE_PENALTY;
                 }
 
-                const double baseCost = suppress ? edge.cost / edge.flowMult : edge.cost;
+                // When suppressed, remove only against-flow penalties (flowMult > 1)
+                // but keep with-flow incentives (flowMult < 1).
+                const double baseCost = (suppress && edge.flowMult > 1.0f) ? edge.cost / edge.flowMult : edge.cost;
                 edgeCost              = baseCost * depMult;
             }
 
@@ -790,28 +783,38 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     double      dbgSegMaxBd    = 0.0; // max bearing diff seen on the current wayRef
     double      dbgSegDepMult  = 1.0; // depMult on the current wayRef (constant per segment)
     std::string dbgSegRef;
-    for (const int nId : path)
+    for (size_t pi = 0; pi < path.size(); ++pi)
     {
+        const int          nId = path[pi];
         route.polyline.push_back(nodes_[nId].pos);
         const std::string& ref = nodes_[nId].wayRef;
         if (!ref.empty() && ref != lastRef)
         {
-            // Flush the previous debug segment.
-            if (emitDebugTrace && !dbgSegRef.empty())
-                route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} softTurn={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
-                                                dbgSegRef, dbgSegDist, dbgSegCost, dbgSegPenalty,
-                                                dbgSegSoftTurn, dbgSegDepMult, dbgSegMaxBd);
-            route.wayRefs.push_back(ref);
-            lastRef        = ref;
-            dbgSegRef      = ref;
-            dbgSegDist     = 0.0;
-            dbgSegCost     = 0.0;
-            dbgSegPenalty  = 0.0;
-            dbgSegSoftTurn = 0.0;
-            dbgSegMaxBd    = 0.0;
-            dbgSegDepMult  = 1.0;
+            // Skip single-node pass-throughs: if the next node already has a
+            // different wayRef, this ref covers only one node and is a graph
+            // artifact (e.g. a lone "E" node between Exit 32 and Exit 22).
+            const bool singleNode = pi + 1 < path.size() &&
+                                    !nodes_[path[pi + 1]].wayRef.empty() &&
+                                    nodes_[path[pi + 1]].wayRef != ref;
+            if (!singleNode)
+            {
+                // Flush the previous debug segment.
+                if (emitDebugTrace && !dbgSegRef.empty())
+                    route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} softTurn={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
+                                                    dbgSegRef, dbgSegDist, dbgSegCost, dbgSegPenalty,
+                                                    dbgSegSoftTurn, dbgSegDepMult, dbgSegMaxBd);
+                route.wayRefs.push_back(ref);
+                lastRef        = ref;
+                dbgSegRef      = ref;
+                dbgSegDist     = 0.0;
+                dbgSegCost     = 0.0;
+                dbgSegPenalty  = 0.0;
+                dbgSegSoftTurn = 0.0;
+                dbgSegMaxBd    = 0.0;
+                dbgSegDepMult  = 1.0;
+            }
         }
-        if (nId != path.front())
+        if (pi > 0)
         {
             const double stepDist = HaversineM(nodes_[prev[nId] == -1 ? nId : prev[nId]].pos, nodes_[nId].pos);
             route.totalDistM += stepDist;
