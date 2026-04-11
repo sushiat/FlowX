@@ -670,10 +670,10 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                     continue;
             }
 
-            double edgeCost;
-            double turnPenalty = 0.0;
-            double depMult     = 1.0;
-            double bd          = 0.0;
+            double           edgeCost;
+            double           turnPenalty      = 0.0;
+            double           depMult          = 1.0;
+            double           bd               = 0.0;
             constexpr double SOFT_TURN_THRESH = 5.0;
 
             if (ignoreAllPenalties)
@@ -927,9 +927,34 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         }
     }
 
-    const int goalId = NearestNode(to);
-    if (goalId < 0)
-        return {};
+    // Collect goal candidates: nearest nodes diversified by wayRef, so A*
+    // can reach stands accessible from multiple taxilanes (e.g. F37 between
+    // TL 36 and TL 37).
+    std::vector<int> goalCandidates;
+    {
+        std::vector<int> goalPool = NearestCandidateNodes(to, -1.0, 60.0, 0.0, 10, 0);
+        if (goalPool.empty())
+        {
+            const int fb = NearestNode(to);
+            if (fb < 0)
+                return {};
+            goalPool.push_back(fb);
+        }
+        std::set<std::string> seenGoalRefs;
+        for (size_t i = 0; i < goalPool.size() && goalCandidates.size() < 3; ++i)
+        {
+            goalCandidates.push_back(goalPool[i]);
+            seenGoalRefs.insert(nodes_[goalPool[i]].wayRef);
+        }
+        for (const int id : goalPool)
+        {
+            const auto& ref = nodes_[id].wayRef;
+            if (ref.empty() || seenGoalRefs.count(ref))
+                continue;
+            goalCandidates.push_back(id);
+            seenGoalRefs.insert(ref);
+        }
+    }
 
     // Per-edge wingspan check: build a set of excluded wayRefs.
     std::set<std::string> excludedRefs;
@@ -938,26 +963,41 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             if (wingspanM > maxWs)
                 excludedRefs.insert(ref);
 
-    // Try A* from each candidate; keep the cheapest result (by cost, not distance)
-    // when measured from the aircraft's actual position.  Using totalCost ensures
-    // that a start node on an intersection (slightly farther) beats a start node
-    // on an against-flow taxiway (closer but 3× cost penalty).
+    // Try A* from each (start, goal) combination; keep the cheapest result
+    // by total cost plus snap distances from the aircraft's actual position
+    // and the stand's approach point.
     TaxiRoute best;
     double    bestScore = std::numeric_limits<double>::max();
     for (const int startId : candidates)
     {
-        TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
-                               activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
-                               ignoreAllPenalties, preferredNodes, emitDebugTrace);
-        if (!r.valid)
-            continue;
-        const double snapDist = HaversineM(from, nodes_[startId].pos);
-        const double score    = r.totalCost + snapDist;
-        if (score < bestScore)
+        for (const int goalId : goalCandidates)
         {
-            bestScore = score;
-            best      = std::move(r);
+            TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
+                                   activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
+                                   ignoreAllPenalties, preferredNodes, emitDebugTrace);
+            if (!r.valid)
+                continue;
+            const double snapDist = HaversineM(from, nodes_[startId].pos) + HaversineM(to, nodes_[goalId].pos);
+            const double score    = r.totalCost + snapDist;
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best      = std::move(r);
+            }
         }
+    }
+    if (!best.valid && emitDebugTrace)
+    {
+        best.debugTrace = std::format("FindRoute FAILED: {} starts x {} goals, from=({:.6f},{:.6f}) to=({:.6f},{:.6f})\n",
+                                      candidates.size(), goalCandidates.size(), from.lat, from.lon, to.lat, to.lon);
+        for (const int gid : goalCandidates)
+            best.debugTrace += std::format("  goal #{} [{}] at ({:.6f},{:.6f}) dist={:.0f}m\n",
+                                           gid, nodes_[gid].wayRef, nodes_[gid].pos.lat, nodes_[gid].pos.lon,
+                                           HaversineM(to, nodes_[gid].pos));
+        for (const int sid : candidates)
+            best.debugTrace += std::format("  start #{} [{}] at ({:.6f},{:.6f}) dist={:.0f}m\n",
+                                           sid, nodes_[sid].wayRef, nodes_[sid].pos.lat, nodes_[sid].pos.lon,
+                                           HaversineM(from, nodes_[sid].pos));
     }
     return best;
 }

@@ -4169,6 +4169,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     origin, dest, taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked,
                     {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly);
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
+                if (!this->taxiSuggested[callsign].valid && settings->GetDebug())
+                    settings->LogDebugMessage(
+                        callsign + " no route: " + this->taxiSuggested[callsign].debugTrace, "TAXI");
             }
             // Push planning: no suggestion; preview computed on first mouse move.
 
