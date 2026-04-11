@@ -887,6 +887,9 @@ void CFlowX_Settings::LoadConfig()
         if (json_airport.contains("taxiWingspanMax"))
             for (const auto& [ref, ws] : json_airport["taxiWingspanMax"].items())
                 ap.taxiWingspanMax[ref] = ws.get<double>();
+        if (json_airport.contains("taxiWingspanAvoid"))
+            for (const auto& [ref, ws] : json_airport["taxiWingspanAvoid"].items())
+                ap.taxiWingspanAvoid[ref] = ws.get<double>();
         if (json_airport.contains("taxiLaneSwingoverPairs"))
             for (const auto& pair : json_airport["taxiLaneSwingoverPairs"])
                 if (pair.is_array() && pair.size() == 2)
@@ -911,6 +914,7 @@ void CFlowX_Settings::LoadConfig()
                 nc.edgeCosts.multTaxilane       = e.value("multTaxilane", 3.0);
                 nc.edgeCosts.multRunway         = e.value("multRunway", 20.0);
                 nc.edgeCosts.multRunwayApproach = e.value("multRunwayApproach", 18.0);
+                nc.edgeCosts.multWingspanAvoid  = e.value("multWingspanAvoid", 3.0);
             }
             if (jnc.contains("flowRules"))
             {
@@ -938,6 +942,7 @@ void CFlowX_Settings::LoadConfig()
                 nc.snapping.intersectionM   = s.value("intersectionM", 15.0);
                 nc.snapping.suggestedRouteM = s.value("suggestedRouteM", 20.0);
                 nc.snapping.waypointM       = s.value("waypointM", 40.0);
+                nc.snapping.goalSnapM       = s.value("goalSnapM", 170.0);
             }
             if (jnc.contains("safety"))
             {

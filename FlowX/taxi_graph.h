@@ -492,6 +492,9 @@ class TaxiGraph
     [[nodiscard]] double ForwardEdgeBearing(int nodeId, const std::string& wayRef, double headingDeg) const;
 
     /// @brief Core A* search from a pre-resolved start node to a goal node.
+    /// @param avoidRefs       WayRefs to soft-penalise (taxiWingspanAvoid); aircraft whose
+    ///        wingspan fits the avoid threshold pay an extra cost multiplier on these edges
+    ///        so A* prefers a parallel, narrower lane when one is available.
     /// @param suppressFlowWayRefs WayRefs for which both the baked-in and runtime flow
     ///        multipliers are ignored; used to allow continued travel on a taxiway after
     ///        a manual via-point forced the route onto it against flow.
@@ -502,6 +505,7 @@ class TaxiGraph
     [[nodiscard]] TaxiRoute RunAStar(int                          startId,
                                      int                          goalId,
                                      const std::set<std::string>& excludedRefs,
+                                     const std::set<std::string>& avoidRefs,
                                      const std::set<int>&         blockedNodes,
                                      const std::set<std::string>& activeDepRwys,
                                      const std::set<std::string>& activeArrRwys,

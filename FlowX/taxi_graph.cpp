@@ -578,6 +578,7 @@ std::vector<int> TaxiGraph::NearestCandidateNodes(
 TaxiRoute TaxiGraph::RunAStar(int                          startId,
                               int                          goalId,
                               const std::set<std::string>& excludedRefs,
+                              const std::set<std::string>& avoidRefs,
                               const std::set<int>&         blockedNodes,
                               const std::set<std::string>& activeDepRwys,
                               const std::set<std::string>& activeArrRwys,
@@ -755,6 +756,12 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 // but keep with-flow incentives (flowMult < 1).
                 const double baseCost = (suppress && edge.flowMult > 1.0f) ? edge.cost / edge.flowMult : edge.cost;
                 edgeCost              = baseCost * depMult;
+
+                // Wingspan-avoid penalty: aircraft whose wingspan fits the narrow-lane limit
+                // pay extra on refs listed in taxiWingspanAvoid, steering A* toward the
+                // parallel narrower lane (e.g. TL40 Blue/Orange Line) when available.
+                if (!avoidRefs.empty() && avoidRefs.contains(edge.wayRef))
+                    edgeCost *= apt_.taxiNetworkConfig.edgeCosts.multWingspanAvoid;
             }
 
             const double ng = g[cur] + edgeCost + turnPenalty;
@@ -803,7 +810,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     std::string dbgSegRef;
     for (size_t pi = 0; pi < path.size(); ++pi)
     {
-        const int          nId = path[pi];
+        const int nId = path[pi];
         route.polyline.push_back(nodes_[nId].pos);
         const std::string& ref = nodes_[nId].wayRef;
         if (!ref.empty() && ref != lastRef)
@@ -853,7 +860,6 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         route.debugTrace += std::format("  [{}] {:.0f}m cost={:.0f} pen={:.0f} softTurn={:.0f} flow={:.1f}x maxTurn={:.0f}deg\n",
                                         dbgSegRef, dbgSegDist, dbgSegCost, dbgSegPenalty,
                                         dbgSegSoftTurn, dbgSegDepMult, dbgSegMaxBd);
-
 
     if (path.size() >= 2)
     {
@@ -949,12 +955,34 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         }
     }
 
+    // Per-edge wingspan check: build a set of excluded wayRefs.
+    // Built before goal candidates so that goals on excluded refs are skipped
+    // when non-excluded alternatives exist.
+    std::set<std::string> excludedRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
+            if (wingspanM > maxWs)
+                excludedRefs.insert(ref);
+
+    // Soft-avoidance refs: aircraft whose wingspan fits the narrow-lane limit are
+    // steered away from these refs via a cost penalty so A* prefers a parallel
+    // narrower lane (e.g. TL40 Blue/Orange Line) when available.
+    std::set<std::string> avoidRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanAvoid)
+            if (wingspanM <= maxWs)
+                avoidRefs.insert(ref);
+
     // Collect goal candidates: nearest nodes diversified by wayRef, so A*
     // can reach stands accessible from multiple taxilanes (e.g. F37 between
-    // TL 36 and TL 37).
+    // TL 36 and TL 37).  Nodes on wingspan-excluded wayRefs are skipped when
+    // non-excluded alternatives exist (e.g. prefer TL 40 over Blue Line for
+    // wide-body aircraft); if all candidates are excluded, keep them anyway.
     std::vector<int> goalCandidates;
     {
-        std::vector<int> goalPool = NearestCandidateNodes(to, -1.0, 60.0, 0.0, 10, 0);
+        std::vector<int> goalPool = NearestCandidateNodes(to, -1.0,
+                                                          apt_.taxiNetworkConfig.snapping.goalSnapM,
+                                                          0.0, 10, 0);
         if (goalPool.empty())
         {
             const int fb = NearestNode(to);
@@ -962,9 +990,15 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                 return {};
             goalPool.push_back(fb);
         }
+        std::vector<int>      goalFallback; // excluded candidates, used only if nothing else available
         std::set<std::string> seenGoalRefs;
         for (size_t i = 0; i < goalPool.size() && goalCandidates.size() < 3; ++i)
         {
+            if (!excludedRefs.empty() && excludedRefs.contains(nodes_[goalPool[i]].wayRef))
+            {
+                goalFallback.push_back(goalPool[i]);
+                continue;
+            }
             goalCandidates.push_back(goalPool[i]);
             seenGoalRefs.insert(nodes_[goalPool[i]].wayRef);
         }
@@ -973,17 +1007,17 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             const auto& ref = nodes_[id].wayRef;
             if (ref.empty() || seenGoalRefs.count(ref))
                 continue;
+            if (!excludedRefs.empty() && excludedRefs.contains(ref))
+            {
+                goalFallback.push_back(id);
+                continue;
+            }
             goalCandidates.push_back(id);
             seenGoalRefs.insert(ref);
         }
+        if (goalCandidates.empty())
+            goalCandidates = std::move(goalFallback);
     }
-
-    // Per-edge wingspan check: build a set of excluded wayRefs.
-    std::set<std::string> excludedRefs;
-    if (wingspanM > 0.0)
-        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
-            if (wingspanM > maxWs)
-                excludedRefs.insert(ref);
 
     // Try A* from each (start, goal) combination; keep the cheapest result
     // by total cost plus snap distances from the aircraft's actual position
@@ -994,7 +1028,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     {
         for (const int goalId : goalCandidates)
         {
-            TaxiRoute r = RunAStar(startId, goalId, excludedRefs, blockedNodes, activeDepRwys,
+            TaxiRoute r = RunAStar(startId, goalId, excludedRefs, avoidRefs, blockedNodes, activeDepRwys,
                                    activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
                                    ignoreAllPenalties, preferredNodes, emitDebugTrace);
             if (!r.valid)
@@ -1056,13 +1090,23 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
     combined.valid        = true;
     double segInitBearing = initialBearingDeg; // propagated across segment boundaries
 
-    // Accumulated set of wayRefs for which the flow penalty is suppressed in subsequent
-    // segments. Each time a user waypoint ends on a taxiway (regardless of travel direction),
-    // that wayRef is added so the next segment can freely continue along it.
+    // Accumulated set of wayRefs for which the per-config flow penalty is suppressed.
+    // Both the segment's destination wayRef (pre-added before routing so the segment
+    // heading toward it is already suppressed) and its final wayRef (post-added so the
+    // next segment can continue freely) are included.
     std::set<std::string> suppressFlowWayRefs;
 
     for (size_t i = 1; i < stops.size(); ++i)
     {
+        // Pre-suppress: snap the destination to the graph and add its wayRef so
+        // that routing toward a user-chosen taxiway doesn't fight the flow rule.
+        if (i < stops.size() - 1)
+        {
+            const int destNode = NearestNode(stops[i]);
+            if (destNode >= 0 && !nodes_[destNode].wayRef.empty())
+                suppressFlowWayRefs.insert(nodes_[destNode].wayRef);
+        }
+
         TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
                                   segInitBearing, blockedNodes, suppressFlowWayRefs,
                                   ignoreAllPenalties, preferredNodes, emitDebugTrace,
@@ -1074,8 +1118,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
         }
         segInitBearing = seg.exitBearing;
 
-        // After each segment that ends at a user waypoint (not the last stop),
-        // record the wayRef so the next segment can continue on that taxiway against flow.
+        // Post-suppress: record the segment's actual final wayRef so the next
+        // segment can continue on that taxiway against flow.
         if (i < stops.size() - 1 && !seg.wayRefs.empty())
             suppressFlowWayRefs.insert(seg.wayRefs.back());
 

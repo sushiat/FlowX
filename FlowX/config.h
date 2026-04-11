@@ -131,6 +131,7 @@ struct TaxiNetworkConfig
         double multRunway         = 20.0; ///< Cost multiplier for runway edges (strongly discouraged; only used to vacate the runway).
         double multRunwayApproach = 18.0; ///< Cost multiplier applied to edges arriving at a HoldingPoint/HoldingPosition node (approaching the runway threshold); slightly below multRunway so vacating via the HP is still preferred over staying on the runway.
         double multTaxilane       = 3.0;  ///< Cost multiplier for stand-access taxilane edges (prefer main taxiways).
+        double multWingspanAvoid  = 3.0;  ///< Cost multiplier applied to taxiWingspanAvoid refs when the aircraft wingspan fits the avoid threshold.
     } edgeCosts;
 
     /// @brief Bearing-difference thresholds for taxiway flow-rule enforcement.
@@ -157,10 +158,11 @@ struct TaxiNetworkConfig
     /// @brief Cursor snap radii used during interactive taxi planning.
     struct Snapping
     {
-        double holdingPointM   = 30.0; ///< Snap radius (m) to holding-point / holding-position nodes (highest priority).
-        double intersectionM   = 15.0; ///< Snap radius (m) to intersection waypoint nodes (second priority).
-        double suggestedRouteM = 20.0; ///< Snap radius (m) to the suggested route polyline (third priority).
-        double waypointM       = 40.0; ///< Snap radius (m) to any waypoint node (lowest priority).
+        double holdingPointM   = 30.0;  ///< Snap radius (m) to holding-point / holding-position nodes (highest priority).
+        double intersectionM   = 15.0;  ///< Snap radius (m) to intersection waypoint nodes (second priority).
+        double suggestedRouteM = 20.0;  ///< Snap radius (m) to the suggested route polyline (third priority).
+        double waypointM       = 40.0;  ///< Snap radius (m) to any waypoint node (lowest priority).
+        double goalSnapM       = 170.0; ///< Snap radius (m) for searching goal-node candidates near the destination stand; must cover the longest taxilane between a stand centroid and the nearest graph node.
     } snapping;
 
     /// @brief Taxi safety-monitoring thresholds.
@@ -219,7 +221,8 @@ struct airport
     std::vector<TaxiFlowRule>                        taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
     std::map<std::string, std::string>               standRoutingTargets       = {}; ///< Stand name → holding point/position label; overrides centroid routing for inbounds (e.g. uncontrolled aprons handed off to a marshaller).
     std::map<std::string, std::vector<TaxiFlowRule>> taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
-    std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0).
+    std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0); aircraft wider than the limit are hard-blocked.
+    std::map<std::string, double>                    taxiWingspanAvoid         = {}; ///< Taxiway/taxilane ref -> max wingspan (m); aircraft at or below this size receive a soft routing penalty on this ref (prefer a parallel, narrower lane instead).
     std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
     TaxiNetworkConfig                                taxiNetworkConfig         = {}; ///< Tunable taxi graph, routing, snapping, and safety parameters (all fields default when absent from config.json).
 };

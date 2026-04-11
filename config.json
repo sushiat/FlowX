@@ -83,6 +83,9 @@
             "TL 40 \"Blue Line\"": 36,
             "TL 40 \"Orange Line\"": 36
         },
+        "taxiWingspanAvoid": {
+            "TL 40": 36
+        },
         "standRoutingTargets": {
             "GAC": "P1"
         },
@@ -435,7 +438,8 @@
                 "holdingPointM": 30.0,
                 "intersectionM": 15.0,
                 "suggestedRouteM": 20.0,
-                "waypointM": 40.0
+                "waypointM": 40.0,
+                "goalSnapM": 170.0
             },
             "safety": {
                 "deviationThreshM": 40.0,

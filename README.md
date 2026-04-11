@@ -311,7 +311,7 @@ These three arrays control which OSM aeroway ways are rendered in the taxi graph
 
 ### `taxiWingspanMax`
 
-Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft wider than the limit are not routed over that element.
+Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft **wider** than the limit are hard-blocked — the router never uses that element for them.
 
 ```json
 "taxiWingspanMax": {
@@ -319,6 +319,20 @@ Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft wider th
     "TL 40 \"Blue Line\"": 36.0
 }
 ```
+
+### `taxiWingspanAvoid`
+
+Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft **at or below** the limit receive a soft cost penalty on that ref, steering the router toward a parallel narrower lane when one is available. Unlike `taxiWingspanMax` this is not a hard block — the router can still use the ref if no alternative exists (e.g. an initial shared segment).
+
+The penalty multiplier is set via `taxiNetworkConfig.edgeCosts.multWingspanAvoid` (default `3.0`).
+
+```json
+"taxiWingspanAvoid": {
+    "TL 40": 36.0
+}
+```
+
+This example steers aircraft with wingspan ≤ 36 m away from the centre TL40 lane toward `TL 40 "Blue Line"` / `TL 40 "Orange Line"`. Wide-body aircraft (> 36 m) are already hard-excluded from Blue/Orange Line by `taxiWingspanMax` and continue to use the centre lane normally.
 
 ### `taxiLaneSwingoverPairs`
 
@@ -462,6 +476,7 @@ Applied at graph-build time to all edges of the corresponding aeroway type. High
 | `multTaxilane` | number | `3.0` | Stand-access taxilane edges are strongly discouraged vs main taxiways. |
 | `multRunway` | number | `20.0` | Runway edges are only traversed to vacate the runway; never preferred for taxi. |
 | `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding point / holding position node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
+| `multWingspanAvoid` | number | `3.0` | Cost multiplier applied to `taxiWingspanAvoid` refs when the aircraft wingspan fits the avoid threshold. Higher values produce a stronger preference for the parallel narrower lane. |
 
 #### `flowRules` — direction enforcement
 
@@ -509,7 +524,7 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 ```json
 "taxiNetworkConfig": {
     "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0, "configHoldingPointSnapM": 40.0 },
-    "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0 },
+    "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0, "multWingspanAvoid": 3.0 },
     "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
     "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
     "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
@@ -642,7 +657,7 @@ A non-zero exit code means one or more tests failed. Pass `--help` for doctest o
 | File | Real source compiled | Coverage |
 |---|---|---|
 | `test_geometry.cpp` | `taxi_graph.h` | Haversine distance, bearing, bearing-diff, point-to-segment distance, segment intersection |
-| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan filtering |
+| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan hard-exclusion and soft-avoidance |
 | `test_osm.cpp` | `osm_taxiways.cpp` | OSM JSON parsing (taxiways, taxilanes, runways, holding positions, stands) |
 | `test_lookups.cpp` | `CFlowX_LookupsTools.cpp` | Point-in-polygon, colour parsing, holding-point annotation encoding, weight category ranking |
 | `test_helpers.cpp` | *(helpers are inline/header-only)* | String split/join, trim, upper-case, frequency annotation formatting |
