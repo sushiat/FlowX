@@ -10,7 +10,7 @@
     },
     "tasks": [
         {
-            "label": "Build Release Win32",
+            "label": "Build Release",
             "type": "shell",
             "command": "$msbuild = & 'C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe' -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\\**\\Bin\\MSBuild.exe' | Select-Object -First 1; & $msbuild FlowX.sln /p:Configuration=Release /p:Platform=x86 /p:OutDir=${workspaceFolder}\\Release\\ /m",
             "group": "build",
@@ -36,7 +36,7 @@
             "label": "Deploy Debug",
             "type": "shell",
             "command": "$es = Get-Process -Name 'EuroScope' -ErrorAction SilentlyContinue; if ($es) { $es | Stop-Process -Force; Start-Sleep -Seconds 2 }; Copy-Item '${workspaceFolder}\\Debug\\FlowX.dll' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\FlowX.dll' -Force; Copy-Item '${workspaceFolder}\\config.json' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\config.json' -Force; Get-ChildItem '${workspaceFolder}\\*.wav' | ForEach-Object { Copy-Item $_.FullName 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\' -Force }; Write-Host 'Deploy Debug done.'",
-            "dependsOn": "Build Debug Win32",
+            "dependsOn": "Build Debug",
             "group": "none",
             "presentation": {
                 "reveal": "always",
@@ -48,7 +48,7 @@
             "label": "Deploy Release",
             "type": "shell",
             "command": "Copy-Item '${workspaceFolder}\\Release\\FlowX.dll' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\FlowX.dll' -Force; Copy-Item '${workspaceFolder}\\config.json' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\config.json' -Force; Get-ChildItem '${workspaceFolder}\\*.wav' | ForEach-Object { Copy-Item $_.FullName 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\' -Force }; Write-Host 'Deploy Release done.'",
-            "dependsOn": "Build Release Win32",
+            "dependsOn": "Build Release",
             "group": "none",
             "presentation": {
                 "reveal": "always",
@@ -57,7 +57,7 @@
             "problemMatcher": []
         },
         {
-            "label": "Build Debug Win32",
+            "label": "Build Debug",
             "type": "shell",
             "command": "$msbuild = & 'C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe' -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\\**\\Bin\\MSBuild.exe' | Select-Object -First 1; & $msbuild FlowX.sln /p:Configuration=Debug /p:Platform=x86 /p:OutDir=${workspaceFolder}\\Debug\\ /m",
             "group": {

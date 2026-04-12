@@ -11,8 +11,8 @@
 
 /// Plugin display name shown in EuroScope
 #define PLUGIN_NAME "FlowX"
-/// Current plugin version string (semver)
-#define PLUGIN_VERSION "0.6.0"
+/// Current plugin version — auto-generated from git tag by generate_version.ps1
+#include "version.gen.h"
 /// Plugin author name
 #define PLUGIN_AUTHOR "Markus Korbel"
 /// Plugin license string
