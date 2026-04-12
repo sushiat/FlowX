@@ -754,7 +754,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 // TL42 node embedded at Exit 21.
                 const bool singleNodeRef =
                     prev[cur] >= 0 && incomingWayRef[prev[cur]] != incomingWayRef[cur];
-                if (!incomingWayRef[cur].empty() && !edge.wayRef.empty() &&
+                if (!edge.wayRef.empty() &&
                     incomingWayRef[cur] != edge.wayRef &&
                     !(isxWayRefs_.count(incomingWayRef[cur]) && isxWayRefs_.count(edge.wayRef)) &&
                     !singleNodeRef)

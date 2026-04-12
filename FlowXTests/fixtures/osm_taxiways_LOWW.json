@@ -3706,7 +3706,7 @@
       "id": 95164998,
       "name": "B9",
       "ref": "B9",
-      "type": "taxiway"
+      "type": "taxiway_holdingpoint"
     },
     {
       "geometry": [
@@ -4942,7 +4942,7 @@
       "id": 220393079,
       "name": "B9",
       "ref": "B9",
-      "type": "taxiway"
+      "type": "taxiway_holdingpoint"
     },
     {
       "geometry": [
@@ -9906,7 +9906,7 @@
       "id": 405457940,
       "name": "B9",
       "ref": "B9",
-      "type": "taxiway"
+      "type": "taxiway_holdingpoint"
     },
     {
       "geometry": [

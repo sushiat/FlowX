@@ -462,7 +462,7 @@
             },
             "flowRules": {
                 "withFlowMaxDeg": 45.0,
-                "withFlowMult": 0.7,
+                "withFlowMult": 0.6,
                 "againstFlowMinDeg": 135.0,
                 "againstFlowMult": 3.5
             },
@@ -473,7 +473,7 @@
                 "backwardSnapM": 300.0,
                 "heuristicWeight": 1.0,
                 "maxNodeExpansions": 5000,
-                "softTurnCostPerDeg": 0.5
+                "softTurnCostPerDeg": 2.0
             },
             "snapping": {
                 "holdingPointM": 30.0,
