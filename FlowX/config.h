@@ -226,9 +226,7 @@ struct airport
     std::map<std::string, std::vector<std::string>>  sidAppFreqs               = {}; ///< Approach frequency -> list of SIDs that use it
     std::map<std::string, std::vector<std::string>>  appFreqFallbacks          = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
     std::map<std::string, runway>                    runways                   = {}; ///< Runway configurations keyed by designator
-    std::vector<std::string>                         taxiIntersections         = {}; ///< Intersection taxiway refs (e.g. "Exit 1") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                         taxiLanes                 = {}; ///< Taxilane refs (e.g. "TL 31") shown in the OSM taxi overlay; ways not listed here are excluded
-    std::vector<std::string>                         taxiWays                  = {}; ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
+    std::vector<std::string>                         taxiIntersections         = {}; ///< Intersection taxiway refs or prefix patterns (e.g. "Exit *") reclassified from taxiway to intersection type during OSM annotation.
     std::vector<std::string>                         scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
     std::vector<TaxiFlowRule>                        taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
     std::map<std::string, standRoutingTarget>        standRoutingTargets       = {}; ///< Stand name → routing override; redirects inbound routing to a holding point or co-located stand (e.g. G16 → F16).

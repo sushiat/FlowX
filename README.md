@@ -293,20 +293,16 @@ Same polygon format as `taxiOutStands`.
 }
 ```
 
-### Taxi overlay filtering
+### Taxi intersection classification
 
-These three arrays control which OSM aeroway ways are rendered in the taxi graph overlay. Ways whose `ref` tag is not listed are excluded from the overlay entirely.
+All `aeroway=taxiway` and `aeroway=taxilane` ways from OSM are included in the taxi graph automatically. The `taxiIntersections` array reclassifies specific ways as intersection type, which affects routing penalties and graph behaviour. Entries ending with `*` are treated as prefix patterns.
 
 | Field | Type | Description |
 |---|---|---|
-| `taxiWays` | array of strings | Main taxiway refs (e.g. `"D"`, `"M"`, `"W"`) |
-| `taxiLanes` | array of strings | Taxilane refs (e.g. `"TL 31"`, `"TL 40 \"Blue Line\""`) |
-| `taxiIntersections` | array of strings | Intersection/exit refs (e.g. `"Exit 1"`, `"Exit 12"`) |
+| `taxiIntersections` | array of strings | Intersection/exit refs or prefix patterns to reclassify (e.g. `"Exit *"`, `"Exit 12"`) |
 
 ```json
-"taxiWays":        ["D", "E", "L", "M", "P", "Q", "W"],
-"taxiLanes":       ["TL 16", "TL 17", "TL 31", "TL 40 \"Blue Line\""],
-"taxiIntersections": ["Exit 1", "Exit 2", "Exit 3"]
+"taxiIntersections": ["Exit *"]
 ```
 
 ### `taxiWingspanMax`
@@ -670,7 +666,7 @@ A non-zero exit code means one or more tests failed. Pass `--help` for doctest o
 
 ### OSM cache snapshot
 
-`FlowXTests/fixtures/osm_taxiways_LOWW.json` is a point-in-time snapshot of the LOWW taxiway data (216 ways, 47 holding positions). It is used to verify that the cache loader and TaxiGraph builder work end-to-end without a network connection. If the OSM data changes significantly and you regenerate the cache from EuroScope, copy the new `osm_taxiways_LOWW.json` from the plugin directory into `FlowXTests/fixtures/` and update the way/holding-position count assertions in `test_settings.cpp`.
+`FlowXTests/fixtures/osm_taxiways_LOWW.json` is a point-in-time snapshot of the LOWW taxiway data (232 ways, 47 holding positions). It is used to verify that the cache loader and TaxiGraph builder work end-to-end without a network connection. If the OSM data changes significantly and you regenerate the cache from EuroScope, copy the new `osm_taxiways_LOWW.json` from the plugin directory into `FlowXTests/fixtures/` and update the way/holding-position count assertions in `test_settings.cpp`.
 
 ---
 

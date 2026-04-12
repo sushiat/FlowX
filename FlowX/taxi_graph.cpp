@@ -922,15 +922,28 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     std::set<std::string> seenRefs;
     if (!onEdgeRef.empty())
     {
-        // On-network: only use candidates matching the detected wayRef.
+        // On-network: use candidates matching the detected wayRef.
+        // Keep up to 3 forward and 2 backward so that a nearby junction node
+        // behind the aircraft is still considered (e.g. just past a taxiway split).
+        int nFwd = 0, nBwd = 0;
         for (const int id : pool)
         {
-            if (nodes_[id].wayRef == onEdgeRef)
+            if (nodes_[id].wayRef != onEdgeRef)
+                continue;
+            const bool isFwd =
+                initialBearingDeg < 0.0 || BearingDiff(BearingDeg(from, nodes_[id].pos), initialBearingDeg) <= 90.0;
+            if (isFwd && nFwd < 3)
             {
                 candidates.push_back(id);
-                if (candidates.size() >= 3)
-                    break;
+                ++nFwd;
             }
+            else if (!isFwd && nBwd < 2)
+            {
+                candidates.push_back(id);
+                ++nBwd;
+            }
+            if (nFwd >= 3 && nBwd >= 2)
+                break;
         }
     }
     else
@@ -1060,18 +1073,23 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             }
         }
     }
-    if (!best.valid && emitDebugTrace)
+    if (emitDebugTrace)
     {
-        best.debugTrace = std::format("FindRoute FAILED: {} starts x {} goals, from=({:.6f},{:.6f}) to=({:.6f},{:.6f})\n",
-                                      candidates.size(), goalCandidates.size(), from.lat, from.lon, to.lat, to.lon);
-        for (const int gid : goalCandidates)
-            best.debugTrace += std::format("  goal #{} [{}] at ({:.6f},{:.6f}) dist={:.0f}m\n",
-                                           gid, nodes_[gid].wayRef, nodes_[gid].pos.lat, nodes_[gid].pos.lon,
-                                           HaversineM(to, nodes_[gid].pos));
+        std::string candidateInfo =
+            std::format("{} starts x {} goals, from=({:.6f},{:.6f}) to=({:.6f},{:.6f})\n",
+                        candidates.size(), goalCandidates.size(), from.lat, from.lon, to.lat, to.lon);
         for (const int sid : candidates)
-            best.debugTrace += std::format("  start #{} [{}] at ({:.6f},{:.6f}) dist={:.0f}m\n",
-                                           sid, nodes_[sid].wayRef, nodes_[sid].pos.lat, nodes_[sid].pos.lon,
-                                           HaversineM(from, nodes_[sid].pos));
+            candidateInfo += std::format("  start #{} [{}] at ({:.6f},{:.6f}) dist={:.0f}m\n",
+                                         sid, nodes_[sid].wayRef, nodes_[sid].pos.lat, nodes_[sid].pos.lon,
+                                         HaversineM(from, nodes_[sid].pos));
+        for (const int gid : goalCandidates)
+            candidateInfo += std::format("  goal #{} [{}] at ({:.6f},{:.6f}) dist={:.0f}m\n",
+                                         gid, nodes_[gid].wayRef, nodes_[gid].pos.lat, nodes_[gid].pos.lon,
+                                         HaversineM(to, nodes_[gid].pos));
+        if (best.valid)
+            best.debugTrace = candidateInfo + best.debugTrace;
+        else
+            best.debugTrace = "FindRoute FAILED: " + candidateInfo;
     }
     return best;
 }

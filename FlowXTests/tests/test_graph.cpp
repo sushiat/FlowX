@@ -11,14 +11,11 @@
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Build a minimal airport config with the given taxiway refs allowed.
-static airport MakeAirport(std::vector<std::string> taxiways  = {"M"},
-                           std::vector<std::string> taxilanes = {})
+// Build a minimal airport config.
+static airport MakeAirport()
 {
     airport ap;
-    ap.icao      = "TEST";
-    ap.taxiWays  = taxiways;
-    ap.taxiLanes = taxilanes;
+    ap.icao = "TEST";
     // Leave TaxiNetworkConfig at its defaults (subdivision 15 m, etc.)
     return ap;
 }
@@ -192,7 +189,7 @@ TEST_CASE("TaxiGraph::FindRoute - wingspan restriction blocks narrow taxilane")
     OsmAirportData osm;
     osm.ways.push_back(narrowLane);
 
-    airport ap         = MakeAirport({}, {"TL1"});
+    airport ap         = MakeAirport();
     ap.taxiWingspanMax = {{"TL1", 10.0}};
 
     TaxiGraph g;
@@ -333,7 +330,7 @@ TEST_CASE("TaxiGraph flow - wayRef change adds penalty once per transition")
 
     // Split-ref route (one "M"→"N" transition at B, wayrefChangePenalty = 200):
     TaxiGraph split;
-    split.Build(MakeSplitRefWay(), MakeAirport({"M", "N"}));
+    split.Build(MakeSplitRefWay(), MakeAirport());
 
     GeoPoint A{48.1100, 16.5400};
     GeoPoint C{48.1100, 16.5454};
@@ -564,9 +561,9 @@ TEST_CASE("TaxiGraph - Taxilane edges cost 3x base distance (multTaxilane)")
     plain.geometry = {{48.1100, 16.5400}, {48.1100, 16.5427}};
     OsmAirportData osmPlain;
     osmPlain.ways.push_back(plain);
-    taxiway.Build(osmPlain, MakeAirport({"TL1"}));
+    taxiway.Build(osmPlain, MakeAirport());
 
-    taxilane.Build(MakeTaxilaneWay(), MakeAirport({}, {"TL1"}));
+    taxilane.Build(MakeTaxilaneWay(), MakeAirport());
 
     GeoPoint A{48.1100, 16.5400};
     GeoPoint B{48.1100, 16.5427};
@@ -751,7 +748,7 @@ TEST_CASE("TaxiGraph - taxiway ref wins over intersection ref at shared junction
     osm.ways.push_back(intersection);
 
     TaxiGraph g;
-    g.Build(osm, MakeAirport({"L"}));
+    g.Build(osm, MakeAirport());
 
     GeoPoint from{48.1100, 16.5400};
     GeoPoint to{48.1100, 16.5454};
@@ -793,7 +790,7 @@ TEST_CASE("TaxiGraph - taxiway ref wins over taxilane ref at shared junction nod
     osm.ways.push_back(taxilane);
 
     TaxiGraph g;
-    g.Build(osm, MakeAirport({"M"}, {"TL"}));
+    g.Build(osm, MakeAirport());
 
     GeoPoint from{48.1100, 16.5400};
     GeoPoint to{48.1100, 16.5454};
@@ -835,7 +832,7 @@ TEST_CASE("TaxiGraph - parent taxiway ref wins over lane-variant at shared junct
     osm.ways.push_back(variant);
 
     TaxiGraph g;
-    g.Build(osm, MakeAirport({"TL 40", "TL 40 'Blue Line'"}));
+    g.Build(osm, MakeAirport());
 
     GeoPoint from{48.1100, 16.5400};
     GeoPoint to{48.1100, 16.5454};
@@ -961,7 +958,7 @@ TEST_CASE("TaxiGraph::DeadEndEdges - non-bridge dead-end blocked leaves dest rea
     // Fork graph: A is the junction.  East branch A→B is a dead end; north
     // branch A→C leads to the destination.  Blocking B does not disconnect C.
     TaxiGraph g;
-    g.Build(MakeForkWays(), MakeAirport({"E", "N"}));
+    g.Build(MakeForkWays(), MakeAirport());
 
     GeoPoint B{48.1100, 16.5427}; // east dead end
     GeoPoint C{48.1118, 16.5400}; // north destination

@@ -350,55 +350,51 @@ void CFlowX_Settings::PollOsmFuture()
             }
         }
 
-        // Build lookup sets from the first configured airport that has OSM lists.
-        std::unordered_set<std::string> cfgTaxiways, cfgTaxilanes, cfgIntersections;
+        // Build intersection lookup from the first configured airport.
+        // Entries ending with '*' are treated as prefix patterns.
+        std::unordered_set<std::string> cfgIsxExact;
+        std::vector<std::string>        cfgIsxPrefixes;
         for (const auto& [icao, apt] : this->airports)
         {
-            if (!apt.taxiWays.empty() || !apt.taxiLanes.empty() || !apt.taxiIntersections.empty())
+            if (!apt.taxiIntersections.empty())
             {
-                cfgTaxiways.insert(apt.taxiWays.begin(), apt.taxiWays.end());
-                cfgTaxilanes.insert(apt.taxiLanes.begin(), apt.taxiLanes.end());
-                cfgIntersections.insert(apt.taxiIntersections.begin(), apt.taxiIntersections.end());
+                for (const auto& entry : apt.taxiIntersections)
+                {
+                    if (entry.size() >= 2 && entry.back() == '*')
+                        cfgIsxPrefixes.push_back(entry.substr(0, entry.size() - 1));
+                    else
+                        cfgIsxExact.insert(entry);
+                }
                 break;
             }
         }
+        auto isIntersection = [&](const std::string& key) -> bool
+        {
+            if (cfgIsxExact.contains(key))
+                return true;
+            for (const auto& prefix : cfgIsxPrefixes)
+                if (key.size() >= prefix.size() && key.compare(0, prefix.size(), prefix) == 0)
+                    return true;
+            return false;
+        };
 
-        // Pass 2: classify by config lists; ways not in any list are removed.
+        // Pass 2: reclassify intersections; keep all taxiway/taxilane ways from OSM.
         // Holding-point ways already annotated in Pass 1 keep their type.
         auto keyOf = [](const OsmWay& w) -> const std::string&
         { return w.ref.empty() ? w.name : w.ref; };
+        for (auto& way : this->osmData.ways)
         {
-            std::vector<OsmWay> kept;
-            kept.reserve(this->osmData.ways.size());
-            for (auto& way : this->osmData.ways)
-            {
-                // Holding-point and runway ways are kept as-is; no config entry required.
-                if (way.type == AerowayType::Taxiway_HoldingPoint ||
-                    way.type == AerowayType::Runway)
-                {
-                    kept.push_back(std::move(way));
-                    continue;
-                }
-                const std::string& key = keyOf(way);
-                if (cfgIntersections.contains(key))
-                {
-                    way.type = AerowayType::Taxiway_Intersection;
-                    kept.push_back(std::move(way));
-                }
-                else if (cfgTaxiways.contains(key))
-                {
-                    way.type = AerowayType::Taxiway;
-                    kept.push_back(std::move(way));
-                }
-                else if (cfgTaxilanes.contains(key))
-                {
-                    way.type = AerowayType::Taxilane;
-                    kept.push_back(std::move(way));
-                }
-                // else: not in any config list → excluded
-            }
-            this->osmData.ways = std::move(kept);
+            if (way.type == AerowayType::Taxiway_HoldingPoint ||
+                way.type == AerowayType::Runway)
+                continue;
+            const std::string& key = keyOf(way);
+            if (!key.empty() && isIntersection(key))
+                way.type = AerowayType::Taxiway_Intersection;
         }
+        // Remove ways with Unknown aeroway type (not taxiway/taxilane/runway).
+        std::erase_if(this->osmData.ways,
+                      [](const OsmWay& w)
+                      { return w.type == AerowayType::Unknown; });
 
         int hpCount = 0, isxCount = 0, twCount = 0, tlCount = 0;
         for (const auto& way : this->osmData.ways)
@@ -841,10 +837,6 @@ void CFlowX_Settings::LoadConfig()
             ap.scratchpadClearExclusions = json_airport["scratchpadClearExclusions"].get<std::vector<std::string>>();
         if (json_airport.contains("taxiIntersections"))
             ap.taxiIntersections = json_airport["taxiIntersections"].get<std::vector<std::string>>();
-        if (json_airport.contains("taxiLanes"))
-            ap.taxiLanes = json_airport["taxiLanes"].get<std::vector<std::string>>();
-        if (json_airport.contains("taxiWays"))
-            ap.taxiWays = json_airport["taxiWays"].get<std::vector<std::string>>();
         if (json_airport.contains("taxiFlowGeneric"))
             for (const auto& r : json_airport["taxiFlowGeneric"])
                 ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});

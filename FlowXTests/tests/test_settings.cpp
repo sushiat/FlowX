@@ -169,10 +169,11 @@ TEST_CASE("LoadConfig - taxiFlowGeneric has 2 rules")
     CHECK(ap.taxiFlowGeneric.size() == 2);
 }
 
-TEST_CASE("LoadConfig - taxiWays has 7 entries")
+TEST_CASE("LoadConfig - taxiIntersections has 1 wildcard entry")
 {
     const auto& ap = accessor().airports.at("LOWW");
-    CHECK(ap.taxiWays.size() == 7);
+    CHECK(ap.taxiIntersections.size() == 1);
+    CHECK(ap.taxiIntersections[0] == "Exit *");
 }
 
 // ─── LoadAircraftData ─────────────────────────────────────────────────────────
@@ -340,9 +341,9 @@ TEST_CASE("StandApproachPoint - LOWW:GAC (no heading) equals StandCentroid")
 // has moved the data into osmData and PollGraphFuture has moved the built graph
 // into osmGraph.
 
-TEST_CASE("OSM cache - total way count matches snapshot (216)")
+TEST_CASE("OSM cache - total way count matches snapshot (232)")
 {
-    CHECK(accessor().osmData.ways.size() == 216);
+    CHECK(accessor().osmData.ways.size() == 232);
 }
 
 TEST_CASE("OSM cache - holding position count matches snapshot (47)")

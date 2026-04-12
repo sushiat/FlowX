@@ -558,7 +558,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
         for (const auto& way : settings->osmData.ways)
         {
             const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
-                                  : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 150, 255)
+                                  : (way.type == AerowayType::Taxiway_Intersection) ? RGB(80, 200, 80)
                                   : (way.type == AerowayType::Taxilane)             ? RGB(0, 200, 255)
                                   : (way.type == AerowayType::Runway)               ? RGB(255, 140, 0)
                                                                                     : RGB(255, 220, 0);
@@ -689,7 +689,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
             }
 
             const COLORREF textCol = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(200, 60, 60)
-                                     : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 120, 220)
+                                     : (way.type == AerowayType::Taxiway_Intersection) ? RGB(60, 160, 60)
                                      : (way.type == AerowayType::Taxilane)             ? RGB(0, 160, 210)
                                      : (way.type == AerowayType::Runway)               ? RGB(200, 90, 0)
                                                                                        : RGB(180, 140, 0);
