@@ -1354,11 +1354,24 @@ void RadarScreen::UpdateTaxiSafety()
                                              pathB[b - 1].pos, pathB[b].pos, isxPt))
                         continue;
 
-                    // Same-direction exclusion.
+                    // Same-direction exclusion: skip if the intersecting segments
+                    // OR their successor segments travel in the same direction.
+                    // The successor check catches cases where a short connector
+                    // segment (aircraft position → first route node) has an
+                    // unreliable bearing dominated by lateral offset, as well as
+                    // same-route following through turns where the crossing
+                    // segments straddle a turn vertex with divergent local bearings.
                     const double bearA = BearingDeg(pathA[a - 1].pos, pathA[a].pos);
                     const double bearB = BearingDeg(pathB[b - 1].pos, pathB[b].pos);
                     if (BearingDiff(bearA, bearB) < SAME_DIR_DEG)
                         continue;
+                    if (a + 1 < pathA.size() && b + 1 < pathB.size())
+                    {
+                        const double nextBearA = BearingDeg(pathA[a].pos, pathA[a + 1].pos);
+                        const double nextBearB = BearingDeg(pathB[b].pos, pathB[b + 1].pos);
+                        if (BearingDiff(nextBearA, nextBearB) < SAME_DIR_DEG)
+                            continue;
+                    }
 
                     // Interpolate arrival time at the intersection.
                     const double distA = HaversineM(pathA[a - 1].pos, pathA[a].pos);
