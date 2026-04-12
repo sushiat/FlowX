@@ -179,6 +179,22 @@ TEST_CASE("TaxiRoute - real world taxi tests")
         GeoPoint from = ResolvePosition(fromLabel, acc.osmGraph, acc.grStands, acc.airports);
         GeoPoint to   = ResolvePosition(toLabel, acc.osmGraph, acc.grStands, acc.airports);
 
+        // Outbound from a stand: use centroid (where the aircraft sits), not approach
+        // point (which is offset toward the taxiway for inbound routing).
+        if (type == "outbound" && fromLabel.starts_with("STAND:"))
+        {
+            const std::string standName = fromLabel.substr(6);
+            for (const auto& [icao, ap] : acc.airports)
+            {
+                GeoPoint c = TaxiGraph::StandCentroid(icao + ":" + standName, acc.grStands);
+                if (c.lat != 0.0 || c.lon != 0.0)
+                {
+                    from = c;
+                    break;
+                }
+            }
+        }
+
         // Derive goal-bearing constraint for stand destinations.
         // If the stand has a routing override to another stand, use that stand's heading.
         double goalBrng = -1.0;
