@@ -27,9 +27,11 @@ $header = @"
 "@
 
 $headerPath = Join-Path $scriptDir "version.gen.h"
-$existing   = if (Test-Path $headerPath) { Get-Content $headerPath -Raw } else { "" }
-if ($existing.TrimEnd() -ne $header.TrimEnd()) {
-    [System.IO.File]::WriteAllText($headerPath, $header + "`n")
+$upToDate   = (Test-Path $headerPath) -and
+              ((Get-Content $headerPath -Raw) -match ([regex]::Escape("PLUGIN_VERSION      `"$version`"")))
+if (-not $upToDate) {
+    $headerNorm = $header -replace "`r`n", "`n"
+    [System.IO.File]::WriteAllText($headerPath, $headerNorm + "`n")
     Write-Host "generate_version: wrote $headerPath ($version)"
 } else {
     Write-Host "generate_version: version.gen.h up to date ($version)"
