@@ -1,6 +1,6 @@
 /**
  * @file osm_taxiways.h
- * @brief OSM taxiway/taxilane data types and fetch/load functions for LOWW.
+ * @brief OSM taxiway/taxilane data types and fetch/load/cache functions.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
@@ -65,20 +65,27 @@ using OsmResult = std::expected<OsmAirportData, std::string>;
 double WayLengthM(const OsmWay& way);
 
 /// @brief Serialises annotated OsmAirportData to the cache JSON file in the plugin directory.
+/// @param icao Airport ICAO code used to derive the cache filename (e.g. "osm_taxiways_LOWW.json").
 /// @note Sets "annotated": true so the cache is loaded without re-running type annotation.
 /// @note Best-effort: silently ignores file I/O failures.
-void SaveOsmCache(const OsmAirportData& data);
+void SaveOsmCache(const std::string& icao, const OsmAirportData& data);
 
-/// @brief Deletes the cache JSON file from the plugin directory if it exists.
+/// @brief Deletes the cache JSON file for the given airport from the plugin directory if it exists.
+/// @param icao Airport ICAO code used to derive the cache filename.
 /// @note Best-effort: silently ignores file I/O failures.
-void DeleteOsmCache();
+void DeleteOsmCache(const std::string& icao);
 
-/// @brief Fetches LOWW taxiway/taxilane geometry from the Overpass API and saves it to the local cache.
+/// @brief Fetches taxiway/taxilane geometry from the Overpass API for an airport.
+/// @param icao Airport ICAO code (used for logging only).
+/// @param centerLat Centre latitude for the Overpass bounding circle (decimal degrees).
+/// @param centerLon Centre longitude for the Overpass bounding circle (decimal degrees).
+/// @param radiusM Radius in metres for the Overpass bounding circle.
 /// @return Populated OsmAirportData on success, or an error string on any network or parse failure.
 /// @note Performs a synchronous HTTPS POST; always call from a background thread.
-OsmResult fetchLOWWTaxiways();
+OsmResult fetchTaxiways(const std::string& icao, double centerLat, double centerLon, int radiusM);
 
-/// @brief Loads previously cached taxiway data from osm_taxiways_LOWW.json in the plugin directory.
+/// @brief Loads previously cached taxiway data from the plugin directory.
+/// @param icao Airport ICAO code used to derive the cache filename (e.g. "osm_taxiways_LOWW.json").
 /// @return Populated OsmAirportData on success, or an error string if the file is absent or malformed.
 /// @note Reads from disk synchronously; suitable for background-thread use at startup.
-OsmResult loadCachedTaxiways();
+OsmResult loadCachedTaxiways(const std::string& icao);

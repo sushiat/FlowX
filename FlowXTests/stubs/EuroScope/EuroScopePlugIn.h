@@ -44,6 +44,7 @@ const int CONNECTION_TYPE_SIMULATOR_CLIENT             = 5;
 const int CONNECTION_TYPE_SWEATBOX                     = 6;
 
 const int SECTOR_ELEMENT_INFO                          =  0;
+const int SECTOR_ELEMENT_AIRPORT                       =  3;
 const int SECTOR_ELEMENT_RUNWAY                        =  4;
 const int SECTOR_ELEMENT_SID                           =  7;
 
@@ -109,7 +110,7 @@ struct CSectorElement
     bool        IsValid()           const { return valid; }
     const char* GetAirportName()    const { return airportName.c_str(); }
     const char* GetName()           const { return name.c_str(); }
-    bool        IsElementActive(bool dep, int end) const
+    bool        IsElementActive(bool dep, int end = 0) const
     {
         return end == 0 ? runway1IsDep == dep : runway2IsDep == dep;
     }

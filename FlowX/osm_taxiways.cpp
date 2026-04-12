@@ -1,6 +1,6 @@
 /**
  * @file osm_taxiways.cpp
- * @brief Fetches and caches LOWW taxiway/taxilane geometry from OpenStreetMap via the Overpass API.
+ * @brief Fetches and caches taxiway/taxilane geometry from OpenStreetMap via the Overpass API.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
@@ -18,19 +18,32 @@
 
 using json = nlohmann::json;
 
-static constexpr const char* OVERPASS_HOST  = "overpass-api.de";
-static constexpr const char* OVERPASS_PATH  = "/api/interpreter";
-static constexpr const char* CACHE_FILENAME = "osm_taxiways_LOWW.json";
+static constexpr const char* OVERPASS_HOST = "overpass-api.de";
+static constexpr const char* OVERPASS_PATH = "/api/interpreter";
 
-static constexpr const char* OVERPASS_QUERY =
-    "[out:json][timeout:25];\n"
-    "(\n"
-    "  way[\"aeroway\"=\"taxiway\"](around:6500,48.1103,16.5697);\n"
-    "  way[\"aeroway\"=\"taxilane\"](around:6500,48.1103,16.5697);\n"
-    "  way[\"aeroway\"=\"runway\"](around:6500,48.1103,16.5697);\n"
-    "  node[\"aeroway\"=\"holding_position\"](around:6500,48.1103,16.5697);\n"
-    ");\n"
-    "out geom;";
+/// @brief Returns the cache filename for a given airport ICAO code.
+static std::string CacheFilename(const std::string& icao)
+{
+    return "osm_taxiways_" + icao + ".json";
+}
+
+/// @brief Builds an Overpass QL query for taxiway/taxilane/runway/holding-position data around a centre point.
+static std::string BuildOverpassQuery(double centerLat, double centerLon, int radiusM)
+{
+    return std::format(
+        "[out:json][timeout:25];\n"
+        "(\n"
+        "  way[\"aeroway\"=\"taxiway\"](around:{},{:.4f},{:.4f});\n"
+        "  way[\"aeroway\"=\"taxilane\"](around:{},{:.4f},{:.4f});\n"
+        "  way[\"aeroway\"=\"runway\"](around:{},{:.4f},{:.4f});\n"
+        "  node[\"aeroway\"=\"holding_position\"](around:{},{:.4f},{:.4f});\n"
+        ");\n"
+        "out geom;",
+        radiusM, centerLat, centerLon,
+        radiusM, centerLat, centerLon,
+        radiusM, centerLat, centerLon,
+        radiusM, centerLat, centerLon);
+}
 
 /// @brief URL-encodes a string for use in application/x-www-form-urlencoded POST bodies.
 static std::string UrlEncode(std::string_view s)
@@ -165,7 +178,7 @@ static OsmResult ParseOsmJson(const std::string& raw)
     }
 }
 
-void SaveOsmCache(const OsmAirportData& data)
+void SaveOsmCache(const std::string& icao, const OsmAirportData& data)
 {
     try
     {
@@ -202,7 +215,7 @@ void SaveOsmCache(const OsmAirportData& data)
             hpArr.push_back(std::move(hj));
         }
 
-        const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
+        const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CacheFilename(icao);
         std::ofstream               f(path);
         if (f)
             f << j.dump(2);
@@ -212,11 +225,11 @@ void SaveOsmCache(const OsmAirportData& data)
     } // best-effort
 }
 
-void DeleteOsmCache()
+void DeleteOsmCache(const std::string& icao)
 {
     try
     {
-        const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
+        const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CacheFilename(icao);
         std::filesystem::remove(path);
     }
     catch (...)
@@ -241,25 +254,26 @@ double WayLengthM(const OsmWay& way)
     return total;
 }
 
-OsmResult fetchLOWWTaxiways()
+OsmResult fetchTaxiways(const std::string& icao, double centerLat, double centerLon, int radiusM)
 {
     std::ostringstream agent;
     agent << PLUGIN_NAME << '/' << PLUGIN_VERSION;
 
     HINTERNET hNet = InternetOpen(agent.str().c_str(), INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!hNet)
-        return std::unexpected(std::format("OSM fetch: InternetOpen failed ({})", GetLastError()));
+        return std::unexpected(std::format("OSM fetch {}: InternetOpen failed ({})", icao, GetLastError()));
 
     HINTERNET hConn = InternetConnect(hNet, OVERPASS_HOST, INTERNET_DEFAULT_HTTPS_PORT,
                                       NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     if (!hConn)
     {
         InternetCloseHandle(hNet);
-        return std::unexpected(std::format("OSM fetch: InternetConnect failed ({})", GetLastError()));
+        return std::unexpected(std::format("OSM fetch {}: InternetConnect failed ({})", icao, GetLastError()));
     }
 
+    const std::string query   = BuildOverpassQuery(centerLat, centerLon, radiusM);
     const std::string headers = "Content-Type: application/x-www-form-urlencoded\r\n";
-    const std::string body    = "data=" + UrlEncode(OVERPASS_QUERY);
+    const std::string body    = "data=" + UrlEncode(query);
 
     constexpr int MAX_ATTEMPTS = 3;
     std::string   lastError;
@@ -326,9 +340,9 @@ OsmResult fetchLOWWTaxiways()
     return std::unexpected(lastError);
 }
 
-OsmResult loadCachedTaxiways()
+OsmResult loadCachedTaxiways(const std::string& icao)
 {
-    const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CACHE_FILENAME;
+    const std::filesystem::path path = std::filesystem::path(GetPluginDirectory()) / CacheFilename(icao);
     if (!std::filesystem::exists(path))
         return std::unexpected(std::string("OSM cache: no cache file found"));
 

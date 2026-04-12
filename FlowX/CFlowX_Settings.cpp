@@ -225,6 +225,21 @@ void CFlowX_Settings::RefreshActiveRunways()
 
 std::map<std::string, airport>::iterator CFlowX_Settings::FindMyAirport(const std::string& fallbackIcao)
 {
+    // Primary: match a configured airport that the sector file marks as active.
+    auto el = SectorFileElementSelectFirst(EuroScopePlugIn::SECTOR_ELEMENT_AIRPORT);
+    while (el.IsValid())
+    {
+        const char* name = el.GetName();
+        if (name && *name)
+        {
+            auto it = this->airports.find(name);
+            if (it != this->airports.end() && (el.IsElementActive(true) || el.IsElementActive(false)))
+                return it;
+        }
+        el = SectorFileElementSelectNext(el, EuroScopePlugIn::SECTOR_ELEMENT_AIRPORT);
+    }
+
+    // Fallback: controller callsign prefix (covers offline/no sector file scenarios).
     std::string myCs = this->ControllerMyself().GetCallsign();
     std::transform(myCs.begin(), myCs.end(), myCs.begin(), ::toupper);
     for (auto it = this->airports.begin(); it != this->airports.end(); ++it)
@@ -243,17 +258,17 @@ std::map<std::string, airport>::iterator CFlowX_Settings::FindMyAirport(const st
 
 void CFlowX_Settings::RebuildTaxiGraph()
 {
-    if (this->osmData.ways.empty() || this->airports.empty())
+    if (this->osmData.ways.empty() || this->osmIcao_.empty())
         return;
     if (this->IsGraphBusy())
         return; // previous build still running; it will complete and be picked up by PollGraphFuture
 
     // Capture by value so the background thread is fully independent of the main-thread state.
     OsmAirportData osmSnap = this->osmData;
-    auto           myApt   = this->FindMyAirport();
-    if (myApt == this->airports.end())
+    auto           aptIt   = this->airports.find(this->osmIcao_);
+    if (aptIt == this->airports.end())
         return;
-    airport apSnap = myApt->second;
+    airport apSnap = aptIt->second;
 
     this->LogDebugMessage("Building TaxiGraph (background)", "TAXI");
     this->graphFuture_ = std::async(std::launch::async,
@@ -285,16 +300,47 @@ void CFlowX_Settings::PollGraphFuture()
 
 void CFlowX_Settings::StartOsmCacheLoad()
 {
-    this->LogDebugMessage("Loading taxiway cache from disk", "OSM");
-    this->osmFuture = std::async(std::launch::async, loadCachedTaxiways);
+    // At startup FindMyAirport may not work yet (no controller connection),
+    // so load the first configured airport's cache as a best-effort default.
+    auto myApt = this->FindMyAirport();
+    if (myApt == this->airports.end())
+    {
+        if (this->airports.empty())
+            return;
+        myApt = this->airports.begin();
+    }
+    this->osmIcao_ = myApt->first;
+    this->LogDebugMessage(std::format("Loading taxiway cache for {} from disk", this->osmIcao_), "OSM");
+    std::string icao = this->osmIcao_;
+    this->osmFuture  = std::async(std::launch::async, [icao]()
+                                  { return loadCachedTaxiways(icao); });
 }
 
 void CFlowX_Settings::StartOsmFetch()
 {
     if (this->IsOsmBusy())
         return;
-    this->LogDebugMessage("Starting Overpass API fetch", "OSM");
-    this->osmFuture = std::async(std::launch::async, fetchLOWWTaxiways);
+    auto myApt = this->FindMyAirport();
+    if (myApt == this->airports.end())
+    {
+        this->LogDebugMessage("OSM fetch: no active airport", "OSM");
+        return;
+    }
+    const auto& ap = myApt->second;
+    if (ap.osmCenterLat == 0.0 && ap.osmCenterLon == 0.0)
+    {
+        this->LogDebugMessage(std::format("OSM fetch: no osmCenter configured for {}", myApt->first), "OSM");
+        return;
+    }
+    this->osmIcao_ = myApt->first;
+    this->LogDebugMessage(std::format("Starting Overpass API fetch for {}", this->osmIcao_), "OSM");
+    std::string icao      = this->osmIcao_;
+    double      centerLat = ap.osmCenterLat;
+    double      centerLon = ap.osmCenterLon;
+    int         radiusM   = ap.osmRadiusM;
+    this->osmFuture       = std::async(std::launch::async,
+                                       [icao, centerLat, centerLon, radiusM]()
+                                       { return fetchTaxiways(icao, centerLat, centerLon, radiusM); });
 }
 
 bool CFlowX_Settings::IsOsmBusy() const
@@ -445,8 +491,8 @@ void CFlowX_Settings::PollOsmFuture()
             "OSM");
 
         // Delete stale cache before writing fresh data.
-        DeleteOsmCache();
-        SaveOsmCache(this->osmData);
+        DeleteOsmCache(this->osmIcao_);
+        SaveOsmCache(this->osmIcao_, this->osmData);
     }
 
     this->RebuildTaxiGraph();
@@ -850,6 +896,12 @@ void CFlowX_Settings::LoadConfig()
         ap.fieldElevation          = json_airport.value<int>("fieldElevation", 0);
         ap.airborneTransfer        = json_airport.value<int>("airborneTransfer", 0);
         ap.airborneTransferWarning = json_airport.value<int>("airborneTransferWarning", 0);
+        if (json_airport.contains("osmCenter"))
+        {
+            ap.osmCenterLat = json_airport["osmCenter"].value("lat", 0.0);
+            ap.osmCenterLon = json_airport["osmCenter"].value("lon", 0.0);
+        }
+        ap.osmRadiusM = json_airport.value<int>("osmRadius", 6500);
 
         auto ctrStations{json_airport["ctrStations"].get<std::vector<std::string>>()};
         ap.ctrStations = ctrStations;

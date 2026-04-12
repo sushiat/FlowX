@@ -214,6 +214,9 @@ struct airport
 {
     std::string                                      icao;                           ///< ICAO code (e.g. "LOWW")
     std::string                                      gndFreq;                        ///< Default ground frequency string
+    double                                           osmCenterLat            = 0.0;  ///< Centre latitude for the Overpass API bounding circle (decimal degrees)
+    double                                           osmCenterLon            = 0.0;  ///< Centre longitude for the Overpass API bounding circle (decimal degrees)
+    int                                              osmRadiusM              = 6500; ///< Radius in metres for the Overpass API bounding circle (default 6500)
     int                                              fieldElevation          = 0;    ///< Field elevation in feet (used to detect airborne state)
     int                                              airborneTransfer        = 0;    ///< Altitude (ft) above which the TWR next-freq tag changes colour
     int                                              airborneTransferWarning = 0;    ///< Altitude (ft) above which the TWR next-freq tag blinks orange

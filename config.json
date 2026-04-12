@@ -3,6 +3,8 @@
         "fieldElevation": 600,
         "airborneTransfer": 1500,
         "airborneTransferWarning": 3000,
+        "osmCenter": { "lat": 48.1103, "lon": 16.5697 },
+        "osmRadius": 6500,
         "gndFreq": "121.6",
         "geoGndFreq": {
             "west": {

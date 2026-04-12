@@ -25,6 +25,7 @@ class CFlowX_Settings : public CFlowX_Logging
   private:
     std::future<OsmResult> osmFuture;    ///< Async future for an in-flight OSM taxiway fetch or cache load
     std::future<TaxiGraph> graphFuture_; ///< Async future for a TaxiGraph build in progress; result swapped into osmGraph by PollGraphFuture()
+    std::string            osmIcao_;     ///< ICAO code of the airport whose OSM data is currently loaded into osmData/osmGraph
 
   protected:
     std::set<std::string>          activeArrRunways;             ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
@@ -184,9 +185,9 @@ class CFlowX_Settings : public CFlowX_Logging
         return this->airports;
     }
 
-    /// @brief Finds the airport config for the currently logged-in controller, falling back to a given ICAO.
-    /// @param fallbackIcao ICAO to search when the controller's callsign prefix doesn't match any airport; may be empty.
-    /// @return Iterator into airports pointing at the matched entry, or airports.end() if neither matches.
+    /// @brief Finds the active airport from the sector file, falling back to callsign prefix and then @p fallbackIcao.
+    /// @param fallbackIcao ICAO to search when neither the sector file nor the callsign prefix matches; may be empty.
+    /// @return Iterator into airports pointing at the matched entry, or airports.end() if nothing matches.
     std::map<std::string, airport>::iterator FindMyAirport(const std::string& fallbackIcao = "");
 
     /// @brief Returns a const reference to the GRplugin stand polygons map (keyed by "ICAO:StandName").
