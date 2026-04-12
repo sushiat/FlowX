@@ -3,6 +3,8 @@
         "fieldElevation": 600,
         "airborneTransfer": 1500,
         "airborneTransferWarning": 3000,
+        "osmCenter": { "lat": 48.1103, "lon": 16.5697 },
+        "osmRadius": 6500,
         "gndFreq": "121.6",
         "geoGndFreq": {
             "west": {
@@ -12,6 +14,12 @@
             }
         },
         "ctrStations": ["129.200", "134.440", "134.350", "132.600", "132.160", "135.635", "119.880"],
+        "taxiOnlyZones": {
+            "GAC": {
+                "lat": [48.124791, 48.126092, 48.129959, 48.128719],
+                "lon": [16.537689, 16.533779, 16.536438, 16.540431]
+            }
+        },
         "taxiOutStands": {
             "bstands": {
                 "lat": [48.120075, 48.119410, 48.121754, 48.122101],
@@ -70,7 +78,43 @@
             "129.050": ["129.050", "125.175", "134.675", "118.775"],
             "125.175": ["125.175", "129.050", "118.775", "134.675"]
         },
-        "scratchpadClearExclusions": [".cs ", ".did", ".obacht", "/cs "],
+        "scratchpadClearExclusions": [".cs ", ".did", ".obacht", "/cs ", ".new", ".newbie"],
+        "taxiWingspanMax": {
+            "P": 36,
+            "Q": 36,
+            "TL 40 \"Blue Line\"": 36,
+            "TL 40 \"Orange Line\"": 36
+        },
+        "taxiWingspanAvoid": {
+            "TL 40": 36
+        },
+        "standRoutingTargets": {
+            "GAC": { "type": "hp", "target": "P1" },
+            "G16": { "type": "stand", "target": "F16" },
+            "G26": { "type": "stand", "target": "F26" },
+            "G36": { "type": "stand", "target": "F36" }
+        },
+        "taxiLaneSwingoverPairs": [
+            ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]
+        ],
+        "taxiFlowGeneric": [
+            { "taxiway": "P", "direction": "N", "againstFlowMult": 5.0 },
+            { "taxiway": "Q", "direction": "S", "againstFlowMult": 5.0 }
+        ],
+        "taxiFlowConfigs": {
+            "11_11":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "S" } ],
+            "16_16":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "M", "direction": "W" } ],
+            "29_29":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "W", "direction": "N" }, { "taxiway": "E", "direction": "S" } ],
+            "34_34":    [ { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" } ],
+            "16_11":    [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "D", "direction": "N" } ],
+            "16_11/16": [ { "taxiway": "W", "direction": "N" }, { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "D", "direction": "N" } ],
+            "29_16":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
+            "29/16_16": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
+            "29_34":    [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
+            "29/34_34": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
+            "11_16":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ]
+        },
+        "taxiIntersections": ["Exit *"],
         "runways": {
             "11": {
                 "estimateBarSide": "right",
@@ -133,6 +177,14 @@
                     }
                 },
                 "vacatePoints": {
+                    "A8": {},
+                    "A6": {},
+                    "A4": {},
+                    "A3": {},
+                    "A2": {},
+                    "A1": {}
+                },
+                "suggestedVacatePoints": {
                     "A3": {
                         "minGap": 5.5,
                         "stands": ["F04","F08","F12","F16","F22","F26","F32","F36","F42","F44","F46","F48","F50","G16","G26","G36","H*","K*"]
@@ -201,7 +253,22 @@
                             "lon": [16.58227286336878, 16.584191373366036, 16.584165359671157, 16.582344401029694],
                             "lat": [48.104524491682014, 48.10366894985964, 48.10427260775143, 48.104928371959815]
                         }
+                    },
+                    "B9": {
+                        "assignable": false,
+                        "polygon": {
+                            "lon": [16.584180257724935, 16.585811040687766, 16.58584322719361, 16.583826206160637],
+                            "lat": [48.10111017100397, 48.10051547994024, 48.09984196609055, 48.10069460447862]
+                        }
                     }
+                },
+                "vacatePoints": {
+                    "B3":  { "excludeWtc": ["H", "J"] },
+                    "B6":  { "excludeRef": { "H": ["D"], "J": ["D"] } },
+                    "B8":  { "excludeRef": { "H": ["D"], "J": ["D"] } },
+                    "B10": {},
+                    "B11": {},
+                    "B12": {}
                 }
             },
             "29": {
@@ -270,6 +337,13 @@
                     }
                 },
                 "vacatePoints": {
+                    "A7": {},
+                    "A9": {},
+                    "A10": {},
+                    "A11": {},
+                    "A12": {}
+                },
+                "suggestedVacatePoints": {
                     "A11": {
                         "minGap": 5,
                         "stands": ["GAC","A3*","A4*","A5*","A6*"]
@@ -355,6 +429,14 @@
                     }
                 },
                 "vacatePoints": {
+                    "B9": {},
+                    "B7": {},
+                    "B5": {},
+                    "B4": {},
+                    "B2": {},
+                    "B1": {}
+                },
+                "suggestedVacatePoints": {
                     "B2": {
                         "minGap": 5,
                         "stands": ["F04","F08","F12","F16","F22","F26","F32","F36","F42","F44","F46","F48","F50","G16","G26","G36","H*","K*"]
@@ -364,6 +446,48 @@
                         "stands": ["*"]
                     }
                 }
+            }
+        },
+        "taxiNetworkConfig": {
+            "graph": {
+                "subdivisionIntervalM": 15.0,
+                "osmHoldingPositionSnapM": 25.0,
+                "configHoldingPointSnapM": 40.0
+            },
+            "edgeCosts": {
+                "multIntersection": 1.1,
+                "multTaxilane": 3.0,
+                "multRunway": 30.0,
+                "multRunwayApproach": 25.0
+            },
+            "flowRules": {
+                "withFlowMaxDeg": 45.0,
+                "withFlowMult": 0.6,
+                "againstFlowMinDeg": 135.0,
+                "againstFlowMult": 3.5
+            },
+            "routing": {
+                "hardTurnDeg": 50.0,
+                "wayrefChangePenalty": 400.0,
+                "forwardSnapM": 120.0,
+                "backwardSnapM": 300.0,
+                "heuristicWeight": 1.0,
+                "maxNodeExpansions": 5000,
+                "softTurnCostPerDeg": 2.0
+            },
+            "snapping": {
+                "holdingPointM": 30.0,
+                "intersectionM": 15.0,
+                "suggestedRouteM": 20.0,
+                "waypointM": 40.0,
+                "goalSnapM": 170.0
+            },
+            "safety": {
+                "deviationThreshM": 40.0,
+                "minSpeedKt": 3.0,
+                "maxPredictS": 60.0,
+                "conflictDeltaS": 30.0,
+                "sameDirDeg": 45.0
             }
         }
     }

@@ -19,8 +19,8 @@
 class CFlowX_Logging : public CFlowX_Base
 {
   private:
-    std::shared_ptr<std::mutex>    debugLogMutex   = std::make_shared<std::mutex>(); ///< Serialises concurrent async debug-log file writes.
-    std::vector<std::future<void>> debugLogFutures;                                  ///< Pending async debug-log file writes; pruned on each LogDebugMessage call.
+    std::shared_ptr<std::mutex>    debugLogMutex = std::make_shared<std::mutex>(); ///< Serialises concurrent async debug-log file writes.
+    std::vector<std::future<void>> debugLogFutures;                                ///< Pending async debug-log file writes; pruned on each LogDebugMessage call.
 
   protected:
     bool flashOnMessage; ///< When true, the EuroScope message area flashes on every logged message
@@ -34,11 +34,6 @@ class CFlowX_Logging : public CFlowX_Base
     /// @param type Category label shown in the file.
     void LogDebugFileOnly(const std::string& message, const std::string& type);
 
-    /// @brief Displays a message only when debug mode is enabled.
-    /// @param message Text to display.
-    /// @param type Category label shown as the sender.
-    void LogDebugMessage(const std::string& message, const std::string& type);
-
     /// @brief Logs a caught exception to debugLog.txt unconditionally (regardless of debug mode) and
     ///        displays an alert in the EuroScope chat window.
     /// @param context Name of the function or handler where the exception was caught.
@@ -51,6 +46,15 @@ class CFlowX_Logging : public CFlowX_Base
     void LogMessage(const std::string& message, const std::string& type);
 
   public:
+    /// @brief Displays a message only when debug mode is enabled.
+    /// @param message Text to display.
+    /// @param type Category label shown as the sender.
+    void LogDebugMessage(const std::string& message, const std::string& type);
+    /// @brief Writes a timestamped entry to debugLog.txt unconditionally (regardless of debug mode).
+    ///        Does not display anything in the EuroScope chat window.
+    /// @param message Text to write.
+    /// @param type Category label shown in the file prefix.
+    void LogToFile(const std::string& message, const std::string& type);
     /// @brief Constructs the logging layer and logs the plugin version on startup.
     CFlowX_Logging();
 };

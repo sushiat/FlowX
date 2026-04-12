@@ -46,11 +46,6 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @return Distance in nautical miles, or 0.0 if the runway is not found.
     static double DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways);
 
-    /// @brief Finds the airport config for the currently logged-in controller, falling back to a given ICAO.
-    /// @param fallbackIcao ICAO to search when the controller's callsign does not match any airport; may be empty.
-    /// @return Iterator into airports pointing at the matched entry, or airports.end() if neither matches.
-    std::map<std::string, airport>::iterator FindMyAirport(const std::string& fallbackIcao = "");
-
     /// @brief Returns a numeric ranking for an aircraft wake-turbulence category character.
     /// @param wtc Wake-turbulence category character (J, H, M, L; case-insensitive).
     /// @return Ranking value: J=4, H=3, M=2, L=1, unknown=0.
@@ -71,13 +66,8 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @return Non-zero if the points are considered the same (identical names or linked via sameAs).
     [[nodiscard]] static int IsSameHoldingPoint(std::string hp1, std::string hp2, const std::map<std::string, runway>& runways);
 
+  public:
     /// @brief Tests whether the point (x, y) lies inside a polygon defined by parallel coordinate arrays.
-    /// @param polyCorners Number of polygon vertices.
-    /// @param polyX Array of polygon X (longitude) coordinates, length @p polyCorners.
-    /// @param polyY Array of polygon Y (latitude) coordinates, length @p polyCorners.
-    /// @param x X (longitude) of the point to test.
-    /// @param y Y (latitude) of the point to test.
-    /// @return True if the point is inside the polygon.
     /// @note Uses the winding-number algorithm; vertices must be in sequential traversal order (CW or CCW).
     [[nodiscard]] static bool PointInsidePolygon(int polyCorners, double polyX[], double polyY[], double x, double y);
 };

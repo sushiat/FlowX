@@ -35,7 +35,7 @@
         {
             "label": "Deploy Debug",
             "type": "shell",
-            "command": "$es = Get-Process -Name 'EuroScope' -ErrorAction SilentlyContinue; if ($es) { $es | Stop-Process -Force; Start-Sleep -Seconds 2 }; Copy-Item '${workspaceFolder}\\Debug\\FlowX.dll' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\FlowX.dll' -Force; Copy-Item '${workspaceFolder}\\config.json' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\config.json' -Force; Write-Host 'Deploy Debug done.'",
+            "command": "$es = Get-Process -Name 'EuroScope' -ErrorAction SilentlyContinue; if ($es) { $es | Stop-Process -Force; Start-Sleep -Seconds 2 }; Copy-Item '${workspaceFolder}\\Debug\\FlowX.dll' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\FlowX.dll' -Force; Copy-Item '${workspaceFolder}\\config.json' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\config.json' -Force; Get-ChildItem '${workspaceFolder}\\*.wav' | ForEach-Object { Copy-Item $_.FullName 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\' -Force }; Write-Host 'Deploy Debug done.'",
             "dependsOn": "Build Debug Win32",
             "group": "none",
             "presentation": {
@@ -47,7 +47,7 @@
         {
             "label": "Deploy Release",
             "type": "shell",
-            "command": "Copy-Item '${workspaceFolder}\\Release\\FlowX.dll' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\FlowX.dll' -Force; Copy-Item '${workspaceFolder}\\config.json' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\config.json' -Force; Write-Host 'Deploy Release done.'",
+            "command": "Copy-Item '${workspaceFolder}\\Release\\FlowX.dll' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\FlowX.dll' -Force; Copy-Item '${workspaceFolder}\\config.json' 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\config.json' -Force; Get-ChildItem '${workspaceFolder}\\*.wav' | ForEach-Object { Copy-Item $_.FullName 'D:\\EuroScope\\VACC-Austria\\LOVV\\Plugins\\FlowX\\' -Force }; Write-Host 'Deploy Release done.'",
             "dependsOn": "Build Release Win32",
             "group": "none",
             "presentation": {

@@ -10,7 +10,6 @@
 
 #include "helpers.h"
 
-
 /// @brief Opens a popup list of assignable holding points so the controller can assign one.
 /// @param fp Currently selected flight plan.
 /// @param Pt Screen position at which to anchor the popup.
@@ -32,8 +31,10 @@ void CFlowX_Functions::Func_AssignHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt)
     {
         std::vector<const std::pair<const std::string, holdingPoint>*> sorted;
         for (auto& kv : rwyIt->second.holdingPoints)
-            if (kv.second.assignable) sorted.push_back(&kv);
-        std::ranges::sort(sorted, {}, [](auto* kv) { return kv->second.order; });
+            if (kv.second.assignable)
+                sorted.push_back(&kv);
+        std::ranges::sort(sorted, {}, [](auto* kv)
+                          { return kv->second.order; });
         for (auto* kv : sorted)
             this->AddPopupListElement(kv->first.c_str(), "", TAG_FUNC_HP_LISTSELECT);
     }
@@ -70,14 +71,15 @@ void CFlowX_Functions::Func_AssignQueuePos(EuroScopePlugIn::CFlightPlan& fp, POI
     int maxPos = 0;
     for (const auto& [cs, pos] : this->dep_queuePos)
     {
-        if (cs == callSign) continue;
+        if (cs == callSign)
+            continue;
         auto other = this->FlightPlanSelect(cs.c_str());
         if (other.IsValid() && std::string(other.GetFlightPlanData().GetDepartureRwy()) == runway)
             maxPos = std::max(maxPos, pos);
     }
     int listSize = maxPos + 1;
 
-    RECT area = { Pt.x, Pt.y, Pt.x + 50, Pt.y + listSize * 18 + 4 };
+    RECT area = {Pt.x, Pt.y, Pt.x + 50, Pt.y + listSize * 18 + 4};
     this->OpenPopupList(area, "Queue", 1);
     for (int i = 1; i <= listSize; ++i)
         this->AddPopupListElement(std::to_string(i).c_str(), "", TAG_FUNC_QUEUE_POS_LISTSELECT);
@@ -109,7 +111,8 @@ void CFlowX_Functions::Func_QueuePosListselect(EuroScopePlugIn::CFlightPlan& fp,
 void CFlowX_Functions::RemoveFromDepartureQueue(const std::string& callSign, const std::string& runway)
 {
     auto it = this->dep_queuePos.find(callSign);
-    if (it == this->dep_queuePos.end()) return;
+    if (it == this->dep_queuePos.end())
+        return;
     int removedPos = it->second;
     this->dep_queuePos.erase(it);
     for (auto& [cs, pos] : this->dep_queuePos)
@@ -124,13 +127,17 @@ void CFlowX_Functions::RemoveFromDepartureQueue(const std::string& callSign, con
 /// Handles the case where another controller sets the state without going through the local click handler.
 void CFlowX_Functions::SyncQueueWithGroundState()
 {
-    if (this->dep_queuePos.empty()) return;
+    if (this->dep_queuePos.empty())
+        return;
 
     std::vector<std::pair<std::string, std::string>> toRemove;
     for (const auto& [callSign, pos] : this->dep_queuePos)
     {
         auto fp = this->FlightPlanSelect(callSign.c_str());
-        if (!fp.IsValid()) { continue; }
+        if (!fp.IsValid())
+        {
+            continue;
+        }
         std::string gs = fp.GetGroundState();
         if (gs == "LINEUP" || gs == "DEPA")
             toRemove.emplace_back(callSign, std::string(fp.GetFlightPlanData().GetDepartureRwy()));
@@ -186,9 +193,39 @@ void CFlowX_Functions::Func_ClrdToLand(EuroScopePlugIn::CFlightPlan& fp, RadarSc
 /// @param sItemString The holding-point name (possibly starred) chosen from the popup.
 void CFlowX_Functions::Func_HpListselect(EuroScopePlugIn::CFlightPlan& fp, const char* sItemString)
 {
-    std::string callSign                  = fp.GetCallsign();
+    std::string callSign = fp.GetCallsign();
+
+    // Read old annotation before overwriting — needed for approval feedback below.
+    std::string oldAnn = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
+
     this->flightStripAnnotation[callSign] = AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], sItemString);
     fp.GetControllerAssignedData().SetFlightStripAnnotation(8, this->flightStripAnnotation[callSign].c_str());
+
+    // If the previous HP was a pending request for the same name, notify GND via scratchpad.
+    if (oldAnn.size() > 7)
+    {
+        std::string oldHp = oldAnn.substr(7);
+        if (!oldHp.empty() && oldHp.back() == '*')
+        {
+            std::string oldHpName = oldHp.substr(0, oldHp.size() - 1);
+            std::string oldUpper  = oldHpName;
+            std::string newUpper  = std::string(sItemString);
+            to_upper(oldUpper);
+            to_upper(newUpper);
+            if (oldUpper == newUpper)
+            {
+                fp.GetControllerAssignedData().SetScratchPadString(("." + oldHpName + " ok").c_str());
+                this->LogDebugMessage(callSign + " HP request approved via popup: " + oldHpName + " → scratchpad set to ." + oldHpName + " ok", "HP");
+            }
+            else
+            {
+                // Different HP assigned — clear the stale request from scratchpad.
+                fp.GetControllerAssignedData().SetScratchPadString("");
+                this->LogDebugMessage(callSign + " HP request overridden: " + oldHpName + " → " + std::string(sItemString) + ", scratchpad cleared", "HP");
+            }
+        }
+    }
+
     this->PushToOtherControllers(fp);
 }
 
@@ -204,16 +241,18 @@ void CFlowX_Functions::Func_LineUp(EuroScopePlugIn::CFlightPlan& fp)
     {
         std::string dep = fp.GetFlightPlanData().GetOrigin();
         to_upper(dep);
-        auto aptIt      = this->airports.find(dep);
+        auto        aptIt        = this->airports.find(dep);
         std::string scratchUpper = scratchBackup;
         to_upper(scratchUpper);
         bool excluded = aptIt != this->airports.end() && std::ranges::any_of(aptIt->second.scratchpadClearExclusions, [&](const std::string& prefix)
-        {
+                                                                             {
             std::string prefixUpper = prefix;
             to_upper(prefixUpper);
-            return scratchUpper.starts_with(prefixUpper);
-        });
-        if (!excluded) { fp.GetControllerAssignedData().SetScratchPadString(""); }
+            return scratchUpper.starts_with(prefixUpper); });
+        if (!excluded)
+        {
+            fp.GetControllerAssignedData().SetScratchPadString("");
+        }
     }
 }
 
@@ -234,10 +273,10 @@ void CFlowX_Functions::Func_MissedApp(EuroScopePlugIn::CFlightPlan& fp, RadarScr
         TTTInboundState& st = inboundIt->second;
         if (st.goAroundTick == 0)
         {
-            st.goAroundTick      = GetTickCount64();
-            st.frozenTick        = 0;
-            st.frozenTttStr      = {};
-            st.wasTrackedByMe    = true; // we are about to take tracking below
+            st.goAroundTick   = GetTickCount64();
+            st.frozenTick     = 0;
+            st.frozenTttStr   = {};
+            st.wasTrackedByMe = true; // we are about to take tracking below
         }
         st.goAroundConfirmed = true;
     }
@@ -327,8 +366,10 @@ void CFlowX_Functions::Func_RequestHp(EuroScopePlugIn::CFlightPlan& fp, POINT Pt
     {
         std::vector<const std::pair<const std::string, holdingPoint>*> sorted;
         for (auto& kv : rwyIt->second.holdingPoints)
-            if (kv.second.assignable) sorted.push_back(&kv);
-        std::ranges::sort(sorted, {}, [](auto* kv) { return kv->second.order; });
+            if (kv.second.assignable)
+                sorted.push_back(&kv);
+        std::ranges::sort(sorted, {}, [](auto* kv)
+                          { return kv->second.order; });
         for (auto* kv : sorted)
             this->AddPopupListElement((kv->first + "*").c_str(), "", TAG_FUNC_HP_LISTSELECT);
     }
@@ -364,16 +405,18 @@ void CFlowX_Functions::Func_TakeOff(EuroScopePlugIn::CFlightPlan& fp)
     {
         std::string dep = fp.GetFlightPlanData().GetOrigin();
         to_upper(dep);
-        auto aptIt      = this->airports.find(dep);
+        auto        aptIt        = this->airports.find(dep);
         std::string scratchUpper = scratchBackup;
         to_upper(scratchUpper);
         bool excluded = aptIt != this->airports.end() && std::ranges::any_of(aptIt->second.scratchpadClearExclusions, [&](const std::string& prefix)
-        {
+                                                                             {
             std::string prefixUpper = prefix;
             to_upper(prefixUpper);
-            return scratchUpper.starts_with(prefixUpper);
-        });
-        if (!excluded) { fp.GetControllerAssignedData().SetScratchPadString(""); }
+            return scratchUpper.starts_with(prefixUpper); });
+        if (!excluded)
+        {
+            fp.GetControllerAssignedData().SetScratchPadString("");
+        }
     }
 
     fp.StartTracking();
@@ -396,10 +439,16 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
             auto& anno = this->flightStripAnnotation[callSign];
             anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
             constexpr std::string_view unicom = "122800";
-            for (int i = 0; i < 6; i++) { anno[1 + i] = unicom[i]; }
+            for (int i = 0; i < 6; i++)
+            {
+                anno[1 + i] = unicom[i];
+            }
             fp.GetControllerAssignedData().SetFlightStripAnnotation(8, anno.c_str());
             this->PushToOtherControllers(fp);
-            if (fp.GetTrackingControllerIsMe()) { fp.EndTracking(); }
+            if (fp.GetTrackingControllerIsMe())
+            {
+                fp.EndTracking();
+            }
             return;
         }
     }
@@ -526,7 +575,7 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 
     // Mark FP as transferred — store target frequency (dot removed, 3 dp normalised) at [1..6]
     std::string transferFreq = freqToAnnotation(stationFreq);
-    auto& anno = this->flightStripAnnotation[callSign];
+    auto&       anno         = this->flightStripAnnotation[callSign];
     anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
     for (int i = 0; i < 6; i++)
     {
@@ -564,16 +613,22 @@ void CFlowX_Functions::Func_TransferNext(EuroScopePlugIn::CFlightPlan& fp)
 /// @brief Marks the flight strip annotation with the GND frequency, drops tracking, and removes the GND transfer square.
 void CFlowX_Functions::Func_GndTransfer(const std::string& callSign)
 {
-    EuroScopePlugIn::CFlightPlan  fp = this->FlightPlanSelect(callSign.c_str());
-    if (!fp.IsValid()) { return; }
+    EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelect(callSign.c_str());
+    if (!fp.IsValid())
+    {
+        return;
+    }
 
-    std::string arr    = fp.GetFlightPlanData().GetDestination();
+    std::string arr       = fp.GetFlightPlanData().GetDestination();
     auto        airportIt = this->FindMyAirport(arr);
-    if (airportIt == this->airports.end()) { return; }
+    if (airportIt == this->airports.end())
+    {
+        return;
+    }
 
     // Resolve GND freq: check geo zones first (requires valid position), fall back to default
-    std::string gndFreq = airportIt->second.gndFreq;
-    EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(callSign.c_str());
+    std::string                   gndFreq = airportIt->second.gndFreq;
+    EuroScopePlugIn::CRadarTarget rt      = this->RadarTargetSelect(callSign.c_str());
     if (rt.IsValid() && rt.GetPosition().IsValid())
     {
         EuroScopePlugIn::CPosition position = rt.GetPosition().GetPosition();
@@ -589,20 +644,32 @@ void CFlowX_Functions::Func_GndTransfer(const std::string& callSign)
 
     // Write freq (dot removed, 3 dp normalised) to annotation slot 8 at positions [1..6]
     std::string transferFreq = freqToAnnotation(gndFreq);
-    auto& anno = this->flightStripAnnotation[callSign];
+    auto&       anno         = this->flightStripAnnotation[callSign];
     anno.resize(std::max(anno.length(), static_cast<size_t>(7)), ' ');
-    for (int i = 0; i < 6; i++) { anno[1 + i] = transferFreq[i]; }
+    for (int i = 0; i < 6; i++)
+    {
+        anno[1 + i] = transferFreq[i];
+    }
     fp.GetControllerAssignedData().SetFlightStripAnnotation(8, anno.c_str());
     this->PushToOtherControllers(fp);
 
     // Drop tracking — GND controllers don't accept tag transfers
-    if (fp.GetTrackingControllerIsMe()) { fp.EndTracking(); }
+    if (fp.GetTrackingControllerIsMe())
+    {
+        fp.EndTracking();
+    }
 
     // Remove from GND transfer tracking state
     this->gndTransfer_list.erase(callSign);
     this->gndTransfer_soundPlayed.erase(callSign);
-    if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
-    if (this->radarScreen) { this->radarScreen->gndTransferSquareTimes.erase(callSign); }
+    if (this->radarScreen)
+    {
+        this->radarScreen->gndTransferSquares.erase(callSign);
+    }
+    if (this->radarScreen)
+    {
+        this->radarScreen->gndTransferSquareTimes.erase(callSign);
+    }
 }
 
 /// @brief Re-evaluates and re-sets the EuroScope clearance flag for all ground-based cleared aircraft,
@@ -614,10 +681,16 @@ void CFlowX_Functions::RedoFlags()
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        if (!pos.IsValid() || pos.GetReportedGS() > 40) { continue; }
+        if (!pos.IsValid() || pos.GetReportedGS() > 40)
+        {
+            continue;
+        }
 
         EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe())) { continue; }
+        if (!fp.IsValid() || (strcmp(fp.GetTrackingControllerId(), "") != 0 && !fp.GetTrackingControllerIsMe()))
+        {
+            continue;
+        }
 
         std::string dep = fp.GetFlightPlanData().GetOrigin();
         to_upper(dep);
@@ -625,14 +698,26 @@ void CFlowX_Functions::RedoFlags()
         to_upper(arr);
         std::string cs = fp.GetCallsign();
 
-        if (dep.empty() || arr.empty()) { continue; }
+        if (dep.empty() || arr.empty())
+        {
+            continue;
+        }
 
         auto airport = this->airports.find(dep);
-        if (airport == this->airports.end()) { continue; }
+        if (airport == this->airports.end())
+        {
+            continue;
+        }
 
-        if (pos.GetPressureAltitude() >= airport->second.fieldElevation + 50) { continue; }
+        if (pos.GetPressureAltitude() >= airport->second.fieldElevation + 50)
+        {
+            continue;
+        }
 
-        if (!fp.GetClearenceFlag()) { continue; }
+        if (!fp.GetClearenceFlag())
+        {
+            continue;
+        }
 
         // Clearance flag pair: execute immediately (unchanged behaviour)
         if (this->radarScreen != nullptr)
@@ -645,16 +730,18 @@ void CFlowX_Functions::RedoFlags()
         auto it = this->groundStatus.find(cs);
         if (it != this->groundStatus.end() && !it->second.empty())
         {
-            this->redoFlagQueue.push_back({ cs, it->second });
+            this->redoFlagQueue.push_back({cs, it->second});
         }
     }
-
 }
 
 /// @brief Drains one task from the redo-flag queue; called from OnTimer() at a 1 s cadence.
 void CFlowX_Functions::DrainRedoFlagQueue()
 {
-    if (this->redoFlagQueue.empty()) { return; }
+    if (this->redoFlagQueue.empty())
+    {
+        return;
+    }
 
     const RedoFlagTask task = this->redoFlagQueue.front();
     this->redoFlagQueue.erase(this->redoFlagQueue.begin());

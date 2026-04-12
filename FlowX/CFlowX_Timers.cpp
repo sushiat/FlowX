@@ -29,7 +29,6 @@ static std::string UtcDateString()
     return ss.str();
 }
 
-
 /// @brief Checks each airport's NAP reminder configuration and shows the custom reminder window when the time is reached.
 /// The reminder is suppressed if it was already acknowledged today (UTC date comparison).
 void CFlowX_Timers::CheckAirportNAPReminder()
@@ -343,7 +342,7 @@ void CFlowX_Timers::DetectTakeoffState(EuroScopePlugIn::CRadarTarget rt)
 
         this->dep_sequenceNumber[callSign] = ++this->dep_sequenceCounter;
 
-        if (this->GetSoundAirborne())
+        if (this->GetSoundAirborne() && this->ControllerMyself().GetFacility() >= 4)
         {
             std::filesystem::path wavPath = std::filesystem::path(GetPluginDirectory()) / "airbourne.wav";
             PlaySoundA(wavPath.string().c_str(), nullptr, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
@@ -381,7 +380,7 @@ void CFlowX_Timers::RecordDepartureSpacingSnapshot(const std::string& callSign)
     {
         return;
     }
-    DepartureLiveSpacing& spacing = spacingIt->second;
+    DepartureLiveSpacing& spacing      = spacingIt->second;
     const std::string&    prevCallSign = spacing.prevCallSign;
 
     // Both roll ticks must be available to compute the time offset
@@ -519,7 +518,8 @@ void CFlowX_Timers::UpdateAdesCache()
             {
                 return false;
             }
-            if (!std::all_of(base.begin(), base.end(), [](unsigned char c){ return std::isalnum(c); }))
+            if (!std::all_of(base.begin(), base.end(), [](unsigned char c)
+                             { return std::isalnum(c); }))
             {
                 return false;
             }
@@ -717,7 +717,7 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
             di.dep_info  = dep_info;
             di.dep_color = cachedRow.depInfo.color;
             di.queue_pos = queuePos;
-            di.pos       = {-1, -1};
+            di.anchor    = {0.0, 0.0};
             di.dragX     = 0;
             di.dragY     = 0;
             di.lastDrag  = {-1, -1};
@@ -742,36 +742,63 @@ void CFlowX_Timers::UpdateRadarTargetDepartureInfo()
 /// Depends on standOccupancy being current (refreshed by UpdateOccupiedStands every 4 ticks).
 void CFlowX_Timers::CheckArrivedAtStand()
 {
-    if (!this->autoParked) { return; }
+    if (!this->autoParked)
+    {
+        return;
+    }
 
-    static const std::set<std::string> depStates = { "PUSH", "ST-UP", "ONFREQ", "LINEUP", "DEPA" };
+    static const std::set<std::string> depStates = {"PUSH", "ST-UP", "ONFREQ", "LINEUP", "DEPA"};
 
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CFlightPlan fp = rt.GetCorrelatedFlightPlan();
-        if (!fp.IsValid()) { continue; }
+        if (!fp.IsValid())
+        {
+            continue;
+        }
 
         std::string callSign = fp.GetCallsign();
 
         auto standIt = this->standAssignment.find(callSign);
-        if (standIt == this->standAssignment.end()) { continue; }
+        if (standIt == this->standAssignment.end())
+        {
+            continue;
+        }
 
         std::string arr = fp.GetFlightPlanData().GetDestination();
         to_upper(arr);
         auto airportIt = this->airports.find(arr);
-        if (airportIt == this->airports.end()) { continue; }
+        if (airportIt == this->airports.end())
+        {
+            continue;
+        }
 
         auto gsIt = this->groundStatus.find(callSign);
         if (gsIt != this->groundStatus.end() &&
-            (depStates.contains(gsIt->second) || gsIt->second == "PARK")) { continue; }
+            (depStates.contains(gsIt->second) || gsIt->second == "PARK"))
+        {
+            continue;
+        }
 
         auto occupyIt = this->standOccupancy.find(standIt->second);
-        if (occupyIt == this->standOccupancy.end() || occupyIt->second != callSign) { continue; }
+        if (occupyIt == this->standOccupancy.end() || occupyIt->second != callSign)
+        {
+            continue;
+        }
 
         EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        if (!pos.IsValid()) { continue; }
-        if (pos.GetReportedGS() >= 3) { continue; }
-        if (pos.GetPressureAltitude() > airportIt->second.fieldElevation + 200) { continue; }
+        if (!pos.IsValid())
+        {
+            continue;
+        }
+        if (pos.GetReportedGS() >= 3)
+        {
+            continue;
+        }
+        if (pos.GetPressureAltitude() > airportIt->second.fieldElevation + 200)
+        {
+            continue;
+        }
 
         std::string scratchBackup(fp.GetControllerAssignedData().GetScratchPadString());
         fp.GetControllerAssignedData().SetScratchPadString("PARK");
@@ -779,7 +806,15 @@ void CFlowX_Timers::CheckArrivedAtStand()
 
         this->gndTransfer_list.erase(callSign);
         this->gndTransfer_soundPlayed.erase(callSign);
-        if (this->radarScreen) { this->radarScreen->gndTransferSquares.erase(callSign); }
+        if (this->radarScreen)
+        {
+            this->radarScreen->gndTransferSquares.erase(callSign);
+            this->radarScreen->pushTracked.erase(callSign);
+            this->radarScreen->taxiTracked.erase(callSign);
+            this->radarScreen->taxiAssigned.erase(callSign);
+            this->radarScreen->taxiAssignedTimes.erase(callSign);
+            this->radarScreen->taxiAssignedPos.erase(callSign);
+        }
 
         this->LogDebugMessage(callSign + " auto-PARK at stand " + standIt->second, "GND");
     }
@@ -804,16 +839,20 @@ void CFlowX_Timers::UpdateOccupiedStands()
         return;
     }
 
-    if (this->grStands.empty()) return;
+    if (this->grStands.empty())
+        return;
 
     // Snapshot phase — all EuroScope API calls happen here on the main thread.
     std::vector<StandCheckTarget> targets;
     for (EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
     {
         EuroScopePlugIn::CRadarTargetPositionData pos = rt.GetPosition();
-        if (!pos.IsValid()) continue;
-        if (pos.GetReportedGS() >= 50) continue;
-        if (pos.GetPressureAltitude() > 5000) continue;
+        if (!pos.IsValid())
+            continue;
+        if (pos.GetReportedGS() >= 50)
+            continue;
+        if (pos.GetPressureAltitude() > 5000)
+            continue;
 
         StandCheckTarget snap;
         snap.callSign = rt.GetCallsign();
@@ -855,7 +894,8 @@ void CFlowX_Timers::UpdateOccupiedStands()
             {
                 for (const auto& [key, stand] : grStands)
                 {
-                    if (stand.lat.size() < 3) continue;
+                    if (stand.lat.size() < 3)
+                        continue;
 
                     if (stand.icao != lastIcao)
                     {
@@ -866,7 +906,8 @@ void CFlowX_Timers::UpdateOccupiedStands()
                             fieldElev = apIt->second.fieldElevation;
                     }
 
-                    if (t.pressAlt > fieldElev + 200) continue;
+                    if (t.pressAlt > fieldElev + 200)
+                        continue;
 
                     // PointInsidePolygon requires non-const pointers — copy into local arrays.
                     size_t n = std::min(stand.lon.size(), size_t{16});
@@ -917,7 +958,8 @@ void CFlowX_Timers::UpdateTWROutbound()
         for (auto& kv : this->radarScreen->depRateLog)
         {
             auto& ts = kv.second;
-            std::erase_if(ts, [now](ULONGLONG t) { return (now - t) > 3600000ULL; });
+            std::erase_if(ts, [now](ULONGLONG t)
+                          { return (now - t) > 3600000ULL; });
         }
     }
 
@@ -998,12 +1040,42 @@ void CFlowX_Timers::UpdateTWROutbound()
             std::string                                        rwy    = fp.GetFlightPlanData().GetDepartureRwy();
             std::string                                        before = this->flightStripAnnotation[callSign];
 
+            // Detect runway change — clear stale HP if it doesn't exist on the new runway.
+            auto lastRwyIt = this->lastDepRunway.find(callSign);
+            if (lastRwyIt != this->lastDepRunway.end() && lastRwyIt->second != rwy && !rwy.empty())
+            {
+                std::string ann = this->flightStripAnnotation[callSign];
+                if (ann.length() > 7)
+                {
+                    std::string hpName = ann.substr(7);
+                    if (!hpName.empty() && hpName.back() == '*')
+                        hpName.pop_back();
+                    if (!hpName.empty())
+                    {
+                        bool hpValid  = false;
+                        auto newRwyIt = airport->second.runways.find(rwy);
+                        if (newRwyIt != airport->second.runways.end())
+                            hpValid = newRwyIt->second.holdingPoints.contains(hpName);
+                        if (!hpValid)
+                        {
+                            ann                                   = ann.substr(0, 7);
+                            this->flightStripAnnotation[callSign] = ann;
+                            fpcad.SetFlightStripAnnotation(8, ann.c_str());
+                            this->PushToOtherControllers(fp);
+                            before = ann; // update baseline so the auto-detect block below doesn't re-push
+                        }
+                    }
+                }
+            }
+            if (!rwy.empty())
+                this->lastDepRunway[callSign] = rwy;
+
             auto rwyIt = airport->second.runways.find(rwy);
             if (rwyIt != airport->second.runways.end())
             {
                 auto& cachedPos = this->lastHpCheckPos[callSign];
                 auto  curPos    = pos.GetPosition();
-                bool  moved     = (std::abs(curPos.m_Latitude  - cachedPos.m_Latitude)  > 0.0002 ||
+                bool  moved     = (std::abs(curPos.m_Latitude - cachedPos.m_Latitude) > 0.0002 ||
                                    std::abs(curPos.m_Longitude - cachedPos.m_Longitude) > 0.0002);
                 if (moved)
                 {
@@ -1034,6 +1106,7 @@ void CFlowX_Timers::UpdateTWROutbound()
             this->twrSameSID_flightPlans.erase(callSign);
             this->dep_liveSpacing.erase(callSign);
             this->dep_sequenceNumber.erase(callSign);
+            this->lastDepRunway.erase(callSign);
             this->lastHpCheckPos.erase(callSign);
             this->readyTakeoff_wasWaiting.erase(callSign);
             this->readyTakeoff_okTick.erase(callSign);
@@ -1056,6 +1129,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                     this->twrSameSID_flightPlans.erase(callSign);
                     this->dep_liveSpacing.erase(callSign);
                     this->dep_sequenceNumber.erase(callSign);
+                    this->lastDepRunway.erase(callSign);
                     this->lastHpCheckPos.erase(callSign);
                     this->readyTakeoff_wasWaiting.erase(callSign);
                     this->readyTakeoff_okTick.erase(callSign);
@@ -1088,6 +1162,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->twrSameSID_flightPlans.erase(callSign);
                 this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
+                this->lastDepRunway.erase(callSign);
                 this->lastHpCheckPos.erase(callSign);
                 this->readyTakeoff_wasWaiting.erase(callSign);
                 this->readyTakeoff_okTick.erase(callSign);
@@ -1118,8 +1193,10 @@ void CFlowX_Timers::UpdateTWRInbound()
             this->dep_queuePos.clear();
             this->gndTransfer_list.clear();
             this->gndTransfer_soundPlayed.clear();
-            if (this->radarScreen) this->radarScreen->gndTransferSquares.clear();
-            if (this->radarScreen) this->radarScreen->gndTransferSquareTimes.clear();
+            if (this->radarScreen)
+                this->radarScreen->gndTransferSquares.clear();
+            if (this->radarScreen)
+                this->radarScreen->gndTransferSquareTimes.clear();
         }
 
         return;
@@ -1151,24 +1228,21 @@ void CFlowX_Timers::UpdateTWRInbound()
             continue;
         }
 
-        auto        position     = pos.GetPosition();
-        auto        pressAlt     = pos.GetPressureAltitude();
-        auto        heading      = pos.GetReportedHeading();
-        bool        isVfrByMe    = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
+        auto position  = pos.GetPosition();
+        auto pressAlt  = pos.GetPressureAltitude();
+        auto heading   = pos.GetReportedHeading();
+        bool isVfrByMe = fp.IsValid() && fp.GetFlightPlanData().GetPlanType() == std::string("V") && fp.GetTrackingControllerIsMe();
 
         for (auto& [icao, ap] : this->airports)
         {
             for (auto& [rwyKey, rwy] : ap.runways)
             {
-                int depElevation = (rwy.thresholdElevationFt > 0) ? rwy.thresholdElevationFt : ap.fieldElevation;
-                std::string rwyCallsign = callSign + rwy.designator;
+                int         depElevation = (rwy.thresholdElevationFt > 0) ? rwy.thresholdElevationFt : ap.fieldElevation;
+                std::string rwyCallsign  = callSign + rwy.designator;
 
                 // ── (A) Runway occupancy ──
                 // Inline check: replaces the old airports×runways×targets triple-nested walk.
-                if (rwy.widthMeters > 0
-                    && pressAlt <= depElevation + 80
-                    && !this->ttt_runwayOccupied.contains(rwy.designator)
-                    && IsPositionOnRunway(rwy, ap.runways, position))
+                if (rwy.widthMeters > 0 && pressAlt <= depElevation + 80 && !this->ttt_runwayOccupied.contains(rwy.designator) && IsPositionOnRunway(rwy, ap.runways, position))
                 {
                     this->ttt_runwayOccupied.insert(rwy.designator);
                 }
@@ -1177,8 +1251,8 @@ void CFlowX_Timers::UpdateTWRInbound()
                 int arrRwyHdg = rwy.headingNumber;
 
                 // ── (B) Main inbound tracking ──
-                auto   inboundIt       = this->ttt_inbound.find(callSign);
-                bool   trackedThisRwy  = (inboundIt != this->ttt_inbound.end() && inboundIt->second.flightPlan.designator == rwy.designator);
+                auto inboundIt      = this->ttt_inbound.find(callSign);
+                bool trackedThisRwy = (inboundIt != this->ttt_inbound.end() && inboundIt->second.flightPlan.designator == rwy.designator);
 
                 if (arrRwyHdg == -1)
                 {
@@ -1219,25 +1293,21 @@ void CFlowX_Timers::UpdateTWRInbound()
                         if (!trackedThisRwy)
                         {
                             this->tttInbound.AddFpToTheList(fp);
-                            TTTInboundState& state      = this->ttt_inbound[callSign];
-                            state.flightPlan            = rwy;
-                            state.distanceToRunway      = distance;
-                            state.approachFixTracked    = false;
-                            state.approachPathIdx       = -1;
-                            state.approachSegIdx        = -1;
-                            state.goAroundTick          = 0;
+                            TTTInboundState& state   = this->ttt_inbound[callSign];
+                            state.flightPlan         = rwy;
+                            state.distanceToRunway   = distance;
+                            state.approachFixTracked = false;
+                            state.approachPathIdx    = -1;
+                            state.approachSegIdx     = -1;
+                            state.goAroundTick       = 0;
                             this->ttt_callSigns.insert(callSign);
-                            this->LogDebugMessage(callSign + " added to TTT (cone) rwy=" + rwy.designator
-                                + " dist=" + std::to_string(static_cast<int>(distance)) + "NM"
-                                + " alt=" + std::to_string(pressAlt) + "ft"
-                                + " hdgDiff=" + std::to_string(hdgDiff / 10) + "deg"
-                                + " dirDiff=" + std::to_string(static_cast<int>(dirDiff)) + "deg", "TTT");
+                            this->LogDebugMessage(callSign + " added to TTT (cone) rwy=" + rwy.designator + " dist=" + std::to_string(static_cast<int>(distance)) + "NM" + " alt=" + std::to_string(pressAlt) + "ft" + " hdgDiff=" + std::to_string(hdgDiff / 10) + "deg" + " dirDiff=" + std::to_string(static_cast<int>(dirDiff)) + "deg", "TTT");
                         }
                         else
                         {
-                            inboundIt->second.distanceToRunway   = distance;
-                            inboundIt->second.frozenTick         = 0;
-                            inboundIt->second.frozenTttStr       = {};
+                            inboundIt->second.distanceToRunway = distance;
+                            inboundIt->second.frozenTick       = 0;
+                            inboundIt->second.frozenTttStr     = {};
                             // Transition from approach-fix tracking to normal cone tracking
                             inboundIt->second.approachFixTracked = false;
                             inboundIt->second.approachPathIdx    = -1;
@@ -1251,9 +1321,9 @@ void CFlowX_Timers::UpdateTWRInbound()
                         if (isFixTracked)
                         {
                             // Aircraft is on a non-straight-in approach leg — keep in list and compute path distance
-                            TTTInboundState& state     = inboundIt->second;
-                            int              pathIdx   = state.approachPathIdx;
-                            int&             segIdx    = state.approachSegIdx;
+                            TTTInboundState& state   = inboundIt->second;
+                            int              pathIdx = state.approachPathIdx;
+                            int&             segIdx  = state.approachSegIdx;
 
                             if (pathIdx >= 0 && pathIdx < static_cast<int>(rwy.gpsApproachPaths.size()))
                             {
@@ -1271,7 +1341,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 }
 
                                 // Compute remaining path distance from current position
-                                int curNext = segIdx + 1;
+                                int    curNext  = segIdx + 1;
                                 double pathDist = 0.0;
 
                                 if (curNext < static_cast<int>(path.fixes.size()))
@@ -1281,21 +1351,23 @@ void CFlowX_Timers::UpdateTWRInbound()
                                     {
                                         // Remaining arc: r × angular distance from aircraft to end fix (in turn direction)
                                         double bearingToAC  = BearingBetween(nextFix.arcCenterLat, nextFix.arcCenterLon,
-                                                                              position.m_Latitude, position.m_Longitude);
+                                                                             position.m_Latitude, position.m_Longitude);
                                         double bearingToEnd = BearingBetween(nextFix.arcCenterLat, nextFix.arcCenterLon,
-                                                                              nextFix.lat, nextFix.lon);
+                                                                             nextFix.lat, nextFix.lon);
                                         double angDeg;
                                         if (nextFix.legType == "arcLeft")
                                         {
                                             // CCW: bearing decreases toward end
                                             angDeg = bearingToAC - bearingToEnd;
-                                            if (angDeg < 0.0) angDeg += 360.0;
+                                            if (angDeg < 0.0)
+                                                angDeg += 360.0;
                                         }
                                         else
                                         {
                                             // CW: bearing increases toward end
                                             angDeg = bearingToEnd - bearingToAC;
-                                            if (angDeg < 0.0) angDeg += 360.0;
+                                            if (angDeg < 0.0)
+                                                angDeg += 360.0;
                                         }
                                         pathDist = nextFix.arcRadiusNm * angDeg * std::numbers::pi / 180.0;
                                     }
@@ -1305,7 +1377,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                         EuroScopePlugIn::CPosition nextPos;
                                         nextPos.m_Latitude  = nextFix.lat;
                                         nextPos.m_Longitude = nextFix.lon;
-                                        pathDist = position.DistanceTo(nextPos);
+                                        pathDist            = position.DistanceTo(nextPos);
                                     }
 
                                     // Add full lengths of all subsequent segments
@@ -1335,15 +1407,19 @@ void CFlowX_Timers::UpdateTWRInbound()
 
                             // Safety valve: remove if impossibly far, too high, wrong heading/direction, or climbing
                             int prevAlt = rt.GetPreviousPosition(pos).GetPressureAltitude();
-                            if (distance > 35.0 || pressAlt > depElevation + 8000 || hdgDiff > 120
-                                || dirDiff > 60.0 || prevAlt < pressAlt - 200)
+                            if (distance > 35.0 || pressAlt > depElevation + 8000 || hdgDiff > 120 || dirDiff > 60.0 || prevAlt < pressAlt - 200)
                             {
                                 std::string why;
-                                if (distance > 35.0)             why += " dist>" + std::to_string(static_cast<int>(distance)) + "NM";
-                                if (pressAlt > depElevation + 8000) why += " alt>" + std::to_string(pressAlt) + "ft";
-                                if (hdgDiff > 120)               why += " hdg=" + std::to_string(hdgDiff) + "deg";
-                                if (dirDiff > 60.0)              why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg";
-                                if (prevAlt < pressAlt - 200)    why += " climbing(" + std::to_string(prevAlt) + "->" + std::to_string(pressAlt) + "ft)";
+                                if (distance > 35.0)
+                                    why += " dist>" + std::to_string(static_cast<int>(distance)) + "NM";
+                                if (pressAlt > depElevation + 8000)
+                                    why += " alt>" + std::to_string(pressAlt) + "ft";
+                                if (hdgDiff > 120)
+                                    why += " hdg=" + std::to_string(hdgDiff) + "deg";
+                                if (dirDiff > 60.0)
+                                    why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg";
+                                if (prevAlt < pressAlt - 200)
+                                    why += " climbing(" + std::to_string(prevAlt) + "->" + std::to_string(pressAlt) + "ft)";
                                 this->LogDebugMessage(callSign + " removed from TTT (RNP safety) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_clearedToLand.erase(callSign);
@@ -1352,13 +1428,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
                             }
                         }
-                        else if (!rwy.gpsApproachPaths.empty()
-                                 && !trackedThisRwy
-                                 && pressAlt > depElevation + 50
-                                 && pressAlt < depElevation + 8000
-                                 && hdgDiff <= 120
-                                 && dirDiff <= 45.0
-                                 && rt.GetPreviousPosition(pos).GetPressureAltitude() >= pressAlt)
+                        else if (!rwy.gpsApproachPaths.empty() && !trackedThisRwy && pressAlt > depElevation + 50 && pressAlt < depElevation + 8000 && hdgDiff <= 120 && dirDiff <= 45.0 && rt.GetPreviousPosition(pos).GetPressureAltitude() >= pressAlt)
                         {
                             // Approach-fix proximity detection for non-straight-in RNP approaches
                             bool added = false;
@@ -1368,32 +1438,32 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 for (int fi = 0; fi < static_cast<int>(path.fixes.size()) && !added; ++fi)
                                 {
                                     const auto& fix = path.fixes[fi];
-                                    if (fix.lat == 0.0 && fix.lon == 0.0) continue;
+                                    if (fix.lat == 0.0 && fix.lon == 0.0)
+                                        continue;
 
                                     EuroScopePlugIn::CPosition fixPos;
                                     fixPos.m_Latitude  = fix.lat;
                                     fixPos.m_Longitude = fix.lon;
-                                    double fixDist = position.DistanceTo(fixPos);
+                                    double fixDist     = position.DistanceTo(fixPos);
 
-                                    bool altOk = (fix.altMinFt == 0 || pressAlt >= fix.altMinFt)
-                                                 && (fix.altMaxFt == 0 || pressAlt <= fix.altMaxFt);
+                                    bool altOk = (fix.altMinFt == 0 || pressAlt >= fix.altMinFt) && (fix.altMaxFt == 0 || pressAlt <= fix.altMaxFt);
 
                                     bool iafHdgOk = true;
                                     if (fix.iafHeading != 0)
                                     {
                                         int iafHdgDiff = std::abs(heading - fix.iafHeading * 10);
-                                        if (iafHdgDiff > 1800) iafHdgDiff = 3600 - iafHdgDiff;
+                                        if (iafHdgDiff > 1800)
+                                            iafHdgDiff = 3600 - iafHdgDiff;
                                         iafHdgOk = iafHdgDiff <= 300;
                                     }
 
                                     if (fix.detectionRadiusNm > 0.0 && fixDist < fix.detectionRadiusNm && altOk && iafHdgOk)
                                     {
                                         std::string trackingControllerId = fp.GetTrackingControllerId();
-                                        if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty())
-                                            && !this->standAssignment.contains(callSign))
+                                        if ((fp.GetTrackingControllerIsMe() || trackingControllerId.empty()) && !this->standAssignment.contains(callSign))
                                         {
                                             this->radarScreen->StartTagFunction(callSign.c_str(), "GRplugin", 0,
-                                                "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
+                                                                                "   Auto   ", GROUNDRADAR_PLUGIN_NAME, 2, POINT(), RECT());
                                         }
 
                                         this->tttInbound.AddFpToTheList(fp);
@@ -1405,10 +1475,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                         ns.approachPathIdx    = pi;
                                         ns.approachSegIdx     = fi;
                                         this->ttt_callSigns.insert(callSign);
-                                        this->LogDebugMessage(callSign + " added to TTT (RNP) rwy=" + rwy.designator
-                                            + " approach=" + path.name + " fix=" + fix.name
-                                            + " fixDist=" + std::to_string(fixDist).substr(0, 4) + "NM"
-                                            + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
+                                        this->LogDebugMessage(callSign + " added to TTT (RNP) rwy=" + rwy.designator + " approach=" + path.name + " fix=" + fix.name + " fixDist=" + std::to_string(fixDist).substr(0, 4) + "NM" + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
                                         added = true;
                                     }
                                 }
@@ -1438,11 +1505,16 @@ void CFlowX_Timers::UpdateTWRInbound()
                                 {
                                     // First time leaving cone — decide: landing path or freeze
                                     std::string why;
-                                    if (pressAlt <= depElevation + 50)    why += " alt_low=" + std::to_string(pressAlt) + "ft";
-                                    if (pressAlt >= altProfile)           why += " alt_profile=" + std::to_string(pressAlt) + "ft(lim" + std::to_string(static_cast<int>(altProfile)) + ")";
-                                    if (hdgDiff > 45)                     why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
-                                    if (distance >= 25.0)                 why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
-                                    if (dirDiff > dirLimit)               why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(dirLimit)) + ")";
+                                    if (pressAlt <= depElevation + 50)
+                                        why += " alt_low=" + std::to_string(pressAlt) + "ft";
+                                    if (pressAlt >= altProfile)
+                                        why += " alt_profile=" + std::to_string(pressAlt) + "ft(lim" + std::to_string(static_cast<int>(altProfile)) + ")";
+                                    if (hdgDiff > 45)
+                                        why += " hdg=" + std::to_string(hdgDiff) + "deg(lim45)";
+                                    if (distance >= 25.0)
+                                        why += " dist=" + std::to_string(static_cast<int>(distance)) + "NM(lim25)";
+                                    if (dirDiff > dirLimit)
+                                        why += " dir=" + std::to_string(static_cast<int>(dirDiff)) + "deg(lim" + std::to_string(static_cast<int>(dirLimit)) + ")";
 
                                     bool isLanding = pressAlt < depElevation + 125 && hdgDiff < 120;
                                     if (isLanding)
@@ -1469,7 +1541,7 @@ void CFlowX_Timers::UpdateTWRInbound()
                                         {
                                             st.frozenTttStr = "--:--";
                                         }
-                                        st.frozenTick = GetTickCount64();
+                                        st.frozenTick                          = GetTickCount64();
                                         this->ttt_recentlyRemoved[rwyCallsign] = GetTickCount64();
                                         this->LogDebugMessage(callSign + " frozen in TTT (cone left)" + why + " rwy=" + rwy.designator, "TTT");
                                     }
@@ -1499,23 +1571,24 @@ void CFlowX_Timers::UpdateTWRInbound()
                             // tagDropped/handoffInitiated are only meaningful if I was tracking when the go-around was detected.
                             // If I re-assume tracking after detection (e.g. approach handed back), treat that as confirmation:
                             // suppress the 60-s timeout and re-enable the tag-drop / handoff-initiated guards.
-                            TTTInboundState& gaState           = inboundIt->second;
+                            TTTInboundState& gaState = inboundIt->second;
                             if (!gaState.wasTrackedByMe && fp.GetTrackingControllerIsMe())
                             {
                                 gaState.wasTrackedByMe    = true;
                                 gaState.goAroundConfirmed = true;
                             }
-                            bool unconfirmedTimeout            = !gaState.goAroundConfirmed
-                                                                 && (GetTickCount64() - gaState.goAroundTick) / 1000 > 60;
-                            bool tagDropped                    = gaState.wasTrackedByMe && !fp.GetTrackingControllerIsMe();
-                            bool handoffInitiated              = gaState.wasTrackedByMe
-                                                                 && fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
+                            bool unconfirmedTimeout = !gaState.goAroundConfirmed && (GetTickCount64() - gaState.goAroundTick) / 1000 > 60;
+                            bool tagDropped         = gaState.wasTrackedByMe && !fp.GetTrackingControllerIsMe();
+                            bool handoffInitiated   = gaState.wasTrackedByMe && fp.GetState() == EuroScopePlugIn::FLIGHT_PLAN_STATE_TRANSFER_FROM_ME_INITIATED;
                             if (unconfirmedTimeout || tagDropped || handoffInitiated)
                             {
                                 std::string why;
-                                if (unconfirmedTimeout)  why += " unconfirmed_timeout";
-                                if (tagDropped)          why += " tag_dropped";
-                                if (handoffInitiated)    why += " handoff_initiated";
+                                if (unconfirmedTimeout)
+                                    why += " unconfirmed_timeout";
+                                if (tagDropped)
+                                    why += " tag_dropped";
+                                if (handoffInitiated)
+                                    why += " handoff_initiated";
                                 this->LogDebugMessage(callSign + " removed from TTT (go-around cleared) rwy=" + rwy.designator + why, "TTT");
                                 this->tttInbound.RemoveFpFromTheList(fp);
                                 this->ttt_inbound.erase(callSign);
@@ -1534,19 +1607,17 @@ void CFlowX_Timers::UpdateTWRInbound()
                             // threshold is not — it was just an indirect proxy.
                             int  prevAlt        = rt.GetPreviousPosition(pos).GetPressureAltitude();
                             bool climbing       = prevAlt < pressAlt - 50;
-                            bool detectGoAround = climbing
-                                                  && distance < 15.0
-                                                  && pressAlt < depElevation + 3000;
+                            bool detectGoAround = climbing && distance < 15.0 && pressAlt < depElevation + 3000;
                             if (detectGoAround && pressAlt > depElevation + 100)
                             {
                                 this->ttt_clearedToLand.erase(callSign);
                                 this->gndTransfer_list.erase(callSign);
                                 this->gndTransfer_soundPlayed.erase(callSign);
-                                if (this->radarScreen) this->radarScreen->gndTransferSquares.erase(callSign);
-                                if (this->radarScreen) this->radarScreen->gndTransferSquareTimes.erase(callSign);
-                                this->LogDebugMessage(callSign + " added to TTT (go-around) rwy=" + rwy.designator
-                                    + " dist=" + std::to_string(static_cast<int>(distance)) + "NM"
-                                    + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
+                                if (this->radarScreen)
+                                    this->radarScreen->gndTransferSquares.erase(callSign);
+                                if (this->radarScreen)
+                                    this->radarScreen->gndTransferSquareTimes.erase(callSign);
+                                this->LogDebugMessage(callSign + " added to TTT (go-around) rwy=" + rwy.designator + " dist=" + std::to_string(static_cast<int>(distance)) + "NM" + " alt=" + std::to_string(pressAlt) + "ft", "TTT");
                                 bool             wasTracked = trackedThisRwy; // frozen entries are already in ttt_inbound
                                 TTTInboundState& ga         = this->ttt_inbound[callSign];
                                 ga.flightPlan               = rwy;
@@ -1594,22 +1665,25 @@ void CFlowX_Timers::AckNapReminder()
 /// @brief Syncs on-screen window positions into the settings layer and persists them.
 void CFlowX_Timers::SaveWindowPositions()
 {
-    if (this->radarScreen == nullptr) { return; }
+    if (this->radarScreen == nullptr)
+    {
+        return;
+    }
 
     this->approachEstWindowX = this->radarScreen->approachEstWindowPos.x;
     this->approachEstWindowY = this->radarScreen->approachEstWindowPos.y;
     this->approachEstWindowW = this->radarScreen->approachEstWindowW;
     this->approachEstWindowH = this->radarScreen->approachEstWindowH;
-    this->depRateWindowX    = this->radarScreen->depRateWindowPos.x;
-    this->depRateWindowY    = this->radarScreen->depRateWindowPos.y;
+    this->depRateWindowX     = this->radarScreen->depRateWindowPos.x;
+    this->depRateWindowY     = this->radarScreen->depRateWindowPos.y;
     this->twrOutboundWindowX = this->radarScreen->twrOutboundWindowPos.x;
     this->twrOutboundWindowY = this->radarScreen->twrOutboundWindowPos.y;
     this->twrInboundWindowX  = this->radarScreen->twrInboundWindowPos.x;
     this->twrInboundWindowY  = this->radarScreen->twrInboundWindowPos.y;
-    this->napWindowX        = this->radarScreen->napWindowPos.x;
-    this->napWindowY        = this->radarScreen->napWindowPos.y;
-    this->weatherWindowX    = this->radarScreen->weatherWindowPos.x;
-    this->weatherWindowY    = this->radarScreen->weatherWindowPos.y;
+    this->napWindowX         = this->radarScreen->napWindowPos.x;
+    this->napWindowY         = this->radarScreen->napWindowPos.y;
+    this->weatherWindowX     = this->radarScreen->weatherWindowPos.x;
+    this->weatherWindowY     = this->radarScreen->weatherWindowPos.y;
 
     this->SaveSettings();
 }
@@ -1621,4 +1695,10 @@ void CFlowX_Timers::AckWeather(const std::string& icao)
     this->qnhUnacked.erase(icao);
     this->atisUnacked.erase(icao);
     this->rvrUnacked.erase(icao);
+}
+
+void CFlowX_Timers::ClearGndTransfer(const std::string& callsign)
+{
+    this->gndTransfer_list.erase(callsign);
+    this->gndTransfer_soundPlayed.erase(callsign);
 }

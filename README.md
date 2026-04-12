@@ -17,6 +17,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 - [Chat Commands](#chat-commands)
 - [Start Menu](#start-menu)
 - [config.json Reference](#configjson-reference)
+- [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -32,7 +33,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 ### Installation
 
 1. Download the latest `FlowX.zip` from the [Releases](https://github.com/sushiat/FlowX/releases/latest) page.
-2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, and `click.wav` into your plugin directory.
+2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, `click.wav`, `noRoute.wav`, and `taxiConflict.wav` into your plugin directory.
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `FlowX.dll`.
 4. Successful load is confirmed in the **Messages** chat:
    ```
@@ -46,6 +47,8 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 > - `readyTakeoff.wav` — plays when a lined-up aircraft has been clear for takeoff for 5 seconds (departure separation resolved).
 > - `gndtransfer.wav` — plays when a landed inbound transitions to GND frequency.
 > - `click.wav` — plays on start-menu clicks.
+> - `noRoute.wav` — plays when the taxi router cannot find a valid route to the assigned holding point.
+> - `taxiConflict.wav` — plays when a taxi conflict is detected between two aircraft with active routes.
 
 > **`settings.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores all plugin preferences, the screen positions of all custom windows, and the last NAP reminder dismissal date. Delete it to reset everything to defaults.
 
@@ -210,6 +213,8 @@ Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
 | Auto Parked | On | Automatically sets arriving aircraft to PARK when they stop at their assigned stand |
 | Appr Est Colors | Off | Uses inbound-list colours in the Approach Estimate window instead of always-green |
 | Auto-Clear Scratch | Off | Automatically clears the scratchpad when this controller clicks LINEUP or DEPA, unless the content starts with a prefix in `scratchpadClearExclusions` |
+| HP auto-scratch | On | When a GND controller sets a scratchpad entry beginning with `.`, automatically assigns the matching holding point and confirms it via scratchpad |
+| Show TAXI routes | Off | Show all active taxi routes and push zone reservations on the radar screen (individual routes are always shown on hover regardless of this setting) |
 | Fonts | — | Increase / decrease font size offset for all custom windows |
 | BG opacity | 100% | Increase / decrease background opacity of all custom windows (20–100%) |
 
@@ -273,6 +278,106 @@ Named polygons that identify taxi-out aprons. Aircraft inside these polygons rec
 }
 ```
 
+### `taxiOnlyZones`
+
+Named polygons that always force taxi planning mode, regardless of stand assignment or clearance state. Use for remote aprons or cargo areas that never require a push-back tug.
+
+Same polygon format as `taxiOutStands`.
+
+```json
+"taxiOnlyZones": {
+    "GAC": {
+        "lat": [48.124791, 48.126092, 48.129959, 48.128719],
+        "lon": [16.537689, 16.533779, 16.536438, 16.540431]
+    }
+}
+```
+
+### Taxi intersection classification
+
+All `aeroway=taxiway` and `aeroway=taxilane` ways from OSM are included in the taxi graph automatically. The `taxiIntersections` array reclassifies specific ways as intersection type, which affects routing penalties and graph behaviour. Entries ending with `*` are treated as prefix patterns.
+
+| Field | Type | Description |
+|---|---|---|
+| `taxiIntersections` | array of strings | Intersection/exit refs or prefix patterns to reclassify (e.g. `"Exit *"`, `"Exit 12"`) |
+
+```json
+"taxiIntersections": ["Exit *"]
+```
+
+### `taxiWingspanMax`
+
+Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft **wider** than the limit are hard-blocked — the router never uses that element for them.
+
+```json
+"taxiWingspanMax": {
+    "P":  36.0,
+    "TL 40 \"Blue Line\"": 36.0
+}
+```
+
+### `taxiWingspanAvoid`
+
+Maps taxiway or taxilane refs to a maximum wingspan in metres. Aircraft **at or below** the limit receive a soft cost penalty on that ref, steering the router toward a parallel narrower lane when one is available. Unlike `taxiWingspanMax` this is not a hard block — the router can still use the ref if no alternative exists (e.g. an initial shared segment).
+
+The penalty multiplier is set via `taxiNetworkConfig.edgeCosts.multWingspanAvoid` (default `3.0`).
+
+```json
+"taxiWingspanAvoid": {
+    "TL 40": 36.0
+}
+```
+
+This example steers aircraft with wingspan ≤ 36 m away from the centre TL40 lane toward `TL 40 "Blue Line"` / `TL 40 "Orange Line"`. Wide-body aircraft (> 36 m) are already hard-excluded from Blue/Orange Line by `taxiWingspanMax` and continue to use the centre lane normally.
+
+### `taxiLaneSwingoverPairs`
+
+Pairs of taxilane refs that are physically the same strip painted with two direction-of-travel markings. The taxi router treats them as freely interchangeable — an aircraft assigned to either lane may use the other without penalty.
+
+```json
+"taxiLaneSwingoverPairs": [
+    ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]
+]
+```
+
+### `taxiFlowGeneric`
+
+Taxiway direction rules that are always active, regardless of which runways are in use. Each rule specifies a preferred direction of travel on a named taxiway. The router applies a cost penalty to edges that go against the grain.
+
+```json
+"taxiFlowGeneric": [
+    { "taxiway": "P", "direction": "N" },
+    { "taxiway": "Q", "direction": "S" }
+]
+```
+
+### `taxiFlowConfigs`
+
+Per-runway-configuration taxiway direction rules. The map key identifies the active runway configuration as `"<dep>_<arr>"`, where multiple runways on one side are joined with `/`. Rules in the matching entry are applied on top of `taxiFlowGeneric`.
+
+Key examples:
+
+| Config | Key |
+|---|---|
+| DEP 29, ARR 29 | `"29_29"` |
+| DEP 16, ARR 11 | `"16_11"` |
+| DEP 29 + 16, ARR 16 (split dep) | `"29/16_16"` |
+| DEP 16, ARR 11 + 16 (sim landings) | `"16_11/16"` |
+
+```json
+"taxiFlowConfigs": {
+    "29_29": [
+        { "taxiway": "M", "direction": "E" },
+        { "taxiway": "L", "direction": "W" },
+        { "taxiway": "W", "direction": "S" }
+    ],
+    "16_11": [],
+    "29/16_16": []
+}
+```
+
+Entries with an empty array are valid and simply apply no additional rules beyond `taxiFlowGeneric`. Configurations not present in the map inherit only `taxiFlowGeneric`.
+
 ### `napReminder`
 
 Configures a once-per-session modal alert at a specific local time (e.g. to remind controllers of the start of noise abatement procedures).
@@ -328,7 +433,99 @@ For example, a filed SID of `IRGO2A` is displayed as `IRGOT2A*`.
 A list of scratchpad prefixes that are exempt from the **Auto-Clear Scratch** feature. Comparison is case-insensitive. If the aircraft's scratchpad starts with any listed prefix the auto-clear is skipped.
 
 ```json
-"scratchpadClearExclusions": [".cs", ".did", ".obacht"]
+"scratchpadClearExclusions": [".cs", ".new"]
+```
+
+### `standRoutingTargets`
+
+Maps stand names to the label of an OSM holding position node. When an inbound aircraft is assigned one of these stands, the taxi router terminates at that holding position instead of routing to the centre of the stand polygon. Use this for uncontrolled aprons where the tower hands off to a marshaller at a defined point.
+
+The label must match the `ref` tag of the OSM `aeroway=holding_position` node exactly.
+
+```json
+"standRoutingTargets": {
+    "GAC": "P1"
+}
+```
+
+If the label is not found in the OSM graph data, routing falls back to the stand centroid.
+
+### `taxiNetworkConfig`
+
+Optional fine-tuning of the taxi graph builder, A\* router, interactive snapping, and safety monitor. Every sub-section and every field is optional — omitting any of them leaves the corresponding parameter at its default. All defaults match the values previously hardcoded in the plugin, so existing airports need no changes to `config.json`.
+
+#### `graph` — graph construction
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `subdivisionIntervalM` | number | `15.0` | Long OSM way segments are subdivided into waypoint nodes at this interval (metres). |
+| `osmHoldingPositionSnapM` | number | `25.0` | Maximum radius (m) to snap an OSM stop-bar node onto the nearest taxiway waypoint and promote it to a HoldingPosition node. |
+| `configHoldingPointSnapM` | number | `40.0` | Maximum radius (m) to snap a config holding-point polygon centroid onto the nearest taxiway waypoint. Larger than the OSM value because centroids may sit a few metres back from the taxiway edge. |
+
+#### `edgeCosts` — base type multipliers
+
+Applied at graph-build time to all edges of the corresponding aeroway type. Higher values make the router prefer other paths.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `multIntersection` | number | `1.1` | Slight penalty for taxiway-intersection edges. |
+| `multTaxilane` | number | `3.0` | Stand-access taxilane edges are strongly discouraged vs main taxiways. |
+| `multRunway` | number | `20.0` | Runway edges are only traversed to vacate the runway; never preferred for taxi. |
+| `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding point / holding position node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
+| `multWingspanAvoid` | number | `3.0` | Cost multiplier applied to `taxiWingspanAvoid` refs when the aircraft wingspan fits the avoid threshold. Higher values produce a stronger preference for the parallel narrower lane. |
+
+#### `flowRules` — direction enforcement
+
+Controls how heavily active taxiway flow rules penalise against-flow routing.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `withFlowMaxDeg` | number | `45.0` | Bearing difference (°) at or below which an edge is considered to follow the active flow rule. |
+| `withFlowMult` | number | `0.9` | Cost multiplier applied to edges that follow the active flow direction (< 1.0 gives a slight preference over uncontrolled taxiways). |
+| `againstFlowMinDeg` | number | `135.0` | Bearing difference (°) at or above which an edge is considered against the flow rule. |
+| `againstFlowMult` | number | `3.0` | Additional cost multiplier applied to edges that go against an active flow rule. |
+
+#### `routing` — A\* search
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `hardTurnDeg` | number | `50.0` | Bearing change (°) above which an edge is hard-blocked during A\* within the same taxiway or between two non-intersection taxiways (prevents kinks and forces use of smooth intersection curves). |
+| `wayrefChangePenalty` | number | `200.0` | Cost added when the route transitions from one named taxiway to another. |
+| `forwardSnapM` | number | `120.0` | Radius (m) used to collect up to 3 forward start-node candidates for A\*. |
+| `backwardSnapM` | number | `300.0` | Radius (m) used to collect up to 2 backward start-node candidates for A\*. |
+| `heuristicWeight` | number | `1.0` | Weight applied to the A\* heuristic. Values above 1.0 are more goal-directed but may expand nodes sub-optimally; 1.0 is correct for small graphs. |
+| `maxNodeExpansions` | integer | `5000` | Maximum number of nodes A\* expands before giving up. Higher values find better routes at greater CPU cost. |
+
+#### `snapping` — interactive planning
+
+Snap radii when the controller clicks to set a waypoint. Higher-priority types are checked first; the first match within the radius wins.
+
+| Field | Type | Default | Priority | Description |
+|---|---|---|---|---|
+| `holdingPointM` | number | `30.0` | 1 (highest) | Snap to holding-point / holding-position nodes. |
+| `intersectionM` | number | `15.0` | 2 | Snap to intersection waypoint nodes (labelled "Exit …"). |
+| `suggestedRouteM` | number | `20.0` | 3 | Snap to the suggested route polyline. |
+| `waypointM` | number | `40.0` | 4 (lowest) | Snap to any graph waypoint node. |
+
+#### `safety` — taxi safety monitoring
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `deviationThreshM` | number | `40.0` | Distance (m) an aircraft may deviate from its assigned route before a deviation warning is raised. |
+| `minSpeedKt` | number | `3.0` | Minimum ground speed (kt) required before safety checks are evaluated. |
+| `maxPredictS` | number | `60.0` | Maximum prediction horizon (s) used when building conflict-detection paths. |
+| `conflictDeltaS` | number | `30.0` | Two aircraft at the same intersection are flagged as conflicting if their estimated arrival times differ by less than this value (s). |
+| `sameDirDeg` | number | `45.0` | Bearing difference (°) below which two converging paths are considered same-direction and excluded from conflict alerts. |
+
+```json
+"taxiNetworkConfig": {
+    "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0, "configHoldingPointSnapM": 40.0 },
+    "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0, "multWingspanAvoid": 3.0 },
+    "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
+    "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
+    "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
+    "safety":    { "deviationThreshM": 40.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
+}
 ```
 
 ### `runways`
@@ -421,6 +618,58 @@ Vacate points define recommended runway exit points for arriving aircraft based 
 
 ---
 
+## Testing
+
+FlowX includes a companion **FlowXTests** project — a standalone Win32 console executable that runs unit tests against the core plugin logic without requiring a live EuroScope installation.
+
+### Test framework
+
+[doctest](https://github.com/doctest/doctest) v2.5.1 (single-header, bundled at `include/doctest/doctest.h`).
+
+### Building
+
+Open `FlowX.sln` in Visual Studio 2022 and build the **FlowXTests** project (`Debug|Win32` or `Release|Win32`). The output is `Debug\FlowXTests.exe` or `Release\FlowXTests.exe` in the solution root.
+
+A post-build event copies the required fixture files into the output directory automatically:
+
+| Fixture | Destination | Purpose |
+|---|---|---|
+| `config.json` (solution root) | `$(OutDir)` | Real LOWW airport configuration |
+| `FlowXTests/fixtures/settings.json` | `$(OutDir)` | Test settings with `updateCheck: false` |
+| `FlowXTests/fixtures/osm_taxiways_LOWW.json` | `$(OutDir)` | Snapshot of the OSM taxiway cache |
+| `FlowXTests/fixtures/Groundradar/ICAO_Aircraft.json` | `$(SolutionDir)Groundradar\` | Aircraft wingspan data |
+| `FlowXTests/fixtures/Groundradar/GRpluginStands.txt` | `$(SolutionDir)Groundradar\` | Stand polygon data |
+
+### Running
+
+```
+Release\FlowXTests.exe
+```
+
+A non-zero exit code means one or more tests failed. Pass `--help` for doctest options (e.g. `--tc=*OSM*` to filter by name).
+
+### What is tested
+
+| File | Real source compiled | Coverage |
+|---|---|---|
+| `test_geometry.cpp` | `taxi_graph.h` | Haversine distance, bearing, bearing-diff, point-to-segment distance, segment intersection |
+| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan hard-exclusion and soft-avoidance |
+| `test_osm.cpp` | `osm_taxiways.cpp` | OSM JSON parsing (taxiways, taxilanes, runways, holding positions, stands) |
+| `test_lookups.cpp` | `CFlowX_LookupsTools.cpp` | Point-in-polygon, colour parsing, holding-point annotation encoding, weight category ranking |
+| `test_helpers.cpp` | *(helpers are inline/header-only)* | String split/join, trim, upper-case, frequency annotation formatting |
+| `test_tags.cpp` | `CFlowX_Tags.cpp` | Tag text and colour generation (Push+Start helper, Same-SID, ADES, QNH marker) using EuroScope stubs |
+| `test_settings.cpp` | `CFlowX_Settings.cpp` | `LoadSettings`, `LoadConfig`, `LoadAircraftData`, `LoadGroundRadarStands` against real fixture files; OSM cache load and TaxiGraph build from the LOWW snapshot |
+
+### EuroScope stub
+
+`FlowXTests/stubs/EuroScope/EuroScopePlugIn.h` shadows the real SDK header via include-path ordering. It provides the same types and method signatures as the production header, implemented as plain data-holder structs with no DLL linkage. Tests set member variables directly to simulate flight-plan and radar-target state.
+
+### OSM cache snapshot
+
+`FlowXTests/fixtures/osm_taxiways_LOWW.json` is a point-in-time snapshot of the LOWW taxiway data (232 ways, 47 holding positions). It is used to verify that the cache loader and TaxiGraph builder work end-to-end without a network connection. If the OSM data changes significantly and you regenerate the cache from EuroScope, copy the new `osm_taxiways_LOWW.json` from the plugin directory into `FlowXTests/fixtures/` and update the way/holding-position count assertions in `test_settings.cpp`.
+
+---
+
 ## Contributing
 
 If you have a suggestion or encountered a bug, please open an [issue](https://github.com/sushiat/FlowX/issues) on GitHub. Include a description of the problem, relevant logs, and steps to reproduce.
@@ -429,8 +678,9 @@ If you have a suggestion or encountered a bug, please open an [issue](https://gi
 
 ### Development setup
 
-- **Visual Studio 2022** (no other build system is supported)
-- Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration
+Primary development is done in **VS Code** with the Microsoft C/C++ extension and CMake Tools; **Visual Studio 2022** is also fully supported and remains the reference build environment.
+
+- Set the environment variable `EUROSCOPE_ROOT` to the EuroScope install directory (not the executable itself) to enable the debugger launch configuration in VS2022
 - Avoid breakpoints during live controlling — use `.flowx debug` instead
 - Target: 32-bit or 64-bit DLL (`Release|Win32` or `Release|x64`), C++23, Windows SDK 11.0
 

@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build Release Win32
+        run: msbuild FlowX.sln /p:Configuration=Release /p:Platform=x86 /m /v:minimal
+
+      - name: Run tests
+        run: pwsh -File Run-Tests.ps1 -Exe Release\FlowXTests.exe
