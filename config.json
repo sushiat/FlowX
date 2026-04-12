@@ -87,7 +87,10 @@
             "TL 40": 36
         },
         "standRoutingTargets": {
-            "GAC": "P1"
+            "GAC": { "type": "hp", "target": "P1" },
+            "G16": { "type": "stand", "target": "F16" },
+            "G26": { "type": "stand", "target": "F26" },
+            "G36": { "type": "stand", "target": "F36" }
         },
         "taxiLaneSwingoverPairs": [
             ["TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""]

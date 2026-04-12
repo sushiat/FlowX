@@ -70,6 +70,18 @@ struct grStand
     std::optional<int>      heading; ///< Nose-in heading in degrees true, if specified in GRpluginStands.txt
 };
 
+/// @brief Routing override for an inbound stand — redirects to a holding point or another stand.
+struct standRoutingTarget
+{
+    enum class Type
+    {
+        hp,   ///< Target is a holding-point label (resolved via HoldingPositionByLabel).
+        stand ///< Target is another stand name (resolved via StandApproachPoint).
+    };
+    Type        type   = Type::hp; ///< Whether the target is a holding point or a stand.
+    std::string target = {};       ///< Holding-point label or stand name.
+};
+
 /// @brief Suggested runway vacate point with a minimum gap requirement and associated stands.
 struct vacatePoint
 {
@@ -219,7 +231,7 @@ struct airport
     std::vector<std::string>                         taxiWays                  = {}; ///< Main taxiway refs (e.g. "A1", "B5") shown in the OSM taxi overlay; ways not listed here are excluded
     std::vector<std::string>                         scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
     std::vector<TaxiFlowRule>                        taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
-    std::map<std::string, std::string>               standRoutingTargets       = {}; ///< Stand name → holding point/position label; overrides centroid routing for inbounds (e.g. uncontrolled aprons handed off to a marshaller).
+    std::map<std::string, standRoutingTarget>        standRoutingTargets       = {}; ///< Stand name → routing override; redirects inbound routing to a holding point or co-located stand (e.g. G16 → F16).
     std::map<std::string, std::vector<TaxiFlowRule>> taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
     std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0); aircraft wider than the limit are hard-blocked.
     std::map<std::string, double>                    taxiWingspanAvoid         = {}; ///< Taxiway/taxilane ref -> max wingspan (m); aircraft at or below this size receive a soft routing penalty on this ref (prefer a parallel, narrower lane instead).

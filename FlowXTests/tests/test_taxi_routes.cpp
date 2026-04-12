@@ -83,9 +83,19 @@ static GeoPoint ResolvePosition(const std::string&                    label,
             auto ovIt = ap.standRoutingTargets.find(standName);
             if (ovIt != ap.standRoutingTargets.end())
             {
-                GeoPoint hp = graph.HoldingPositionByLabel(ovIt->second);
-                if (hp.lat != 0.0 || hp.lon != 0.0)
-                    return hp;
+                const auto& srt = ovIt->second;
+                if (srt.type == standRoutingTarget::Type::stand)
+                {
+                    GeoPoint pt = TaxiGraph::StandApproachPoint(icao + ":" + srt.target, grStands);
+                    if (pt.lat != 0.0 || pt.lon != 0.0)
+                        return pt;
+                }
+                else
+                {
+                    GeoPoint hp = graph.HoldingPositionByLabel(srt.target);
+                    if (hp.lat != 0.0 || hp.lon != 0.0)
+                        return hp;
+                }
             }
             GeoPoint pt = TaxiGraph::StandApproachPoint(icao + ":" + standName, grStands);
             if (pt.lat != 0.0 || pt.lon != 0.0)
@@ -169,6 +179,26 @@ TEST_CASE("TaxiRoute - real world taxi tests")
         GeoPoint from = ResolvePosition(fromLabel, acc.osmGraph, acc.grStands, acc.airports);
         GeoPoint to   = ResolvePosition(toLabel, acc.osmGraph, acc.grStands, acc.airports);
 
+        // Derive goal-bearing constraint for stand destinations.
+        // If the stand has a routing override to another stand, use that stand's heading.
+        double goalBrng = -1.0;
+        if (toLabel.starts_with("STAND:"))
+        {
+            std::string standName = toLabel.substr(6);
+            for (const auto& [icao, ap] : acc.airports)
+            {
+                auto ovIt = ap.standRoutingTargets.find(standName);
+                if (ovIt != ap.standRoutingTargets.end() && ovIt->second.type == standRoutingTarget::Type::stand)
+                    standName = ovIt->second.target;
+                auto stIt = acc.grStands.find(icao + ":" + standName);
+                if (stIt != acc.grStands.end() && stIt->second.heading.has_value())
+                {
+                    goalBrng = std::fmod(stIt->second.heading.value() + 180.0, 360.0);
+                    break;
+                }
+            }
+        }
+
         ++cases;
         bool               caseOk = true;
         std::ostringstream buf;
@@ -228,9 +258,9 @@ TEST_CASE("TaxiRoute - real world taxi tests")
 
         TaxiRoute tail = (waypoints.empty() && !hasSwingover)
                              ? acc.osmGraph.FindRoute(from, to, wingspan, depRwys, arrRwys,
-                                                      heading, {}, {}, false, {}, false, forwardOnly)
+                                                      heading, {}, {}, false, {}, false, forwardOnly, goalBrng)
                              : acc.osmGraph.FindWaypointRoute(routeFrom, waypoints, to, wingspan, depRwys, arrRwys,
-                                                              routeBearing, {}, false, {}, false, forwardOnly);
+                                                              routeBearing, {}, false, {}, false, forwardOnly, goalBrng);
 
         // For swingover cases, replicate the combined route that RadarScreen builds:
         // fixed crossing segment (from → swingoverOrigin) + tail (swingoverOrigin → to).

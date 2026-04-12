@@ -1016,8 +1016,24 @@ void CFlowX_Settings::LoadConfig()
 
         if (json_airport.contains("standRoutingTargets"))
         {
-            for (auto& [standName, hpLabel] : json_airport.at("standRoutingTargets").items())
-                ap.standRoutingTargets.emplace(standName, hpLabel.get<std::string>());
+            for (auto& [standName, val] : json_airport.at("standRoutingTargets").items())
+            {
+                standRoutingTarget srt;
+                if (val.is_object())
+                {
+                    const std::string t = val.value("type", "hp");
+                    srt.type            = (t == "stand") ? standRoutingTarget::Type::stand
+                                                         : standRoutingTarget::Type::hp;
+                    srt.target          = val.at("target").get<std::string>();
+                }
+                else
+                {
+                    // Legacy plain-string format: treat as holding-point label.
+                    srt.type   = standRoutingTarget::Type::hp;
+                    srt.target = val.get<std::string>();
+                }
+                ap.standRoutingTargets.emplace(standName, srt);
+            }
         }
 
         json json_nap_reminder;

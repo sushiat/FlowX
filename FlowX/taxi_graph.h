@@ -208,6 +208,9 @@ class TaxiGraph
     ///                          Together dep+arr form the taxiFlowConfigs key applied during A*.
     /// @param initialBearingDeg Aircraft heading for forward-node selection; -1 = unknown.
     /// @param blockedNodes      Node IDs that A* may not expand through (e.g. active push routes).
+    /// @param goalBearingDeg    Bearing constraint for goal-node snapping (e.g. stand approach
+    ///                          bearing); only nodes within ±20° of this bearing are considered.
+    ///                          -1 = unconstrained (all directions).
     /// @return Populated TaxiRoute on success; TaxiRoute{valid=false} if no path found.
     [[nodiscard]] TaxiRoute FindRoute(const GeoPoint&              from,
                                       const GeoPoint&              to,
@@ -220,7 +223,8 @@ class TaxiGraph
                                       bool                         ignoreAllPenalties  = false,
                                       const std::set<int>&         preferredNodes      = {},
                                       bool                         emitDebugTrace      = false,
-                                      bool                         forwardOnly         = false) const;
+                                      bool                         forwardOnly         = false,
+                                      double                       goalBearingDeg      = -1.0) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
     /// @param origin            Route start.
@@ -242,7 +246,8 @@ class TaxiGraph
                                               bool                         ignoreAllPenalties = false,
                                               const std::set<int>&         preferredNodes     = {},
                                               bool                         emitDebugTrace     = false,
-                                              bool                         forwardOnly        = false) const;
+                                              bool                         forwardOnly        = false,
+                                              double                       goalBearingDeg     = -1.0) const;
 
     /// @brief Returns the merged set of flow rules for the given active runway configuration.
     /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.
@@ -473,14 +478,15 @@ class TaxiGraph
 
     /// @brief Returns up to @p maxFwd nearest forward nodes within @p maxFwdM metres,
     ///        followed by up to @p maxBwd nearest backward nodes within @p maxBwdM metres.
-    ///        Forward = bearing from @p pos to node within ±90° of @p headingDeg.
+    ///        Forward = bearing from @p pos to node within ±@p maxAngleDeg of @p headingDeg.
     ///        Falls back to unconstrained nearest when @p headingDeg < 0.
     [[nodiscard]] std::vector<int> NearestCandidateNodes(const GeoPoint& pos,
                                                          double          headingDeg,
                                                          double          maxFwdM,
                                                          double          maxBwdM,
-                                                         int             maxFwd = 3,
-                                                         int             maxBwd = 2) const;
+                                                         int             maxFwd      = 3,
+                                                         int             maxBwd      = 2,
+                                                         double          maxAngleDeg = 90.0) const;
 
     /// @brief Returns mean bearing of all edges on @p wayRef leaving node @p nodeId.
     /// @return 0.0 if no matching edges found.

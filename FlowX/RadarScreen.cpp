@@ -1772,18 +1772,27 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
         if (standIt != timers->GetStandAssignment().end())
         {
             const std::string& standName = standIt->second;
+            std::string        standKey  = ourIcao + ":" + standName;
             const auto&        ap        = settings->GetAirports().begin()->second;
             auto               ovIt      = ap.standRoutingTargets.find(standName);
             if (ovIt != ap.standRoutingTargets.end())
             {
-                GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(ovIt->second);
-                dest        = (hp.lat != 0.0 || hp.lon != 0.0)
-                                  ? hp
-                                  : TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
+                const auto& srt = ovIt->second;
+                if (srt.type == standRoutingTarget::Type::stand)
+                {
+                    dest = TaxiGraph::StandApproachPoint(ourIcao + ":" + srt.target, settings->GetGrStands());
+                }
+                else
+                {
+                    GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(srt.target);
+                    dest        = (hp.lat != 0.0 || hp.lon != 0.0)
+                                      ? hp
+                                      : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                }
             }
             else
             {
-                dest = TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
+                dest = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
             }
         }
     }
@@ -4132,26 +4141,41 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     isInbound = (!ourIcao.empty() && arrAirport == ourIcao);
                 }
 
-                auto* timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                auto*  timers   = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                double goalBrng = -1.0;
                 if (isInbound)
                 {
                     auto standIt = timers->GetStandAssignment().find(callsign);
                     if (standIt != timers->GetStandAssignment().end())
                     {
                         const std::string& standName = standIt->second;
+                        std::string        standKey  = ourIcao + ":" + standName;
                         const auto&        ap        = settings->GetAirports().begin()->second;
                         auto               ovIt      = ap.standRoutingTargets.find(standName);
                         if (ovIt != ap.standRoutingTargets.end())
                         {
-                            GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(ovIt->second);
-                            dest        = (hp.lat != 0.0 || hp.lon != 0.0)
-                                              ? hp
-                                              : TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
+                            const auto& srt = ovIt->second;
+                            if (srt.type == standRoutingTarget::Type::stand)
+                            {
+                                standKey = ourIcao + ":" + srt.target;
+                                dest     = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                            }
+                            else
+                            {
+                                GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(srt.target);
+                                dest        = (hp.lat != 0.0 || hp.lon != 0.0)
+                                                  ? hp
+                                                  : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                            }
                         }
                         else
                         {
-                            dest = TaxiGraph::StandApproachPoint(ourIcao + ":" + standName, settings->GetGrStands());
+                            dest = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
                         }
+                        // Use stand heading to constrain goal-node snapping direction.
+                        auto stIt = settings->GetGrStands().find(standKey);
+                        if (stIt != settings->GetGrStands().end() && stIt->second.heading.has_value())
+                            goalBrng = std::fmod(stIt->second.heading.value() + 180.0, 360.0);
                     }
                 }
                 else if (hasAirport)
@@ -4204,7 +4228,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
                     origin, dest, taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked,
-                    {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly);
+                    {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly, goalBrng);
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
                 if (!this->taxiSuggested[callsign].valid && settings->GetDebug())
                     settings->LogDebugMessage(

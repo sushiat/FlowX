@@ -520,7 +520,7 @@ int TaxiGraph::NearestBackwardNode(const GeoPoint& pos, double headingDeg, doubl
 
 std::vector<int> TaxiGraph::NearestCandidateNodes(
     const GeoPoint& pos, double headingDeg, double maxFwdM, double maxBwdM, int maxFwd,
-    int maxBwd) const
+    int maxBwd, double maxAngleDeg) const
 {
     struct Cand
     {
@@ -546,9 +546,9 @@ std::vector<int> TaxiGraph::NearestCandidateNodes(
                 if (headingDeg >= 0.0)
                 {
                     const double diff = BearingDiff(BearingDeg(pos, nodes_[id].pos), headingDeg);
-                    if (diff <= 90.0 && d <= maxFwdM)
+                    if (diff <= maxAngleDeg && d <= maxFwdM)
                         fwd.push_back({d, id});
-                    else if (diff > 90.0 && d <= maxBwdM)
+                    else if (diff > maxAngleDeg && d <= maxBwdM)
                         bwd.push_back({d, id});
                 }
                 else if (d <= maxFwdM)
@@ -882,7 +882,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                bool                         ignoreAllPenalties,
                                const std::set<int>&         preferredNodes,
                                bool                         emitDebugTrace,
-                               bool                         forwardOnly) const
+                               bool                         forwardOnly,
+                               double                       goalBearingDeg) const
 {
     if (nodes_.empty())
         return {};
@@ -980,9 +981,21 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     // wide-body aircraft); if all candidates are excluded, keep them anyway.
     std::vector<int> goalCandidates;
     {
-        std::vector<int> goalPool = NearestCandidateNodes(to, -1.0,
-                                                          apt_.taxiNetworkConfig.snapping.goalSnapM,
-                                                          0.0, 10, 0);
+        const double     goalSnapR = apt_.taxiNetworkConfig.snapping.goalSnapM;
+        std::vector<int> goalPool;
+        // Graduated cone search: prefer nodes most aligned with the stand
+        // approach bearing, widening progressively if nothing is found.
+        if (goalBearingDeg >= 0.0)
+        {
+            for (const double cone : {5.0, 20.0, 90.0})
+            {
+                goalPool = NearestCandidateNodes(to, goalBearingDeg, goalSnapR, 0.0, 10, 0, cone);
+                if (!goalPool.empty())
+                    break;
+            }
+        }
+        if (goalPool.empty())
+            goalPool = NearestCandidateNodes(to, -1.0, goalSnapR, 0.0, 10, 0);
         if (goalPool.empty())
         {
             const int fb = NearestNode(to);
@@ -1078,7 +1091,8 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                                        bool                         ignoreAllPenalties,
                                        const std::set<int>&         preferredNodes,
                                        bool                         emitDebugTrace,
-                                       bool                         forwardOnly) const
+                                       bool                         forwardOnly,
+                                       double                       goalBearingDeg) const
 {
     std::vector<GeoPoint> stops;
     stops.push_back(origin);
@@ -1107,10 +1121,12 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                 suppressFlowWayRefs.insert(nodes_[destNode].wayRef);
         }
 
-        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
-                                  segInitBearing, blockedNodes, suppressFlowWayRefs,
-                                  ignoreAllPenalties, preferredNodes, emitDebugTrace,
-                                  (i == 1) ? forwardOnly : false);
+        const bool   isLastSeg   = (i == stops.size() - 1);
+        const double segGoalBrng = isLastSeg ? goalBearingDeg : -1.0;
+        TaxiRoute    seg         = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
+                                             segInitBearing, blockedNodes, suppressFlowWayRefs,
+                                             ignoreAllPenalties, preferredNodes, emitDebugTrace,
+                                             (i == 1) ? forwardOnly : false, segGoalBrng);
         if (!seg.valid)
         {
             combined.valid = false;
