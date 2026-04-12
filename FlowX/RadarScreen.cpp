@@ -1798,8 +1798,17 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
     }
     else if (!ourIcao.empty() && !settings->GetAirports().empty())
     {
-        dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(),
-                                                  settings->GetAirports().begin()->second);
+        // FP runway takes priority; fall back to controller's active config.
+        std::set<std::string> rwySearch;
+        if (fp.IsValid())
+        {
+            std::string fpRwy = fp.GetFlightPlanData().GetDepartureRwy();
+            if (!fpRwy.empty())
+                rwySearch.insert(fpRwy);
+        }
+        if (rwySearch.empty())
+            rwySearch = settings->GetActiveDepRunways();
+        dest = settings->osmGraph.BestDepartureHP(rwySearch, settings->GetAirports().begin()->second);
     }
     if (dest.lat == 0.0 && dest.lon == 0.0)
         return; // no destination to check
@@ -4141,8 +4150,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     isInbound = (!ourIcao.empty() && arrAirport == ourIcao);
                 }
 
-                auto*  timers   = static_cast<CFlowX_Timers*>(this->GetPlugIn());
-                double goalBrng = -1.0;
+                auto*                 timers    = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+                double                goalBrng  = -1.0;
+                std::set<std::string> rwySearch = settings->GetActiveDepRunways();
                 if (isInbound)
                 {
                     auto standIt = timers->GetStandAssignment().find(callsign);
@@ -4182,6 +4192,14 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 {
                     const auto& ap = settings->GetAirports().begin()->second;
 
+                    // FP runway takes priority; fall back to controller's active config.
+                    if (fp.IsValid())
+                    {
+                        std::string fpRwy = fp.GetFlightPlanData().GetDepartureRwy();
+                        if (!fpRwy.empty())
+                            rwySearch = {fpRwy};
+                    }
+
                     if (fp.IsValid())
                     {
                         std::string ann = fp.GetControllerAssignedData().GetFlightStripAnnotation(8);
@@ -4192,7 +4210,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                 hpName.clear();
                             if (!hpName.empty())
                             {
-                                for (const auto& rwyDes : settings->GetActiveDepRunways())
+                                for (const auto& rwyDes : rwySearch)
                                 {
                                     auto rwyIt = ap.runways.find(rwyDes);
                                     if (rwyIt == ap.runways.end())
@@ -4208,7 +4226,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                         }
                     }
                     if (dest.lat == 0.0 && dest.lon == 0.0)
-                        dest = settings->osmGraph.BestDepartureHP(settings->GetActiveDepRunways(), ap);
+                        dest = settings->osmGraph.BestDepartureHP(rwySearch, ap);
                 }
 
                 if (dest.lat == 0.0 && dest.lon == 0.0)
@@ -4227,7 +4245,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 const double taxiWs  = settings->GetAircraftWingspan(
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
-                    origin, dest, taxiWs, settings->GetActiveDepRunways(), settings->GetActiveArrRunways(), heading, blocked,
+                    origin, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(), heading, blocked,
                     {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly, goalBrng);
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
                 if (!this->taxiSuggested[callsign].valid && settings->GetDebug())

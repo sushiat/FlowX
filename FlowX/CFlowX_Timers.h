@@ -94,6 +94,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     int                                               dep_sequenceCounter = 0;          ///< Global sequence counter incremented at each takeoff.
     std::map<std::string, int>                        dep_sequenceNumber;               ///< Callsign -> departure sequence number assigned at takeoff.
     std::map<std::string, std::string>                flightStripAnnotation;            ///< Callsign -> cached content of flight-strip annotation slot 8.
+    std::map<std::string, std::string>                lastDepRunway;                    ///< Callsign -> last seen departure runway designator; used to detect runway changes and clear stale HP assignments.
     std::map<std::string, EuroScopePlugIn::CPosition> lastHpCheckPos;                   ///< Callsign -> aircraft position at the last holding-point polygon test; used to skip redundant checks.
     std::set<std::string>                             gndTransfer_list;                 ///< Callsigns of landed inbounds awaiting GND handoff (added at TTT removal, cleared on click/disconnect).
     std::set<std::string>                             gndTransfer_soundPlayed;          ///< Subset of gndTransfer_list where GS<50 was first detected; square is shown and sound has played.

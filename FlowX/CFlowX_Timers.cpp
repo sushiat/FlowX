@@ -1040,6 +1040,36 @@ void CFlowX_Timers::UpdateTWROutbound()
             std::string                                        rwy    = fp.GetFlightPlanData().GetDepartureRwy();
             std::string                                        before = this->flightStripAnnotation[callSign];
 
+            // Detect runway change — clear stale HP if it doesn't exist on the new runway.
+            auto lastRwyIt = this->lastDepRunway.find(callSign);
+            if (lastRwyIt != this->lastDepRunway.end() && lastRwyIt->second != rwy && !rwy.empty())
+            {
+                std::string ann = this->flightStripAnnotation[callSign];
+                if (ann.length() > 7)
+                {
+                    std::string hpName = ann.substr(7);
+                    if (!hpName.empty() && hpName.back() == '*')
+                        hpName.pop_back();
+                    if (!hpName.empty())
+                    {
+                        bool hpValid  = false;
+                        auto newRwyIt = airport->second.runways.find(rwy);
+                        if (newRwyIt != airport->second.runways.end())
+                            hpValid = newRwyIt->second.holdingPoints.contains(hpName);
+                        if (!hpValid)
+                        {
+                            ann                                   = ann.substr(0, 7);
+                            this->flightStripAnnotation[callSign] = ann;
+                            fpcad.SetFlightStripAnnotation(8, ann.c_str());
+                            this->PushToOtherControllers(fp);
+                            before = ann; // update baseline so the auto-detect block below doesn't re-push
+                        }
+                    }
+                }
+            }
+            if (!rwy.empty())
+                this->lastDepRunway[callSign] = rwy;
+
             auto rwyIt = airport->second.runways.find(rwy);
             if (rwyIt != airport->second.runways.end())
             {
@@ -1076,6 +1106,7 @@ void CFlowX_Timers::UpdateTWROutbound()
             this->twrSameSID_flightPlans.erase(callSign);
             this->dep_liveSpacing.erase(callSign);
             this->dep_sequenceNumber.erase(callSign);
+            this->lastDepRunway.erase(callSign);
             this->lastHpCheckPos.erase(callSign);
             this->readyTakeoff_wasWaiting.erase(callSign);
             this->readyTakeoff_okTick.erase(callSign);
@@ -1098,6 +1129,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                     this->twrSameSID_flightPlans.erase(callSign);
                     this->dep_liveSpacing.erase(callSign);
                     this->dep_sequenceNumber.erase(callSign);
+                    this->lastDepRunway.erase(callSign);
                     this->lastHpCheckPos.erase(callSign);
                     this->readyTakeoff_wasWaiting.erase(callSign);
                     this->readyTakeoff_okTick.erase(callSign);
@@ -1130,6 +1162,7 @@ void CFlowX_Timers::UpdateTWROutbound()
                 this->twrSameSID_flightPlans.erase(callSign);
                 this->dep_liveSpacing.erase(callSign);
                 this->dep_sequenceNumber.erase(callSign);
+                this->lastDepRunway.erase(callSign);
                 this->lastHpCheckPos.erase(callSign);
                 this->readyTakeoff_wasWaiting.erase(callSign);
                 this->readyTakeoff_okTick.erase(callSign);
