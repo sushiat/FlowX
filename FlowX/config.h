@@ -161,6 +161,7 @@ struct TaxiNetworkConfig
         double backwardSnapM       = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
         double forwardSnapM        = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
         double hardTurnDeg         = 50.0;  ///< Bearing change (deg) above which an edge is hard-blocked during A*. Applies within the same wayRef (prevents kinks, OSM max ~28°) and between two non-intersection wayRefs (forces use of smooth intersection curves; LOWW M↔E junctions are ~47°).
+        double maxVacateTurnDeg    = 100.0; ///< Maximum cumulative bearing deviation (deg) from the aircraft heading when traversing a Taxiway_HoldingPoint way entered from a runway. Blocks reverse high-speed exits (~130-160°) while allowing standard (90°) and high-speed (20-40°) exits.
         double wayrefChangePenalty = 200.0; ///< Cost added when leaving a named taxiway for a different wayRef (entering an intersection or switching to another taxiway). Exiting an intersection to a named taxiway is free so that A* correctly evaluates early vs. late taxiway switches.
         double heuristicWeight     = 1.0;   ///< Weight applied to the A* heuristic (W > 1.0 = more goal-directed but may close nodes suboptimally; 1.0 is correct for small graphs).
         int    maxNodeExpansions   = 5000;  ///< Maximum number of nodes A* expands before giving up; higher values find better routes but cost more CPU.

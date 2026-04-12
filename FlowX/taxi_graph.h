@@ -430,6 +430,8 @@ class TaxiGraph
         hpWayRefs_; ///< Set of wayRef strings for Taxiway_HoldingPoint ways (e.g. A1, B8); built in Build() for runway-approach penalty targeting.
     std::unordered_set<std::string>
         isxWayRefs_; ///< Set of wayRef strings for intersection ways (from apt_.taxiIntersections); built in Build() to suppress WAYREF_CHANGE_PENALTY at Exit transitions in RunAStar.
+    std::unordered_set<std::string>
+        rwyWayRefs_; ///< Set of wayRef strings for Runway ways; built in Build() for cumulative vacate-turn limiting in RunAStar.
 
     // ── Build helpers ────────────────────────────────────────────────────────
 

@@ -231,6 +231,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             isxWayRefs_.insert(ref);
         if (way.type == AerowayType::Taxiway_HoldingPoint && !ref.empty())
             hpWayRefs_.insert(ref);
+        if (way.type == AerowayType::Runway && !ref.empty())
+            rwyWayRefs_.insert(ref);
 
         // Ref priority for junction conflict resolution: higher value wins when
         // two ways share a node.  Taxiway > taxilane > intersection > runway > holding point.
@@ -600,6 +602,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     const int    MAX_NODES             = apt_.taxiNetworkConfig.routing.maxNodeExpansions;
     const double WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
     const double SOFT_TURN_COST        = apt_.taxiNetworkConfig.routing.softTurnCostPerDeg;
+    const double MAX_VACATE_TURN       = apt_.taxiNetworkConfig.routing.maxVacateTurnDeg;
     const double MIN_COST_PER_M        = apt_.taxiNetworkConfig.flowRules.withFlowMult; // admissibility bound
     const double HEURISTIC_W           = apt_.taxiNetworkConfig.routing.heuristicWeight * MIN_COST_PER_M;
 
@@ -628,6 +631,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     std::vector<double>      incomingBearing(nodes_.size(), -1.0);
     std::vector<std::string> incomingWayRef(nodes_.size(), "");
     std::vector<bool>        closed(nodes_.size(), false);
+    std::vector<double>      hpEntryBearing(nodes_.size(), -1.0);
     std::vector<double>      dbgEdgeCost(emitDebugTrace ? nodes_.size() : 0, 0.0);
     std::vector<double>      dbgTurnPenalty(emitDebugTrace ? nodes_.size() : 0, 0.0);
     std::vector<double>      dbgSoftTurn(emitDebugTrace ? nodes_.size() : 0, 0.0);
@@ -677,6 +681,33 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 if (bd_turn > limit)
                     continue;
             }
+
+            // Cumulative HP-way turn check: track the bearing at which the
+            // aircraft entered the current HP wayRef and block edges whose
+            // BearingDiff from that entry bearing exceeds maxVacateTurnDeg.
+            // This catches smooth curves that individually pass hardTurnDeg
+            // but cumulatively turn too far (reverse high-speed exits).
+            double edgeHpEntry = -1.0;
+            if (hpWayRefs_.count(edge.wayRef))
+            {
+                if (hpEntryBearing[cur] >= 0.0 && incomingWayRef[cur] == edge.wayRef)
+                {
+                    // Continuing on the same HP way: propagate entry bearing.
+                    edgeHpEntry = hpEntryBearing[cur];
+                }
+                else if (incomingBearing[cur] >= 0.0)
+                {
+                    // Entering HP way fresh.  Only track when coming from a
+                    // runway (or start node on runway/HP) — "runway exiting".
+                    const bool fromRunway = rwyWayRefs_.count(incomingWayRef[cur]) > 0;
+                    const bool startOnRwy =
+                        incomingWayRef[cur].empty() && rwyWayRefs_.count(nodes_[cur].wayRef);
+                    if (fromRunway || startOnRwy)
+                        edgeHpEntry = incomingBearing[cur];
+                }
+            }
+            if (edgeHpEntry >= 0.0 && BearingDiff(edgeHpEntry, edge.bearingDeg) > MAX_VACATE_TURN)
+                continue;
 
             double           edgeCost;
             double           turnPenalty      = 0.0;
@@ -772,6 +803,7 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 prev[edge.to]            = cur;
                 incomingBearing[edge.to] = edge.bearingDeg;
                 incomingWayRef[edge.to]  = edge.wayRef;
+                hpEntryBearing[edge.to]  = edgeHpEntry;
                 if (emitDebugTrace)
                 {
                     dbgEdgeCost[edge.to]    = edgeCost;
@@ -944,6 +976,29 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
             }
             if (nFwd >= 3 && nBwd >= 2)
                 break;
+        }
+
+        // When on a runway, also include nearby HP-wayRef nodes so the
+        // router can start from an exit the aircraft is approaching.
+        // The cumulative HP turn check in RunAStar naturally blocks HP
+        // start candidates whose direction doesn't match the aircraft heading.
+        if (rwyWayRefs_.count(onEdgeRef))
+        {
+            std::set<int> seenCands(candidates.begin(), candidates.end());
+            int           nHp = 0;
+            for (const int id : pool)
+            {
+                if (seenCands.count(id))
+                    continue;
+                if (!hpWayRefs_.count(nodes_[id].wayRef))
+                    continue;
+                if (initialBearingDeg >= 0.0 &&
+                    BearingDiff(BearingDeg(from, nodes_[id].pos), initialBearingDeg) > 90.0)
+                    continue; // behind the aircraft
+                candidates.push_back(id);
+                if (++nHp >= 3)
+                    break;
+            }
         }
     }
     else

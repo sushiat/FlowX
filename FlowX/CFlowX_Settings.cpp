@@ -920,6 +920,7 @@ void CFlowX_Settings::LoadConfig()
             {
                 const auto& r                  = jnc["routing"];
                 nc.routing.hardTurnDeg         = r.value("hardTurnDeg", 50.0);
+                nc.routing.maxVacateTurnDeg    = r.value("maxVacateTurnDeg", 100.0);
                 nc.routing.wayrefChangePenalty = r.value("wayrefChangePenalty", 200.0);
                 nc.routing.forwardSnapM        = r.value("forwardSnapM", 120.0);
                 nc.routing.backwardSnapM       = r.value("backwardSnapM", 300.0);
