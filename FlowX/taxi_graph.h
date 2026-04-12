@@ -224,7 +224,9 @@ class TaxiGraph
                                       const std::set<int>&         preferredNodes      = {},
                                       bool                         emitDebugTrace      = false,
                                       bool                         forwardOnly         = false,
-                                      double                       goalBearingDeg      = -1.0) const;
+                                      double                       goalBearingDeg      = -1.0,
+                                      char                         wtc                 = 0,
+                                      const std::string&           arrivalRunway       = {}) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
     /// @param origin            Route start.
@@ -247,7 +249,9 @@ class TaxiGraph
                                               const std::set<int>&         preferredNodes     = {},
                                               bool                         emitDebugTrace     = false,
                                               bool                         forwardOnly        = false,
-                                              double                       goalBearingDeg     = -1.0) const;
+                                              double                       goalBearingDeg     = -1.0,
+                                              char                         wtc                = 0,
+                                              const std::string&           arrivalRunway      = {}) const;
 
     /// @brief Returns the merged set of flow rules for the given active runway configuration.
     /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.

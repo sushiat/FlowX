@@ -192,4 +192,11 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     {
         return this->groundStatus;
     }
+
+    /// @brief Returns the arrival runway designator for an inbound aircraft, or empty if not tracked.
+    [[nodiscard]] std::string GetArrivalRunway(const std::string& callsign) const
+    {
+        auto it = this->ttt_inbound.find(callsign);
+        return (it != this->ttt_inbound.end()) ? it->second.flightPlan.designator : std::string{};
+    }
 };

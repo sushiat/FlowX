@@ -602,7 +602,6 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     const int    MAX_NODES             = apt_.taxiNetworkConfig.routing.maxNodeExpansions;
     const double WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
     const double SOFT_TURN_COST        = apt_.taxiNetworkConfig.routing.softTurnCostPerDeg;
-    const double MAX_VACATE_TURN       = apt_.taxiNetworkConfig.routing.maxVacateTurnDeg;
     const double MIN_COST_PER_M        = apt_.taxiNetworkConfig.flowRules.withFlowMult; // admissibility bound
     const double HEURISTIC_W           = apt_.taxiNetworkConfig.routing.heuristicWeight * MIN_COST_PER_M;
 
@@ -631,7 +630,6 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     std::vector<double>      incomingBearing(nodes_.size(), -1.0);
     std::vector<std::string> incomingWayRef(nodes_.size(), "");
     std::vector<bool>        closed(nodes_.size(), false);
-    std::vector<double>      hpEntryBearing(nodes_.size(), -1.0);
     std::vector<double>      dbgEdgeCost(emitDebugTrace ? nodes_.size() : 0, 0.0);
     std::vector<double>      dbgTurnPenalty(emitDebugTrace ? nodes_.size() : 0, 0.0);
     std::vector<double>      dbgSoftTurn(emitDebugTrace ? nodes_.size() : 0, 0.0);
@@ -667,6 +665,14 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
             if (!blockedNodes.empty() && blockedNodes.contains(edge.to) && edge.to != goalId)
                 continue;
 
+            // Block HP-to-HP transitions: two different Taxiway_HoldingPoint
+            // ways must not connect directly (shared junction nodes can create
+            // such edges, e.g. B10→B9).  Each HP should only connect to/from
+            // non-HP taxiways or intersections.
+            if (hpWayRefs_.count(edge.wayRef) && !incomingWayRef[cur].empty() &&
+                incomingWayRef[cur] != edge.wayRef && hpWayRefs_.count(incomingWayRef[cur]))
+                continue;
+
             // Hard-turn block: any turn exceeding hardTurnDeg is physically
             // impossible and blocked outright.  OSM data shows max ~28° between
             // consecutive edges; LOWW's steepest legit junction (M↔E) is ~47°.
@@ -681,33 +687,6 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 if (bd_turn > limit)
                     continue;
             }
-
-            // Cumulative HP-way turn check: track the bearing at which the
-            // aircraft entered the current HP wayRef and block edges whose
-            // BearingDiff from that entry bearing exceeds maxVacateTurnDeg.
-            // This catches smooth curves that individually pass hardTurnDeg
-            // but cumulatively turn too far (reverse high-speed exits).
-            double edgeHpEntry = -1.0;
-            if (hpWayRefs_.count(edge.wayRef))
-            {
-                if (hpEntryBearing[cur] >= 0.0 && incomingWayRef[cur] == edge.wayRef)
-                {
-                    // Continuing on the same HP way: propagate entry bearing.
-                    edgeHpEntry = hpEntryBearing[cur];
-                }
-                else if (incomingBearing[cur] >= 0.0)
-                {
-                    // Entering HP way fresh.  Only track when coming from a
-                    // runway (or start node on runway/HP) — "runway exiting".
-                    const bool fromRunway = rwyWayRefs_.count(incomingWayRef[cur]) > 0;
-                    const bool startOnRwy =
-                        incomingWayRef[cur].empty() && rwyWayRefs_.count(nodes_[cur].wayRef);
-                    if (fromRunway || startOnRwy)
-                        edgeHpEntry = incomingBearing[cur];
-                }
-            }
-            if (edgeHpEntry >= 0.0 && BearingDiff(edgeHpEntry, edge.bearingDeg) > MAX_VACATE_TURN)
-                continue;
 
             double           edgeCost;
             double           turnPenalty      = 0.0;
@@ -803,7 +782,6 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                 prev[edge.to]            = cur;
                 incomingBearing[edge.to] = edge.bearingDeg;
                 incomingWayRef[edge.to]  = edge.wayRef;
-                hpEntryBearing[edge.to]  = edgeHpEntry;
                 if (emitDebugTrace)
                 {
                     dbgEdgeCost[edge.to]    = edgeCost;
@@ -915,7 +893,9 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
                                const std::set<int>&         preferredNodes,
                                bool                         emitDebugTrace,
                                bool                         forwardOnly,
-                               double                       goalBearingDeg) const
+                               double                       goalBearingDeg,
+                               char                         wtc,
+                               const std::string&           arrivalRunway) const
 {
     if (nodes_.empty())
         return {};
@@ -980,17 +960,21 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
 
         // When on a runway, also include nearby HP-wayRef nodes so the
         // router can start from an exit the aircraft is approaching.
-        // The cumulative HP turn check in RunAStar naturally blocks HP
-        // start candidates whose direction doesn't match the aircraft heading.
+        // Vacation exit config excludes HP refs not whitelisted for this runway.
+        // Limited to 30 m so the aircraft must be very close to the exit —
+        // further HP nodes are reached naturally via runway edges.
         if (rwyWayRefs_.count(onEdgeRef))
         {
-            std::set<int> seenCands(candidates.begin(), candidates.end());
-            int           nHp = 0;
+            constexpr double HP_START_SNAP_M = 30.0;
+            std::set<int>    seenCands(candidates.begin(), candidates.end());
+            int              nHp = 0;
             for (const int id : pool)
             {
                 if (seenCands.count(id))
                     continue;
                 if (!hpWayRefs_.count(nodes_[id].wayRef))
+                    continue;
+                if (HaversineM(from, nodes_[id].pos) > HP_START_SNAP_M)
                     continue;
                 if (initialBearingDeg >= 0.0 &&
                     BearingDiff(BearingDeg(from, nodes_[id].pos), initialBearingDeg) > 90.0)
@@ -1041,6 +1025,43 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         for (const auto& [ref, maxWs] : apt_.taxiWingspanAvoid)
             if (wingspanM <= maxWs)
                 avoidRefs.insert(ref);
+
+    // Vacation exit restrictions: when vacating a known arrival runway,
+    // exclude HP refs not listed in that runway's vacatePoints config,
+    // and apply per-WTC exit and ref exclusions.
+    // Activates when the aircraft is on a runway OR already on an HP exit way.
+    if (!arrivalRunway.empty() && (rwyWayRefs_.count(onEdgeRef) || hpWayRefs_.count(onEdgeRef)))
+    {
+        auto rwyIt = apt_.runways.find(arrivalRunway);
+        if (rwyIt != apt_.runways.end() && !rwyIt->second.vacatePoints.empty())
+        {
+            const auto& exits = rwyIt->second.vacatePoints;
+            for (const auto& hpRef : hpWayRefs_)
+            {
+                auto exitIt = exits.find(hpRef);
+                if (exitIt == exits.end())
+                {
+                    excludedRefs.insert(hpRef);
+                }
+                else if (wtc != 0)
+                {
+                    const auto& ve = exitIt->second;
+                    if (std::find(ve.excludeWtc.begin(), ve.excludeWtc.end(), wtc) != ve.excludeWtc.end())
+                        excludedRefs.insert(hpRef);
+                }
+            }
+            if (wtc != 0)
+            {
+                for (const auto& [_, ve] : exits)
+                {
+                    auto refIt = ve.excludeRef.find(wtc);
+                    if (refIt != ve.excludeRef.end())
+                        for (const auto& ref : refIt->second)
+                            excludedRefs.insert(ref);
+                }
+            }
+        }
+    }
 
     // Collect goal candidates: nearest nodes diversified by wayRef, so A*
     // can reach stands accessible from multiple taxilanes (e.g. F37 between
@@ -1165,7 +1186,9 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                                        const std::set<int>&         preferredNodes,
                                        bool                         emitDebugTrace,
                                        bool                         forwardOnly,
-                                       double                       goalBearingDeg) const
+                                       double                       goalBearingDeg,
+                                       char                         wtc,
+                                       const std::string&           arrivalRunway) const
 {
     std::vector<GeoPoint> stops;
     stops.push_back(origin);
@@ -1194,12 +1217,14 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
                 suppressFlowWayRefs.insert(nodes_[destNode].wayRef);
         }
 
-        const bool   isLastSeg   = (i == stops.size() - 1);
-        const double segGoalBrng = isLastSeg ? goalBearingDeg : -1.0;
-        TaxiRoute    seg         = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
-                                             segInitBearing, blockedNodes, suppressFlowWayRefs,
-                                             ignoreAllPenalties, preferredNodes, emitDebugTrace,
-                                             (i == 1) ? forwardOnly : false, segGoalBrng);
+        const bool        isLastSeg   = (i == stops.size() - 1);
+        const double      segGoalBrng = isLastSeg ? goalBearingDeg : -1.0;
+        const char        segWtc      = (i == 1) ? wtc : char{0};
+        const std::string segArrRwy   = (i == 1) ? arrivalRunway : std::string{};
+        TaxiRoute         seg         = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
+                                                  segInitBearing, blockedNodes, suppressFlowWayRefs,
+                                                  ignoreAllPenalties, preferredNodes, emitDebugTrace,
+                                                  (i == 1) ? forwardOnly : false, segGoalBrng, segWtc, segArrRwy);
         if (!seg.valid)
         {
             combined.valid = false;

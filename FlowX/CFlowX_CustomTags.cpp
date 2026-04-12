@@ -216,7 +216,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
             return t;
         }
 
-        for (auto& [vpName, vp] : rwyIt->second.vacatePoints)
+        for (auto& [vpName, vp] : rwyIt->second.suggestedVacatePoints)
         {
             if (hasFollower && gap < vp.minGap)
             {

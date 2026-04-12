@@ -993,7 +993,6 @@ void CFlowX_Settings::LoadConfig()
             {
                 const auto& r                  = jnc["routing"];
                 nc.routing.hardTurnDeg         = r.value("hardTurnDeg", 50.0);
-                nc.routing.maxVacateTurnDeg    = r.value("maxVacateTurnDeg", 100.0);
                 nc.routing.wayrefChangePenalty = r.value("wayrefChangePenalty", 200.0);
                 nc.routing.forwardSnapM        = r.value("forwardSnapM", 120.0);
                 nc.routing.backwardSnapM       = r.value("backwardSnapM", 300.0);
@@ -1213,14 +1212,28 @@ void CFlowX_Settings::LoadConfig()
                     rwy.holdingPoints.emplace(hpName, hp);
                 }
 
-                if (json_rwy.contains("vacatePoints"))
+                if (json_rwy.contains("suggestedVacatePoints"))
                 {
-                    for (auto& [vpName, json_vp] : json_rwy["vacatePoints"].items())
+                    for (auto& [vpName, json_vp] : json_rwy["suggestedVacatePoints"].items())
                     {
-                        vacatePoint vp{};
+                        suggestedVacatePoint vp{};
                         vp.minGap = json_vp.value<double>("minGap", 0.0);
                         vp.stands = json_vp["stands"].get<std::vector<std::string>>();
-                        rwy.vacatePoints.emplace(vpName, vp);
+                        rwy.suggestedVacatePoints.emplace(vpName, vp);
+                    }
+                }
+                if (json_rwy.contains("vacatePoints"))
+                {
+                    for (auto& [name, json_vp] : json_rwy["vacatePoints"].items())
+                    {
+                        vacateExit ve{};
+                        if (json_vp.contains("excludeWtc"))
+                            for (const auto& w : json_vp["excludeWtc"])
+                                ve.excludeWtc.push_back(w.get<std::string>()[0]);
+                        if (json_vp.contains("excludeRef"))
+                            for (auto& [wtcStr, refs] : json_vp["excludeRef"].items())
+                                ve.excludeRef[wtcStr[0]] = refs.get<std::vector<std::string>>();
+                        rwy.vacatePoints.emplace(name, ve);
                     }
                 }
 

@@ -4317,9 +4317,19 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 const double heading = rt.GetPosition().GetReportedHeadingTrueNorth();
                 const double taxiWs  = settings->GetAircraftWingspan(
                     GetPlugIn()->FlightPlanSelect(callsign.c_str()).GetFlightPlanData().GetAircraftFPType());
+
+                // Vacation exit filtering: pass WTC and arrival runway for inbound aircraft.
+                char        vacWtc = 0;
+                std::string vacArrRwy;
+                if (isInbound && fp.IsValid())
+                {
+                    vacWtc    = fp.GetFlightPlanData().GetAircraftWtc();
+                    vacArrRwy = timers->GetArrivalRunway(callsign);
+                }
+
                 this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
                     origin, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(), heading, blocked,
-                    {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly, goalBrng);
+                    {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly, goalBrng, vacWtc, vacArrRwy);
                 this->taxiGreenPreview = this->taxiSuggested[callsign];
                 if (!this->taxiSuggested[callsign].valid && settings->GetDebug())
                     settings->LogDebugMessage(

@@ -83,10 +83,17 @@ struct standRoutingTarget
 };
 
 /// @brief Suggested runway vacate point with a minimum gap requirement and associated stands.
-struct vacatePoint
+struct suggestedVacatePoint
 {
     double                   minGap = 0.0; ///< Minimum distance gap (NM) from the preceding inbound required for this vacate
     std::vector<std::string> stands = {};  ///< Stand names associated with this vacate point
+};
+
+/// @brief Allowed runway vacation exit with optional WTC restrictions and per-WTC ref exclusions.
+struct vacateExit
+{
+    std::vector<char>                        excludeWtc = {}; ///< WTC categories that cannot use this exit (e.g. {'H','J'})
+    std::map<char, std::vector<std::string>> excludeRef = {}; ///< Per-WTC refs excluded when vacating via this exit (e.g. 'H' → {"D"})
 };
 
 /// @brief A named approach fix for early TTT detection of non-straight-in RNP approaches.
@@ -161,7 +168,6 @@ struct TaxiNetworkConfig
         double backwardSnapM       = 300.0; ///< Radius (m) for searching backward start-node candidates (up to 2).
         double forwardSnapM        = 120.0; ///< Radius (m) for searching forward start-node candidates (up to 3).
         double hardTurnDeg         = 50.0;  ///< Bearing change (deg) above which an edge is hard-blocked during A*. Applies within the same wayRef (prevents kinks, OSM max ~28°) and between two non-intersection wayRefs (forces use of smooth intersection curves; LOWW M↔E junctions are ~47°).
-        double maxVacateTurnDeg    = 100.0; ///< Maximum cumulative bearing deviation (deg) from the aircraft heading when traversing a Taxiway_HoldingPoint way entered from a runway. Blocks reverse high-speed exits (~130-160°) while allowing standard (90°) and high-speed (20-40°) exits.
         double wayrefChangePenalty = 200.0; ///< Cost added when leaving a named taxiway for a different wayRef (entering an intersection or switching to another taxiway). Exiting an intersection to a named taxiway is free so that A* correctly evaluates early vs. late taxiway switches.
         double heuristicWeight     = 1.0;   ///< Weight applied to the A* heuristic (W > 1.0 = more goal-directed but may close nodes suboptimally; 1.0 is correct for small graphs).
         int    maxNodeExpansions   = 5000;  ///< Maximum number of nodes A* expands before giving up; higher values find better routes but cost more CPU.
@@ -192,21 +198,22 @@ struct TaxiNetworkConfig
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
 struct runway
 {
-    std::vector<approachPath>           gpsApproachPaths = {};    ///< Non-straight-in GPS approach paths for early TTT detection; empty = straight-in only.
-    std::string                         designator;               ///< Runway designator (e.g. "11")
-    int                                 headingNumber = -1;       ///< Numeric heading extracted from the designator (e.g. "11L" → 11); -1 if unparseable.
-    std::string                         opposite;                 ///< Designator of the reciprocal runway (used for go-around detection)
-    double                              thresholdLat = 0.0;       ///< Runway threshold latitude
-    double                              thresholdLon = 0.0;       ///< Runway threshold longitude
-    std::string                         twrFreq;                  ///< Tower frequency for this runway
-    std::string                         goAroundFreq;             ///< Go-around frequency for this runway
-    int                                 thresholdElevationFt = 0; ///< Threshold elevation in feet (overrides airport fieldElevation for TTT altitude gates; 0 = use fieldElevation)
-    int                                 widthMeters          = 0; ///< Runway width in metres (from config "width")
-    std::string                         estimateBarSide;          ///< Which side of the approach estimate bar this runway's aircraft appear on ("left" or "right"); empty = omit from bar
-    std::map<std::string, holdingPoint> holdingPoints = {};       ///< Named holding points on this runway
-    std::map<std::string, int>          sidGroups     = {};       ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
-    std::map<std::string, std::string>  sidColors     = {};       ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
-    std::map<std::string, vacatePoint>  vacatePoints  = {};       ///< Named vacate points on this runway
+    std::vector<approachPath>                   gpsApproachPaths = {};      ///< Non-straight-in GPS approach paths for early TTT detection; empty = straight-in only.
+    std::string                                 designator;                 ///< Runway designator (e.g. "11")
+    int                                         headingNumber = -1;         ///< Numeric heading extracted from the designator (e.g. "11L" → 11); -1 if unparseable.
+    std::string                                 opposite;                   ///< Designator of the reciprocal runway (used for go-around detection)
+    double                                      thresholdLat = 0.0;         ///< Runway threshold latitude
+    double                                      thresholdLon = 0.0;         ///< Runway threshold longitude
+    std::string                                 twrFreq;                    ///< Tower frequency for this runway
+    std::string                                 goAroundFreq;               ///< Go-around frequency for this runway
+    int                                         thresholdElevationFt = 0;   ///< Threshold elevation in feet (overrides airport fieldElevation for TTT altitude gates; 0 = use fieldElevation)
+    int                                         widthMeters          = 0;   ///< Runway width in metres (from config "width")
+    std::string                                 estimateBarSide;            ///< Which side of the approach estimate bar this runway's aircraft appear on ("left" or "right"); empty = omit from bar
+    std::map<std::string, holdingPoint>         holdingPoints         = {}; ///< Named holding points on this runway
+    std::map<std::string, int>                  sidGroups             = {}; ///< SID key -> group number (built from config "sidGroups": { "1": [...sids] })
+    std::map<std::string, std::string>          sidColors             = {}; ///< SID key -> colour name (built from config "sidColors": { "green": [...sids] })
+    std::map<std::string, vacateExit>           vacatePoints          = {}; ///< Allowed runway vacation exits keyed by HP wayRef name; unlisted HP refs are excluded during routing
+    std::map<std::string, suggestedVacatePoint> suggestedVacatePoints = {}; ///< Named suggested vacate points on this runway
 };
 
 /// @brief Full configuration for a single airport loaded from config.json.
