@@ -184,6 +184,11 @@ class CFlowX_Settings : public CFlowX_Logging
         return this->airports;
     }
 
+    /// @brief Finds the airport config for the currently logged-in controller, falling back to a given ICAO.
+    /// @param fallbackIcao ICAO to search when the controller's callsign prefix doesn't match any airport; may be empty.
+    /// @return Iterator into airports pointing at the matched entry, or airports.end() if neither matches.
+    std::map<std::string, airport>::iterator FindMyAirport(const std::string& fallbackIcao = "");
+
     /// @brief Returns a const reference to the GRplugin stand polygons map (keyed by "ICAO:StandName").
     [[nodiscard]] const std::map<std::string, grStand>& GetGrStands() const
     {

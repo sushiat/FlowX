@@ -483,11 +483,11 @@ void RadarScreen::UpdateSwingoverState()
         if (this->taxiSwingoverActive)
         {
             this->taxiSwingoverFixedSeg = {};
-            const auto& airports        = settings->GetAirports();
-            auto        rt              = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
-            if (!airports.empty() && rt.IsValid())
+            auto myAptIt                = settings->FindMyAirport();
+            auto rt                     = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
+            if (myAptIt != settings->GetAirports().end() && rt.IsValid())
             {
-                const auto&  ap     = airports.begin()->second;
+                const auto&  ap     = myAptIt->second;
                 const auto   rpos   = rt.GetPosition().GetPosition();
                 const double hdg    = rt.GetPosition().GetReportedHeadingTrueNorth();
                 const double taxiWs = settings->GetAircraftWingspan(
@@ -733,6 +733,62 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
         }
     }
 
+    // Pass 4 & 5 — config polygons for the active airport only.
+    auto overlayAptIt = settings->FindMyAirport();
+    if (this->showTaxiOverlay && overlayAptIt != settings->GetAirports().end())
+    {
+        const auto& apt = overlayAptIt->second;
+
+        // Pass 4 — holding point polygons in purple.
+        HPEN   hpPen     = CreatePen(PS_SOLID, 2, RGB(180, 80, 220));
+        HPEN   prevHpPen = static_cast<HPEN>(SelectObject(hDC, hpPen));
+        HBRUSH nullBrush = static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
+        HBRUSH prevBrush = static_cast<HBRUSH>(SelectObject(hDC, nullBrush));
+        for (const auto& [rwyName, rwy] : apt.runways)
+        {
+            for (const auto& [hpName, hp] : rwy.holdingPoints)
+            {
+                if (hp.lat.size() < 3)
+                    continue;
+                std::vector<POINT> pts(hp.lat.size());
+                for (size_t k = 0; k < hp.lat.size(); ++k)
+                {
+                    EuroScopePlugIn::CPosition pos;
+                    pos.m_Latitude  = hp.lat[k];
+                    pos.m_Longitude = hp.lon[k];
+                    pts[k]          = ConvertCoordFromPositionToPixel(pos);
+                }
+                Polygon(hDC, pts.data(), static_cast<int>(pts.size()));
+            }
+        }
+        SelectObject(hDC, prevBrush);
+        SelectObject(hDC, prevHpPen);
+        DeleteObject(hpPen);
+
+        // Pass 5 — taxi-out stand polygons in turquoise.
+        HPEN   toPen     = CreatePen(PS_SOLID, 2, RGB(0, 200, 180));
+        HPEN   prevToPen = static_cast<HPEN>(SelectObject(hDC, toPen));
+        HBRUSH nullBr    = static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
+        HBRUSH prevBr    = static_cast<HBRUSH>(SelectObject(hDC, nullBr));
+        for (const auto& [name, zone] : apt.taxiOutStands)
+        {
+            if (zone.lat.size() < 3)
+                continue;
+            std::vector<POINT> pts(zone.lat.size());
+            for (size_t k = 0; k < zone.lat.size(); ++k)
+            {
+                EuroScopePlugIn::CPosition pos;
+                pos.m_Latitude  = zone.lat[k];
+                pos.m_Longitude = zone.lon[k];
+                pts[k]          = ConvertCoordFromPositionToPixel(pos);
+            }
+            Polygon(hDC, pts.data(), static_cast<int>(pts.size()));
+        }
+        SelectObject(hDC, prevBr);
+        SelectObject(hDC, prevToPen);
+        DeleteObject(toPen);
+    }
+
     SelectObject(hDC, prevFont);
     DeleteObject(labelFont);
 }
@@ -844,9 +900,10 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
         // (c) Airborne fallback: aircraft is above field elevation + margin.
         // Clears stale routes after takeoff (fast-forwarded replay, missed TAKE OFF press, etc.).
         auto*         settings           = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-        const int     fieldElevFt        = settings->GetAirports().empty()
-                                               ? 0
-                                               : settings->GetAirports().begin()->second.fieldElevation;
+        auto          elevAptIt          = settings->FindMyAirport();
+        const int     fieldElevFt        = (elevAptIt != settings->GetAirports().end())
+                                               ? elevAptIt->second.fieldElevation
+                                               : 0;
         constexpr int AIRBORNE_MARGIN_FT = 50;
         if (rt.GetPosition().GetPressureAltitude() > fieldElevFt + AIRBORNE_MARGIN_FT)
         {
@@ -1154,10 +1211,11 @@ void RadarScreen::UpdateTaxiSafety()
 
     // Auto-clear taxi route when aircraft enters any holding point on its departure runway.
     {
-        auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-        if (!settings->GetAirports().empty())
+        auto* settings   = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+        auto  clearAptIt = settings->FindMyAirport();
+        if (clearAptIt != settings->GetAirports().end())
         {
-            const auto&              ap = settings->GetAirports().begin()->second;
+            const auto&              ap = clearAptIt->second;
             std::vector<std::string> toErase;
             for (const auto& [cs, route] : this->taxiTracked)
             {
@@ -1202,9 +1260,10 @@ void RadarScreen::UpdateTaxiSafety()
 
     static const TaxiNetworkConfig kDefaultNC{};
     auto*                          safetySettings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    const TaxiNetworkConfig&       nc             = safetySettings->GetAirports().empty()
-                                                        ? kDefaultNC
-                                                        : safetySettings->GetAirports().begin()->second.taxiNetworkConfig;
+    auto                           safetyAptIt    = safetySettings->FindMyAirport();
+    const TaxiNetworkConfig&       nc             = (safetyAptIt != safetySettings->GetAirports().end())
+                                                        ? safetyAptIt->second.taxiNetworkConfig
+                                                        : kDefaultNC;
 
     const double     DEVIATION_THRESH_M = nc.safety.deviationThreshM;
     const double     MIN_GS_KT          = nc.safety.minSpeedKt;
@@ -1764,9 +1823,8 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
         return;
 
     // Re-derive planning destination (same logic as the right-click trigger).
-    std::string ourIcao;
-    if (!settings->GetAirports().empty())
-        ourIcao = settings->GetAirports().begin()->first;
+    auto        replanAptIt = settings->FindMyAirport();
+    std::string ourIcao     = (replanAptIt != settings->GetAirports().end()) ? replanAptIt->first : std::string{};
 
     auto fp = GetPlugIn()->FlightPlanSelect(this->taxiPlanActive.c_str());
     auto rt = GetPlugIn()->RadarTargetSelect(this->taxiPlanActive.c_str());
@@ -1786,7 +1844,7 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
         {
             const std::string& standName = standIt->second;
             std::string        standKey  = ourIcao + ":" + standName;
-            const auto&        ap        = settings->GetAirports().begin()->second;
+            const auto&        ap        = replanAptIt->second;
             auto               ovIt      = ap.standRoutingTargets.find(standName);
             if (ovIt != ap.standRoutingTargets.end())
             {
@@ -1809,7 +1867,7 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
             }
         }
     }
-    else if (!ourIcao.empty() && !settings->GetAirports().empty())
+    else if (replanAptIt != settings->GetAirports().end())
     {
         // FP runway takes priority; fall back to controller's active config.
         std::set<std::string> rwySearch;
@@ -1821,7 +1879,7 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
         }
         if (rwySearch.empty())
             rwySearch = settings->GetActiveDepRunways();
-        dest = settings->osmGraph.BestDepartureHP(rwySearch, settings->GetAirports().begin()->second);
+        dest = settings->osmGraph.BestDepartureHP(rwySearch, replanAptIt->second);
     }
     if (dest.lat == 0.0 && dest.lon == 0.0)
         return; // no destination to check
@@ -4034,9 +4092,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 bool isPush    = false;
                 bool inTaxiOut = false;
 
-                if (!settings->GetAirports().empty())
+                auto myAptIt = settings->FindMyAirport();
+                if (myAptIt != settings->GetAirports().end())
                 {
-                    const auto& ap  = settings->GetAirports().begin()->second;
+                    const auto& ap  = myAptIt->second;
                     const auto  pos = rt.GetPosition().GetPosition();
 
                     // taxiOutStands check: used for both push/taxi detection and
@@ -4073,7 +4132,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     if (!inTaxiOnlyZone && !inTaxiOut)
                     {
                         // Inside a grStands parking spot → push planning.
-                        const std::string ourIcao = settings->GetAirports().begin()->first;
+                        const std::string ourIcao = myAptIt->first;
                         const std::string prefix  = ourIcao + ":";
                         for (const auto& [key, stand] : settings->GetGrStands())
                         {
@@ -4150,9 +4209,10 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 // Taxi planning: compute auto-suggested route to destination.
                 GeoPoint    dest{0.0, 0.0};
                 std::string ourIcao;
-                const bool  hasAirport = !settings->GetAirports().empty();
+                auto        myAptTaxi  = settings->FindMyAirport();
+                const bool  hasAirport = myAptTaxi != settings->GetAirports().end();
                 if (hasAirport)
-                    ourIcao = settings->GetAirports().begin()->first;
+                    ourIcao = myAptTaxi->first;
 
                 auto fp        = GetPlugIn()->FlightPlanSelect(callsign.c_str());
                 bool isInbound = false;
@@ -4173,7 +4233,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     {
                         const std::string& standName = standIt->second;
                         std::string        standKey  = ourIcao + ":" + standName;
-                        const auto&        ap        = settings->GetAirports().begin()->second;
+                        const auto&        ap        = myAptTaxi->second;
                         auto               ovIt      = ap.standRoutingTargets.find(standName);
                         if (ovIt != ap.standRoutingTargets.end())
                         {
@@ -4203,7 +4263,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
                 else if (hasAirport)
                 {
-                    const auto& ap = settings->GetAirports().begin()->second;
+                    const auto& ap = myAptTaxi->second;
 
                     // FP runway takes priority; fall back to controller's active config.
                     if (fp.IsValid())
@@ -4334,8 +4394,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     if (fp.IsValid())
                     {
                         std::string ourIcao;
-                        if (!settings->GetAirports().empty())
-                            ourIcao = settings->GetAirports().begin()->first;
+                        auto        myAptState = settings->FindMyAirport();
+                        if (myAptState != settings->GetAirports().end())
+                            ourIcao = myAptState->first;
                         std::string arr = fp.GetFlightPlanData().GetDestination();
                         to_upper(arr);
                         const bool  inbound      = (!ourIcao.empty() && arr == ourIcao);
@@ -4414,10 +4475,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                                           ? posIt->second
                                                           : finalRoute.polyline.front();
                                 std::string standName;
-                                if (!settings->GetAirports().empty())
+                                auto        myAptLog = settings->FindMyAirport();
+                                if (myAptLog != settings->GetAirports().end())
                                 {
-                                    const std::string ourIcao = settings->GetAirports().begin()->first;
-                                    const auto&       ap      = settings->GetAirports().begin()->second;
+                                    const std::string ourIcao = myAptLog->first;
+                                    const auto&       ap      = myAptLog->second;
                                     const std::string prefix  = ourIcao + ":";
                                     for (const auto& [key, stand] : settings->GetGrStands())
                                     {

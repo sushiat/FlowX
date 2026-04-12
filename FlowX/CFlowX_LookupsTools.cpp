@@ -31,8 +31,7 @@ bool CFlowX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], do
             if (polyY[i] > y)
             {
                 // Cross product > 0 means the test point is to the left of the edge (j→i).
-                double cross = (polyX[i] - polyX[j]) * (y - polyY[j])
-                             - (x        - polyX[j]) * (polyY[i] - polyY[j]);
+                double cross = (polyX[i] - polyX[j]) * (y - polyY[j]) - (x - polyX[j]) * (polyY[i] - polyY[j]);
                 if (cross > 0.0)
                     ++winding;
             }
@@ -43,8 +42,7 @@ bool CFlowX_LookupsTools::PointInsidePolygon(int polyCorners, double polyX[], do
             if (polyY[i] <= y)
             {
                 // Cross product < 0 means the test point is to the right of the edge (j→i).
-                double cross = (polyX[i] - polyX[j]) * (y - polyY[j])
-                             - (x        - polyX[j]) * (polyY[i] - polyY[j]);
+                double cross = (polyX[i] - polyX[j]) * (y - polyY[j]) - (x - polyX[j]) * (polyY[i] - polyY[j]);
                 if (cross < 0.0)
                     --winding;
             }
@@ -107,27 +105,6 @@ double CFlowX_LookupsTools::DirectionFromRunwayThreshold(const std::string& rwy,
     rwyThreshold.m_Longitude = rwyIt->second.thresholdLon;
 
     return rwyThreshold.DirectionTo(currentPosition);
-}
-
-/// @brief Finds the airport config for the currently logged-in controller, falling back to @p fallbackIcao.
-/// @param fallbackIcao ICAO to search when the controller's callsign prefix doesn't match any airport.
-/// @return Iterator into airports for the matched entry, or airports.end() if neither matches.
-std::map<std::string, airport>::iterator CFlowX_LookupsTools::FindMyAirport(const std::string& fallbackIcao)
-{
-    std::string myCs = this->ControllerMyself().GetCallsign();
-    std::transform(myCs.begin(), myCs.end(), myCs.begin(), ::toupper);
-    for (auto it = this->airports.begin(); it != this->airports.end(); ++it)
-    {
-        if (myCs.rfind(it->first, 0) == 0)
-            return it;
-    }
-    if (!fallbackIcao.empty())
-    {
-        std::string icao = fallbackIcao;
-        std::transform(icao.begin(), icao.end(), icao.begin(), ::toupper);
-        return this->airports.find(icao);
-    }
-    return this->airports.end();
 }
 
 /// @brief Returns a numeric ranking for a wake-turbulence category character.

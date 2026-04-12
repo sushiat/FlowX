@@ -223,6 +223,24 @@ void CFlowX_Settings::RefreshActiveRunways()
                      "TAXI");
 }
 
+std::map<std::string, airport>::iterator CFlowX_Settings::FindMyAirport(const std::string& fallbackIcao)
+{
+    std::string myCs = this->ControllerMyself().GetCallsign();
+    std::transform(myCs.begin(), myCs.end(), myCs.begin(), ::toupper);
+    for (auto it = this->airports.begin(); it != this->airports.end(); ++it)
+    {
+        if (myCs.rfind(it->first, 0) == 0)
+            return it;
+    }
+    if (!fallbackIcao.empty())
+    {
+        std::string icao = fallbackIcao;
+        std::transform(icao.begin(), icao.end(), icao.begin(), ::toupper);
+        return this->airports.find(icao);
+    }
+    return this->airports.end();
+}
+
 void CFlowX_Settings::RebuildTaxiGraph()
 {
     if (this->osmData.ways.empty() || this->airports.empty())
@@ -232,7 +250,10 @@ void CFlowX_Settings::RebuildTaxiGraph()
 
     // Capture by value so the background thread is fully independent of the main-thread state.
     OsmAirportData osmSnap = this->osmData;
-    airport        apSnap  = this->airports.begin()->second;
+    auto           myApt   = this->FindMyAirport();
+    if (myApt == this->airports.end())
+        return;
+    airport apSnap = myApt->second;
 
     this->LogDebugMessage("Building TaxiGraph (background)", "TAXI");
     this->graphFuture_ = std::async(std::launch::async,

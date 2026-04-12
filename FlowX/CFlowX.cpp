@@ -126,9 +126,10 @@ void CFlowX::OnFlightPlanControllerAssignedDataUpdate(EuroScopePlugIn::CFlightPl
 
                     // Find canonical HP name (case-insensitive search across all runways).
                     std::string foundHpName;
-                    if (!this->GetAirports().empty())
+                    auto        myAptIt = this->FindMyAirport();
+                    if (myAptIt != this->airports.end())
                     {
-                        const auto& ap = this->GetAirports().begin()->second;
+                        const auto& ap = myAptIt->second;
                         for (const auto& [rwyDes, rwy] : ap.runways)
                         {
                             auto it = rwy.holdingPoints.find(hpUpper);

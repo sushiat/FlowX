@@ -46,11 +46,6 @@ class CFlowX_LookupsTools : public CFlowX_Settings
     /// @return Distance in nautical miles, or 0.0 if the runway is not found.
     static double DistanceFromRunwayThreshold(const std::string& rwy, const EuroScopePlugIn::CPosition& currentPosition, const std::map<std::string, runway>& runways);
 
-    /// @brief Finds the airport config for the currently logged-in controller, falling back to a given ICAO.
-    /// @param fallbackIcao ICAO to search when the controller's callsign does not match any airport; may be empty.
-    /// @return Iterator into airports pointing at the matched entry, or airports.end() if neither matches.
-    std::map<std::string, airport>::iterator FindMyAirport(const std::string& fallbackIcao = "");
-
     /// @brief Returns a numeric ranking for an aircraft wake-turbulence category character.
     /// @param wtc Wake-turbulence category character (J, H, M, L; case-insensitive).
     /// @return Ranking value: J=4, H=3, M=2, L=1, unknown=0.
