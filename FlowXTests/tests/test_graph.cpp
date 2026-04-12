@@ -269,10 +269,11 @@ TEST_CASE("TaxiGraph flow - against-flow route costs more than with-flow (taxiFl
     REQUIRE(withFlow.valid);
     REQUIRE(againstFlow.valid);
 
-    // totalCost / totalDistM equals the flow multiplier regardless of which snap node
-    // FindRoute chose — the snap offset cancels out of the ratio.
-    CHECK(withFlow.totalCost == doctest::Approx(withFlow.totalDistM * 0.9).epsilon(0.05));
-    CHECK(againstFlow.totalCost == doctest::Approx(againstFlow.totalDistM * 3.0).epsilon(0.05));
+    // totalCost / totalDistM approximates the flow multiplier; the wayrefChangePenalty
+    // at route start (empty → named transition) adds a fixed offset to both routes.
+    const double wrp = ap.taxiNetworkConfig.routing.wayrefChangePenalty;
+    CHECK(withFlow.totalCost == doctest::Approx(withFlow.totalDistM * ap.taxiNetworkConfig.flowRules.withFlowMult + wrp).epsilon(0.05));
+    CHECK(againstFlow.totalCost == doctest::Approx(againstFlow.totalDistM * ap.taxiNetworkConfig.flowRules.againstFlowMult + wrp).epsilon(0.05));
 }
 
 TEST_CASE("TaxiGraph flow - no flow rule means both directions cost the same")
@@ -288,9 +289,11 @@ TEST_CASE("TaxiGraph flow - no flow rule means both directions cost the same")
 
     REQUIRE(fwd.valid);
     REQUIRE(rev.valid);
-    // Without flow rules every edge cost equals its geometric length (1.0×).
-    CHECK(fwd.totalCost == doctest::Approx(fwd.totalDistM).epsilon(0.01));
-    CHECK(rev.totalCost == doctest::Approx(rev.totalDistM).epsilon(0.01));
+    // Without flow rules every edge cost equals its geometric length (1.0×)
+    // plus the wayrefChangePenalty at route start (empty → named transition).
+    const double wrp = MakeAirport().taxiNetworkConfig.routing.wayrefChangePenalty;
+    CHECK(fwd.totalCost == doctest::Approx(fwd.totalDistM + wrp).epsilon(0.01));
+    CHECK(rev.totalCost == doctest::Approx(rev.totalDistM + wrp).epsilon(0.01));
 }
 
 TEST_CASE("TaxiGraph flow - runway-conditional flow rule raises against-flow cost (taxiFlowConfigs)")
@@ -305,21 +308,23 @@ TEST_CASE("TaxiGraph flow - runway-conditional flow rule raises against-flow cos
     GeoPoint A{48.1100, 16.5400};
     GeoPoint C{48.1100, 16.5454};
 
-    // Without the runway config active: cost/distM = 1.0 for both directions.
+    const double wrp = ap.taxiNetworkConfig.routing.wayrefChangePenalty;
+
+    // Without the runway config active: cost/distM = 1.0 for both directions (+ start wayref penalty).
     TaxiRoute fwdOff = g.FindRoute(A, C, 0.0, {}, {});
     TaxiRoute revOff = g.FindRoute(C, A, 0.0, {}, {});
     REQUIRE(fwdOff.valid);
     REQUIRE(revOff.valid);
-    CHECK(fwdOff.totalCost == doctest::Approx(fwdOff.totalDistM).epsilon(0.01));
-    CHECK(revOff.totalCost == doctest::Approx(revOff.totalDistM).epsilon(0.01));
+    CHECK(fwdOff.totalCost == doctest::Approx(fwdOff.totalDistM + wrp).epsilon(0.01));
+    CHECK(revOff.totalCost == doctest::Approx(revOff.totalDistM + wrp).epsilon(0.01));
 
     // With dep runway "29" active: A→C (with flow) gets 0.9× discount; C→A (against flow) rises to 3.0×.
     TaxiRoute fwdOn = g.FindRoute(A, C, 0.0, {"29"}, {});
     TaxiRoute revOn = g.FindRoute(C, A, 0.0, {"29"}, {});
     REQUIRE(fwdOn.valid);
     REQUIRE(revOn.valid);
-    CHECK(fwdOn.totalCost == doctest::Approx(fwdOn.totalDistM * 0.9).epsilon(0.05));
-    CHECK(revOn.totalCost == doctest::Approx(revOn.totalDistM * 3.0).epsilon(0.05));
+    CHECK(fwdOn.totalCost == doctest::Approx(fwdOn.totalDistM * ap.taxiNetworkConfig.flowRules.withFlowMult + wrp).epsilon(0.05));
+    CHECK(revOn.totalCost == doctest::Approx(revOn.totalDistM * ap.taxiNetworkConfig.flowRules.againstFlowMult + wrp).epsilon(0.05));
 }
 
 TEST_CASE("TaxiGraph flow - wayRef change adds penalty once per transition")
@@ -341,12 +346,14 @@ TEST_CASE("TaxiGraph flow - wayRef change adds penalty once per transition")
     REQUIRE(routeSingle.valid);
     REQUIRE(routeSplit.valid);
 
+    const double wrp = MakeAirport().taxiNetworkConfig.routing.wayrefChangePenalty;
+
     // cost - distM isolates flat penalties: the snap offset cancels out of both terms.
-    // Single ref: no penalty.
-    CHECK(routeSingle.totalCost == doctest::Approx(routeSingle.totalDistM).epsilon(0.01));
-    // Split ref: exactly one wayrefChangePenalty (200) above geometric distance.
+    // Single ref: one penalty at route start (empty → named).
+    CHECK(routeSingle.totalCost == doctest::Approx(routeSingle.totalDistM + wrp).epsilon(0.01));
+    // Split ref: start penalty (empty → "M") + one wayrefChangePenalty ("M" → "N") = 2 × wrp.
     CHECK(routeSplit.totalCost - routeSplit.totalDistM ==
-          doctest::Approx(200.0).epsilon(0.01));
+          doctest::Approx(wrp * 2).epsilon(0.01));
 }
 
 TEST_CASE("TaxiGraph flow - only intersection-to-intersection wayRef transitions are free")
@@ -401,14 +408,16 @@ TEST_CASE("TaxiGraph flow - only intersection-to-intersection wayRef transitions
     REQUIRE(routeViaIsx.valid);
     REQUIRE(routeStraight.valid);
 
+    const double wrp = MakeAirport().taxiNetworkConfig.routing.wayrefChangePenalty;
+
     // cost - distM = flat penalties + edge-multiplier extras (snap offset cancels).
-    // Wayref penalty entering ISX from M (200) + wayref penalty leaving ISX to M (200),
-    // plus the 1.1× multiplier on the 200 m ISX segment adds 200 * 0.1 = 20.
+    // Start penalty (empty → "M") + wayref penalty entering ISX from M + wayref
+    // penalty leaving ISX to M, plus the 1.1× multiplier on the ISX segment.
     // Only intersection→intersection transitions are free; ISX→taxiway is not.
-    // Straight baseline has no penalties or multipliers: cost - distM = 0.
-    CHECK(routeStraight.totalCost == doctest::Approx(routeStraight.totalDistM).epsilon(0.01));
+    // Straight baseline: only the start penalty (empty → "M").
+    CHECK(routeStraight.totalCost == doctest::Approx(routeStraight.totalDistM + wrp).epsilon(0.01));
     CHECK(routeViaIsx.totalCost - routeViaIsx.totalDistM ==
-          doctest::Approx(200.0 * 2 + 200.0 * 0.1).epsilon(0.05));
+          doctest::Approx(wrp * 3 + 200.0 * 0.1).epsilon(0.05));
 }
 
 TEST_CASE("TaxiGraph flow - Taxiway_Intersection edges cost more than plain taxiway edges")
@@ -427,9 +436,10 @@ TEST_CASE("TaxiGraph flow - Taxiway_Intersection edges cost more than plain taxi
     REQUIRE(rRegular.valid);
     REQUIRE(rIntersection.valid);
 
-    // cost/distM equals the edge type multiplier; snap offset cancels out of the ratio.
-    CHECK(rRegular.totalCost == doctest::Approx(rRegular.totalDistM * 1.0).epsilon(0.01));
-    CHECK(rIntersection.totalCost == doctest::Approx(rIntersection.totalDistM * 1.1).epsilon(0.05));
+    // cost/distM equals the edge type multiplier + start wayref penalty; snap offset cancels out of the ratio.
+    const double wrp = MakeAirport().taxiNetworkConfig.routing.wayrefChangePenalty;
+    CHECK(rRegular.totalCost == doctest::Approx(rRegular.totalDistM * 1.0 + wrp).epsilon(0.01));
+    CHECK(rIntersection.totalCost == doctest::Approx(rIntersection.totalDistM * 1.1 + wrp).epsilon(0.05));
 }
 
 // ─── NearestNodeId ───────────────────────────────────────────────────────────
@@ -574,9 +584,10 @@ TEST_CASE("TaxiGraph - Taxilane edges cost 3x base distance (multTaxilane)")
     REQUIRE(rTaxiway.valid);
     REQUIRE(rTaxilane.valid);
 
-    // Taxiway: cost/distM = 1.0;  Taxilane: cost/distM ≈ 3.0
-    CHECK(rTaxiway.totalCost == doctest::Approx(rTaxiway.totalDistM * 1.0).epsilon(0.05));
-    CHECK(rTaxilane.totalCost == doctest::Approx(rTaxilane.totalDistM * 3.0).epsilon(0.10));
+    // Taxiway: cost/distM = 1.0;  Taxilane: cost/distM ≈ 3.0 (both + start wayref penalty)
+    const double wrp = MakeAirport().taxiNetworkConfig.routing.wayrefChangePenalty;
+    CHECK(rTaxiway.totalCost == doctest::Approx(rTaxiway.totalDistM * 1.0 + wrp).epsilon(0.05));
+    CHECK(rTaxilane.totalCost == doctest::Approx(rTaxilane.totalDistM * 3.0 + wrp).epsilon(0.10));
 }
 
 // ─── Holding point node promotion ────────────────────────────────────────────

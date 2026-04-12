@@ -67,6 +67,13 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                 if (!wayRef.empty() && !nodes_[nid].wayRef.empty() &&
                     nodes_[nid].wayRef != wayRef && d > 1.0)
                     continue;
+                // Don't merge two different HP ways at crossing points — each HP has
+                // independent connectivity (runway ↔ taxiway).  Crossing HPs (e.g.
+                // B5 and B6) must not share graph nodes.
+                if (wayPriority == 1 && nodes_[nid].wayPriority == 1 &&
+                    !wayRef.empty() && !nodes_[nid].wayRef.empty() &&
+                    nodes_[nid].wayRef != wayRef)
+                    continue;
                 // At a genuine OSM junction (d ≤ 1 m), resolve ref conflicts by
                 // preferring the higher-priority way type (taxiway > taxilane >
                 // intersection), and within the same priority prefer a parent name

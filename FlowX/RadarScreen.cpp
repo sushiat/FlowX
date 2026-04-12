@@ -1511,31 +1511,37 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
         return ConvertCoordFromPositionToPixel(pos);
     };
 
-    // Pass 1 — edges, coloured by cost multiplier (cost / distance in metres).
-    //   < 1×  green  — preferred / with-flow discount
-    //   ~1×   white  — neutral
-    //   ~3×   yellow — against generic flow or taxilane
-    //   ~9×   orange — taxilane against flow
-    //   ≥15×  red    — runway
-    struct CostBand
-    {
-        double   maxMult;
-        COLORREF col;
-    };
-    constexpr CostBand BANDS[] = {
-        {1.0, RGB(0, 200, 100)},   // green
-        {2.0, RGB(255, 255, 255)}, // white
-        {5.0, RGB(255, 220, 0)},   // yellow
-        {14.0, RGB(255, 130, 0)},  // orange
-        {1e9, RGB(220, 50, 50)},   // red
-    };
-    constexpr int NBAND = static_cast<int>(std::size(BANDS));
-    HPEN          costPens[NBAND];
-    for (int b = 0; b < NBAND; ++b)
-        costPens[b] = CreatePen(PS_SOLID, 2, BANDS[b].col);
+    // Build flow-controlled wayRef set from active generic + config flow rules.
+    const auto activeFlowRules = settings->osmGraph.GetActiveFlowRules(
+        settings->GetActiveDepRunways(), settings->GetActiveArrRunways());
+    std::set<std::string> flowRefs;
+    for (const auto& rule : activeFlowRules)
+        flowRefs.insert(rule.taxiway);
 
-    HPEN prevPen = static_cast<HPEN>(SelectObject(hDC, costPens[1]));
-    int  curBand = 1;
+    // Pass 1 — edges, coloured by type and cost multiplier (cost / distance in metres).
+    //   green  — flow-controlled taxiway (wayRef has an active flow rule)
+    //   white  — neutral taxiway (no flow rule)
+    //   yellow — taxilane (~3×)
+    //   orange — holding-point connector (~25×), drawn bold
+    //   red    — runway (≥30×)
+    enum EdgeStyle
+    {
+        STYLE_GREEN,
+        STYLE_WHITE,
+        STYLE_YELLOW,
+        STYLE_ORANGE_BOLD,
+        STYLE_RED,
+        STYLE_COUNT
+    };
+    HPEN stylePens[STYLE_COUNT];
+    stylePens[STYLE_GREEN]       = CreatePen(PS_SOLID, 2, RGB(0, 200, 100));
+    stylePens[STYLE_WHITE]       = CreatePen(PS_SOLID, 2, RGB(255, 255, 255));
+    stylePens[STYLE_YELLOW]      = CreatePen(PS_SOLID, 2, RGB(255, 220, 0));
+    stylePens[STYLE_ORANGE_BOLD] = CreatePen(PS_SOLID, 5, RGB(255, 130, 0));
+    stylePens[STYLE_RED]         = CreatePen(PS_SOLID, 2, RGB(220, 50, 50));
+
+    HPEN prevPen  = static_cast<HPEN>(SelectObject(hDC, stylePens[STYLE_WHITE]));
+    int  curStyle = STYLE_WHITE;
 
     for (int i = 0; i < static_cast<int>(adj.size()); ++i)
     {
@@ -1547,20 +1553,21 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
 
             const double distM = HaversineM(nodes[i].pos, nodes[e.to].pos);
             const double mult  = (distM > 0.01) ? e.cost / distM : 1.0;
-
-            int band = NBAND - 1;
-            for (int b = 0; b < NBAND; ++b)
+            int          style;
+            if (mult >= 30.0)
+                style = STYLE_RED;
+            else if (mult >= 5.0)
+                style = STYLE_ORANGE_BOLD;
+            else if (mult >= 2.0)
+                style = STYLE_YELLOW;
+            else if (!e.wayRef.empty() && flowRefs.contains(e.wayRef))
+                style = STYLE_GREEN;
+            else
+                style = STYLE_WHITE;
+            if (style != curStyle)
             {
-                if (mult < BANDS[b].maxMult)
-                {
-                    band = b;
-                    break;
-                }
-            }
-            if (band != curBand)
-            {
-                SelectObject(hDC, costPens[band]);
-                curBand = band;
+                SelectObject(hDC, stylePens[style]);
+                curStyle = style;
             }
 
             const POINT ptB = toPixel(nodes[e.to].pos);
@@ -1569,8 +1576,8 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
         }
     }
     SelectObject(hDC, prevPen);
-    for (int b = 0; b < NBAND; ++b)
-        DeleteObject(costPens[b]);
+    for (int b = 0; b < STYLE_COUNT; ++b)
+        DeleteObject(stylePens[b]);
 
     // Pass 2 — nodes: 6 × 6 px square coloured by type.
     //   Waypoint       → cyan
@@ -1586,7 +1593,7 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
                                                                        : RGB(0, 200, 255);
         const POINT    pt  = toPixel(n.pos);
         HBRUSH         br  = CreateSolidBrush(col);
-        const RECT     r   = {pt.x - 3, pt.y - 3, pt.x + 3, pt.y + 3};
+        const RECT     r   = {pt.x - 2, pt.y - 2, pt.x + 2, pt.y + 2};
         FillRect(hDC, &r, br);
         DeleteObject(br);
     }
@@ -1595,9 +1602,6 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
     // Each chevron is two short lines forming a ">" at the edge midpoint, pointing in the
     // direction of travel.  Only edges longer than MIN_PX pixels on screen are annotated to
     // avoid cluttering heavily-subdivided short segments.
-    const auto activeFlowRules = settings->osmGraph.GetActiveFlowRules(
-        settings->GetActiveDepRunways(), settings->GetActiveArrRunways());
-
     if (!activeFlowRules.empty())
     {
         // Cardinal direction → bearing (degrees).
