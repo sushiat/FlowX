@@ -3,11 +3,11 @@
         "diflis": {
             "columnWidths": [28, 28, 29, 15],
             "inboundBg":       "#B0D8FF",
-            "inboundBgDark":   "#80B0E0",
+            "inboundBgDark":   "#9AC4EC",
             "inboundText":     "#000000",
             "inboundTextDim":  "#5A5A5A",
             "outboundBg":      "#D2D2D2",
-            "outboundBgDark":  "#A0A0A0",
+            "outboundBgDark":  "#BCBCBC",
             "outboundText":    "#000000",
             "outboundTextDim": "#5A5A5A",
             "fontSizeStatusBar": 20,

@@ -4217,8 +4217,25 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                         }
                         {
                             RECT csTxt = {csDarkR.left + 6, csDarkR.top, csDarkR.right - 4, csDarkR.bottom};
+                            int  avail = csTxt.right - csTxt.left;
+                            SIZE szLbl = {};
+                            GetTextExtentPoint32A(hDC, csLabel.c_str(), (int)csLabel.size(), &szLbl);
+                            HFONT csShrunk = nullptr;
+                            if (szLbl.cx > avail && avail > 0)
+                            {
+                                float ratio = (float)avail / (float)szLbl.cx;
+                                int   baseH = std::abs(fs((int)std::round(fsLarge * widthScale)));
+                                int   newH  = -std::max(6, (int)std::round(baseH * ratio));
+                                csShrunk = mkFont(newH, FW_BOLD);
+                                SelectObject(hDC, csShrunk);
+                            }
                             DrawTextA(hDC, csLabel.c_str(), -1, &csTxt,
-                                      DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                                      DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+                            if (csShrunk)
+                            {
+                                SelectObject(hDC, csFont);
+                                DeleteObject(csShrunk);
+                            }
                         }
 
                         // Status button on the right — square in the expanded variant (= expanded inner height),
@@ -4281,10 +4298,10 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                             SelectObject(hDC, bodyFont);
                             RECT tTxt = {typeR.left + 4, typeR.top, typeR.right - 4, typeR.bottom};
                             DrawTextA(hDC, type.c_str(), -1, &tTxt,
-                                      DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                                      DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                             RECT sTxt = {standR.left + 4, standR.top, standR.right - 4, standR.bottom};
                             DrawTextA(hDC, stand.c_str(), -1, &sTxt,
-                                      DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                                      DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                             // Rwy column holds SID (left, medium) + rwy (right, large), no
                             // separator between them. SID is shortened: first 3 letters of
                             // the alpha prefix + numeric/suffix tail (e.g. LANUX3D -> LAN3D).
@@ -4360,40 +4377,58 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                             int col5x = col4x + col4W + SEP_W;
                             int col5r = stBtnR.left - SEP_W;
 
-                            auto drawCell3 = [&](int l, int r,
+                            // Inter-column separators — same rule as collapsed: 2 px darker bars,
+                            // only drawn where both sides are bright cells (never alongside the
+                            // dark callsign block or the dark status button).
+                            {
+                                auto sepBr = CreateSolidBrush(bgDark);
+                                // sep type|stand under the callsign block (bottom third only);
+                                // leave a 2 px gap below the dark callsign cell above.
+                                RECT sepTypeStand = {half - 1, r3top + 2, half + 1, inner.bottom};
+                                FillRect(hDC, &sepTypeStand, sepBr);
+                                // sep col3|col4 — full height
+                                RECT sep34 = {col4x - SEP_W / 2 - 1, inner.top, col4x - SEP_W / 2 + 1, inner.bottom};
+                                FillRect(hDC, &sep34, sepBr);
+                                // sep col4|col5 — full height
+                                RECT sep45 = {col5x - SEP_W / 2 - 1, inner.top, col5x - SEP_W / 2 + 1, inner.bottom};
+                                FillRect(hDC, &sep45, sepBr);
+                                DeleteObject(sepBr);
+                            }
+
+                            auto drawCell3 = [&](int l, int r, UINT hAlign,
                                                  const char* t1, bool dim1,
                                                  const char* t2, bool dim2,
                                                  const char* t3, bool dim3)
                             {
-                                RECT r1R = {l + 2, inner.top, r - 2, r2top};
-                                RECT r2R = {l + 2, r2top,     r - 2, r3top};
-                                RECT r3R = {l + 2, r3top,     r - 2, inner.bottom};
+                                RECT r1R = {l + 2, inner.top, r - 4, r2top};
+                                RECT r2R = {l + 2, r2top,     r - 4, r3top};
+                                RECT r3R = {l + 2, r3top,     r - 4, inner.bottom};
                                 if (t1 && *t1)
                                 {
                                     SetTextColor(hDC, dim1 ? s.textDim : s.text);
                                     DrawTextA(hDC, t1, -1, &r1R,
-                                              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                                              hAlign | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                                 }
                                 if (t2 && *t2)
                                 {
                                     SetTextColor(hDC, dim2 ? s.textDim : s.text);
                                     DrawTextA(hDC, t2, -1, &r2R,
-                                              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                                              hAlign | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                                 }
                                 if (t3 && *t3)
                                 {
                                     SetTextColor(hDC, dim3 ? s.textDim : s.text);
                                     DrawTextA(hDC, t3, -1, &r3R,
-                                              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                                              hAlign | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                                 }
                             };
 
                             SelectObject(hDC, bodyFont);
-                            drawCell3(col3x, col4x - SEP_W,
+                            drawCell3(col3x, col4x - SEP_W, DT_RIGHT,
                                       sidShort.c_str(), true,
                                       "443",            false,
                                       adx.c_str(),      false);
-                            drawCell3(col4x, col5x - SEP_W,
+                            drawCell3(col4x, col5x - SEP_W, DT_CENTER,
                                       "",         false,
                                       sqk.c_str(),false,
                                       "",         false);

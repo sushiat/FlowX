@@ -93,6 +93,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, int>                        dep_queuePos;                     ///< Callsign -> departure queue position (1-based); absent = not queued.
     int                                               dep_sequenceCounter = 0;          ///< Global sequence counter incremented at each takeoff.
     std::map<std::string, int>                        dep_sequenceNumber;               ///< Callsign -> departure sequence number assigned at takeoff.
+    std::map<std::string, std::string>                departureStand;                   ///< Callsign -> last stand an outbound was detected parked in (polygon-derived; display-only for DIFLIS, never cleared on leaving).
     std::map<std::string, std::string>                flightStripAnnotation;            ///< Callsign -> cached content of flight-strip annotation slot 8.
     std::map<std::string, std::string>                lastDepRunway;                    ///< Callsign -> last seen departure runway designator; used to detect runway changes and clear stale HP assignments.
     std::map<std::string, EuroScopePlugIn::CPosition> lastHpCheckPos;                   ///< Callsign -> aircraft position at the last holding-point polygon test; used to skip redundant checks.

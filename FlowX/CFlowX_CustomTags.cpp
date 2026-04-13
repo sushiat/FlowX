@@ -1497,7 +1497,18 @@ void CFlowX_CustomTags::UpdateTagCache()
                 s.callsign     = fp.GetCallsign();
                 s.wtc          = fpd.GetAircraftWtc();
                 s.acType       = fpd.GetAircraftFPType();
-                s.stand        = fp.GetControllerAssignedData().GetFlightStripAnnotation(3);
+                if (isInbound)
+                {
+                    auto standIt = this->standAssignment.find(s.callsign);
+                    if (standIt != this->standAssignment.end())
+                        s.stand = standIt->second;
+                }
+                else
+                {
+                    auto depIt = this->departureStand.find(s.callsign);
+                    if (depIt != this->departureStand.end())
+                        s.stand = depIt->second;
+                }
                 s.squawk       = fp.GetControllerAssignedData().GetSquawk();
                 s.originOrDest = isInbound ? origin : dest;
                 s.isInbound    = isInbound;
