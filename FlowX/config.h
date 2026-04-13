@@ -217,6 +217,7 @@ struct DiflisAirportConfig
     int                        fontSizeStripMedium   = 20;                      ///< Base font size for the medium strip text (type, stand, squawk, adep/ades)
     int                        fontSizeStripSmall    = 16;                      ///< Base font size for the small strip text (reserved for future sub-cell use)
     std::vector<DiflisGroupDef> groups           = {};                            ///< All group definitions in rendering order; column/heightWeight decide placement
+    std::vector<std::pair<double, double>> crossCouple = {};                      ///< Cross-coupling pairs {covering, covered}: if the covering freq is online, the covered button inherits its color.
 };
 
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.

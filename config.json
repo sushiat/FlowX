@@ -10,12 +10,16 @@
             "outboundBgDark":  "#BCBCBC",
             "outboundText":    "#000000",
             "outboundTextDim": "#5A5A5A",
-            "fontSizeStatusBar": 20,
+            "fontSizeStatusBar": 25,
             "fontSizeGroupHeader": 16,
             "fontSizeGroupSide": 14,
             "fontSizeStripLarge": 30,
             "fontSizeStripMedium": 20,
             "fontSizeStripSmall": 16,
+            "crossCouple": {
+                "119.400": 123.800,
+                "121.600": 121.775
+            },
             "groups": [
                 { "id": "LOCAL",                    "title": "LOCAL",    "column": 0, "heightWeight": 20, "rightHeader": "MANUAL", "acceptsDrop": false, "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
                 { "id": "ARRIVALS",                 "title": "ARRIVALS", "column": 0, "heightWeight": 80, "rightHeader": "ETA ^",  "acceptsDrop": false, "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "etaAsc"},

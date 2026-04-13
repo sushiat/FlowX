@@ -177,6 +177,14 @@ class CFlowX_Timers : public CFlowX_LookupsTools
         return (it != this->atisLetters.end()) ? it->second : std::string{};
     }
 
+    /// @brief Returns the raw METAR pressure element for the given ICAO (e.g. "Q1013" / "A2992"),
+    ///        or an empty string if no METAR has been parsed yet.
+    [[nodiscard]] std::string GetAirportQnh(const std::string& icao) const
+    {
+        auto it = this->airportQNH.find(icao);
+        return (it != this->airportQNH.end()) ? it->second : std::string{};
+    }
+
     /// @brief Syncs current on-screen window positions into the settings layer and persists them.
     /// @note Called when the user clicks "Save positions" in the FlowX menu.
     void SaveWindowPositions();

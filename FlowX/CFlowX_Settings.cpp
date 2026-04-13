@@ -980,6 +980,21 @@ void CFlowX_Settings::LoadConfig()
             ap.diflis.fontSizeStripLarge  = jd.value("fontSizeStripLarge",  ap.diflis.fontSizeStripLarge);
             ap.diflis.fontSizeStripMedium = jd.value("fontSizeStripMedium", ap.diflis.fontSizeStripMedium);
             ap.diflis.fontSizeStripSmall  = jd.value("fontSizeStripSmall",  ap.diflis.fontSizeStripSmall);
+            if (jd.contains("crossCouple") && jd["crossCouple"].is_object())
+            {
+                for (auto it = jd["crossCouple"].begin(); it != jd["crossCouple"].end(); ++it)
+                {
+                    try
+                    {
+                        double covering = std::stod(it.key());
+                        double covered  = it.value().get<double>();
+                        ap.diflis.crossCouple.emplace_back(covering, covered);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
             if (jd.contains("groups") && jd["groups"].is_array())
             {
                 auto parseVariant = [](const std::string& s, DiflisStripVariant def) -> DiflisStripVariant
