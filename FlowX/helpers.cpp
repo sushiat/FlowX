@@ -12,6 +12,32 @@
 
 using json = nlohmann::json;
 
+void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct)
+{
+    int w = rect.right - rect.left;
+    int h = rect.bottom - rect.top;
+    if (w <= 0 || h <= 0) return;
+    if (opacityPct >= 100)
+    {
+        auto brush = CreateSolidBrush(color);
+        FillRect(hDC, &rect, brush);
+        DeleteObject(brush);
+        return;
+    }
+    HDC     memDC  = CreateCompatibleDC(hDC);
+    HBITMAP bmp    = CreateCompatibleBitmap(hDC, w, h);
+    HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, bmp);
+    RECT    local  = {0, 0, w, h};
+    auto    brush  = CreateSolidBrush(color);
+    FillRect(memDC, &local, brush);
+    DeleteObject(brush);
+    BLENDFUNCTION bf = {AC_SRC_OVER, 0, static_cast<BYTE>(opacityPct * 255 / 100), 0};
+    AlphaBlend(hDC, rect.left, rect.top, w, h, memDC, 0, 0, w, h, bf);
+    SelectObject(memDC, oldBmp);
+    DeleteObject(bmp);
+    DeleteDC(memDC);
+}
+
 /// @brief Fetches the latest plugin version string from the remote version file.
 /// @return Version string read from the URL (e.g. "0.6.0").
 /// @note Throws error on connection or HTTP failure.
