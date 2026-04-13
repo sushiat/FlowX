@@ -380,6 +380,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 // DIFLIS renders on the popout thread via its content-paint callback; the
                 // main thread's only per-tick job is to publish a fresh snapshot and drain
                 // events queued by the popout thread.
+                // Drain events first so any drag-state mutations they cause are reflected
+                // in the snapshot we build below — otherwise drag overlay visibility lags
+                // by one OnRefresh tick.
+                this->DispatchPopoutEvents(this->diflisPopout.get());
                 if (!this->diflisPopout->IsDirectDragging())
                 {
                     this->diflisWindowW = this->diflisPopout->GetContentW();
@@ -387,7 +391,6 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     this->BuildDiflisSnapshot();
                     this->diflisPopout->RequestRepaint();
                 }
-                this->DispatchPopoutEvents(this->diflisPopout.get());
             }
 
             this->DrawStartButton(hDC);

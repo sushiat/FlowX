@@ -1034,7 +1034,8 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
         "DIFLIS", x, y, w, h,
         [s](int nx, int ny)
         { s->SetDiflisPopoutPos(nx, ny); },
-        nullptr,
+        [this]
+        { this->RequestRefresh(); },
         [](const HitArea& ha, POINT delta, int currentW, int currentH) -> std::pair<int, int>
         {
             if (ha.objectId != "DIFLIS_RESIZE")

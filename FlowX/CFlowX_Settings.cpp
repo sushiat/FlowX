@@ -566,12 +566,7 @@ void CFlowX_Settings::LoadSettings()
                 }
                 else if (name == "diflisWindow")
                 {
-                    this->diflisWindowX   = w.value("x", -1);
-                    this->diflisWindowY   = w.value("y", -1);
-                    this->diflisWindowW   = w.value("w", 1100);
-                    this->diflisWindowH   = w.value("h", 720);
-                    this->diflisVisible   = w.value("visible", false);
-                    this->diflisPoppedOut = w.value("poppedOut", false);
+                    this->diflisVisible         = w.value("visible", false);
                     this->diflisPopoutX         = w.value("popoutX", -1);
                     this->diflisPopoutY         = w.value("popoutY", -1);
                     this->diflisPopoutW         = w.value("popoutW", -1);
@@ -675,13 +670,8 @@ void CFlowX_Settings::SaveSettings()
         }
         {
             json w;
-            w["name"]      = "diflisWindow";
-            w["x"]         = this->diflisWindowX;
-            w["y"]         = this->diflisWindowY;
-            w["w"]         = this->diflisWindowW;
-            w["h"]         = this->diflisWindowH;
-            w["visible"]   = this->diflisVisible;
-            w["poppedOut"] = this->diflisPoppedOut;
+            w["name"]            = "diflisWindow";
+            w["visible"]         = this->diflisVisible;
             w["popoutX"]         = this->diflisPopoutX;
             w["popoutY"]         = this->diflisPopoutY;
             w["popoutW"]         = this->diflisPopoutW;
@@ -951,35 +941,41 @@ void CFlowX_Settings::LoadConfig()
             auto parseHex = [](const std::string& s, COLORREF def) -> COLORREF
             {
                 std::string v = s;
-                if (!v.empty() && v[0] == '#') v.erase(0, 1);
-                if (v.size() != 6) return def;
+                if (!v.empty() && v[0] == '#')
+                    v.erase(0, 1);
+                if (v.size() != 6)
+                    return def;
                 auto hx = [](char c) -> int
                 {
-                    if (c >= '0' && c <= '9') return c - '0';
-                    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-                    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+                    if (c >= '0' && c <= '9')
+                        return c - '0';
+                    if (c >= 'a' && c <= 'f')
+                        return 10 + (c - 'a');
+                    if (c >= 'A' && c <= 'F')
+                        return 10 + (c - 'A');
                     return -1;
                 };
                 int r = (hx(v[0]) << 4) | hx(v[1]);
                 int g = (hx(v[2]) << 4) | hx(v[3]);
                 int b = (hx(v[4]) << 4) | hx(v[5]);
-                if (r < 0 || g < 0 || b < 0) return def;
+                if (r < 0 || g < 0 || b < 0)
+                    return def;
                 return RGB(r, g, b);
             };
-            ap.diflis.inboundBg       = parseHex(jd.value("inboundBg",       std::string{}), ap.diflis.inboundBg);
-            ap.diflis.inboundBgDark   = parseHex(jd.value("inboundBgDark",   std::string{}), ap.diflis.inboundBgDark);
-            ap.diflis.inboundText     = parseHex(jd.value("inboundText",     std::string{}), ap.diflis.inboundText);
-            ap.diflis.inboundTextDim  = parseHex(jd.value("inboundTextDim",  std::string{}), ap.diflis.inboundTextDim);
-            ap.diflis.outboundBg      = parseHex(jd.value("outboundBg",      std::string{}), ap.diflis.outboundBg);
-            ap.diflis.outboundBgDark  = parseHex(jd.value("outboundBgDark",  std::string{}), ap.diflis.outboundBgDark);
-            ap.diflis.outboundText    = parseHex(jd.value("outboundText",    std::string{}), ap.diflis.outboundText);
-            ap.diflis.outboundTextDim = parseHex(jd.value("outboundTextDim", std::string{}), ap.diflis.outboundTextDim);
-            ap.diflis.fontSizeStatusBar   = jd.value("fontSizeStatusBar",   ap.diflis.fontSizeStatusBar);
+            ap.diflis.inboundBg           = parseHex(jd.value("inboundBg", std::string{}), ap.diflis.inboundBg);
+            ap.diflis.inboundBgDark       = parseHex(jd.value("inboundBgDark", std::string{}), ap.diflis.inboundBgDark);
+            ap.diflis.inboundText         = parseHex(jd.value("inboundText", std::string{}), ap.diflis.inboundText);
+            ap.diflis.inboundTextDim      = parseHex(jd.value("inboundTextDim", std::string{}), ap.diflis.inboundTextDim);
+            ap.diflis.outboundBg          = parseHex(jd.value("outboundBg", std::string{}), ap.diflis.outboundBg);
+            ap.diflis.outboundBgDark      = parseHex(jd.value("outboundBgDark", std::string{}), ap.diflis.outboundBgDark);
+            ap.diflis.outboundText        = parseHex(jd.value("outboundText", std::string{}), ap.diflis.outboundText);
+            ap.diflis.outboundTextDim     = parseHex(jd.value("outboundTextDim", std::string{}), ap.diflis.outboundTextDim);
+            ap.diflis.fontSizeStatusBar   = jd.value("fontSizeStatusBar", ap.diflis.fontSizeStatusBar);
             ap.diflis.fontSizeGroupHeader = jd.value("fontSizeGroupHeader", ap.diflis.fontSizeGroupHeader);
-            ap.diflis.fontSizeGroupSide   = jd.value("fontSizeGroupSide",   ap.diflis.fontSizeGroupSide);
-            ap.diflis.fontSizeStripLarge  = jd.value("fontSizeStripLarge",  ap.diflis.fontSizeStripLarge);
+            ap.diflis.fontSizeGroupSide   = jd.value("fontSizeGroupSide", ap.diflis.fontSizeGroupSide);
+            ap.diflis.fontSizeStripLarge  = jd.value("fontSizeStripLarge", ap.diflis.fontSizeStripLarge);
             ap.diflis.fontSizeStripMedium = jd.value("fontSizeStripMedium", ap.diflis.fontSizeStripMedium);
-            ap.diflis.fontSizeStripSmall  = jd.value("fontSizeStripSmall",  ap.diflis.fontSizeStripSmall);
+            ap.diflis.fontSizeStripSmall  = jd.value("fontSizeStripSmall", ap.diflis.fontSizeStripSmall);
             if (jd.contains("crossCouple") && jd["crossCouple"].is_object())
             {
                 for (auto it = jd["crossCouple"].begin(); it != jd["crossCouple"].end(); ++it)
@@ -1007,8 +1003,10 @@ void CFlowX_Settings::LoadConfig()
                 };
                 auto parseSort = [](const std::string& s) -> DiflisSortMode
                 {
-                    if (s == "EtaAsc")  return DiflisSortMode::EtaAsc;
-                    if (s == "EobtAsc") return DiflisSortMode::EobtAsc;
+                    if (s == "EtaAsc")
+                        return DiflisSortMode::EtaAsc;
+                    if (s == "EobtAsc")
+                        return DiflisSortMode::EobtAsc;
                     return DiflisSortMode::None;
                 };
                 for (const auto& gj : jd["groups"])
@@ -1023,9 +1021,9 @@ void CFlowX_Settings::LoadConfig()
                     g.stackBottom       = gj.value("stackBottom", false);
                     g.acceptsDrop       = gj.value("acceptsDrop", true);
                     g.preferredVariant  = parseVariant(gj.value("preferredVariant", std::string{"Collapsed"}),
-                                                      DiflisStripVariant::Collapsed);
+                                                       DiflisStripVariant::Collapsed);
                     g.fallbackVariant   = parseVariant(gj.value("fallbackVariant", std::string{"Collapsed"}),
-                                                      DiflisStripVariant::Collapsed);
+                                                       DiflisStripVariant::Collapsed);
                     g.paginates         = gj.value("paginates", false);
                     g.sort              = parseSort(gj.value("sort", std::string{"None"}));
                     if (!g.id.empty())

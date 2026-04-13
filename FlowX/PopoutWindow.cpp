@@ -539,10 +539,14 @@ LRESULT PopoutWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                     this->dragLastPt_ = pt;
                     SetCapture(hwnd);
                 }
-                PendingEvent    ev{PendingEvent::Type::LClick,
-                                   hit.objectType, hit.objectId, pt, hit.rect, 0};
-                std::lock_guard lock(this->eventMutex_);
-                this->pendingEvents_.push_back(std::move(ev));
+                PendingEvent ev{PendingEvent::Type::LClick,
+                                hit.objectType, hit.objectId, pt, hit.rect, 0};
+                {
+                    std::lock_guard lock(this->eventMutex_);
+                    this->pendingEvents_.push_back(std::move(ev));
+                }
+                if (this->onNeedsRefresh)
+                    this->onNeedsRefresh();
             }
         }
         return 0;
@@ -564,6 +568,8 @@ LRESULT PopoutWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             }
             this->dragging_   = false;
             this->dragTarget_ = {};
+            if (this->onNeedsRefresh)
+                this->onNeedsRefresh();
         }
         return 0;
     }
@@ -621,11 +627,15 @@ LRESULT PopoutWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             }
             if (!directlyHandled)
             {
-                PendingEvent    ev{PendingEvent::Type::DragMove,
-                                   this->dragTarget_.objectType, this->dragTarget_.objectId,
-                                   pt, this->dragTarget_.rect, 0};
-                std::lock_guard lock(this->eventMutex_);
-                this->pendingEvents_.push_back(std::move(ev));
+                PendingEvent ev{PendingEvent::Type::DragMove,
+                                this->dragTarget_.objectType, this->dragTarget_.objectId,
+                                pt, this->dragTarget_.rect, 0};
+                {
+                    std::lock_guard lock(this->eventMutex_);
+                    this->pendingEvents_.push_back(std::move(ev));
+                }
+                if (this->onNeedsRefresh)
+                    this->onNeedsRefresh();
             }
         }
         else

@@ -926,7 +926,6 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (id == "diflis")
             {
                 settings->SetDiflisVisible(false);
-                settings->SetDiflisPoppedOut(false);
                 this->diflisPopout.reset();
             }
             this->RequestRefresh();
@@ -954,7 +953,6 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             }
             else if (id == "diflis" && !this->diflisPopout)
             {
-                settings->SetDiflisPoppedOut(true);
                 this->CreateDiflisPopout(settings);
             }
             this->RequestRefresh();
