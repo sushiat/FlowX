@@ -24,8 +24,9 @@ static constexpr char WNDCLASS_NAME[] = "FlowXPopoutWindow";
 PopoutWindow::PopoutWindow(std::string title_, int startX, int startY, int cW, int cH,
                            std::function<void(int, int)> onMoved_,
                            std::function<void()>         onNeedsRefresh_,
-                           DirectDragFn                  onDirectDrag_)
-    : title(std::move(title_)), contentW(cW), contentH(cH),
+                           DirectDragFn                  onDirectDrag_,
+                           bool                          hasPopInButton)
+    : hasPopInButton_(hasPopInButton), title(std::move(title_)), contentW(cW), contentH(cH),
       onDirectDrag_(std::move(onDirectDrag_)), onNeedsRefresh(std::move(onNeedsRefresh_)),
       onMoved(std::move(onMoved_))
 {
@@ -323,6 +324,8 @@ RECT PopoutWindow::GetCloseRect() const
 
 RECT PopoutWindow::GetPopInRect() const
 {
+    if (!this->hasPopInButton_)
+        return {0, 0, 0, 0}; // Empty rect — every PtInRect/DrawText against it becomes a no-op.
     RECT close = GetCloseRect();
     return {close.left - X_BTN - 1, 1, close.left - 1, 1 + X_BTN};
 }

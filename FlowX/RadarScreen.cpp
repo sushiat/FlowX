@@ -380,6 +380,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             {
                 this->diflisWindowW = this->diflisPopout->GetContentW();
                 this->diflisWindowH = this->diflisPopout->GetContentH();
+                this->BuildDiflisSnapshot();
                 POINT diflisPosDummy = {0, 0};
                 this->RenderToPopout(hDC, this->diflisPopout.get(),
                                      diflisPosDummy,
@@ -565,4 +566,3 @@ void RadarScreen::AddScreenObjectAuto(int objectType, const char* objectId, RECT
     else if (!this->isPopoutRender_)
         AddScreenObject(objectType, objectId, rect, dragable, tooltip);
 }
-

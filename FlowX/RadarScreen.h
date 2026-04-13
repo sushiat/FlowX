@@ -16,6 +16,7 @@
 
 #include "constants.h"
 #include "DiflisModel.h"
+#include "DiflisSnapshot.h"
 #include "EuroScope/EuroScopePlugIn.h"
 #include "PopoutWindow.h"
 #include "cachedTagData.h"
@@ -150,8 +151,13 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws the DEP/H departure-rate window using pre-calculated depRateRowsCache.
     void DrawDepRateWindow(HDC hDC);
 
-    /// @brief Draws the DIFLIS (Digital Flight Strip) window from the pre-computed diflisStripsCache
-    /// and the primary airport's DiflisAirportConfig group definitions. Works for both in-screen and popout paths.
+    /// @brief Builds this->diflisSnapshot from the current RadarScreen/CFlowX state.
+    /// Called once per OnRefresh tick before DrawDiflisWindow. Cheap — copies the
+    /// strip cache and snapshots controller frequencies and weather fields.
+    void BuildDiflisSnapshot();
+
+    /// @brief Draws the DIFLIS window into @p hDC using the values in this->diflisSnapshot.
+    /// Popout-only: the caller must have populated diflisSnapshot for this tick.
     void DrawDiflisWindow(HDC hDC);
 
     /// @brief Draws the NAP reminder window when napReminderActive is true.
@@ -203,6 +209,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                           depRateWindowW   = 0;                 ///< Last-rendered width of the DEP/H window in pixels; 0 until first draw
     POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
     std::unique_ptr<PopoutWindow>                 diflisPopout;                         ///< DIFLIS popout window (popout-only; always created when visible)
+    DiflisSnapshot                                diflisSnapshot;                       ///< Per-tick immutable draw-input snapshot; built by BuildDiflisSnapshot before each DrawDiflisWindow
     std::vector<DiflisStripCache>                 diflisStripsCache;                    ///< Cached flight strips rebuilt every second by UpdateTagCache()
     std::map<std::string, std::string>            diflisOverrides;                      ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
     std::deque<DiflisUndoEntry>                   diflisUndoStack;                      ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)

@@ -157,6 +157,7 @@
     <ClInclude Include="CFlowX_Tags.h" />
     <ClInclude Include="CFlowX_Timers.h" />
     <ClInclude Include="DiflisModel.h" />
+    <ClInclude Include="DiflisSnapshot.h" />
     <ClInclude Include="reconnectSnapshot.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="CFlowX.h" />

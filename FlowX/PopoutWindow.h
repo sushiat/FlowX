@@ -72,6 +72,7 @@ class PopoutWindow
     std::atomic<bool>  closeRequested_ = false; ///< Set on close click; polled by ES main thread
     std::atomic<bool>  popInRequested_ = false; ///< Set on pop-in click; polled by ES main thread
     std::atomic<bool>  directDragging_ = false; ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
+    bool               hasPopInButton_ = true;  ///< When false, no pop-in button is rendered or hit-tested (popout-only windows)
     std::atomic<bool>  topmost_        = true;  ///< Current always-on-top state; SetTopmost flips ex-style + Z order
     std::atomic<bool>  maximized_      = false; ///< Current maximized state; SetMaximized stores savedRect_ before resizing
     RECT               savedRect_      = {};    ///< Window rect saved before maximize, used to restore
@@ -126,7 +127,8 @@ class PopoutWindow
     PopoutWindow(std::string title, int startX, int startY, int cW, int cH,
                  std::function<void(int, int)> onMoved,
                  std::function<void()>         onNeedsRefresh = nullptr,
-                 DirectDragFn                  onDirectDrag   = nullptr);
+                 DirectDragFn                  onDirectDrag   = nullptr,
+                 bool                          hasPopInButton = true);
     ~PopoutWindow();
 
     PopoutWindow(const PopoutWindow&)            = delete;

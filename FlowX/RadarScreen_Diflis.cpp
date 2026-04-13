@@ -20,23 +20,84 @@
 #include "helpers.h"
 #include "DiflisModel.h"
 
-/// @brief Draws the DIFLIS (Digital Flight Strip) window — slice 1: window frame, column layout,
-/// group headers, one strip variant (simplified), and a status bar with clock + ATIS + UNDO.
-/// Strip drag/drop and group-transition writeback are added in a later slice.
+void RadarScreen::BuildDiflisSnapshot()
+{
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    auto* timers   = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+
+    DiflisSnapshot& snap = this->diflisSnapshot;
+
+    snap.winW        = this->diflisWindowW;
+    snap.winH        = this->diflisWindowH;
+    snap.isTopmost   = !this->diflisPopout || this->diflisPopout->IsTopmost();
+    snap.isMaximized = this->diflisPopout && this->diflisPopout->IsMaximized();
+
+    // Config pointer is plugin-lifetime (not hot-swappable).
+    auto apIt = settings->FindMyAirport();
+    if (apIt != settings->GetAirports().end())
+    {
+        snap.airportConfig = &apIt->second.diflis;
+        snap.myIcao        = apIt->first;
+    }
+    else
+    {
+        snap.airportConfig = nullptr;
+        snap.myIcao.clear();
+    }
+
+    snap.strips = this->diflisStripsCache;
+
+    // QNH (strip leading Q/A)
+    snap.qnhLabel = "-";
+    if (!snap.myIcao.empty())
+    {
+        std::string raw = timers->GetAirportQnh(snap.myIcao);
+        if (raw.size() > 1 && (raw[0] == 'Q' || raw[0] == 'A'))
+            snap.qnhLabel = raw.substr(1);
+        else if (!raw.empty())
+            snap.qnhLabel = raw;
+    }
+
+    // ATIS letter
+    snap.atisLetter = "-";
+    if (!snap.myIcao.empty())
+    {
+        std::string letter = timers->GetAtisLetter(snap.myIcao);
+        if (!letter.empty())
+            snap.atisLetter = letter;
+    }
+
+    // Controller frequency snapshot (rating > 1 == real controllers, not observers).
+    snap.onlineFreqs.clear();
+    snap.onlineFreqs.reserve(16);
+    auto* plugIn = this->GetPlugIn();
+    for (auto c = plugIn->ControllerSelectFirst(); c.IsValid(); c = plugIn->ControllerSelectNext(c))
+    {
+        if (c.IsController() && c.GetRating() > 1)
+            snap.onlineFreqs.push_back(c.GetPrimaryFrequency());
+    }
+    snap.myFreq = 0.0;
+    {
+        auto me = plugIn->ControllerMyself();
+        if (me.IsValid() && me.IsController())
+            snap.myFreq = me.GetPrimaryFrequency();
+    }
+
+    snap.dragCallsign  = this->diflisDragCallsign;
+    snap.dragFromGroup = this->diflisDragFromGroup;
+}
+
+/// @brief Draws the DIFLIS window from this->diflisSnapshot (built by BuildDiflisSnapshot).
 void RadarScreen::DrawDiflisWindow(HDC hDC)
 {
-    auto* settingsD = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settingsD->GetDiflisVisible())
-    {
-        return;
-    }
+    const DiflisSnapshot& snap = this->diflisSnapshot;
 
     const int TITLE_H = 13;
     const int X_BTN   = 11;
     const int PAD     = 4;
 
-    int WIN_W = this->diflisWindowW;
-    int WIN_H = this->diflisWindowH;
+    int WIN_W = snap.winW;
+    int WIN_H = snap.winH;
 
     // DIFLIS is popout-only: content always renders at the popout client origin.
     const int wx = 0;
@@ -47,33 +108,17 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     auto  fs    = [scale](int base) -> int
     { return -std::max(7, (int)std::round(base * scale)); };
 
-    // ── Cache airport DIFLIS config once (config is not hot-swappable). ─────────
-    // All per-draw reads below use these cached values instead of walking FindMyAirport /
-    // dereferencing dcfg every frame.
-    static const DiflisAirportConfig* s_dcfg = nullptr;
-    static std::string                s_myIcao;
-    static bool                       s_cfgResolved = false;
-    if (!s_cfgResolved)
-    {
-        auto apIt0 = settingsD->FindMyAirport();
-        if (apIt0 != settingsD->GetAirports().end())
-        {
-            s_dcfg   = &apIt0->second.diflis;
-            s_myIcao = apIt0->first;
-        }
-        s_cfgResolved = true;
-    }
-    const DiflisAirportConfig* dcfg   = s_dcfg;
-    const std::string&         myIcao = s_myIcao;
+    const DiflisAirportConfig* dcfg   = snap.airportConfig;
+    const std::string&         myIcao = snap.myIcao;
 
-    static const int s_fsStatus  = dcfg ? dcfg->fontSizeStatusBar : 20;
-    static const int s_fsHdr     = dcfg ? dcfg->fontSizeGroupHeader : 16;
-    static const int s_fsHdrSide = dcfg ? dcfg->fontSizeGroupSide : 14;
-    static const int s_fsLarge   = dcfg ? dcfg->fontSizeStripLarge : 30;
-    static const int s_fsMedium  = dcfg ? dcfg->fontSizeStripMedium : 20;
-    static const int s_fsSmall   = dcfg ? dcfg->fontSizeStripSmall : 16;
+    const int fsStatus  = dcfg ? dcfg->fontSizeStatusBar : 20;
+    const int fsHdr     = dcfg ? dcfg->fontSizeGroupHeader : 16;
+    const int fsHdrSide = dcfg ? dcfg->fontSizeGroupSide : 14;
+    const int fsLarge   = dcfg ? dcfg->fontSizeStripLarge : 30;
+    const int fsMedium  = dcfg ? dcfg->fontSizeStripMedium : 20;
+    const int fsSmall   = dcfg ? dcfg->fontSizeStripSmall : 16;
 
-    const int statusFontH = std::abs(fs(s_fsStatus));
+    const int statusFontH = std::abs(fs(fsStatus));
     const int STATUS_H    = std::max({28, (int)std::round(36 * scale), statusFontH * 2 + 8});
 
     // Consolas is monospace — text width is deterministic from pixel height (~0.55 aspect).
@@ -92,12 +137,12 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     RECT          topRect = {xRect.left - GAP - X_BTN - 1, wy + 1, xRect.left - GAP - 1, wy + 1 + X_BTN};
     RECT          maxRect = {topRect.left - X_BTN - 1, wy + 1, topRect.left - 1, wy + 1 + X_BTN};
 
-    POINT cursorD    = this->popoutHoverPoint_;
-    bool  xHovered   = PtInRect(&xRect, cursorD) != 0;
-    bool  topHovered = PtInRect(&topRect, cursorD) != 0;
-    bool  maxHovered = PtInRect(&maxRect, cursorD) != 0;
-    bool  isTopmost   = !this->diflisPopout || this->diflisPopout->IsTopmost();
-    bool  isMaximized = this->diflisPopout && this->diflisPopout->IsMaximized();
+    POINT cursorD     = this->popoutHoverPoint_;
+    bool  xHovered    = PtInRect(&xRect, cursorD) != 0;
+    bool  topHovered  = PtInRect(&topRect, cursorD) != 0;
+    bool  maxHovered  = PtInRect(&maxRect, cursorD) != 0;
+    bool  isTopmost   = snap.isTopmost;
+    bool  isMaximized = snap.isMaximized;
 
     RECT winRect    = {wx, wy, wx + WIN_W, wy + WIN_H};
     RECT titleRect  = {wx, wy, wx + WIN_W, wy + TITLE_H};
@@ -215,13 +260,6 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                            ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     };
-    const int fsStatus  = s_fsStatus;
-    const int fsHdr     = s_fsHdr;
-    const int fsHdrSide = s_fsHdrSide;
-    const int fsLarge   = s_fsLarge;
-    const int fsMedium  = s_fsMedium;
-    const int fsSmall   = s_fsSmall;
-
     HFONT groupHdrFont  = mkFont(fs(fsHdr), FW_BOLD);
     HFONT groupSideFont = mkFont(fs(fsHdrSide), FW_BOLD);
 
@@ -269,7 +307,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                 if (g.columnIndex != c)
                     continue;
                 int cnt = 0;
-                for (const auto& s : this->diflisStripsCache)
+                for (const auto& s : snap.strips)
                     if (s.resolvedGroupId == g.id)
                         ++cnt;
                 if (g.collapseWhenEmpty && cnt == 0)
@@ -380,7 +418,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                     int drawn = 0;
                     int sy    = e.def->stackBottom ? (stripAreaBot - rowH)
                                                    : stripAreaTop;
-                    for (const auto& s : this->diflisStripsCache)
+                    for (const auto& s : snap.strips)
                     {
                         if (s.resolvedGroupId != e.def->id)
                             continue;
@@ -660,7 +698,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
 
                         this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_STRIP, s.callsign.c_str(),
                                                   csDarkR, true, "");
-                        if (!this->diflisDragCallsign.empty() && s.callsign == this->diflisDragCallsign)
+                        if (!snap.dragCallsign.empty() && s.callsign == snap.dragCallsign)
                         {
                             dragSrcR        = stripR;
                             dragSrcCaptured = true;
@@ -721,20 +759,11 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     SelectObject(hDC, statusFont);
 
-    // QNH label (far left, number only — strip leading "Q"/"A")
-    std::string qnhLabel = "-";
-    if (!myIcao.empty())
-    {
-        auto*       timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
-        std::string raw    = timers->GetAirportQnh(myIcao);
-        if (raw.size() > 1 && (raw[0] == 'Q' || raw[0] == 'A'))
-            qnhLabel = raw.substr(1);
-        else if (!raw.empty())
-            qnhLabel = raw;
-    }
-    int  qnhW    = monoW(fs(fsStatus), (int)qnhLabel.size());
-    RECT qnhRect = {statusRect.left + 8, statusRect.top,
-                    statusRect.left + 8 + qnhW, statusRect.bottom};
+    // QNH label (far left, number only — sourced from snapshot)
+    const std::string& qnhLabel = snap.qnhLabel;
+    int                qnhW     = monoW(fs(fsStatus), (int)qnhLabel.size());
+    RECT               qnhRect  = {statusRect.left + 8, statusRect.top,
+                                   statusRect.left + 8 + qnhW, statusRect.bottom};
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, qnhLabel.c_str(), -1, &qnhRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
@@ -757,19 +786,12 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_UNDO_BTN, "UNDO", undoRect, false, "");
 
     // ATIS button (next to UNDO) — shows current letter for primary ICAO
-    std::string atisLetter = "-";
-    if (!myIcao.empty())
-    {
-        auto*       timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
-        std::string letter = timers->GetAtisLetter(myIcao);
-        if (!letter.empty())
-            atisLetter = letter;
-    }
-    int       undoW     = undoRect.right - undoRect.left;
-    const int btnGap    = std::max(6, statusFontH / 3);
-    RECT      atisRect  = {undoRect.right + btnGap, undoRect.top,
-                           undoRect.right + btnGap + undoW, undoRect.bottom};
-    auto      atisBrush = CreateSolidBrush(RGB(55, 55, 55));
+    const std::string& atisLetter = snap.atisLetter;
+    int                undoW      = undoRect.right - undoRect.left;
+    const int          btnGap     = std::max(6, statusFontH / 3);
+    RECT               atisRect   = {undoRect.right + btnGap, undoRect.top,
+                                     undoRect.right + btnGap + undoW, undoRect.bottom};
+    auto               atisBrush  = CreateSolidBrush(RGB(55, 55, 55));
     FillRect(hDC, &atisRect, atisBrush);
     DeleteObject(atisBrush);
     auto atisBorder = CreateSolidBrush(RGB(0, 0, 0));
@@ -815,22 +837,9 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         {"TWW", 123.800},
     };
 
-    // Snapshot online controller frequencies once for this draw.
-    std::vector<double> onlineFreqs;
-    onlineFreqs.reserve(16);
-    auto* plugIn = this->GetPlugIn();
-    for (auto c = plugIn->ControllerSelectFirst(); c.IsValid(); c = plugIn->ControllerSelectNext(c))
-    {
-        if (c.IsController() && c.GetRating() > 1)
-            onlineFreqs.push_back(c.GetPrimaryFrequency());
-    }
-    double myFreq = 0.0;
-    {
-        auto me = plugIn->ControllerMyself();
-        if (me.IsValid() && me.IsController())
-            myFreq = me.GetPrimaryFrequency();
-    }
-    auto freqMatches = [](double a, double b) -> bool
+    const std::vector<double>& onlineFreqs = snap.onlineFreqs;
+    const double               myFreq      = snap.myFreq;
+    auto                       freqMatches = [](double a, double b) -> bool
     { return a > 0.0 && b > 0.0 && std::abs(a - b) < 0.005; };
     auto freqOnline = [&](double f) -> bool
     {
@@ -956,7 +965,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                                                  std::move(dropRects));
             dragCaptureBmp = nullptr; // ownership transferred to popout
         }
-        else if (this->diflisDragCallsign.empty())
+        else if (snap.dragCallsign.empty())
         {
             this->currentPopout_->ClearDragOverlay();
         }
@@ -1007,7 +1016,8 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
             if (ha.objectId != "DIFLIS_RESIZE")
                 return {0, 0};
             return {std::max(520, currentW + (int)delta.x), std::max(360, currentH + (int)delta.y)};
-        });
+        },
+        /*hasPopInButton=*/false);
 
     // Apply persisted topmost + maximized states.
     if (!s->GetDiflisPopoutTopmost())
