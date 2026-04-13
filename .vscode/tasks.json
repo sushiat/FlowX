@@ -68,6 +68,30 @@
                 "panel": "shared"
             },
             "problemMatcher": []
+        },
+        {
+            "label": "All Tests",
+            "type": "shell",
+            "command": "& '${workspaceFolder}\\Run-Tests.ps1'",
+            "dependsOn": "Build Debug",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Taxi Tests",
+            "type": "shell",
+            "command": "& '${workspaceFolder}\\Run-Tests.ps1' -Filter TaxiRoute",
+            "dependsOn": "Build Debug",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": []
         }
     ]
 }
