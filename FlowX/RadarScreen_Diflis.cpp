@@ -38,19 +38,9 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     int WIN_W = this->diflisWindowW;
     int WIN_H = this->diflisWindowH;
 
-    this->diflisWindowW = WIN_W;
-    this->diflisWindowH = WIN_H;
-
-    if (this->diflisWindowPos.x == -1)
-    {
-        RECT clip;
-        GetClipBox(hDC, &clip);
-        this->diflisWindowPos.x = std::max<LONG>(20, (clip.right - WIN_W) / 2);
-        this->diflisWindowPos.y = std::max<LONG>(40, (clip.bottom - WIN_H) / 2);
-    }
-
-    int wx = this->diflisWindowPos.x;
-    int wy = this->diflisWindowPos.y;
+    // DIFLIS is popout-only: content always renders at the popout client origin.
+    const int wx = 0;
+    const int wy = 0;
 
     // Font scale tracks window height, roughly 0.45..1.0 between ~640 and ~1440
     float scale = std::clamp(WIN_H / 1440.0f, 0.45f, 1.0f);
@@ -95,37 +85,19 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         return chars * std::max(1, (h * 55 + 50) / 100);
     };
 
-    // ── Title bar + close/popout buttons ─────────────────────────────────────
-    RECT xRect   = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
-    RECT popRect = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
-
-    // Maximize + topmost toggles; only visible when this is a popout render (the two
-    // buttons live 4px to the left of the popin button, separated by the gap).
+    // ── Title bar + close / maximize / topmost buttons ───────────────────────
+    // DIFLIS is popout-only, so no pop-in button is drawn.
     constexpr int GAP     = 4;
-    RECT          topRect = {0, 0, 0, 0};
-    RECT          maxRect = {0, 0, 0, 0};
-    if (this->isPopoutRender_)
-    {
-        topRect = {popRect.left - GAP - X_BTN - 1, wy + 1, popRect.left - GAP - 1, wy + 1 + X_BTN};
-        maxRect = {topRect.left - X_BTN - 1, wy + 1, topRect.left - 1, wy + 1 + X_BTN};
-    }
+    RECT          xRect   = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
+    RECT          topRect = {xRect.left - GAP - X_BTN - 1, wy + 1, xRect.left - GAP - 1, wy + 1 + X_BTN};
+    RECT          maxRect = {topRect.left - X_BTN - 1, wy + 1, topRect.left - 1, wy + 1 + X_BTN};
 
-    POINT cursorD = {-9999, -9999};
-    if (this->isPopoutRender_)
-        cursorD = this->popoutHoverPoint_;
-    else
-    {
-        HWND esHwnd = WindowFromDC(hDC);
-        GetCursorPos(&cursorD);
-        if (esHwnd)
-            ScreenToClient(esHwnd, &cursorD);
-    }
-    bool xHovered    = PtInRect(&xRect, cursorD) != 0;
-    bool popHovered  = PtInRect(&popRect, cursorD) != 0;
-    bool topHovered  = this->isPopoutRender_ && PtInRect(&topRect, cursorD) != 0;
-    bool maxHovered  = this->isPopoutRender_ && PtInRect(&maxRect, cursorD) != 0;
-    bool isTopmost   = !this->diflisPopout || this->diflisPopout->IsTopmost();
-    bool isMaximized = this->diflisPopout && this->diflisPopout->IsMaximized();
+    POINT cursorD    = this->popoutHoverPoint_;
+    bool  xHovered   = PtInRect(&xRect, cursorD) != 0;
+    bool  topHovered = PtInRect(&topRect, cursorD) != 0;
+    bool  maxHovered = PtInRect(&maxRect, cursorD) != 0;
+    bool  isTopmost   = !this->diflisPopout || this->diflisPopout->IsTopmost();
+    bool  isMaximized = this->diflisPopout && this->diflisPopout->IsMaximized();
 
     RECT winRect    = {wx, wy, wx + WIN_W, wy + WIN_H};
     RECT titleRect  = {wx, wy, wx + WIN_W, wy + TITLE_H};
@@ -155,12 +127,6 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         FillRect(hDC, &xRect, xBrush);
         DeleteObject(xBrush);
     }
-    if (popHovered)
-    {
-        auto popBrush = CreateSolidBrush(RGB(40, 100, 160));
-        FillRect(hDC, &popRect, popBrush);
-        DeleteObject(popBrush);
-    }
     if (topHovered)
     {
         auto b = CreateSolidBrush(RGB(40, 100, 160));
@@ -186,32 +152,20 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
-    RECT dragRect = {wx, wy,
-                     (this->isPopoutRender_ ? maxRect.left : popRect.left) - 1, wy + TITLE_H};
-    DrawTextA(hDC, "DIFLIS", -1, &dragRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    RECT titleTextRect = {wx, wy, maxRect.left - 1, wy + TITLE_H};
+    DrawTextA(hDC, "DIFLIS", -1, &titleTextRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    RECT popDrawRect = popRect;
-    if (!this->isPopoutRender_)
-        popDrawRect.top += 1;
-    DrawTextA(hDC, this->isPopoutRender_ ? "v" : "^", -1, &popDrawRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    if (this->isPopoutRender_)
-    {
-        DrawTextA(hDC, isMaximized ? "R" : "M", -1, &maxRect,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        DrawTextA(hDC, isTopmost ? "T" : "_", -1, &topRect,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    }
+    DrawTextA(hDC, isMaximized ? "R" : "M", -1, &maxRect,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawTextA(hDC, isTopmost ? "T" : "_", -1, &topRect,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
 
-    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_WIN, "DIFLIS", dragRect, true, "");
+    // Title-bar drag is handled natively by the PopoutWindow (WM_NCHITTEST → HTCAPTION).
     this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_CLOSE, "diflis", xRect, false, "");
-    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_POPOUT, "diflis", popRect, false, "");
-    if (this->isPopoutRender_)
-    {
-        this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN, "diflis", maxRect, false, "");
-        this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_TOPMOST_BTN, "diflis", topRect, false, "");
-    }
+    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN, "diflis", maxRect, false, "");
+    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_TOPMOST_BTN, "diflis", topRect, false, "");
 
     // ── Column layout ────────────────────────────────────────────────────────
     const int NUM_COLS = 4;
@@ -987,8 +941,8 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     DeleteObject(resizeBrush);
     this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_RESIZE, "DIFLIS_RESIZE", resizeRect, true, "");
 
-    // ── Drag ghost overlay (drawn last so it floats above everything) ────────
-    if (this->isPopoutRender_ && this->currentPopout_)
+    // ── Drag ghost overlay — composited by the popout thread in WM_PAINT ─────
+    if (this->currentPopout_)
     {
         if (dragSrcCaptured && dragCaptureBmp)
         {
@@ -1005,42 +959,6 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         else if (this->diflisDragCallsign.empty())
         {
             this->currentPopout_->ClearDragOverlay();
-        }
-    }
-    else if (!this->diflisDragCallsign.empty() && this->diflisDragCursor.x > -1000 &&
-             this->diflisDragCursor.y > -1000)
-    {
-        for (const auto& gr : this->diflisGroupRects)
-        {
-            if (PtInRect(&gr.second, this->diflisDragCursor))
-            {
-                auto hiBr = CreateSolidBrush(RGB(90, 160, 220));
-                // 2 px frame drawn as 4 filled rects for a thicker highlight.
-                RECT g = gr.second;
-                RECT t = {g.left, g.top, g.right, g.top + 2};
-                RECT b = {g.left, g.bottom - 2, g.right, g.bottom};
-                RECT l = {g.left, g.top, g.left + 2, g.bottom};
-                RECT r = {g.right - 2, g.top, g.right, g.bottom};
-                FillRect(hDC, &t, hiBr);
-                FillRect(hDC, &b, hiBr);
-                FillRect(hDC, &l, hiBr);
-                FillRect(hDC, &r, hiBr);
-                DeleteObject(hiBr);
-                break;
-            }
-        }
-
-        if (dragSrcCaptured && dragCaptureBmp)
-        {
-            int     srcW = dragSrcR.right - dragSrcR.left;
-            int     srcH = dragSrcR.bottom - dragSrcR.top;
-            HDC     sDC  = CreateCompatibleDC(hDC);
-            HGDIOBJ oB   = SelectObject(sDC, dragCaptureBmp);
-            int     dstX = this->diflisDragCursor.x - dragCenterOff.x;
-            int     dstY = this->diflisDragCursor.y - dragCenterOff.y;
-            BitBlt(hDC, dstX, dstY, srcW, srcH, sDC, 0, 0, SRCCOPY);
-            SelectObject(sDC, oB);
-            DeleteDC(sDC);
         }
     }
 
@@ -1065,14 +983,17 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
     int y = s->GetDiflisPopoutY();
     if (x == -1)
     {
-        x = this->diflisWindowPos.x;
-        y = this->diflisWindowPos.y;
+        // First-time launch: center on the EuroScope main window.
+        x = 100;
+        y = 100;
         if (this->esHwnd_)
         {
-            POINT pt = {x, y};
-            ClientToScreen(this->esHwnd_, &pt);
-            x = pt.x;
-            y = pt.y;
+            RECT esRect;
+            if (GetWindowRect(this->esHwnd_, &esRect))
+            {
+                x = std::max<LONG>(0, esRect.left + ((esRect.right - esRect.left) - w) / 2);
+                y = std::max<LONG>(0, esRect.top + ((esRect.bottom - esRect.top) - h) / 2);
+            }
         }
         s->SetDiflisPopoutPos(x, y);
     }

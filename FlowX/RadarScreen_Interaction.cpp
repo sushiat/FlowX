@@ -1546,34 +1546,13 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
             dragWindow(this->weatherWindowPos, this->weatherLastDrag);
             return;
         }
-        if (objId == "DIFLIS")
-        {
-            dragWindow(this->diflisWindowPos, this->diflisLastDrag);
-            return;
-        }
         if (objId == "DIFLIS_RESIZE")
         {
-            if (this->diflisPopout)
+            // Popout-only: onDirectDrag_ has already resized the HWND; persist on release.
+            if (Released && this->diflisPopout)
             {
-                // Popout path: the HWND has already been resized by onDirectDrag_; just persist on release.
-                if (Released)
-                {
-                    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-                    settings->SetDiflisPopoutSize(this->diflisWindowW, this->diflisWindowH);
-                    this->diflisResizeLastDrag = {-1, -1};
-                }
-                return;
-            }
-            if (this->diflisResizeLastDrag.x == -1 || this->diflisResizeLastDrag.y == -1)
-            {
-                this->diflisResizeLastDrag = Pt;
-            }
-            this->diflisWindowW        = std::max(520, this->diflisWindowW + (int)(Pt.x - this->diflisResizeLastDrag.x));
-            this->diflisWindowH        = std::max(360, this->diflisWindowH + (int)(Pt.y - this->diflisResizeLastDrag.y));
-            this->diflisResizeLastDrag = Pt;
-            if (Released)
-            {
-                this->diflisResizeLastDrag = {-1, -1};
+                auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                settings->SetDiflisPopoutSize(this->diflisWindowW, this->diflisWindowH);
             }
             return;
         }

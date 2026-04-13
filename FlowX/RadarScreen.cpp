@@ -365,45 +365,27 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 }
             }
 
-            // ── DIFLIS ─────────────────────────────────────────────────────────
-            if (this->diflisPopout)
+            // ── DIFLIS (popout-only) ──────────────────────────────────────────
+            if (this->diflisPopout && this->diflisPopout->IsCloseRequested())
             {
-                if (this->diflisPopout->IsCloseRequested())
-                {
-                    settings->SetDiflisVisible(false);
-                    settings->SetDiflisPoppedOut(false);
-                    this->diflisPopout.reset();
-                }
-                else if (this->diflisPopout->IsPopInRequested())
-                {
-                    settings->SetDiflisPoppedOut(false);
-                    this->diflisPopout.reset();
-                }
+                settings->SetDiflisVisible(false);
+                this->diflisPopout.reset();
             }
-            if (settings->GetDiflisVisible() && settings->GetDiflisPoppedOut() &&
-                !this->diflisPopout)
+            if (settings->GetDiflisVisible() && !this->diflisPopout)
             {
                 this->CreateDiflisPopout(settings);
             }
-            if (settings->GetDiflisVisible())
+            if (settings->GetDiflisVisible() && this->diflisPopout &&
+                !this->diflisPopout->IsDirectDragging())
             {
-                if (this->diflisPopout)
-                {
-                    if (!this->diflisPopout->IsDirectDragging())
-                    {
-                        this->diflisWindowW = this->diflisPopout->GetContentW();
-                        this->diflisWindowH = this->diflisPopout->GetContentH();
-                        this->RenderToPopout(hDC, this->diflisPopout.get(),
-                                             this->diflisWindowPos,
-                                             this->diflisWindowW, this->diflisWindowH,
-                                             [this](HDC dc)
-                                             { this->DrawDiflisWindow(dc); });
-                    }
-                }
-                else
-                {
-                    this->DrawDiflisWindow(hDC);
-                }
+                this->diflisWindowW = this->diflisPopout->GetContentW();
+                this->diflisWindowH = this->diflisPopout->GetContentH();
+                POINT diflisPosDummy = {0, 0};
+                this->RenderToPopout(hDC, this->diflisPopout.get(),
+                                     diflisPosDummy,
+                                     this->diflisWindowW, this->diflisWindowH,
+                                     [this](HDC dc)
+                                     { this->DrawDiflisWindow(dc); });
             }
 
             this->DrawStartButton(hDC);
