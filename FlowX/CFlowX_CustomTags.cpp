@@ -1523,6 +1523,36 @@ void CFlowX_CustomTags::RebuildDiflisStripCache()
             s.sidOrStar    = isInbound ? std::string{} : std::string{fpd.GetSidName()};
             s.rwy          = isInbound ? fpd.GetArrivalRwy() : fpd.GetDepartureRwy();
 
+            // ETA (minutes to touchdown) for arrivals sort.
+            // Preferred source: twrInboundRowsCache.tttSeconds (computed from radar distance/GS)
+            // once the aircraft is in the inbound-list range. Fallback for traffic further out:
+            // CFlightPlanExtractedRoute::GetPointDistanceInMinutes on the destination point.
+            // onTtt=true means the strip has a radar-range TTT and should move to the runway group.
+            bool onTtt = false;
+            if (isInbound)
+            {
+                for (const auto& row : this->radarScreen->twrInboundRowsCache)
+                {
+                    if (row.callsign == s.callsign && row.tttSeconds >= 0)
+                    {
+                        s.etaMinutes = row.tttSeconds / 60;
+                        onTtt        = true;
+                        break;
+                    }
+                }
+                if (!onTtt)
+                {
+                    auto route = fp.GetExtractedRoute();
+                    int  n     = route.GetPointsNumber();
+                    if (n > 0)
+                    {
+                        int mins = route.GetPointDistanceInMinutes(n - 1);
+                        if (mins >= 0)
+                            s.etaMinutes = mins;
+                    }
+                }
+            }
+
             std::string gs;
             auto        gsIt = this->groundStatus.find(s.callsign);
             if (gsIt != this->groundStatus.end())
@@ -1541,9 +1571,32 @@ void CFlowX_CustomTags::RebuildDiflisStripCache()
             {
                 if (isInbound)
                 {
-                    target = findGroup("ARRIVALS");
+                    // Once an inbound has a TTT from the inbound list (i.e. within radar range),
+                    // move it from ARRIVALS to the matching runway group so controllers see the
+                    // strip advance down the board as the aircraft approaches.
+                    if (onTtt && !s.rwy.empty())
+                    {
+                        for (const auto& g : groups)
+                        {
+                            if (g.columnIndex == 0)
+                                continue;
+                            const std::string& id = g.id;
+                            if (id.find("_" + s.rwy + "_") != std::string::npos ||
+                                (id.size() >= s.rwy.size() + 1 &&
+                                 id.compare(id.size() - s.rwy.size() - 1, s.rwy.size() + 1,
+                                            "_" + s.rwy) == 0))
+                            {
+                                target = &g;
+                                break;
+                            }
+                        }
+                    }
                     if (target == nullptr)
-                        target = firstGroupInColumn(0);
+                    {
+                        target = findGroup("ARRIVALS");
+                        if (target == nullptr)
+                            target = firstGroupInColumn(0);
+                    }
                 }
                 else // outbound
                 {
@@ -1603,7 +1656,12 @@ void CFlowX_CustomTags::RebuildDiflisStripCache()
                              if (g == nullptr)
                                  return false;
                              if (g->sort == DiflisSortMode::EtaAsc)
-                                 return a.etaMinutes < b.etaMinutes;
+                             {
+                                 // Unknown ETA (-1) sorts to the bottom.
+                                 int ea = a.etaMinutes < 0 ? INT_MAX : a.etaMinutes;
+                                 int eb = b.etaMinutes < 0 ? INT_MAX : b.etaMinutes;
+                                 return ea < eb;
+                             }
                              if (g->sort == DiflisSortMode::EobtAsc)
                                  return a.eobt < b.eobt;
                              return false;
