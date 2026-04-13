@@ -249,6 +249,17 @@ void PopoutWindow::UpdateContent(HBITMAP bmp, int w, int h)
     }
 }
 
+void PopoutWindow::SetContentPaintFn(ContentPaintFn fn)
+{
+    {
+        std::lock_guard lock(this->contentPaintMutex_);
+        this->contentPaintFn_ = std::move(fn);
+    }
+    HWND hwndCopy = this->hwnd;
+    if (hwndCopy)
+        InvalidateRect(hwndCopy, nullptr, FALSE);
+}
+
 // ── Window thread ───────────────────────────────────────────────────────────────
 
 void PopoutWindow::ThreadProc(int startX, int startY, std::atomic<bool>& readyFlag)
@@ -337,6 +348,30 @@ RECT PopoutWindow::GetPopInRect() const
 /// refresh cycle so highlights respond immediately to mouse movement.
 void PopoutWindow::Paint(HDC hDC)
 {
+    // Content-paint callback path: paint fn owns the full window visual (content, drag
+    // overlay, title-bar hover). Bypasses the cached-bitmap blit entirely.
+    {
+        ContentPaintFn fn;
+        {
+            std::lock_guard lock(this->contentPaintMutex_);
+            fn = this->contentPaintFn_;
+        }
+        if (fn)
+        {
+            int     w      = this->contentW.load();
+            int     h      = this->contentH.load();
+            HDC     memDC  = CreateCompatibleDC(hDC);
+            HBITMAP memBmp = CreateCompatibleBitmap(hDC, w, h);
+            HGDIOBJ oldBmp = SelectObject(memDC, memBmp);
+            fn(memDC, w, h);
+            BitBlt(hDC, 0, 0, w, h, memDC, 0, 0, SRCCOPY);
+            SelectObject(memDC, oldBmp);
+            DeleteObject(memBmp);
+            DeleteDC(memDC);
+            return;
+        }
+    }
+
     {
         std::lock_guard lock(this->contentMutex);
         if (!this->contentBitmap || this->bmpW <= 0 || this->bmpH <= 0)

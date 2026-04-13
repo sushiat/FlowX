@@ -57,6 +57,11 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     void RenderToPopout(HDC screenDC, PopoutWindow* popout, POINT& windowPos, int w, int h,
                         std::function<void(HDC)> drawFn);
 
+    /// @brief Drains queued events from a popout and dispatches them on the EuroScope main thread.
+    /// Used for popouts that own their own rendering via SetContentPaintFn and therefore bypass
+    /// RenderToPopout's render-plus-drain path.
+    void DispatchPopoutEvents(PopoutWindow* popout);
+
     /// @brief Creates the Approach Estimate popout window, seeding position/size from settings or in-screen state.
     void CreateApproachEstPopout(CFlowX_Settings* s);
 
@@ -152,13 +157,20 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     void DrawDepRateWindow(HDC hDC);
 
     /// @brief Builds this->diflisSnapshot from the current RadarScreen/CFlowX state.
-    /// Called once per OnRefresh tick before DrawDiflisWindow. Cheap — copies the
-    /// strip cache and snapshots controller frequencies and weather fields.
+    /// Called once per OnRefresh tick; publishes under diflisStateMutex_ so the popout
+    /// thread's paint fn can safely grab a copy.
     void BuildDiflisSnapshot();
 
-    /// @brief Draws the DIFLIS window into @p hDC using the values in this->diflisSnapshot.
-    /// Popout-only: the caller must have populated diflisSnapshot for this tick.
-    void DrawDiflisWindow(HDC hDC);
+    /// @brief Draws the DIFLIS window. Runs on the popout thread from its WM_PAINT via the
+    /// content-paint callback installed in CreateDiflisPopout. Reads no RadarScreen state —
+    /// everything comes via the parameters.
+    /// @param hDC           Target DC (the popout window DC).
+    /// @param popout        The popout window; used for `AddScreenObject` + `GetCursorPosition`.
+    /// @param snap          Immutable snapshot of all draw inputs for this paint.
+    /// @param outDropRects  Output: drop-target group rects (only acceptsDrop groups) populated
+    ///                      during the draw for later hit testing by OnMoveScreenObject.
+    void DrawDiflisWindow(HDC hDC, PopoutWindow* popout, const DiflisSnapshot& snap,
+                          std::vector<std::pair<std::string, RECT>>& outDropRects);
 
     /// @brief Draws the NAP reminder window when napReminderActive is true.
     void DrawNapReminder(HDC hDC);
@@ -209,7 +221,8 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                           depRateWindowW   = 0;                 ///< Last-rendered width of the DEP/H window in pixels; 0 until first draw
     POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
     std::unique_ptr<PopoutWindow>                 diflisPopout;                         ///< DIFLIS popout window (popout-only; always created when visible)
-    DiflisSnapshot                                diflisSnapshot;                       ///< Per-tick immutable draw-input snapshot; built by BuildDiflisSnapshot before each DrawDiflisWindow
+    DiflisSnapshot                                diflisSnapshot;                       ///< Per-tick immutable draw-input snapshot; built by BuildDiflisSnapshot and consumed by the popout-thread paint fn
+    mutable std::mutex                            diflisStateMutex_;                    ///< Guards diflisSnapshot + diflisGroupRects for cross-thread access (main thread writes, popout thread reads/writes)
     std::vector<DiflisStripCache>                 diflisStripsCache;                    ///< Cached flight strips rebuilt every second by UpdateTagCache()
     std::map<std::string, std::string>            diflisOverrides;                      ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
     std::deque<DiflisUndoEntry>                   diflisUndoStack;                      ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)

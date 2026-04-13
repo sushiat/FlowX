@@ -25,7 +25,8 @@ void RadarScreen::BuildDiflisSnapshot()
     auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
     auto* timers   = static_cast<CFlowX_Timers*>(this->GetPlugIn());
 
-    DiflisSnapshot& snap = this->diflisSnapshot;
+    // Build into a local then publish under the mutex — keeps lock hold time minimal.
+    DiflisSnapshot snap;
 
     snap.winW        = this->diflisWindowW;
     snap.winH        = this->diflisWindowH;
@@ -85,12 +86,20 @@ void RadarScreen::BuildDiflisSnapshot()
 
     snap.dragCallsign  = this->diflisDragCallsign;
     snap.dragFromGroup = this->diflisDragFromGroup;
+
+    {
+        std::lock_guard lock(this->diflisStateMutex_);
+        this->diflisSnapshot = std::move(snap);
+    }
 }
 
-/// @brief Draws the DIFLIS window from this->diflisSnapshot (built by BuildDiflisSnapshot).
-void RadarScreen::DrawDiflisWindow(HDC hDC)
+/// @brief Draws the DIFLIS window. Runs on the popout thread via the content-paint
+/// callback installed in CreateDiflisPopout. All draw inputs come from @p snap; the
+/// drop-target rects collected during the draw are written to @p outDropRects so the
+/// main thread can hit-test drop targets in OnMoveScreenObject.
+void RadarScreen::DrawDiflisWindow(HDC hDC, PopoutWindow* popout, const DiflisSnapshot& snap,
+                                   std::vector<std::pair<std::string, RECT>>& outDropRects)
 {
-    const DiflisSnapshot& snap = this->diflisSnapshot;
 
     const int TITLE_H = 13;
     const int X_BTN   = 11;
@@ -137,7 +146,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     RECT          topRect = {xRect.left - GAP - X_BTN - 1, wy + 1, xRect.left - GAP - 1, wy + 1 + X_BTN};
     RECT          maxRect = {topRect.left - X_BTN - 1, wy + 1, topRect.left - 1, wy + 1 + X_BTN};
 
-    POINT cursorD     = this->popoutHoverPoint_;
+    POINT cursorD     = popout->GetCursorPosition();
     bool  xHovered    = PtInRect(&xRect, cursorD) != 0;
     bool  topHovered  = PtInRect(&topRect, cursorD) != 0;
     bool  maxHovered  = PtInRect(&maxRect, cursorD) != 0;
@@ -208,9 +217,9 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     DeleteObject(titleFont);
 
     // Title-bar drag is handled natively by the PopoutWindow (WM_NCHITTEST → HTCAPTION).
-    this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_CLOSE, "diflis", xRect, false, "");
-    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN, "diflis", maxRect, false, "");
-    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_TOPMOST_BTN, "diflis", topRect, false, "");
+    popout->AddScreenObject(SCREEN_OBJECT_WIN_CLOSE, "diflis", xRect, false, "");
+    popout->AddScreenObject(SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN, "diflis", maxRect, false, "");
+    popout->AddScreenObject(SCREEN_OBJECT_DIFLIS_TOPMOST_BTN, "diflis", topRect, false, "");
 
     // ── Column layout ────────────────────────────────────────────────────────
     const int NUM_COLS = 4;
@@ -285,7 +294,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     { return v == DiflisStripVariant::Expanded; };
 
     // ── Per-column layout: active groups, weights, rects ─────────────────────
-    this->diflisGroupRects.clear();
+    outDropRects.clear();
     RECT    dragSrcR        = {0, 0, 0, 0};
     POINT   dragCenterOff   = {0, 0};
     HBITMAP dragCaptureBmp  = nullptr;
@@ -344,7 +353,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
 
                 RECT groupRect = {cx0, cy, cx1, cy + gh};
                 if (e.def->acceptsDrop)
-                    this->diflisGroupRects.emplace_back(e.def->id, groupRect);
+                    outDropRects.emplace_back(e.def->id, groupRect);
                 // Group body background
                 auto gBrush = CreateSolidBrush(RGB(40, 40, 40));
                 FillRect(hDC, &groupRect, gBrush);
@@ -696,8 +705,8 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                                       DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                         }
 
-                        this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_STRIP, s.callsign.c_str(),
-                                                  csDarkR, true, "");
+                        popout->AddScreenObject(SCREEN_OBJECT_DIFLIS_STRIP, s.callsign.c_str(),
+                                                csDarkR, true, "");
                         if (!snap.dragCallsign.empty() && s.callsign == snap.dragCallsign)
                         {
                             dragSrcR        = stripR;
@@ -783,7 +792,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     DeleteObject(undoBorder);
     SetTextColor(hDC, TAG_COLOR_WHITE);
     DrawTextA(hDC, "UNDO", -1, &undoRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_UNDO_BTN, "UNDO", undoRect, false, "");
+    popout->AddScreenObject(SCREEN_OBJECT_DIFLIS_UNDO_BTN, "UNDO", undoRect, false, "");
 
     // ATIS button (next to UNDO) — shows current letter for primary ICAO
     const std::string& atisLetter = snap.atisLetter;
@@ -816,7 +825,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         DrawTextA(hDC, labels3[i], -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         leftX = r.right + btnGap;
     }
-    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_ATIS_BTN, "ATIS", atisRect, false, "");
+    popout->AddScreenObject(SCREEN_OBJECT_DIFLIS_ATIS_BTN, "ATIS", atisRect, false, "");
 
     // ── Controller position status buttons (AMS N / AMS S / DLV / GDE / GDW / TWE / TWW) ──
     // Each entry has a label and the primary frequency of the position. Buttons turn green
@@ -948,27 +957,42 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     auto      resizeBrush = CreateSolidBrush(RGB(100, 100, 100));
     FillRect(hDC, &resizeRect, resizeBrush);
     DeleteObject(resizeBrush);
-    this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_RESIZE, "DIFLIS_RESIZE", resizeRect, true, "");
+    popout->AddScreenObject(SCREEN_OBJECT_DIFLIS_RESIZE, "DIFLIS_RESIZE", resizeRect, true, "");
 
-    // ── Drag ghost overlay — composited by the popout thread in WM_PAINT ─────
-    if (this->currentPopout_)
+    // ── Drag ghost overlay — composited inline on the popout thread ──────────
+    // We're already running from the popout's WM_PAINT, so the live cursor is current
+    // and we can blit the captured strip directly into hDC.
+    if (dragSrcCaptured && dragCaptureBmp)
     {
-        if (dragSrcCaptured && dragCaptureBmp)
+        POINT liveCursor = popout->GetCursorPosition();
+        // Highlight the drop target under the cursor with a 2 px blue frame.
+        for (const auto& gr : outDropRects)
         {
-            int               srcW = dragSrcR.right - dragSrcR.left;
-            int               srcH = dragSrcR.bottom - dragSrcR.top;
-            std::vector<RECT> dropRects;
-            dropRects.reserve(this->diflisGroupRects.size());
-            for (const auto& gr : this->diflisGroupRects)
-                dropRects.push_back(gr.second);
-            this->currentPopout_->SetDragOverlay(dragCaptureBmp, srcW, srcH, dragCenterOff,
-                                                 std::move(dropRects));
-            dragCaptureBmp = nullptr; // ownership transferred to popout
+            if (PtInRect(&gr.second, liveCursor))
+            {
+                auto hiBr = CreateSolidBrush(RGB(90, 160, 220));
+                RECT g    = gr.second;
+                RECT t    = {g.left, g.top, g.right, g.top + 2};
+                RECT b    = {g.left, g.bottom - 2, g.right, g.bottom};
+                RECT l    = {g.left, g.top, g.left + 2, g.bottom};
+                RECT r    = {g.right - 2, g.top, g.right, g.bottom};
+                FillRect(hDC, &t, hiBr);
+                FillRect(hDC, &b, hiBr);
+                FillRect(hDC, &l, hiBr);
+                FillRect(hDC, &r, hiBr);
+                DeleteObject(hiBr);
+                break;
+            }
         }
-        else if (snap.dragCallsign.empty())
-        {
-            this->currentPopout_->ClearDragOverlay();
-        }
+        int     srcW = dragSrcR.right - dragSrcR.left;
+        int     srcH = dragSrcR.bottom - dragSrcR.top;
+        HDC     sDC  = CreateCompatibleDC(hDC);
+        HGDIOBJ oB   = SelectObject(sDC, dragCaptureBmp);
+        int     dstX = liveCursor.x - dragCenterOff.x;
+        int     dstY = liveCursor.y - dragCenterOff.y;
+        BitBlt(hDC, dstX, dstY, srcW, srcH, sDC, 0, 0, SRCCOPY);
+        SelectObject(sDC, oB);
+        DeleteDC(sDC);
     }
 
     if (dragCaptureBmp)
@@ -1018,6 +1042,32 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
             return {std::max(520, currentW + (int)delta.x), std::max(360, currentH + (int)delta.y)};
         },
         /*hasPopInButton=*/false);
+
+    // Install content paint callback — runs on the popout thread.
+    // Takes an immutable snapshot of DIFLIS state under the mutex, draws directly into
+    // the popout HDC, then publishes the drop-rect table back to the main-thread-accessible field.
+    PopoutWindow* popoutRaw = this->diflisPopout.get();
+    this->diflisPopout->SetContentPaintFn(
+        [this, popoutRaw](HDC hDC, int w, int h)
+        {
+            DiflisSnapshot localSnap;
+            {
+                std::lock_guard<std::mutex> lock(this->diflisStateMutex_);
+                localSnap = this->diflisSnapshot;
+            }
+            popoutRaw->ClearScreenObjects();
+
+            RECT full = {0, 0, w, h};
+            FillRect(hDC, &full, (HBRUSH)GetStockObject(BLACK_BRUSH));
+
+            std::vector<std::pair<std::string, RECT>> localDropRects;
+            this->DrawDiflisWindow(hDC, popoutRaw, localSnap, localDropRects);
+
+            {
+                std::lock_guard<std::mutex> lock(this->diflisStateMutex_);
+                this->diflisGroupRects = std::move(localDropRects);
+            }
+        });
 
     // Apply persisted topmost + maximized states.
     if (!s->GetDiflisPopoutTopmost())

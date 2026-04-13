@@ -100,6 +100,15 @@ class PopoutWindow
     /// Return {0, 0} to skip resize. Called on the popout thread — must be lock-free.
     using DirectDragFn = std::function<std::pair<int, int>(const HitArea&, POINT delta, int currentW, int currentH)>;
 
+    /// @brief Callback invoked from WM_PAINT on the popout thread to draw the window content.
+    /// Receives the window DC and current client size. When set, the PopoutWindow's WM_PAINT
+    /// skips the cached-bitmap blit, drag-overlay compositing, and button hover-overdraw
+    /// entirely — the paint fn is expected to own the full visual output.
+    using ContentPaintFn = std::function<void(HDC hDC, int w, int h)>;
+
+    mutable std::mutex contentPaintMutex_; ///< Guards contentPaintFn_
+    ContentPaintFn     contentPaintFn_;     ///< When set, WM_PAINT calls this instead of blitting contentBitmap
+
     DirectDragFn                  onDirectDrag_;  ///< Instant resize callback; called on popout thread during drag; may be null
     std::function<void()>         onNeedsRefresh; ///< Reserved; may be called by the popout thread to hint at an ES repaint
     std::function<void(int, int)> onMoved;        ///< Called with new screen (x, y) when dragged; may be null
@@ -138,6 +147,11 @@ class PopoutWindow
 
     /// @brief Thread-safe: replaces the displayed content bitmap. Takes ownership of @p bmp.
     void UpdateContent(HBITMAP bmp, int w, int h);
+
+    /// @brief Thread-safe: installs a content paint callback invoked from WM_PAINT on the
+    /// popout thread. When set, the cached-bitmap blit path is bypassed and @p fn is expected
+    /// to draw the entire window content (including any title-bar buttons and drag overlays).
+    void SetContentPaintFn(ContentPaintFn fn);
 
     /// @brief Enables a drag-overlay composited on top of the cached bitmap in WM_PAINT.
     /// Takes ownership of @p stripBmp (deleted on replace / ClearDragOverlay / destructor).

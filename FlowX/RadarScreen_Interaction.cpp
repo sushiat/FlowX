@@ -1576,8 +1576,13 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
             this->diflisDragCursor = Pt;
             if (Released)
             {
-                std::string toGroup;
-                for (const auto& gr : this->diflisGroupRects)
+                std::string                               toGroup;
+                std::vector<std::pair<std::string, RECT>> groupRectsCopy;
+                {
+                    std::lock_guard<std::mutex> lock(this->diflisStateMutex_);
+                    groupRectsCopy = this->diflisGroupRects;
+                }
+                for (const auto& gr : groupRectsCopy)
                 {
                     if (PtInRect(&gr.second, Pt))
                     {

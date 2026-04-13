@@ -375,18 +375,19 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             {
                 this->CreateDiflisPopout(settings);
             }
-            if (settings->GetDiflisVisible() && this->diflisPopout &&
-                !this->diflisPopout->IsDirectDragging())
+            if (settings->GetDiflisVisible() && this->diflisPopout)
             {
-                this->diflisWindowW = this->diflisPopout->GetContentW();
-                this->diflisWindowH = this->diflisPopout->GetContentH();
-                this->BuildDiflisSnapshot();
-                POINT diflisPosDummy = {0, 0};
-                this->RenderToPopout(hDC, this->diflisPopout.get(),
-                                     diflisPosDummy,
-                                     this->diflisWindowW, this->diflisWindowH,
-                                     [this](HDC dc)
-                                     { this->DrawDiflisWindow(dc); });
+                // DIFLIS renders on the popout thread via its content-paint callback; the
+                // main thread's only per-tick job is to publish a fresh snapshot and drain
+                // events queued by the popout thread.
+                if (!this->diflisPopout->IsDirectDragging())
+                {
+                    this->diflisWindowW = this->diflisPopout->GetContentW();
+                    this->diflisWindowH = this->diflisPopout->GetContentH();
+                    this->BuildDiflisSnapshot();
+                    this->diflisPopout->RequestRepaint();
+                }
+                this->DispatchPopoutEvents(this->diflisPopout.get());
             }
 
             this->DrawStartButton(hDC);
@@ -526,7 +527,13 @@ void RadarScreen::RenderToPopout(HDC screenDC, PopoutWindow* popout, POINT& wind
     DeleteDC(memDC);
     popout->UpdateContent(bmp, w, h);
 
-    // Dispatch events queued by the popout thread — executed here on the EuroScope main thread.
+    this->DispatchPopoutEvents(popout);
+}
+
+void RadarScreen::DispatchPopoutEvents(PopoutWindow* popout)
+{
+    if (!popout)
+        return;
     bool hadEvents = false;
     for (auto& ev : popout->ConsumeEvents())
     {
