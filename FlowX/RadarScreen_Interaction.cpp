@@ -987,6 +987,13 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             return;
         }
 
+        if (ObjectType == SCREEN_OBJECT_DIFLIS_UNDO_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            this->DiflisUndo();
+            this->RequestRefresh();
+            return;
+        }
+
         if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
         {
             this->startMenuOpen = !this->startMenuOpen;
@@ -1561,13 +1568,51 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
             {
                 this->diflisResizeLastDrag = Pt;
             }
-            this->diflisWindowW       = std::max(520, this->diflisWindowW + (int)(Pt.x - this->diflisResizeLastDrag.x));
-            this->diflisWindowH       = std::max(360, this->diflisWindowH + (int)(Pt.y - this->diflisResizeLastDrag.y));
+            this->diflisWindowW        = std::max(520, this->diflisWindowW + (int)(Pt.x - this->diflisResizeLastDrag.x));
+            this->diflisWindowH        = std::max(360, this->diflisWindowH + (int)(Pt.y - this->diflisResizeLastDrag.y));
             this->diflisResizeLastDrag = Pt;
             if (Released)
             {
                 this->diflisResizeLastDrag = {-1, -1};
             }
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_DIFLIS_STRIP)
+        {
+            std::string callsign(sObjectId);
+            if (this->diflisDragCallsign.empty())
+            {
+                this->diflisDragCallsign = callsign;
+                this->diflisDragFromGroup.clear();
+                for (const auto& cs : this->diflisStripsCache)
+                {
+                    if (cs.callsign == callsign)
+                    {
+                        this->diflisDragFromGroup = cs.resolvedGroupId;
+                        break;
+                    }
+                }
+            }
+            this->diflisDragCursor = Pt;
+            if (Released)
+            {
+                std::string toGroup;
+                for (const auto& gr : this->diflisGroupRects)
+                {
+                    if (PtInRect(&gr.second, Pt))
+                    {
+                        toGroup = gr.first;
+                        break;
+                    }
+                }
+                if (!toGroup.empty())
+                    this->DiflisMoveStrip(this->diflisDragCallsign, this->diflisDragFromGroup, toGroup);
+                this->diflisDragCallsign.clear();
+                this->diflisDragFromGroup.clear();
+                this->diflisDragCursor = {-9999, -9999};
+            }
+            this->RequestRefresh();
             return;
         }
 

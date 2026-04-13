@@ -52,12 +52,60 @@ PopoutWindow::~PopoutWindow()
     {
         this->thread.join();
     }
-    std::lock_guard lock(this->contentMutex);
-    if (this->contentBitmap)
     {
-        DeleteObject(this->contentBitmap);
-        this->contentBitmap = nullptr;
+        std::lock_guard lock(this->contentMutex);
+        if (this->contentBitmap)
+        {
+            DeleteObject(this->contentBitmap);
+            this->contentBitmap = nullptr;
+        }
     }
+    {
+        std::lock_guard lock(this->dragOverlayMutex_);
+        if (this->dragOverlayBmp_)
+        {
+            DeleteObject(this->dragOverlayBmp_);
+            this->dragOverlayBmp_ = nullptr;
+        }
+    }
+}
+
+void PopoutWindow::SetDragOverlay(HBITMAP stripBmp, int w, int h, POINT centerOffset,
+                                  std::vector<RECT> dropRects)
+{
+    {
+        std::lock_guard lock(this->dragOverlayMutex_);
+        if (this->dragOverlayBmp_ && this->dragOverlayBmp_ != stripBmp)
+            DeleteObject(this->dragOverlayBmp_);
+        this->dragOverlayBmp_       = stripBmp;
+        this->dragOverlayW_         = w;
+        this->dragOverlayH_         = h;
+        this->dragOverlayCenter_    = centerOffset;
+        this->dragOverlayDropRects_ = std::move(dropRects);
+        this->dragOverlayActive_    = (stripBmp != nullptr);
+    }
+    HWND h2 = this->hwnd;
+    if (h2)
+        InvalidateRect(h2, nullptr, FALSE);
+}
+
+void PopoutWindow::ClearDragOverlay()
+{
+    {
+        std::lock_guard lock(this->dragOverlayMutex_);
+        if (!this->dragOverlayActive_ && !this->dragOverlayBmp_)
+            return;
+        if (this->dragOverlayBmp_)
+        {
+            DeleteObject(this->dragOverlayBmp_);
+            this->dragOverlayBmp_ = nullptr;
+        }
+        this->dragOverlayDropRects_.clear();
+        this->dragOverlayActive_ = false;
+    }
+    HWND h = this->hwnd;
+    if (h)
+        InvalidateRect(h, nullptr, FALSE);
 }
 
 // ── Hit-area / event methods ────────────────────────────────────────────────────
@@ -150,8 +198,8 @@ void PopoutWindow::SetMaximized(bool v)
             std::lock_guard lock(this->savedRectMutex_);
             this->savedRect_ = r;
         }
-        HMONITOR     mon = MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO  mi  = {sizeof(mi)};
+        HMONITOR    mon = MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO mi  = {sizeof(mi)};
         if (GetMonitorInfoA(mon, &mi))
         {
             int nw = mi.rcWork.right - mi.rcWork.left;
@@ -306,6 +354,42 @@ void PopoutWindow::Paint(HDC hDC)
         }
         SelectObject(memDC, oldBmp);
         DeleteDC(memDC);
+    }
+
+    // Drag overlay (live) — composited on top of the cached content bitmap so the
+    // dragged strip follows the cursor independently of EuroScope's refresh cycle.
+    {
+        std::lock_guard lock(this->dragOverlayMutex_);
+        if (this->dragOverlayActive_ && this->dragOverlayBmp_)
+        {
+            POINT liveCursor = {this->cursorX_.load(), this->cursorY_.load()};
+            // Drop-target highlight (2 px blue frame)
+            for (const auto& gr : this->dragOverlayDropRects_)
+            {
+                if (PtInRect(&gr, liveCursor))
+                {
+                    auto hiBr = CreateSolidBrush(RGB(90, 160, 220));
+                    RECT t    = {gr.left, gr.top, gr.right, gr.top + 2};
+                    RECT b    = {gr.left, gr.bottom - 2, gr.right, gr.bottom};
+                    RECT l    = {gr.left, gr.top, gr.left + 2, gr.bottom};
+                    RECT r    = {gr.right - 2, gr.top, gr.right, gr.bottom};
+                    FillRect(hDC, &t, hiBr);
+                    FillRect(hDC, &b, hiBr);
+                    FillRect(hDC, &l, hiBr);
+                    FillRect(hDC, &r, hiBr);
+                    DeleteObject(hiBr);
+                    break;
+                }
+            }
+            // Blit captured strip pixels at cursor - centerOffset.
+            HDC     stripDC = CreateCompatibleDC(hDC);
+            HGDIOBJ oldBmp2 = SelectObject(stripDC, this->dragOverlayBmp_);
+            int     dstX    = liveCursor.x - this->dragOverlayCenter_.x;
+            int     dstY    = liveCursor.y - this->dragOverlayCenter_.y;
+            BitBlt(hDC, dstX, dstY, this->dragOverlayW_, this->dragOverlayH_, stripDC, 0, 0, SRCCOPY);
+            SelectObject(stripDC, oldBmp2);
+            DeleteDC(stripDC);
+        }
     }
 
     // Overdraw button hover states using the live cursor so they update at WM_PAINT speed.

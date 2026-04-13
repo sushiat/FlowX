@@ -202,15 +202,19 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                           depRateWindowH   = 0;                 ///< Last-rendered height of the DEP/H window in pixels; 0 until first draw
     int                                           depRateWindowW   = 0;                 ///< Last-rendered width of the DEP/H window in pixels; 0 until first draw
     POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
-    POINT                                         diflisLastDrag       = {-1, -1};       ///< Previous drag cursor position for the DIFLIS window; (-1,-1) when not dragging
-    std::unique_ptr<PopoutWindow>                 diflisPopout;                          ///< Non-null when the DIFLIS window is in standalone popout mode
-    POINT                                         diflisResizeLastDrag = {-1, -1};       ///< Previous drag cursor position for the DIFLIS resize handle
-    std::vector<DiflisStripCache>                  diflisStripsCache;                     ///< Cached flight strips rebuilt every second by UpdateTagCache()
-    std::map<std::string, std::string>            diflisOverrides;                       ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
-    std::deque<DiflisUndoEntry>                    diflisUndoStack;                       ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)
-    int                                           diflisWindowH   = 720;                 ///< Current height of the DIFLIS window in pixels
-    int                                           diflisWindowW   = 1100;                ///< Current width of the DIFLIS window in pixels
-    POINT                                         diflisWindowPos = {-1, -1};            ///< Top-left corner of the DIFLIS window; (-1,-1) until first draw
+    POINT                                         diflisLastDrag   = {-1, -1};          ///< Previous drag cursor position for the DIFLIS window; (-1,-1) when not dragging
+    std::unique_ptr<PopoutWindow>                 diflisPopout;                         ///< Non-null when the DIFLIS window is in standalone popout mode
+    POINT                                         diflisResizeLastDrag = {-1, -1};      ///< Previous drag cursor position for the DIFLIS resize handle
+    std::vector<DiflisStripCache>                 diflisStripsCache;                    ///< Cached flight strips rebuilt every second by UpdateTagCache()
+    std::map<std::string, std::string>            diflisOverrides;                      ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
+    std::deque<DiflisUndoEntry>                   diflisUndoStack;                      ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)
+    std::vector<std::pair<std::string, RECT>>     diflisGroupRects;                     ///< Per-draw transient: drop-target group rects (only acceptsDrop groups) used by OnMoveScreenObject
+    std::string                                   diflisDragCallsign;                   ///< Callsign currently being dragged in the DIFLIS window; empty when not dragging
+    std::string                                   diflisDragFromGroup;                  ///< Group id the dragged strip came from; captured at drag start
+    POINT                                         diflisDragCursor = {-9999, -9999};    ///< Live cursor position during an in-flight DIFLIS strip drag; drives the ghost overlay
+    int                                           diflisWindowH    = 720;               ///< Current height of the DIFLIS window in pixels
+    int                                           diflisWindowW    = 1100;              ///< Current width of the DIFLIS window in pixels
+    POINT                                         diflisWindowPos  = {-1, -1};          ///< Top-left corner of the DIFLIS window; (-1,-1) until first draw
     std::set<std::string>                         gndTransferSquares;                   ///< Callsigns for which a GND-transfer green square is currently shown on the radar
     std::map<std::string, ULONGLONG>              gndTransferSquareTimes;               ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
     std::map<std::string, std::string>            groundStations;                       ///< Callsign -> primary frequency string for online GND controllers (facility 3)
@@ -293,6 +297,13 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                weatherWindowH   = 0;              ///< Last-rendered height of the WX/ATIS window in pixels; 0 until first draw
     int                                weatherWindowW   = 0;              ///< Last-rendered width of the WX/ATIS window in pixels; 0 until first draw
     POINT                              weatherWindowPos = {-1, -1};       ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw
+
+    /// @brief Applies a manual DIFLIS strip move: updates diflisOverrides and pushes a DiflisUndoEntry.
+    /// @note Override-only writeback for now; Ground Radar / TopSky side effects deferred.
+    void DiflisMoveStrip(const std::string& callsign, const std::string& fromGroup, const std::string& toGroup);
+
+    /// @brief Pops the most recent DIFLIS undo entry and reverts each recorded mutation.
+    void DiflisUndo();
 
     /// @brief Constructs a RadarScreen with debug mode off.
     RadarScreen();

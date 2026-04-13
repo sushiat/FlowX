@@ -77,15 +77,22 @@ class PopoutWindow
     RECT               savedRect_      = {};    ///< Window rect saved before maximize, used to restore
     mutable std::mutex savedRectMutex_;         ///< Guards savedRect_
 
-    std::atomic<int>          cursorX_    = {-9999}; ///< Client-coords X of the mouse; -9999 when outside window
-    std::atomic<int>          cursorY_    = {-9999}; ///< Client-coords Y of the mouse; -9999 when outside window
-    bool                      dragging_   = false;   ///< True while a dragable hit area is being dragged; popout thread only
-    HitArea                   dragTarget_ = {};      ///< Hit area currently being dragged; popout thread only
-    POINT                     dragLastPt_ = {};      ///< Last mouse position during drag; used to compute delta; popout thread only
-    mutable std::mutex        eventMutex_;           ///< Guards pendingEvents_
-    mutable std::mutex        hitAreasMutex_;        ///< Guards hitAreas_
-    std::vector<HitArea>      hitAreas_;             ///< Cleared before each draw; populated via AddScreenObject
-    std::vector<PendingEvent> pendingEvents_;        ///< Events queued by the popout thread; consumed by RenderToPopout
+    std::atomic<int>          cursorX_ = {-9999};           ///< Client-coords X of the mouse; -9999 when outside window
+    std::atomic<int>          cursorY_ = {-9999};           ///< Client-coords Y of the mouse; -9999 when outside window
+    mutable std::mutex        dragOverlayMutex_;            ///< Guards all dragOverlay* fields below
+    HBITMAP                   dragOverlayBmp_    = nullptr; ///< Captured strip pixels; owned — deleted on replace/clear
+    int                       dragOverlayW_      = 0;       ///< Width of dragOverlayBmp_ in pixels
+    int                       dragOverlayH_      = 0;       ///< Height of dragOverlayBmp_ in pixels
+    POINT                     dragOverlayCenter_ = {0, 0};  ///< Offset (px) from strip top-left to the point the cursor should track (callsign box centre)
+    std::vector<RECT>         dragOverlayDropRects_;        ///< Drop-target rects (popout-local coords) to highlight when cursor is inside
+    bool                      dragOverlayActive_ = false;   ///< True while a drag overlay should be composited on top of the cached bitmap
+    bool                      dragging_          = false;   ///< True while a dragable hit area is being dragged; popout thread only
+    HitArea                   dragTarget_        = {};      ///< Hit area currently being dragged; popout thread only
+    POINT                     dragLastPt_        = {};      ///< Last mouse position during drag; used to compute delta; popout thread only
+    mutable std::mutex        eventMutex_;                  ///< Guards pendingEvents_
+    mutable std::mutex        hitAreasMutex_;               ///< Guards hitAreas_
+    std::vector<HitArea>      hitAreas_;                    ///< Cleared before each draw; populated via AddScreenObject
+    std::vector<PendingEvent> pendingEvents_;               ///< Events queued by the popout thread; consumed by RenderToPopout
 
     /// Callback signature for instant direct-drag handling on the popout thread.
     /// Receives the hit area, pixel delta, and current window size; returns the desired new {w, h}.
@@ -129,6 +136,15 @@ class PopoutWindow
 
     /// @brief Thread-safe: replaces the displayed content bitmap. Takes ownership of @p bmp.
     void UpdateContent(HBITMAP bmp, int w, int h);
+
+    /// @brief Enables a drag-overlay composited on top of the cached bitmap in WM_PAINT.
+    /// Takes ownership of @p stripBmp (deleted on replace / ClearDragOverlay / destructor).
+    /// @param centerOffset Pixel offset from strip top-left to the point that should follow the cursor.
+    /// @param dropRects    Rects (popout-local coords) to highlight when cursor is inside them.
+    void SetDragOverlay(HBITMAP stripBmp, int w, int h, POINT centerOffset, std::vector<RECT> dropRects);
+
+    /// @brief Clears any active drag overlay and frees the held bitmap.
+    void ClearDragOverlay();
 
     /// @brief Registers a hit area for the current frame; used by RenderToPopout via AddScreenObjectAuto.
     void AddScreenObject(int objectType, const char* objectId, RECT rect, bool dragable, const char* tooltip);

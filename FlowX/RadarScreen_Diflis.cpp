@@ -60,7 +60,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     // ── Cache airport DIFLIS config once (config is not hot-swappable). ─────────
     // All per-draw reads below use these cached values instead of walking FindMyAirport /
     // dereferencing dcfg every frame.
-    static const DiflisAirportConfig* s_dcfg        = nullptr;
+    static const DiflisAirportConfig* s_dcfg = nullptr;
     static std::string                s_myIcao;
     static bool                       s_cfgResolved = false;
     if (!s_cfgResolved)
@@ -76,12 +76,12 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     const DiflisAirportConfig* dcfg   = s_dcfg;
     const std::string&         myIcao = s_myIcao;
 
-    static const int s_fsStatus  = dcfg ? dcfg->fontSizeStatusBar   : 20;
+    static const int s_fsStatus  = dcfg ? dcfg->fontSizeStatusBar : 20;
     static const int s_fsHdr     = dcfg ? dcfg->fontSizeGroupHeader : 16;
-    static const int s_fsHdrSide = dcfg ? dcfg->fontSizeGroupSide   : 14;
-    static const int s_fsLarge   = dcfg ? dcfg->fontSizeStripLarge  : 30;
+    static const int s_fsHdrSide = dcfg ? dcfg->fontSizeGroupSide : 14;
+    static const int s_fsLarge   = dcfg ? dcfg->fontSizeStripLarge : 30;
     static const int s_fsMedium  = dcfg ? dcfg->fontSizeStripMedium : 20;
-    static const int s_fsSmall   = dcfg ? dcfg->fontSizeStripSmall  : 16;
+    static const int s_fsSmall   = dcfg ? dcfg->fontSizeStripSmall : 16;
 
     const int statusFontH = std::abs(fs(s_fsStatus));
     const int STATUS_H    = std::max({28, (int)std::round(36 * scale), statusFontH * 2 + 8});
@@ -101,9 +101,9 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
 
     // Maximize + topmost toggles; only visible when this is a popout render (the two
     // buttons live 4px to the left of the popin button, separated by the gap).
-    constexpr int GAP      = 4;
-    RECT          topRect  = {0, 0, 0, 0};
-    RECT          maxRect  = {0, 0, 0, 0};
+    constexpr int GAP     = 4;
+    RECT          topRect = {0, 0, 0, 0};
+    RECT          maxRect = {0, 0, 0, 0};
     if (this->isPopoutRender_)
     {
         topRect = {popRect.left - GAP - X_BTN - 1, wy + 1, popRect.left - GAP - 1, wy + 1 + X_BTN};
@@ -120,10 +120,10 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         if (esHwnd)
             ScreenToClient(esHwnd, &cursorD);
     }
-    bool xHovered   = PtInRect(&xRect, cursorD) != 0;
-    bool popHovered = PtInRect(&popRect, cursorD) != 0;
-    bool topHovered = this->isPopoutRender_ && PtInRect(&topRect, cursorD) != 0;
-    bool maxHovered = this->isPopoutRender_ && PtInRect(&maxRect, cursorD) != 0;
+    bool xHovered    = PtInRect(&xRect, cursorD) != 0;
+    bool popHovered  = PtInRect(&popRect, cursorD) != 0;
+    bool topHovered  = this->isPopoutRender_ && PtInRect(&topRect, cursorD) != 0;
+    bool maxHovered  = this->isPopoutRender_ && PtInRect(&maxRect, cursorD) != 0;
     bool isTopmost   = !this->diflisPopout || this->diflisPopout->IsTopmost();
     bool isMaximized = this->diflisPopout && this->diflisPopout->IsMaximized();
 
@@ -144,8 +144,8 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     FillRect(hDC, &statusRect, statusBrush);
     DeleteObject(statusBrush);
 
-    RECT statusSep    = {wx, statusRect.top - 3, wx + WIN_W, statusRect.top};
-    auto statusSepBr  = CreateSolidBrush(RGB(0, 0, 0));
+    RECT statusSep   = {wx, statusRect.top - 3, wx + WIN_W, statusRect.top};
+    auto statusSepBr = CreateSolidBrush(RGB(0, 0, 0));
     FillRect(hDC, &statusSep, statusSepBr);
     DeleteObject(statusSepBr);
 
@@ -214,14 +214,14 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     }
 
     // ── Column layout ────────────────────────────────────────────────────────
-    const int NUM_COLS   = 4;
-    const int bodyX0     = bodyRect.left + PAD;
-    const int bodyY0     = bodyRect.top + PAD;
-    const int bodyX1     = bodyRect.right - PAD;
-    const int bodyY1     = bodyRect.bottom - PAD;
-    const int bodyW      = std::max(1, bodyX1 - bodyX0);
-    const int bodyH      = std::max(1, bodyY1 - bodyY0);
-    const int COL_GAP    = 8;
+    const int NUM_COLS = 4;
+    const int bodyX0   = bodyRect.left + PAD;
+    const int bodyY0   = bodyRect.top + PAD;
+    const int bodyX1   = bodyRect.right - PAD;
+    const int bodyY1   = bodyRect.bottom - PAD;
+    const int bodyW    = std::max(1, bodyX1 - bodyX0);
+    const int bodyH    = std::max(1, bodyY1 - bodyY0);
+    const int COL_GAP  = 8;
 
     // Per-column widths from config; fall back to equal share if missing/misconfigured.
     int widths[NUM_COLS] = {25, 25, 25, 25};
@@ -235,7 +235,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         totalPct = 1;
     int innerW = std::max(1, bodyW - (NUM_COLS - 1) * COL_GAP);
     int colX[NUM_COLS + 1];
-    colX[0]        = bodyX0;
+    colX[0]         = bodyX0;
     int accumulated = 0;
     for (int i = 0; i < NUM_COLS - 1; ++i)
     {
@@ -268,8 +268,8 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     const int fsMedium  = s_fsMedium;
     const int fsSmall   = s_fsSmall;
 
-    HFONT groupHdrFont   = mkFont(fs(fsHdr), FW_BOLD);
-    HFONT groupSideFont  = mkFont(fs(fsHdrSide), FW_BOLD);
+    HFONT groupHdrFont  = mkFont(fs(fsHdr), FW_BOLD);
+    HFONT groupSideFont = mkFont(fs(fsHdrSide), FW_BOLD);
 
     // Strip fonts scale with strip width. Baseline: a strip that fills 28% of a 1440p
     // window (i.e. column[0] at the reference 28% width). Wider strips scale up, narrower down.
@@ -282,8 +282,10 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         float s = scale * wScale;
         switch (v)
         {
-        case DiflisStripVariant::Collapsed: return std::max(20, (int)std::round(50 * s));
-        case DiflisStripVariant::Expanded:  return std::max(40, (int)std::round(110 * s));
+        case DiflisStripVariant::Collapsed:
+            return std::max(20, (int)std::round(50 * s));
+        case DiflisStripVariant::Expanded:
+            return std::max(40, (int)std::round(110 * s));
         }
         return 22;
     };
@@ -291,6 +293,11 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     { return v == DiflisStripVariant::Expanded; };
 
     // ── Per-column layout: active groups, weights, rects ─────────────────────
+    this->diflisGroupRects.clear();
+    RECT    dragSrcR        = {0, 0, 0, 0};
+    POINT   dragCenterOff   = {0, 0};
+    HBITMAP dragCaptureBmp  = nullptr;
+    bool    dragSrcCaptured = false;
     if (dcfg)
     {
         for (int c = 0; c < NUM_COLS; ++c)
@@ -298,7 +305,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
             struct Entry
             {
                 const DiflisGroupDef* def;
-                int                  stripCount;
+                int                   stripCount;
             };
             std::vector<Entry> entries;
             float              totalWeight = 0.0f;
@@ -319,31 +326,33 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
             if (entries.empty() || totalWeight <= 0.0f)
                 continue;
 
-            int cx0 = colX[c];
-            int cx1 = colX[c + 1] - (c < NUM_COLS - 1 ? COL_GAP : 0);
-            int cy  = bodyY0;
+            int cx0  = colX[c];
+            int cx1  = colX[c + 1] - (c < NUM_COLS - 1 ? COL_GAP : 0);
+            int cy   = bodyY0;
             int colH = bodyH;
 
             // Per-column strip fonts, sized from the column's actual strip width.
-            float widthScale  = std::clamp(float(cx1 - cx0 - 8) / STRIP_WIDTH_BASELINE, 0.35f, 2.0f);
-            const int csFontPx   = fs((int)std::round(fsLarge  * widthScale));
-            const int bodyFontPx = fs((int)std::round(fsMedium * widthScale));
-            const int smallFontPx = fs((int)std::round(fsSmall * widthScale));
-            HFONT csLargeFont    = mkFont(csFontPx, FW_BOLD);
-            HFONT bodyLargeFont  = mkFont(bodyFontPx, FW_NORMAL);
-            HFONT stripSmallFont = mkFont(smallFontPx, FW_NORMAL);
+            float     widthScale     = std::clamp(float(cx1 - cx0 - 8) / STRIP_WIDTH_BASELINE, 0.35f, 2.0f);
+            const int csFontPx       = fs((int)std::round(fsLarge * widthScale));
+            const int bodyFontPx     = fs((int)std::round(fsMedium * widthScale));
+            const int smallFontPx    = fs((int)std::round(fsSmall * widthScale));
+            HFONT     csLargeFont    = mkFont(csFontPx, FW_BOLD);
+            HFONT     bodyLargeFont  = mkFont(bodyFontPx, FW_NORMAL);
+            HFONT     stripSmallFont = mkFont(smallFontPx, FW_NORMAL);
             (void)stripSmallFont;
 
             for (size_t i = 0; i < entries.size(); ++i)
             {
-                const auto& e = entries[i];
-                float w = std::max(0.01f, e.def->heightWeight);
-                int   gh = (i + 1 == entries.size()) ? (bodyY0 + colH - cy)
-                                                     : (int)std::round(colH * (w / totalWeight));
+                const auto& e  = entries[i];
+                float       w  = std::max(0.01f, e.def->heightWeight);
+                int         gh = (i + 1 == entries.size()) ? (bodyY0 + colH - cy)
+                                                           : (int)std::round(colH * (w / totalWeight));
                 if (gh < 18)
                     gh = 18;
 
                 RECT groupRect = {cx0, cy, cx1, cy + gh};
+                if (e.def->acceptsDrop)
+                    this->diflisGroupRects.emplace_back(e.def->id, groupRect);
                 // Group body background
                 auto gBrush = CreateSolidBrush(RGB(40, 40, 40));
                 FillRect(hDC, &groupRect, gBrush);
@@ -353,9 +362,9 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                 DeleteObject(gBorder);
 
                 // Group header bar (+4 for 2 px padding above and below the title text)
-                const int HDR_H = std::max(14, (int)std::round(16 * scale)) + 4;
-                RECT hdrRect    = {cx0, cy, cx1, cy + HDR_H};
-                auto hdrBrush   = CreateSolidBrush(RGB(15, 15, 15));
+                const int HDR_H    = std::max(14, (int)std::round(16 * scale)) + 4;
+                RECT      hdrRect  = {cx0, cy, cx1, cy + HDR_H};
+                auto      hdrBrush = CreateSolidBrush(RGB(15, 15, 15));
                 FillRect(hDC, &hdrRect, hdrBrush);
                 DeleteObject(hdrBrush);
 
@@ -388,14 +397,14 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                 if (e.stripCount > 0 && avail > 0)
                 {
                     DiflisStripVariant chosen  = e.def->preferredVariant;
-                    int               rowH    = variantH(chosen, widthScale);
-                    int               visible = e.stripCount;
+                    int                rowH    = variantH(chosen, widthScale);
+                    int                visible = e.stripCount;
 
                     if (rowH * visible > avail)
                     {
                         // Preferred doesn't fit — try fallback
-                        DiflisStripVariant fb   = e.def->fallbackVariant;
-                        int               fbH  = variantH(fb, widthScale);
+                        DiflisStripVariant fb  = e.def->fallbackVariant;
+                        int                fbH = variantH(fb, widthScale);
                         if (fbH * visible <= avail)
                         {
                             chosen = fb;
@@ -431,7 +440,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
 
                         COLORREF bg     = s.bg;
                         COLORREF bgDark = s.bgDark;
-                        auto sBrush = CreateSolidBrush(bg);
+                        auto     sBrush = CreateSolidBrush(bg);
                         FillRect(hDC, &stripR, sBrush);
                         DeleteObject(sBrush);
 
@@ -462,22 +471,32 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                         std::string csLabel = s.callsign;
                         switch (s.wtc)
                         {
-                        case 'H': case 'h': csLabel += "+"; break;
-                        case 'J': case 'j': csLabel += "^"; break;
-                        case 'L': case 'l': csLabel += "-"; break;
-                        default: break;
+                        case 'H':
+                        case 'h':
+                            csLabel += "+";
+                            break;
+                        case 'J':
+                        case 'j':
+                            csLabel += "^";
+                            break;
+                        case 'L':
+                        case 'l':
+                            csLabel += "-";
+                            break;
+                        default:
+                            break;
                         }
                         {
-                            RECT csTxt  = {csDarkR.left + 6, csDarkR.top, csDarkR.right - 4, csDarkR.bottom};
-                            int  avail  = csTxt.right - csTxt.left;
-                            int  lblW   = monoW(csFontPx, (int)csLabel.size());
+                            RECT  csTxt    = {csDarkR.left + 6, csDarkR.top, csDarkR.right - 4, csDarkR.bottom};
+                            int   avail    = csTxt.right - csTxt.left;
+                            int   lblW     = monoW(csFontPx, (int)csLabel.size());
                             HFONT csShrunk = nullptr;
                             if (lblW > avail && avail > 0)
                             {
                                 float ratio = (float)avail / (float)lblW;
                                 int   baseH = std::abs(csFontPx);
                                 int   newH  = -std::max(6, (int)std::round(baseH * ratio));
-                                csShrunk = mkFont(newH, FW_BOLD);
+                                csShrunk    = mkFont(newH, FW_BOLD);
                                 SelectObject(hDC, csShrunk);
                             }
                             DrawTextA(hDC, csLabel.c_str(), -1, &csTxt,
@@ -493,7 +512,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                         // same fixed width in collapsed so strips line up vertically. Label uses the
                         // callsign font for a consistent visual weight.
                         SelectObject(hDC, csFont);
-                        int  stW  = std::max(1, variantH(DiflisStripVariant::Expanded, widthScale) - 3 - 4);
+                        int  stW    = std::max(1, variantH(DiflisStripVariant::Expanded, widthScale) - 3 - 4);
                         RECT stBtnR = {inner.right - stW, inner.top, inner.right, inner.bottom};
                         auto stBr   = CreateSolidBrush(bgDark);
                         FillRect(hDC, &stBtnR, stBr);
@@ -524,7 +543,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             // Type + stand are compact on the left (content-sized in medium
                             // font). Rwy fills the remaining width with text right-aligned
                             // against the status button.
-                            const int SEP_W  = 2;
+                            const int SEP_W = 2;
                             SelectObject(hDC, bodyFont);
                             int typeW  = monoW(bodyFontPx, 6) + 10;
                             int standW = monoW(bodyFontPx, 3) + 10;
@@ -555,7 +574,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             std::string sidShort;
                             if (!s.isInbound)
                             {
-                                sidShort = route;
+                                sidShort     = route;
                                 size_t digit = 0;
                                 while (digit < sidShort.size() && !std::isdigit((unsigned char)sidShort[digit]))
                                     ++digit;
@@ -573,7 +592,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             DrawTextA(hDC, rwy.c_str(), -1, &rTxt,
                                       DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
                         }
-                        else  // Expanded
+                        else // Expanded
                         {
                             // Expanded layout (6 columns, 3 rows):
                             //   col1+col2: callsign (rowspan 2, colspan 2, dark bg) above;
@@ -587,9 +606,9 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             const int r3top = inner.top + 2 * hBody / 3;
 
                             // Row 3 under the callsign block: type (left half) + stand (right half)
-                            int  csBotTop = r3top;
-                            int  half     = csR.left + (csR.right - csR.left) / 2;
-                            RECT typeBotR = {csR.left + 6, csBotTop, half - 2, inner.bottom};
+                            int  csBotTop  = r3top;
+                            int  half      = csR.left + (csR.right - csR.left) / 2;
+                            RECT typeBotR  = {csR.left + 6, csBotTop, half - 2, inner.bottom};
                             RECT standBotR = {half + 2, csBotTop, csR.right - 4, inner.bottom};
                             SelectObject(hDC, bodyFont);
                             SetTextColor(hDC, s.text);
@@ -602,7 +621,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             std::string sidShort;
                             if (!s.isInbound)
                             {
-                                sidShort = route;
+                                sidShort     = route;
                                 size_t digit = 0;
                                 while (digit < sidShort.size() &&
                                        !std::isdigit((unsigned char)sidShort[digit]))
@@ -614,12 +633,12 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             // Column widths (content-sized via body font)
                             SelectObject(hDC, bodyFont);
                             const int SEP_W = 4;
-                            int col3W = monoW(bodyFontPx, 5) + 10;
-                            int col4W = monoW(bodyFontPx, 4) + 10;
-                            int col3x = csR.right + SEP_W;
-                            int col4x = col3x + col3W + SEP_W;
-                            int col5x = col4x + col4W + SEP_W;
-                            int col5r = stBtnR.left - SEP_W;
+                            int       col3W = monoW(bodyFontPx, 5) + 10;
+                            int       col4W = monoW(bodyFontPx, 4) + 10;
+                            int       col3x = csR.right + SEP_W;
+                            int       col4x = col3x + col3W + SEP_W;
+                            int       col5x = col4x + col4W + SEP_W;
+                            int       col5r = stBtnR.left - SEP_W;
 
                             // Inter-column separators — same rule as collapsed: 2 px darker bars,
                             // only drawn where both sides are bright cells (never alongside the
@@ -645,8 +664,8 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                                                  const char* t3, bool dim3)
                             {
                                 RECT r1R = {l + 2, inner.top, r - 4, r2top};
-                                RECT r2R = {l + 2, r2top,     r - 4, r3top};
-                                RECT r3R = {l + 2, r3top,     r - 4, inner.bottom};
+                                RECT r2R = {l + 2, r2top, r - 4, r3top};
+                                RECT r3R = {l + 2, r3top, r - 4, inner.bottom};
                                 if (t1 && *t1)
                                 {
                                     SetTextColor(hDC, dim1 ? s.textDim : s.text);
@@ -670,12 +689,12 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                             SelectObject(hDC, bodyFont);
                             drawCell3(col3x, col4x - SEP_W, DT_RIGHT,
                                       sidShort.c_str(), true,
-                                      "443",            false,
-                                      adx.c_str(),      false);
+                                      "443", false,
+                                      adx.c_str(), false);
                             drawCell3(col4x, col5x - SEP_W, DT_CENTER,
-                                      "",         false,
-                                      sqk.c_str(),false,
-                                      "",         false);
+                                      "", false,
+                                      sqk.c_str(), false,
+                                      "", false);
 
                             // Col 5 flex: row3 runway right-aligned, dimmed, large font.
                             SelectObject(hDC, csFont);
@@ -686,7 +705,32 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
                         }
 
                         this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_STRIP, s.callsign.c_str(),
-                                                  stripR, false, "");
+                                                  csDarkR, true, "");
+                        if (!this->diflisDragCallsign.empty() && s.callsign == this->diflisDragCallsign)
+                        {
+                            dragSrcR        = stripR;
+                            dragSrcCaptured = true;
+                            dragCenterOff.x = (csDarkR.left + csDarkR.right) / 2 - stripR.left;
+                            dragCenterOff.y = (csDarkR.top + csDarkR.bottom) / 2 - stripR.top;
+
+                            // Capture strip pixels before blanking the slot.
+                            int srcW = stripR.right - stripR.left;
+                            int srcH = stripR.bottom - stripR.top;
+                            if (srcW > 0 && srcH > 0)
+                            {
+                                dragCaptureBmp = CreateCompatibleBitmap(hDC, srcW, srcH);
+                                HDC     capDC  = CreateCompatibleDC(hDC);
+                                HGDIOBJ oldCap = SelectObject(capDC, dragCaptureBmp);
+                                BitBlt(capDC, 0, 0, srcW, srcH, hDC, stripR.left, stripR.top, SRCCOPY);
+                                SelectObject(capDC, oldCap);
+                                DeleteDC(capDC);
+                            }
+
+                            // Blank the original slot with the group body colour so neighbours don't reflow.
+                            auto blankBr = CreateSolidBrush(RGB(40, 40, 40));
+                            FillRect(hDC, &stripR, blankBr);
+                            DeleteObject(blankBr);
+                        }
                         sy += e.def->stackBottom ? -rowH : rowH;
                         ++drawn;
                     }
@@ -741,14 +785,14 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     DrawTextA(hDC, qnhLabel.c_str(), -1, &qnhRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // UNDO button (after QNH) — padding and vertical margin scale with status font size
-    const int btnHPad = std::max(20, statusFontH * 3 / 2);  // total horizontal padding
-    const int btnVPad = std::max(6, statusFontH / 2);       // vertical margin each side
-    const int btnTop  = statusRect.top + btnVPad;
-    const int btnBot  = statusRect.bottom - btnVPad;
+    const int btnHPad   = std::max(20, statusFontH * 3 / 2); // total horizontal padding
+    const int btnVPad   = std::max(6, statusFontH / 2);      // vertical margin each side
+    const int btnTop    = statusRect.top + btnVPad;
+    const int btnBot    = statusRect.bottom - btnVPad;
     const int undoTextW = monoW(fs(fsStatus), 4);
-    RECT undoRect = {qnhRect.right + 10, btnTop,
-                     qnhRect.right + 10 + undoTextW + btnHPad, btnBot};
-    auto undoBrush = CreateSolidBrush(RGB(55, 55, 55));
+    RECT      undoRect  = {qnhRect.right + 10, btnTop,
+                           qnhRect.right + 10 + undoTextW + btnHPad, btnBot};
+    auto      undoBrush = CreateSolidBrush(RGB(55, 55, 55));
     FillRect(hDC, &undoRect, undoBrush);
     DeleteObject(undoBrush);
     auto undoBorder = CreateSolidBrush(RGB(0, 0, 0));
@@ -762,16 +806,16 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     std::string atisLetter = "-";
     if (!myIcao.empty())
     {
-        auto* timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+        auto*       timers = static_cast<CFlowX_Timers*>(this->GetPlugIn());
         std::string letter = timers->GetAtisLetter(myIcao);
         if (!letter.empty())
             atisLetter = letter;
     }
-    int  undoW    = undoRect.right - undoRect.left;
-    const int btnGap = std::max(6, statusFontH / 3);
-    RECT atisRect = {undoRect.right + btnGap, undoRect.top,
-                     undoRect.right + btnGap + undoW, undoRect.bottom};
-    auto atisBrush = CreateSolidBrush(RGB(55, 55, 55));
+    int       undoW     = undoRect.right - undoRect.left;
+    const int btnGap    = std::max(6, statusFontH / 3);
+    RECT      atisRect  = {undoRect.right + btnGap, undoRect.top,
+                           undoRect.right + btnGap + undoW, undoRect.bottom};
+    auto      atisBrush = CreateSolidBrush(RGB(55, 55, 55));
     FillRect(hDC, &atisRect, atisBrush);
     DeleteObject(atisBrush);
     auto atisBorder = CreateSolidBrush(RGB(0, 0, 0));
@@ -783,7 +827,7 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     // Leading gap is double the QNH↔UNDO spacing (20 px scales to 2*btnGap*≈).
     const int   smallW     = monoW(fs(fsStatus), 3) + btnHPad;
     const char* labels3[3] = {"INF", "FPL", "VEH"};
-    int         leftX     = atisRect.right + btnGap * 2 + 4;
+    int         leftX      = atisRect.right + btnGap * 2 + 4;
     for (int i = 0; i < 3; ++i)
     {
         RECT r  = {leftX, atisRect.top, leftX + smallW, atisRect.bottom};
@@ -810,11 +854,11 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
     static const PosBtn posBtns[] = {
         {"AMS N", 0.000},
         {"AMS S", 0.000},
-        {"DLV",   122.125},
-        {"GDE",   121.600},
-        {"GDW",   121.775},
-        {"TWE",   119.400},
-        {"TWW",   123.800},
+        {"DLV", 122.125},
+        {"GDE", 121.600},
+        {"GDW", 121.775},
+        {"TWE", 119.400},
+        {"TWW", 123.800},
     };
 
     // Snapshot online controller frequencies once for this draw.
@@ -929,19 +973,79 @@ void RadarScreen::DrawDiflisWindow(HDC hDC)
         GetSystemTime(&st);
         char buf[16];
         std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d", st.wHour, st.wMinute, st.wSecond);
-        const int clockW = monoW(fs(fsStatus), 8);
-        RECT clockRect = {statusRect.right - clockW - 12, statusRect.top,
-                          statusRect.right - 12, statusRect.bottom};
+        const int clockW    = monoW(fs(fsStatus), 8);
+        RECT      clockRect = {statusRect.right - clockW - 12, statusRect.top,
+                               statusRect.right - 12, statusRect.bottom};
         DrawTextA(hDC, buf, -1, &clockRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     }
 
     // ── Resize handle (bottom-right corner) ─────────────────────────────────
-    const int RESIZE_SZ = 10;
-    RECT      resizeRect = {wx + WIN_W - RESIZE_SZ, wy + WIN_H - RESIZE_SZ, wx + WIN_W, wy + WIN_H};
+    const int RESIZE_SZ   = 10;
+    RECT      resizeRect  = {wx + WIN_W - RESIZE_SZ, wy + WIN_H - RESIZE_SZ, wx + WIN_W, wy + WIN_H};
     auto      resizeBrush = CreateSolidBrush(RGB(100, 100, 100));
     FillRect(hDC, &resizeRect, resizeBrush);
     DeleteObject(resizeBrush);
     this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_RESIZE, "DIFLIS_RESIZE", resizeRect, true, "");
+
+    // ── Drag ghost overlay (drawn last so it floats above everything) ────────
+    if (this->isPopoutRender_ && this->currentPopout_)
+    {
+        if (dragSrcCaptured && dragCaptureBmp)
+        {
+            int               srcW = dragSrcR.right - dragSrcR.left;
+            int               srcH = dragSrcR.bottom - dragSrcR.top;
+            std::vector<RECT> dropRects;
+            dropRects.reserve(this->diflisGroupRects.size());
+            for (const auto& gr : this->diflisGroupRects)
+                dropRects.push_back(gr.second);
+            this->currentPopout_->SetDragOverlay(dragCaptureBmp, srcW, srcH, dragCenterOff,
+                                                 std::move(dropRects));
+            dragCaptureBmp = nullptr; // ownership transferred to popout
+        }
+        else if (this->diflisDragCallsign.empty())
+        {
+            this->currentPopout_->ClearDragOverlay();
+        }
+    }
+    else if (!this->diflisDragCallsign.empty() && this->diflisDragCursor.x > -1000 &&
+             this->diflisDragCursor.y > -1000)
+    {
+        for (const auto& gr : this->diflisGroupRects)
+        {
+            if (PtInRect(&gr.second, this->diflisDragCursor))
+            {
+                auto hiBr = CreateSolidBrush(RGB(90, 160, 220));
+                // 2 px frame drawn as 4 filled rects for a thicker highlight.
+                RECT g = gr.second;
+                RECT t = {g.left, g.top, g.right, g.top + 2};
+                RECT b = {g.left, g.bottom - 2, g.right, g.bottom};
+                RECT l = {g.left, g.top, g.left + 2, g.bottom};
+                RECT r = {g.right - 2, g.top, g.right, g.bottom};
+                FillRect(hDC, &t, hiBr);
+                FillRect(hDC, &b, hiBr);
+                FillRect(hDC, &l, hiBr);
+                FillRect(hDC, &r, hiBr);
+                DeleteObject(hiBr);
+                break;
+            }
+        }
+
+        if (dragSrcCaptured && dragCaptureBmp)
+        {
+            int     srcW = dragSrcR.right - dragSrcR.left;
+            int     srcH = dragSrcR.bottom - dragSrcR.top;
+            HDC     sDC  = CreateCompatibleDC(hDC);
+            HGDIOBJ oB   = SelectObject(sDC, dragCaptureBmp);
+            int     dstX = this->diflisDragCursor.x - dragCenterOff.x;
+            int     dstY = this->diflisDragCursor.y - dragCenterOff.y;
+            BitBlt(hDC, dstX, dstY, srcW, srcH, sDC, 0, 0, SRCCOPY);
+            SelectObject(sDC, oB);
+            DeleteDC(sDC);
+        }
+    }
+
+    if (dragCaptureBmp)
+        DeleteObject(dragCaptureBmp);
 
     SelectObject(hDC, prevFont);
     DeleteObject(statusFont);
@@ -989,4 +1093,58 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
         this->diflisPopout->SetTopmost(false);
     if (s->GetDiflisPopoutMaximized())
         this->diflisPopout->SetMaximized(true);
+}
+
+void RadarScreen::DiflisMoveStrip(const std::string& callsign, const std::string& fromGroup, const std::string& toGroup)
+{
+    if (callsign.empty() || toGroup.empty() || fromGroup == toGroup)
+        return;
+
+    DiflisUndoEntry entry;
+    entry.callsign  = callsign;
+    entry.fromGroup = fromGroup;
+    entry.toGroup   = toGroup;
+
+    DiflisMutation m;
+    m.field = DiflisMutationField::DiflisOverride;
+    auto it = this->diflisOverrides.find(callsign);
+    if (it != this->diflisOverrides.end())
+    {
+        m.prevExisted = true;
+        m.prevValue   = it->second;
+    }
+    entry.mutations.push_back(m);
+
+    // DEPARTURES is the auto-derived home for airborne strips — dropping there clears the override.
+    if (toGroup == "DEPARTURES")
+        this->diflisOverrides.erase(callsign);
+    else
+        this->diflisOverrides[callsign] = toGroup;
+
+    this->diflisUndoStack.push_back(std::move(entry));
+    while (this->diflisUndoStack.size() > 32)
+        this->diflisUndoStack.pop_front();
+}
+
+void RadarScreen::DiflisUndo()
+{
+    if (this->diflisUndoStack.empty())
+        return;
+    DiflisUndoEntry entry = std::move(this->diflisUndoStack.back());
+    this->diflisUndoStack.pop_back();
+
+    for (auto it = entry.mutations.rbegin(); it != entry.mutations.rend(); ++it)
+    {
+        switch (it->field)
+        {
+        case DiflisMutationField::DiflisOverride:
+            if (it->prevExisted)
+                this->diflisOverrides[entry.callsign] = it->prevValue;
+            else
+                this->diflisOverrides.erase(entry.callsign);
+            break;
+        default:
+            break; // Other fields deferred until real writeback lands.
+        }
+    }
 }
