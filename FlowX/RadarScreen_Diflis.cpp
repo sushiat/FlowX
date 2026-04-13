@@ -1106,6 +1106,12 @@ void RadarScreen::DiflisMoveStrip(const std::string& callsign, const std::string
     this->diflisUndoStack.push_back(std::move(entry));
     while (this->diflisUndoStack.size() > 32)
         this->diflisUndoStack.pop_front();
+
+    // Force an immediate strip-cache rebuild so BuildDiflisSnapshot picks up the new
+    // override in the same OnRefresh tick. Without this, the strip "snaps back" to
+    // its origin group for ~1 s until the next UpdateTagCache timer tick catches up.
+    if (auto* tags = dynamic_cast<CFlowX_CustomTags*>(this->GetPlugIn()))
+        tags->RebuildDiflisStripCache();
 }
 
 void RadarScreen::DiflisUndo()
@@ -1129,4 +1135,7 @@ void RadarScreen::DiflisUndo()
             break; // Other fields deferred until real writeback lands.
         }
     }
+
+    if (auto* tags = dynamic_cast<CFlowX_CustomTags*>(this->GetPlugIn()))
+        tags->RebuildDiflisStripCache();
 }

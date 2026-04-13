@@ -1451,156 +1451,163 @@ void CFlowX_CustomTags::UpdateTagCache()
     // =========================================================
     // DIFLIS — Digital flight strip cache for the primary airport
     // =========================================================
-    // Slice 1: simple state-derived classification. All strips are placed into groups by ground state / airborne.
-    // Manual overrides, auto-clearing rules, and runway-specific routing land in later slices.
+    this->RebuildDiflisStripCache();
+}
+
+void CFlowX_CustomTags::RebuildDiflisStripCache()
+{
+    if (this->radarScreen == nullptr)
+        return;
+
+    this->radarScreen->diflisStripsCache.clear();
+
+    if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
+        return;
+
+    auto apIt = this->FindMyAirport();
+    if (apIt != this->airports.end() && !apIt->second.diflis.groups.empty())
     {
-        this->radarScreen->diflisStripsCache.clear();
+        const airport&     ap     = apIt->second;
+        const std::string& myIcao = ap.icao;
+        const auto&        groups = ap.diflis.groups;
 
-        auto apIt = this->FindMyAirport();
-        if (apIt != this->airports.end() && !apIt->second.diflis.groups.empty())
+        auto findGroup = [&](const std::string& id) -> const DiflisGroupDef*
         {
-            const airport&     ap       = apIt->second;
-            const std::string& myIcao   = ap.icao;
-            const auto&        groups   = ap.diflis.groups;
+            for (const auto& g : groups)
+                if (g.id == id)
+                    return &g;
+            return nullptr;
+        };
 
-            auto findGroup = [&](const std::string& id) -> const DiflisGroupDef*
+        auto firstGroupInColumn = [&](int col) -> const DiflisGroupDef*
+        {
+            for (const auto& g : groups)
+                if (g.columnIndex == col)
+                    return &g;
+            return nullptr;
+        };
+
+        for (EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectFirst(); fp.IsValid();
+             fp                              = this->FlightPlanSelectNext(fp))
+        {
+            EuroScopePlugIn::CFlightPlanData fpd    = fp.GetFlightPlanData();
+            std::string                      origin = fpd.GetOrigin();
+            std::string                      dest   = fpd.GetDestination();
+            to_upper(origin);
+            to_upper(dest);
+
+            bool isInbound  = (dest == myIcao);
+            bool isOutbound = (origin == myIcao);
+            if (!isInbound && !isOutbound)
+                continue;
+
+            DiflisStripCache s;
+            s.callsign = fp.GetCallsign();
+            s.wtc      = fpd.GetAircraftWtc();
+            s.acType   = fpd.GetAircraftFPType();
+            if (isInbound)
             {
-                for (const auto& g : groups)
-                    if (g.id == id)
-                        return &g;
-                return nullptr;
-            };
-
-            auto firstGroupInColumn = [&](int col) -> const DiflisGroupDef*
+                auto standIt = this->standAssignment.find(s.callsign);
+                if (standIt != this->standAssignment.end())
+                    s.stand = standIt->second;
+            }
+            else
             {
-                for (const auto& g : groups)
-                    if (g.columnIndex == col)
-                        return &g;
-                return nullptr;
-            };
+                auto depIt = this->departureStand.find(s.callsign);
+                if (depIt != this->departureStand.end())
+                    s.stand = depIt->second;
+            }
+            s.squawk       = fp.GetControllerAssignedData().GetSquawk();
+            s.originOrDest = isInbound ? origin : dest;
+            s.isInbound    = isInbound;
+            s.sidOrStar    = isInbound ? std::string{} : std::string{fpd.GetSidName()};
+            s.rwy          = isInbound ? fpd.GetArrivalRwy() : fpd.GetDepartureRwy();
 
-            for (EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectFirst(); fp.IsValid();
-                 fp = this->FlightPlanSelectNext(fp))
+            std::string gs;
+            auto        gsIt = this->groundStatus.find(s.callsign);
+            if (gsIt != this->groundStatus.end())
+                gs = gsIt->second;
+            else
+                gs = fp.GetGroundState();
+            s.status = gs;
+
+            // Apply any manual override first (set by slice 3 drag-and-drop).
+            const DiflisGroupDef* target = nullptr;
+            auto                  ovIt   = this->radarScreen->diflisOverrides.find(s.callsign);
+            if (ovIt != this->radarScreen->diflisOverrides.end())
+                target = findGroup(ovIt->second);
+
+            if (target == nullptr)
             {
-                EuroScopePlugIn::CFlightPlanData fpd = fp.GetFlightPlanData();
-                std::string                      origin = fpd.GetOrigin();
-                std::string                      dest   = fpd.GetDestination();
-                to_upper(origin);
-                to_upper(dest);
-
-                bool isInbound  = (dest == myIcao);
-                bool isOutbound = (origin == myIcao);
-                if (!isInbound && !isOutbound)
-                    continue;
-
-                DiflisStripCache s;
-                s.callsign     = fp.GetCallsign();
-                s.wtc          = fpd.GetAircraftWtc();
-                s.acType       = fpd.GetAircraftFPType();
                 if (isInbound)
                 {
-                    auto standIt = this->standAssignment.find(s.callsign);
-                    if (standIt != this->standAssignment.end())
-                        s.stand = standIt->second;
+                    target = findGroup("ARRIVALS");
+                    if (target == nullptr)
+                        target = firstGroupInColumn(0);
                 }
-                else
+                else // outbound
                 {
-                    auto depIt = this->departureStand.find(s.callsign);
-                    if (depIt != this->departureStand.end())
-                        s.stand = depIt->second;
-                }
-                s.squawk       = fp.GetControllerAssignedData().GetSquawk();
-                s.originOrDest = isInbound ? origin : dest;
-                s.isInbound    = isInbound;
-                s.sidOrStar    = isInbound ? std::string{} : std::string{fpd.GetSidName()};
-                s.rwy          = isInbound ? fpd.GetArrivalRwy() : fpd.GetDepartureRwy();
-
-                std::string gs;
-                auto        gsIt = this->groundStatus.find(s.callsign);
-                if (gsIt != this->groundStatus.end())
-                    gs = gsIt->second;
-                else
-                    gs = fp.GetGroundState();
-                s.status = gs;
-
-                // Apply any manual override first (set by slice 3 drag-and-drop).
-                const DiflisGroupDef* target = nullptr;
-                auto                 ovIt   = this->radarScreen->diflisOverrides.find(s.callsign);
-                if (ovIt != this->radarScreen->diflisOverrides.end())
-                    target = findGroup(ovIt->second);
-
-                if (target == nullptr)
-                {
-                    if (isInbound)
+                    EuroScopePlugIn::CRadarTarget rt       = this->RadarTargetSelect(s.callsign.c_str());
+                    bool                          airborne = rt.IsValid() && rt.GetPosition().IsValid() &&
+                                                             rt.GetPosition().GetReportedGS() > 50;
+                    if (airborne || gs == "DEPA")
                     {
-                        target = findGroup("ARRIVALS");
-                        if (target == nullptr)
-                            target = firstGroupInColumn(0);
+                        target = findGroup("DEPARTURES");
                     }
-                    else // outbound
+                    else if (gs == "LINEUP")
                     {
-                        EuroScopePlugIn::CRadarTarget rt = this->RadarTargetSelect(s.callsign.c_str());
-                        bool airborne                    = rt.IsValid() && rt.GetPosition().IsValid() &&
-                                        rt.GetPosition().GetReportedGS() > 50;
-                        if (airborne || gs == "DEPA")
-                        {
-                            target = findGroup("DEPARTURES");
-                        }
-                        else if (gs == "LINEUP")
-                        {
-                            target = firstGroupInColumn(1); // first runway group
-                        }
-                        else if (gs == "TAXI")
-                        {
-                            target = findGroup("TAXI");
-                        }
-                        else if (gs == "PUSH" || gs == "ST-UP")
-                        {
-                            target = findGroup("APRON_TRAFFIC_START_PUSH");
-                        }
-                        else if (fp.GetClearenceFlag())
-                        {
-                            target = findGroup("CLEARANCE_DELIVERED");
-                        }
-                        else
-                        {
-                            target = findGroup("STANDING_BY");
-                        }
+                        target = firstGroupInColumn(1); // first runway group
+                    }
+                    else if (gs == "TAXI")
+                    {
+                        target = findGroup("TAXI");
+                    }
+                    else if (gs == "PUSH" || gs == "ST-UP")
+                    {
+                        target = findGroup("APRON_TRAFFIC_START_PUSH");
+                    }
+                    else if (fp.GetClearenceFlag())
+                    {
+                        target = findGroup("CLEARANCE_DELIVERED");
+                    }
+                    else
+                    {
+                        target = findGroup("STANDING_BY");
                     }
                 }
-
-                if (target == nullptr)
-                    continue;
-
-                s.bg              = isInbound ? apIt->second.diflis.inboundBg
-                                              : apIt->second.diflis.outboundBg;
-                s.bgDark          = isInbound ? apIt->second.diflis.inboundBgDark
-                                              : apIt->second.diflis.outboundBgDark;
-                s.text            = isInbound ? apIt->second.diflis.inboundText
-                                              : apIt->second.diflis.outboundText;
-                s.textDim         = isInbound ? apIt->second.diflis.inboundTextDim
-                                              : apIt->second.diflis.outboundTextDim;
-                s.resolvedGroupId = target->id;
-                this->radarScreen->diflisStripsCache.push_back(std::move(s));
             }
 
-            // Per-group sort (ETA ascending for arrivals, EOBT ascending for departures).
-            std::stable_sort(this->radarScreen->diflisStripsCache.begin(),
-                             this->radarScreen->diflisStripsCache.end(),
-                             [&](const DiflisStripCache& a, const DiflisStripCache& b)
-                             {
-                                 if (a.resolvedGroupId != b.resolvedGroupId)
-                                     return a.resolvedGroupId < b.resolvedGroupId;
-                                 const DiflisGroupDef* g = findGroup(a.resolvedGroupId);
-                                 if (g == nullptr)
-                                     return false;
-                                 if (g->sort == DiflisSortMode::EtaAsc)
-                                     return a.etaMinutes < b.etaMinutes;
-                                 if (g->sort == DiflisSortMode::EobtAsc)
-                                     return a.eobt < b.eobt;
-                                 return false;
-                             });
+            if (target == nullptr)
+                continue;
+
+            s.bg              = isInbound ? apIt->second.diflis.inboundBg
+                                          : apIt->second.diflis.outboundBg;
+            s.bgDark          = isInbound ? apIt->second.diflis.inboundBgDark
+                                          : apIt->second.diflis.outboundBgDark;
+            s.text            = isInbound ? apIt->second.diflis.inboundText
+                                          : apIt->second.diflis.outboundText;
+            s.textDim         = isInbound ? apIt->second.diflis.inboundTextDim
+                                          : apIt->second.diflis.outboundTextDim;
+            s.resolvedGroupId = target->id;
+            this->radarScreen->diflisStripsCache.push_back(std::move(s));
         }
+
+        // Per-group sort (ETA ascending for arrivals, EOBT ascending for departures).
+        std::stable_sort(this->radarScreen->diflisStripsCache.begin(),
+                         this->radarScreen->diflisStripsCache.end(),
+                         [&](const DiflisStripCache& a, const DiflisStripCache& b)
+                         {
+                             if (a.resolvedGroupId != b.resolvedGroupId)
+                                 return a.resolvedGroupId < b.resolvedGroupId;
+                             const DiflisGroupDef* g = findGroup(a.resolvedGroupId);
+                             if (g == nullptr)
+                                 return false;
+                             if (g->sort == DiflisSortMode::EtaAsc)
+                                 return a.etaMinutes < b.etaMinutes;
+                             if (g->sort == DiflisSortMode::EobtAsc)
+                                 return a.eobt < b.eobt;
+                             return false;
+                         });
     }
 }
 

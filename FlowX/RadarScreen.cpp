@@ -371,6 +371,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 settings->SetDiflisVisible(false);
                 this->diflisPopout.reset();
             }
+            if (!settings->GetDiflisVisible() && this->diflisPopout)
+            {
+                this->diflisPopout.reset();
+            }
             if (settings->GetDiflisVisible() && !this->diflisPopout)
             {
                 this->CreateDiflisPopout(settings);

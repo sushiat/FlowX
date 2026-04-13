@@ -35,6 +35,12 @@ class CFlowX_CustomTags : public CFlowX_Tags
     void UpdateTagCache();
 
   public:
+    /// @brief Rebuilds only the DIFLIS strip cache (diflisStripsCache) for the primary airport.
+    /// Extracted from UpdateTagCache so drag-and-drop handlers can force a synchronous rebuild
+    /// after mutating diflisOverrides, avoiding the ~1 s "snap back to origin" before the next
+    /// OnTimer tick catches up.
+    void RebuildDiflisStripCache();
+
     /// @brief Refreshes TTT and NM for an inbound aircraft on each position update.
     /// Updates the corresponding row in twrInboundRowsCache directly.
     void UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt);
