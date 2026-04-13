@@ -564,6 +564,19 @@ void CFlowX_Settings::LoadSettings()
                     this->depRatePopoutX   = w.value("popoutX", -1);
                     this->depRatePopoutY   = w.value("popoutY", -1);
                 }
+                else if (name == "difliWindow")
+                {
+                    this->difliWindowX   = w.value("x", -1);
+                    this->difliWindowY   = w.value("y", -1);
+                    this->difliWindowW   = w.value("w", 1100);
+                    this->difliWindowH   = w.value("h", 720);
+                    this->difliVisible   = w.value("visible", false);
+                    this->difliPoppedOut = w.value("poppedOut", false);
+                    this->difliPopoutX   = w.value("popoutX", -1);
+                    this->difliPopoutY   = w.value("popoutY", -1);
+                    this->difliPopoutW   = w.value("popoutW", -1);
+                    this->difliPopoutH   = w.value("popoutH", -1);
+                }
                 else if (name == "twrOutboundWindow")
                 {
                     this->twrOutboundWindowX = w.value("x", -1);
@@ -656,6 +669,21 @@ void CFlowX_Settings::SaveSettings()
             w["poppedOut"] = this->depRatePoppedOut;
             w["popoutX"]   = this->depRatePopoutX;
             w["popoutY"]   = this->depRatePopoutY;
+            windows.push_back(w);
+        }
+        {
+            json w;
+            w["name"]      = "difliWindow";
+            w["x"]         = this->difliWindowX;
+            w["y"]         = this->difliWindowY;
+            w["w"]         = this->difliWindowW;
+            w["h"]         = this->difliWindowH;
+            w["visible"]   = this->difliVisible;
+            w["poppedOut"] = this->difliPoppedOut;
+            w["popoutX"]   = this->difliPopoutX;
+            w["popoutY"]   = this->difliPopoutY;
+            w["popoutW"]   = this->difliPopoutW;
+            w["popoutH"]   = this->difliPopoutH;
             windows.push_back(w);
         }
         {
@@ -905,6 +933,87 @@ void CFlowX_Settings::LoadConfig()
 
         auto ctrStations{json_airport["ctrStations"].get<std::vector<std::string>>()};
         ap.ctrStations = ctrStations;
+
+        // DIFLIS configuration: single grouping key under the airport. All DIFLIS layout lives here, nothing scattered.
+        if (json_airport.contains("diflis"))
+        {
+            const auto& jd = json_airport["diflis"];
+            if (jd.contains("columnWidths") && jd["columnWidths"].is_array())
+            {
+                ap.diflis.columnWidths.clear();
+                for (const auto& w : jd["columnWidths"])
+                    ap.diflis.columnWidths.push_back(w.get<int>());
+            }
+            auto parseHex = [](const std::string& s, COLORREF def) -> COLORREF
+            {
+                std::string v = s;
+                if (!v.empty() && v[0] == '#') v.erase(0, 1);
+                if (v.size() != 6) return def;
+                auto hx = [](char c) -> int
+                {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+                    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+                    return -1;
+                };
+                int r = (hx(v[0]) << 4) | hx(v[1]);
+                int g = (hx(v[2]) << 4) | hx(v[3]);
+                int b = (hx(v[4]) << 4) | hx(v[5]);
+                if (r < 0 || g < 0 || b < 0) return def;
+                return RGB(r, g, b);
+            };
+            ap.diflis.inboundBg       = parseHex(jd.value("inboundBg",       std::string{}), ap.diflis.inboundBg);
+            ap.diflis.inboundBgDark   = parseHex(jd.value("inboundBgDark",   std::string{}), ap.diflis.inboundBgDark);
+            ap.diflis.inboundText     = parseHex(jd.value("inboundText",     std::string{}), ap.diflis.inboundText);
+            ap.diflis.inboundTextDim  = parseHex(jd.value("inboundTextDim",  std::string{}), ap.diflis.inboundTextDim);
+            ap.diflis.outboundBg      = parseHex(jd.value("outboundBg",      std::string{}), ap.diflis.outboundBg);
+            ap.diflis.outboundBgDark  = parseHex(jd.value("outboundBgDark",  std::string{}), ap.diflis.outboundBgDark);
+            ap.diflis.outboundText    = parseHex(jd.value("outboundText",    std::string{}), ap.diflis.outboundText);
+            ap.diflis.outboundTextDim = parseHex(jd.value("outboundTextDim", std::string{}), ap.diflis.outboundTextDim);
+            ap.diflis.fontSizeStatusBar   = jd.value("fontSizeStatusBar",   ap.diflis.fontSizeStatusBar);
+            ap.diflis.fontSizeGroupHeader = jd.value("fontSizeGroupHeader", ap.diflis.fontSizeGroupHeader);
+            ap.diflis.fontSizeGroupSide   = jd.value("fontSizeGroupSide",   ap.diflis.fontSizeGroupSide);
+            ap.diflis.fontSizeStripLarge  = jd.value("fontSizeStripLarge",  ap.diflis.fontSizeStripLarge);
+            ap.diflis.fontSizeStripMedium = jd.value("fontSizeStripMedium", ap.diflis.fontSizeStripMedium);
+            ap.diflis.fontSizeStripSmall  = jd.value("fontSizeStripSmall",  ap.diflis.fontSizeStripSmall);
+            if (jd.contains("groups") && jd["groups"].is_array())
+            {
+                auto parseVariant = [](const std::string& s, DifliStripVariant def) -> DifliStripVariant
+                {
+                    if (s == "Collapsed" || s == "LargeCollapsed" || s == "SmallCollapsed")
+                        return DifliStripVariant::Collapsed;
+                    if (s == "Expanded" || s == "LargeExpanded" || s == "SmallExpanded")
+                        return DifliStripVariant::Expanded;
+                    return def;
+                };
+                auto parseSort = [](const std::string& s) -> DifliSortMode
+                {
+                    if (s == "EtaAsc")  return DifliSortMode::EtaAsc;
+                    if (s == "EobtAsc") return DifliSortMode::EobtAsc;
+                    return DifliSortMode::None;
+                };
+                for (const auto& gj : jd["groups"])
+                {
+                    DifliGroupDef g;
+                    g.id                = gj.value("id", std::string{});
+                    g.title             = gj.value("title", g.id);
+                    g.rightHeaderText   = gj.value("rightHeader", std::string{});
+                    g.columnIndex       = gj.value("column", 0);
+                    g.heightWeight      = gj.value("heightWeight", 1.0f);
+                    g.collapseWhenEmpty = gj.value("collapseWhenEmpty", false);
+                    g.stackBottom       = gj.value("stackBottom", false);
+                    g.acceptsDrop       = gj.value("acceptsDrop", true);
+                    g.preferredVariant  = parseVariant(gj.value("preferredVariant", std::string{"Collapsed"}),
+                                                      DifliStripVariant::Collapsed);
+                    g.fallbackVariant   = parseVariant(gj.value("fallbackVariant", std::string{"Collapsed"}),
+                                                      DifliStripVariant::Collapsed);
+                    g.paginates         = gj.value("paginates", false);
+                    g.sort              = parseSort(gj.value("sort", std::string{"None"}));
+                    if (!g.id.empty())
+                        ap.diflis.groups.push_back(std::move(g));
+                }
+            }
+        }
 
         if (json_airport.contains("scratchpadClearExclusions"))
             ap.scratchpadClearExclusions = json_airport["scratchpadClearExclusions"].get<std::vector<std::string>>();

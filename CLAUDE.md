@@ -54,6 +54,10 @@ EuroScopePlugIn::CPlugIn
 
 Structures are defined in `config.h`. Settings persistence (update check, flash, debug toggles) uses EuroScope's own settings storage via delimiter-separated strings.
 
+### DIFLIS (Digital Flight Strip) window
+
+Popout-capable electronic strip board, toggled from the Start menu → Windows → DIFLIS. Column/group layout is data-driven from `config.json` under each airport's `"diflis"` key (`col4WidthPercent` + `groups[]`). Group membership is derived from EuroScope state (ground status, clearance flag, airborne) with a DIFLIS-owned override map for states that have no EuroScope counterpart (e.g. `STRIP_STORAGE`, `STANDING_BY`). The strip cache is rebuilt every tick by `CFlowX_CustomTags::UpdateTagCache` into `RadarScreen::difliStripsCache`; rendering is `RadarScreen::DrawDifliWindow`. Data model lives in `DifliModel.h`.
+
 ### Tag item columns
 
 Tag items are identified by integer IDs in `constants.h`. Each column can display colored text; colors are also defined in `constants.h`. The departure list columns include: Push+Start helper, Taxi Out indicator, New QNH marker, Same SID tracker, Holding Point assignment, Takeoff Timer, TTT (time-to-takeoff for inbounds), and Tower sort key.

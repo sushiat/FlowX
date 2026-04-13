@@ -95,6 +95,9 @@
     <ClInclude Include="CFlowX_Timers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DifliModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="config.h">
       <Filter>Header Files</Filter>
     </ClInclude>

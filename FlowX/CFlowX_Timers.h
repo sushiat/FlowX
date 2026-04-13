@@ -169,6 +169,13 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @note Called by RadarScreen when the user clicks the ACK button on the NAP reminder window.
     void AckNapReminder();
 
+    /// @brief Returns the current ATIS letter for the given ICAO, or an empty string if none known.
+    [[nodiscard]] std::string GetAtisLetter(const std::string& icao) const
+    {
+        auto it = this->atisLetters.find(icao);
+        return (it != this->atisLetters.end()) ? it->second : std::string{};
+    }
+
     /// @brief Syncs current on-screen window positions into the settings layer and persists them.
     /// @note Called when the user clicks "Save positions" in the FlowX menu.
     void SaveWindowPositions();

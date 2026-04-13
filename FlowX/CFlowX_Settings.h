@@ -54,6 +54,16 @@ class CFlowX_Settings : public CFlowX_Logging
     bool                           depRateVisible       = true;  ///< Whether the DEP/H departure rate window is visible; restored from settings.json
     int                            depRateWindowX       = -1;    ///< Last-saved X position of the departure rate window; -1 = not yet positioned
     int                            depRateWindowY       = -1;    ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
+    bool                           difliPoppedOut       = false; ///< Whether the DIFLIS window is in standalone popout mode
+    int                            difliPopoutH         = -1;    ///< Last-saved DIFLIS standalone-window height; -1 = inherit in-screen size on first popout
+    int                            difliPopoutW         = -1;    ///< Last-saved DIFLIS standalone-window width;  -1 = inherit in-screen size on first popout
+    int                            difliPopoutX         = -1;    ///< Last-saved DIFLIS standalone-window screen X; -1 = seed from in-screen position
+    int                            difliPopoutY         = -1;    ///< Last-saved DIFLIS standalone-window screen Y; -1 = seed from in-screen position
+    bool                           difliVisible         = false; ///< Whether the DIFLIS window is visible; default off until explicitly enabled
+    int                            difliWindowH         = 720;   ///< Saved height of the DIFLIS window; default 720 (fits a ~1080p quarter screen comfortably)
+    int                            difliWindowW         = 1100;  ///< Saved width of the DIFLIS window; default 1100
+    int                            difliWindowX         = -1;    ///< Last-saved X position of the DIFLIS window; -1 = not yet positioned
+    int                            difliWindowY         = -1;    ///< Last-saved Y position of the DIFLIS window; -1 = not yet positioned
     int                            fontOffset           = 0;     ///< Font size offset for all custom-window data fonts; positive = larger
     std::map<std::string, grStand> grStands;                     ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
     std::future<std::string>       latestVersion;                ///< Async future holding the fetched latest version string
@@ -278,6 +288,101 @@ class CFlowX_Settings : public CFlowX_Logging
     [[nodiscard]] int GetDepRatePopoutY() const
     {
         return this->depRatePopoutY;
+    }
+
+    /// @brief Returns whether the DIFLIS window is currently visible.
+    [[nodiscard]] bool GetDifliVisible() const
+    {
+        return this->difliVisible;
+    }
+
+    /// @brief Returns the saved DIFLIS window width; default 1100 on first launch.
+    [[nodiscard]] int GetDifliW() const
+    {
+        return this->difliWindowW;
+    }
+
+    /// @brief Returns the saved DIFLIS window height; default 720 on first launch.
+    [[nodiscard]] int GetDifliH() const
+    {
+        return this->difliWindowH;
+    }
+
+    /// @brief Returns the saved X position of the DIFLIS window; -1 = not yet positioned.
+    [[nodiscard]] int GetDifliX() const
+    {
+        return this->difliWindowX;
+    }
+
+    /// @brief Returns the saved Y position of the DIFLIS window; -1 = not yet positioned.
+    [[nodiscard]] int GetDifliY() const
+    {
+        return this->difliWindowY;
+    }
+
+    /// @brief Returns whether the DIFLIS window is in standalone popout mode.
+    [[nodiscard]] bool GetDifliPoppedOut() const
+    {
+        return this->difliPoppedOut;
+    }
+
+    /// @brief Returns the last-saved DIFLIS standalone-window screen X; -1 = not yet saved.
+    [[nodiscard]] int GetDifliPopoutX() const
+    {
+        return this->difliPopoutX;
+    }
+
+    /// @brief Returns the last-saved DIFLIS standalone-window screen Y; -1 = not yet saved.
+    [[nodiscard]] int GetDifliPopoutY() const
+    {
+        return this->difliPopoutY;
+    }
+
+    /// @brief Returns the last-saved DIFLIS standalone-window width; -1 = not yet saved.
+    [[nodiscard]] int GetDifliPopoutW() const
+    {
+        return this->difliPopoutW;
+    }
+
+    /// @brief Returns the last-saved DIFLIS standalone-window height; -1 = not yet saved.
+    [[nodiscard]] int GetDifliPopoutH() const
+    {
+        return this->difliPopoutH;
+    }
+
+    /// @brief Toggles DIFLIS window visibility (does not persist; use SaveWindowPositions to persist).
+    void ToggleDifliVisible()
+    {
+        this->difliVisible = !this->difliVisible;
+    }
+
+    /// @brief Sets the DIFLIS popout state and persists immediately.
+    void SetDifliPoppedOut(bool v)
+    {
+        this->difliPoppedOut = v;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the DIFLIS standalone-window position and persists immediately.
+    void SetDifliPopoutPos(int x, int y)
+    {
+        this->difliPopoutX = x;
+        this->difliPopoutY = y;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the DIFLIS standalone-window size and persists immediately.
+    void SetDifliPopoutSize(int w, int h)
+    {
+        this->difliPopoutW = w;
+        this->difliPopoutH = h;
+        this->SaveSettings();
+    }
+
+    /// @brief Sets the DIFLIS window visibility (does not persist; use SaveWindowPositions to persist).
+    void SetDifliVisible(bool v)
+    {
+        this->difliVisible = v;
     }
 
     /// @brief Returns whether the WX/ATIS window is in standalone popout mode.

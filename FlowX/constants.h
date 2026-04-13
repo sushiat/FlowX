@@ -122,6 +122,36 @@ const int SCREEN_OBJECT_APPROACH_EST_RESIZE = 6697; ///< Approach Estimate windo
 const int SCREEN_OBJECT_WIN_POPOUT          = 6698; ///< Pop-out (^) button on a custom window title bar
 const int SCREEN_OBJECT_TAXI_TARGET         = 6710; ///< Invisible hit area on each ground aircraft; right-click activates taxi planning mode
 const int SCREEN_OBJECT_TAXI_PLANNING       = 6711; ///< Full-screen overlay registered during taxi planning mode; captures left/middle/right-click
+const int SCREEN_OBJECT_DIFLIS_WIN          = 6720; ///< DIFLIS window title bar (drag handle)
+const int SCREEN_OBJECT_DIFLIS_STRIP        = 6721; ///< Draggable flight strip row inside a DIFLIS group
+const int SCREEN_OBJECT_DIFLIS_UNDO_BTN     = 6722; ///< UNDO button on the DIFLIS status bar
+const int SCREEN_OBJECT_DIFLIS_ATIS_BTN     = 6723; ///< ATIS letter button on the DIFLIS status bar
+const int SCREEN_OBJECT_DIFLIS_STATUS_BTN   = 6724; ///< Per-strip status-field button (e.g. "TAKEOFF", "LINEUP")
+const int SCREEN_OBJECT_DIFLIS_RESIZE       = 6725; ///< Bottom-right resize handle of the DIFLIS window
+/// @}
+
+/// @defgroup DifliColors DIFLIS flight strip background + accent colours
+/// @note Strip backgrounds are deliberately light so black text reads cleanly. Darker-shade variants are used
+///       for the callsign and status fields, which "share the strip colour in a slightly darker tone".
+/// @{
+const COLORREF DIFLIS_BG_NEUTRAL       = RGB(200, 200, 200); ///< Neutral grey strip background
+const COLORREF DIFLIS_BG_NEUTRAL_DARK  = RGB(150, 150, 150); ///< Callsign/status band for NeutralGrey strips
+const COLORREF DIFLIS_BG_BLUE          = RGB(180, 205, 230); ///< Light blue strip background
+const COLORREF DIFLIS_BG_BLUE_DARK     = RGB(135, 160, 190); ///< Callsign/status band for Blue strips
+const COLORREF DIFLIS_BG_YELLOW        = RGB(240, 225, 150); ///< Light yellow strip background
+const COLORREF DIFLIS_BG_YELLOW_DARK   = RGB(195, 180, 100); ///< Callsign/status band for Yellow strips
+const COLORREF DIFLIS_BG_GREEN         = RGB(185, 220, 185); ///< Light green strip background
+const COLORREF DIFLIS_BG_GREEN_DARK    = RGB(140, 180, 140); ///< Callsign/status band for Green strips
+const COLORREF DIFLIS_BG_ORANGE        = RGB(245, 200, 150); ///< Light orange strip background
+const COLORREF DIFLIS_BG_ORANGE_DARK   = RGB(205, 155, 100); ///< Callsign/status band for Orange strips
+const COLORREF DIFLIS_BG_PINK          = RGB(240, 200, 215); ///< Light pink strip background
+const COLORREF DIFLIS_BG_PINK_DARK     = RGB(200, 155, 175); ///< Callsign/status band for Pink strips
+const COLORREF DIFLIS_BG_WHITE         = RGB(240, 240, 240); ///< Near-white strip background
+const COLORREF DIFLIS_BG_WHITE_DARK    = RGB(195, 195, 195); ///< Callsign/status band for White strips
+const COLORREF DIFLIS_GROUP_BG         = RGB(38, 38, 38);    ///< Group body background (dark grey, lighter than header bar)
+const COLORREF DIFLIS_GROUP_HEADER_BG  = RGB(18, 18, 18);    ///< Group header / status-bar background (near-black)
+const COLORREF DIFLIS_HIGHLIGHT_ORANGE = RGB(210, 120, 0);   ///< Highlighted field accent (orange)
+const COLORREF DIFLIS_DIMMED_TEXT      = RGB(110, 110, 110); ///< Dimmed mid-grey for de-emphasised strip fields
 /// @}
 
 /// @defgroup TopSkyIntegration Constants for TopSky plugin interop
