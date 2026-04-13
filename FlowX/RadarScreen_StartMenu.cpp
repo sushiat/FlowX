@@ -259,7 +259,7 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         {false, "TWR Outbound", true, settings->GetTwrOutboundVisible(), 5},
         {false, "TWR Inbound", true, settings->GetTwrInboundVisible(), 6},
         {false, "WX/ATIS", true, settings->GetWeatherVisible(), 7},
-        {false, "DIFLIS", true, settings->GetDifliVisible(), 32},
+        {false, "DIFLIS", true, settings->GetDiflisVisible(), 32},
         {true, "Commands", false, false, -1},
         {false, "Redo CLR flags", false, false, 0},
         {false, "Dismiss QNH", false, false, 12},

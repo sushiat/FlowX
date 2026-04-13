@@ -564,18 +564,20 @@ void CFlowX_Settings::LoadSettings()
                     this->depRatePopoutX   = w.value("popoutX", -1);
                     this->depRatePopoutY   = w.value("popoutY", -1);
                 }
-                else if (name == "difliWindow")
+                else if (name == "diflisWindow")
                 {
-                    this->difliWindowX   = w.value("x", -1);
-                    this->difliWindowY   = w.value("y", -1);
-                    this->difliWindowW   = w.value("w", 1100);
-                    this->difliWindowH   = w.value("h", 720);
-                    this->difliVisible   = w.value("visible", false);
-                    this->difliPoppedOut = w.value("poppedOut", false);
-                    this->difliPopoutX   = w.value("popoutX", -1);
-                    this->difliPopoutY   = w.value("popoutY", -1);
-                    this->difliPopoutW   = w.value("popoutW", -1);
-                    this->difliPopoutH   = w.value("popoutH", -1);
+                    this->diflisWindowX   = w.value("x", -1);
+                    this->diflisWindowY   = w.value("y", -1);
+                    this->diflisWindowW   = w.value("w", 1100);
+                    this->diflisWindowH   = w.value("h", 720);
+                    this->diflisVisible   = w.value("visible", false);
+                    this->diflisPoppedOut = w.value("poppedOut", false);
+                    this->diflisPopoutX         = w.value("popoutX", -1);
+                    this->diflisPopoutY         = w.value("popoutY", -1);
+                    this->diflisPopoutW         = w.value("popoutW", -1);
+                    this->diflisPopoutH         = w.value("popoutH", -1);
+                    this->diflisPopoutTopmost   = w.value("popoutTopmost", true);
+                    this->diflisPopoutMaximized = w.value("popoutMaximized", false);
                 }
                 else if (name == "twrOutboundWindow")
                 {
@@ -673,17 +675,19 @@ void CFlowX_Settings::SaveSettings()
         }
         {
             json w;
-            w["name"]      = "difliWindow";
-            w["x"]         = this->difliWindowX;
-            w["y"]         = this->difliWindowY;
-            w["w"]         = this->difliWindowW;
-            w["h"]         = this->difliWindowH;
-            w["visible"]   = this->difliVisible;
-            w["poppedOut"] = this->difliPoppedOut;
-            w["popoutX"]   = this->difliPopoutX;
-            w["popoutY"]   = this->difliPopoutY;
-            w["popoutW"]   = this->difliPopoutW;
-            w["popoutH"]   = this->difliPopoutH;
+            w["name"]      = "diflisWindow";
+            w["x"]         = this->diflisWindowX;
+            w["y"]         = this->diflisWindowY;
+            w["w"]         = this->diflisWindowW;
+            w["h"]         = this->diflisWindowH;
+            w["visible"]   = this->diflisVisible;
+            w["poppedOut"] = this->diflisPoppedOut;
+            w["popoutX"]         = this->diflisPopoutX;
+            w["popoutY"]         = this->diflisPopoutY;
+            w["popoutW"]         = this->diflisPopoutW;
+            w["popoutH"]         = this->diflisPopoutH;
+            w["popoutTopmost"]   = this->diflisPopoutTopmost;
+            w["popoutMaximized"] = this->diflisPopoutMaximized;
             windows.push_back(w);
         }
         {
@@ -978,23 +982,23 @@ void CFlowX_Settings::LoadConfig()
             ap.diflis.fontSizeStripSmall  = jd.value("fontSizeStripSmall",  ap.diflis.fontSizeStripSmall);
             if (jd.contains("groups") && jd["groups"].is_array())
             {
-                auto parseVariant = [](const std::string& s, DifliStripVariant def) -> DifliStripVariant
+                auto parseVariant = [](const std::string& s, DiflisStripVariant def) -> DiflisStripVariant
                 {
                     if (s == "Collapsed" || s == "LargeCollapsed" || s == "SmallCollapsed")
-                        return DifliStripVariant::Collapsed;
+                        return DiflisStripVariant::Collapsed;
                     if (s == "Expanded" || s == "LargeExpanded" || s == "SmallExpanded")
-                        return DifliStripVariant::Expanded;
+                        return DiflisStripVariant::Expanded;
                     return def;
                 };
-                auto parseSort = [](const std::string& s) -> DifliSortMode
+                auto parseSort = [](const std::string& s) -> DiflisSortMode
                 {
-                    if (s == "EtaAsc")  return DifliSortMode::EtaAsc;
-                    if (s == "EobtAsc") return DifliSortMode::EobtAsc;
-                    return DifliSortMode::None;
+                    if (s == "EtaAsc")  return DiflisSortMode::EtaAsc;
+                    if (s == "EobtAsc") return DiflisSortMode::EobtAsc;
+                    return DiflisSortMode::None;
                 };
                 for (const auto& gj : jd["groups"])
                 {
-                    DifliGroupDef g;
+                    DiflisGroupDef g;
                     g.id                = gj.value("id", std::string{});
                     g.title             = gj.value("title", g.id);
                     g.rightHeaderText   = gj.value("rightHeader", std::string{});
@@ -1004,9 +1008,9 @@ void CFlowX_Settings::LoadConfig()
                     g.stackBottom       = gj.value("stackBottom", false);
                     g.acceptsDrop       = gj.value("acceptsDrop", true);
                     g.preferredVariant  = parseVariant(gj.value("preferredVariant", std::string{"Collapsed"}),
-                                                      DifliStripVariant::Collapsed);
+                                                      DiflisStripVariant::Collapsed);
                     g.fallbackVariant   = parseVariant(gj.value("fallbackVariant", std::string{"Collapsed"}),
-                                                      DifliStripVariant::Collapsed);
+                                                      DiflisStripVariant::Collapsed);
                     g.paginates         = gj.value("paginates", false);
                     g.sort              = parseSort(gj.value("sort", std::string{"None"}));
                     if (!g.id.empty())

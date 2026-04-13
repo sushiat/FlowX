@@ -69,9 +69,13 @@ class PopoutWindow
     int                bmpW          = 0;       ///< Width of contentBitmap in pixels
     int                bmpH          = 0;       ///< Height of contentBitmap in pixels
 
-    std::atomic<bool> closeRequested_ = false; ///< Set on close click; polled by ES main thread
-    std::atomic<bool> popInRequested_ = false; ///< Set on pop-in click; polled by ES main thread
-    std::atomic<bool> directDragging_ = false; ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
+    std::atomic<bool>  closeRequested_ = false; ///< Set on close click; polled by ES main thread
+    std::atomic<bool>  popInRequested_ = false; ///< Set on pop-in click; polled by ES main thread
+    std::atomic<bool>  directDragging_ = false; ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
+    std::atomic<bool>  topmost_        = true;  ///< Current always-on-top state; SetTopmost flips ex-style + Z order
+    std::atomic<bool>  maximized_      = false; ///< Current maximized state; SetMaximized stores savedRect_ before resizing
+    RECT               savedRect_      = {};    ///< Window rect saved before maximize, used to restore
+    mutable std::mutex savedRectMutex_;         ///< Guards savedRect_
 
     std::atomic<int>          cursorX_    = {-9999}; ///< Client-coords X of the mouse; -9999 when outside window
     std::atomic<int>          cursorY_    = {-9999}; ///< Client-coords Y of the mouse; -9999 when outside window
@@ -163,6 +167,25 @@ class PopoutWindow
         HWND hwndCopy = this->hwnd;
         if (hwndCopy)
             InvalidateRect(hwndCopy, nullptr, FALSE);
+    }
+
+    /// @brief Toggles always-on-top. When false, the window loses WS_EX_NOACTIVATE/TOOLWINDOW and
+    ///        gains WS_EX_APPWINDOW so it appears in the taskbar and can be activated normally.
+    /// Safe to call from any thread.
+    void SetTopmost(bool v);
+
+    /// @brief Toggles maximized (work-area-fill) mode. Saves the current rect on maximize and
+    ///        restores it on un-maximize. Also updates contentW/H so the content bitmap resizes.
+    /// Safe to call from any thread.
+    void SetMaximized(bool v);
+
+    [[nodiscard]] bool IsTopmost() const
+    {
+        return this->topmost_.load();
+    }
+    [[nodiscard]] bool IsMaximized() const
+    {
+        return this->maximized_.load();
     }
 
     [[nodiscard]] bool IsCloseRequested() const

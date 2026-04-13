@@ -128,9 +128,11 @@ const int SCREEN_OBJECT_DIFLIS_UNDO_BTN     = 6722; ///< UNDO button on the DIFL
 const int SCREEN_OBJECT_DIFLIS_ATIS_BTN     = 6723; ///< ATIS letter button on the DIFLIS status bar
 const int SCREEN_OBJECT_DIFLIS_STATUS_BTN   = 6724; ///< Per-strip status-field button (e.g. "TAKEOFF", "LINEUP")
 const int SCREEN_OBJECT_DIFLIS_RESIZE       = 6725; ///< Bottom-right resize handle of the DIFLIS window
+const int SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN = 6726; ///< Maximize/restore toggle in the DIFLIS popout title bar
+const int SCREEN_OBJECT_DIFLIS_TOPMOST_BTN  = 6727; ///< Always-on-top toggle in the DIFLIS popout title bar
 /// @}
 
-/// @defgroup DifliColors DIFLIS flight strip background + accent colours
+/// @defgroup DiflisColors DIFLIS flight strip background + accent colours
 /// @note Strip backgrounds are deliberately light so black text reads cleanly. Darker-shade variants are used
 ///       for the callsign and status fields, which "share the strip colour in a slightly darker tone".
 /// @{

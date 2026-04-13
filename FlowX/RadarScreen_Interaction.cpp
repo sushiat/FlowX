@@ -925,9 +925,9 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             }
             else if (id == "diflis")
             {
-                settings->SetDifliVisible(false);
-                settings->SetDifliPoppedOut(false);
-                this->difliPopout.reset();
+                settings->SetDiflisVisible(false);
+                settings->SetDiflisPoppedOut(false);
+                this->diflisPopout.reset();
             }
             this->RequestRefresh();
             return;
@@ -952,10 +952,36 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 settings->SetWeatherPoppedOut(true);
                 this->CreateWeatherPopout(settings);
             }
-            else if (id == "diflis" && !this->difliPopout)
+            else if (id == "diflis" && !this->diflisPopout)
             {
-                settings->SetDifliPoppedOut(true);
-                this->CreateDifliPopout(settings);
+                settings->SetDiflisPoppedOut(true);
+                this->CreateDiflisPopout(settings);
+            }
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            if (this->diflisPopout)
+            {
+                auto* s    = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                bool  next = !this->diflisPopout->IsMaximized();
+                this->diflisPopout->SetMaximized(next);
+                s->SetDiflisPopoutMaximized(next);
+            }
+            this->RequestRefresh();
+            return;
+        }
+
+        if (ObjectType == SCREEN_OBJECT_DIFLIS_TOPMOST_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
+        {
+            if (this->diflisPopout)
+            {
+                auto* s    = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+                bool  next = !this->diflisPopout->IsTopmost();
+                this->diflisPopout->SetTopmost(next);
+                s->SetDiflisPopoutTopmost(next);
             }
             this->RequestRefresh();
             return;
@@ -1072,7 +1098,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
                 else if (idx == 32) // DIFLIS window
                 {
-                    settings->ToggleDifliVisible();
+                    settings->ToggleDiflisVisible();
                 }
                 else if (idx == 26) // Clear all TAXI routes
                 {
@@ -1515,32 +1541,32 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
         }
         if (objId == "DIFLIS")
         {
-            dragWindow(this->difliWindowPos, this->difliLastDrag);
+            dragWindow(this->diflisWindowPos, this->diflisLastDrag);
             return;
         }
         if (objId == "DIFLIS_RESIZE")
         {
-            if (this->difliPopout)
+            if (this->diflisPopout)
             {
                 // Popout path: the HWND has already been resized by onDirectDrag_; just persist on release.
                 if (Released)
                 {
                     auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-                    settings->SetDifliPopoutSize(this->difliWindowW, this->difliWindowH);
-                    this->difliResizeLastDrag = {-1, -1};
+                    settings->SetDiflisPopoutSize(this->diflisWindowW, this->diflisWindowH);
+                    this->diflisResizeLastDrag = {-1, -1};
                 }
                 return;
             }
-            if (this->difliResizeLastDrag.x == -1 || this->difliResizeLastDrag.y == -1)
+            if (this->diflisResizeLastDrag.x == -1 || this->diflisResizeLastDrag.y == -1)
             {
-                this->difliResizeLastDrag = Pt;
+                this->diflisResizeLastDrag = Pt;
             }
-            this->difliWindowW       = std::max(520, this->difliWindowW + (int)(Pt.x - this->difliResizeLastDrag.x));
-            this->difliWindowH       = std::max(360, this->difliWindowH + (int)(Pt.y - this->difliResizeLastDrag.y));
-            this->difliResizeLastDrag = Pt;
+            this->diflisWindowW       = std::max(520, this->diflisWindowW + (int)(Pt.x - this->diflisResizeLastDrag.x));
+            this->diflisWindowH       = std::max(360, this->diflisWindowH + (int)(Pt.y - this->diflisResizeLastDrag.y));
+            this->diflisResizeLastDrag = Pt;
             if (Released)
             {
-                this->difliResizeLastDrag = {-1, -1};
+                this->diflisResizeLastDrag = {-1, -1};
             }
             return;
         }

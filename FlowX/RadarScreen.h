@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "constants.h"
-#include "DifliModel.h"
+#include "DiflisModel.h"
 #include "EuroScope/EuroScopePlugIn.h"
 #include "PopoutWindow.h"
 #include "cachedTagData.h"
@@ -63,7 +63,7 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     void CreateDepRatePopout(CFlowX_Settings* s);
 
     /// @brief Creates the DIFLIS popout window, seeding position/size from settings or in-screen state.
-    void CreateDifliPopout(CFlowX_Settings* s);
+    void CreateDiflisPopout(CFlowX_Settings* s);
 
     /// @brief Creates the WX/ATIS popout window, seeding position/size from settings or in-screen state.
     void CreateWeatherPopout(CFlowX_Settings* s);
@@ -150,9 +150,9 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws the DEP/H departure-rate window using pre-calculated depRateRowsCache.
     void DrawDepRateWindow(HDC hDC);
 
-    /// @brief Draws the DIFLIS (Digital Flight Strip) window from the pre-computed difliStripsCache
-    /// and the primary airport's DifliAirportConfig group definitions. Works for both in-screen and popout paths.
-    void DrawDifliWindow(HDC hDC);
+    /// @brief Draws the DIFLIS (Digital Flight Strip) window from the pre-computed diflisStripsCache
+    /// and the primary airport's DiflisAirportConfig group definitions. Works for both in-screen and popout paths.
+    void DrawDiflisWindow(HDC hDC);
 
     /// @brief Draws the NAP reminder window when napReminderActive is true.
     void DrawNapReminder(HDC hDC);
@@ -202,15 +202,15 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                           depRateWindowH   = 0;                 ///< Last-rendered height of the DEP/H window in pixels; 0 until first draw
     int                                           depRateWindowW   = 0;                 ///< Last-rendered width of the DEP/H window in pixels; 0 until first draw
     POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
-    POINT                                         difliLastDrag       = {-1, -1};       ///< Previous drag cursor position for the DIFLIS window; (-1,-1) when not dragging
-    std::unique_ptr<PopoutWindow>                 difliPopout;                          ///< Non-null when the DIFLIS window is in standalone popout mode
-    POINT                                         difliResizeLastDrag = {-1, -1};       ///< Previous drag cursor position for the DIFLIS resize handle
-    std::vector<DifliStripCache>                  difliStripsCache;                     ///< Cached flight strips rebuilt every second by UpdateTagCache()
-    std::map<std::string, std::string>            difliOverrides;                       ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
-    std::deque<DifliUndoEntry>                    difliUndoStack;                       ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)
-    int                                           difliWindowH   = 720;                 ///< Current height of the DIFLIS window in pixels
-    int                                           difliWindowW   = 1100;                ///< Current width of the DIFLIS window in pixels
-    POINT                                         difliWindowPos = {-1, -1};            ///< Top-left corner of the DIFLIS window; (-1,-1) until first draw
+    POINT                                         diflisLastDrag       = {-1, -1};       ///< Previous drag cursor position for the DIFLIS window; (-1,-1) when not dragging
+    std::unique_ptr<PopoutWindow>                 diflisPopout;                          ///< Non-null when the DIFLIS window is in standalone popout mode
+    POINT                                         diflisResizeLastDrag = {-1, -1};       ///< Previous drag cursor position for the DIFLIS resize handle
+    std::vector<DiflisStripCache>                  diflisStripsCache;                     ///< Cached flight strips rebuilt every second by UpdateTagCache()
+    std::map<std::string, std::string>            diflisOverrides;                       ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
+    std::deque<DiflisUndoEntry>                    diflisUndoStack;                       ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)
+    int                                           diflisWindowH   = 720;                 ///< Current height of the DIFLIS window in pixels
+    int                                           diflisWindowW   = 1100;                ///< Current width of the DIFLIS window in pixels
+    POINT                                         diflisWindowPos = {-1, -1};            ///< Top-left corner of the DIFLIS window; (-1,-1) until first draw
     std::set<std::string>                         gndTransferSquares;                   ///< Callsigns for which a GND-transfer green square is currently shown on the radar
     std::map<std::string, ULONGLONG>              gndTransferSquareTimes;               ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
     std::map<std::string, std::string>            groundStations;                       ///< Callsign -> primary frequency string for online GND controllers (facility 3)

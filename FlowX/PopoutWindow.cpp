@@ -108,6 +108,77 @@ void PopoutWindow::RequestResize(int w, int h)
         SetWindowPos(hwndCopy, nullptr, 0, 0, w, h, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+// ── Topmost / Maximized ─────────────────────────────────────────────────────────
+
+void PopoutWindow::SetTopmost(bool v)
+{
+    this->topmost_.store(v);
+    HWND h = this->hwnd;
+    if (!h)
+        return;
+    LONG_PTR ex = GetWindowLongPtrA(h, GWL_EXSTYLE);
+    if (v)
+    {
+        ex |= (WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+        ex &= ~WS_EX_APPWINDOW;
+    }
+    else
+    {
+        ex &= ~(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+        ex |= WS_EX_APPWINDOW;
+    }
+    // Hide/show cycle required for WS_EX_APPWINDOW change to be picked up by the taskbar.
+    ShowWindow(h, SW_HIDE);
+    SetWindowLongPtrA(h, GWL_EXSTYLE, ex);
+    SetWindowPos(h, v ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED | SWP_NOACTIVATE);
+    ShowWindow(h, v ? SW_SHOWNA : SW_SHOW);
+}
+
+void PopoutWindow::SetMaximized(bool v)
+{
+    HWND h = this->hwnd;
+    if (!h)
+        return;
+    if (v == this->maximized_.load())
+        return;
+    if (v)
+    {
+        RECT r;
+        GetWindowRect(h, &r);
+        {
+            std::lock_guard lock(this->savedRectMutex_);
+            this->savedRect_ = r;
+        }
+        HMONITOR     mon = MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO  mi  = {sizeof(mi)};
+        if (GetMonitorInfoA(mon, &mi))
+        {
+            int nw = mi.rcWork.right - mi.rcWork.left;
+            int nh = mi.rcWork.bottom - mi.rcWork.top;
+            this->contentW.store(nw);
+            this->contentH.store(nh);
+            this->maximized_.store(true);
+            SetWindowPos(h, nullptr, mi.rcWork.left, mi.rcWork.top, nw, nh,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
+    else
+    {
+        RECT r;
+        {
+            std::lock_guard lock(this->savedRectMutex_);
+            r = this->savedRect_;
+        }
+        int nw = r.right - r.left;
+        int nh = r.bottom - r.top;
+        this->contentW.store(nw);
+        this->contentH.store(nh);
+        this->maximized_.store(false);
+        SetWindowPos(h, nullptr, r.left, r.top, nw, nh, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
 // ── UpdateContent ───────────────────────────────────────────────────────────────
 
 void PopoutWindow::UpdateContent(HBITMAP bmp, int w, int h)
@@ -280,7 +351,18 @@ LRESULT PopoutWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         RECT popInRect = GetPopInRect();
         if (PtInRect(&closeRect, pt) || PtInRect(&popInRect, pt))
             return HTCLIENT;
-        if (pt.y >= 0 && pt.y < CONTENT_TITLE_H)
+        // Non-dragable registered hit areas must stay HTCLIENT even inside the title band,
+        // otherwise WM_LBUTTONDOWN / WM_MOUSEMOVE never fires on them (HTCAPTION swallows).
+        {
+            std::lock_guard lock(this->hitAreasMutex_);
+            for (const auto& ha : this->hitAreas_)
+            {
+                if (!ha.dragable && PtInRect(&ha.rect, pt))
+                    return HTCLIENT;
+            }
+        }
+        // When maximized, the title bar is not draggable — clicks fall through to hit areas.
+        if (!this->maximized_.load() && pt.y >= 0 && pt.y < CONTENT_TITLE_H)
             return HTCAPTION;
         return HTCLIENT;
     }

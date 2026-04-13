@@ -1,5 +1,5 @@
 /**
- * @file DifliModel.h
+ * @file DiflisModel.h
  * @brief Data model for the DIFLIS (Digital Flight Strip) window.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
@@ -15,14 +15,14 @@
 
 /// @brief Visual variant in which a single flight strip is rendered.
 /// @note Variants are chosen per group: preferred first, fallback picked when contents overflow.
-enum class DifliStripVariant
+enum class DiflisStripVariant
 {
     Collapsed,  ///< Single-row compact strip (callsign, type, stand, sid, rwy, status)
     Expanded    ///< Two-row strip with more fields (runways, taxi, apron, standing-by)
 };
 
 /// @brief Optional ordering applied to strips inside a group before rendering.
-enum class DifliSortMode
+enum class DiflisSortMode
 {
     None,    ///< Insertion / derivation order
     EtaAsc,  ///< Nearest ETA first (arrivals)
@@ -30,8 +30,8 @@ enum class DifliSortMode
 };
 
 /// @brief Named strip background colour keys used by group definitions and strip cache entries.
-/// Actual COLORREF values are resolved in DrawDifliWindow from a palette in constants.h.
-enum class DifliBgColor
+/// Actual COLORREF values are resolved in DrawDiflisWindow from a palette in constants.h.
+enum class DiflisBgColor
 {
     NeutralGrey,
     Blue,
@@ -43,7 +43,7 @@ enum class DifliBgColor
 };
 
 /// @brief Declarative definition of one group (section) loaded from config.json under "diflis".
-struct DifliGroupDef
+struct DiflisGroupDef
 {
     std::string       id;                                             ///< Stable group identifier (e.g. "ARRIVALS", "RWY_16_34")
     std::string       title;                                          ///< All-caps title rendered with spaced letters
@@ -53,14 +53,14 @@ struct DifliGroupDef
     bool              collapseWhenEmpty  = false;                     ///< Skip entirely from layout when no strips are assigned
     bool              stackBottom        = false;                     ///< Stack strips upward from the bottom of the group area
     bool              acceptsDrop        = true;                      ///< False for auto-only groups (e.g. LOCAL, CLEARANCE_DELIVERED)
-    DifliStripVariant preferredVariant   = DifliStripVariant::Collapsed;
-    DifliStripVariant fallbackVariant    = DifliStripVariant::Collapsed;
+    DiflisStripVariant preferredVariant   = DiflisStripVariant::Collapsed;
+    DiflisStripVariant fallbackVariant    = DiflisStripVariant::Collapsed;
     bool              paginates          = false;                     ///< If true, overflow paginates instead of downgrading variant
-    DifliSortMode     sort               = DifliSortMode::None;
+    DiflisSortMode     sort               = DiflisSortMode::None;
 };
 
 /// @brief Cached display data for one flight strip, rebuilt every tick by UpdateTagCache.
-struct DifliStripCache
+struct DiflisStripCache
 {
     std::string  callsign;                                             ///< Aircraft callsign (unique key within the cache)
     char         wtc             = ' ';                                ///< Wake turbulence category (L/M/H/J)
@@ -82,27 +82,27 @@ struct DifliStripCache
 };
 
 /// @brief Single field mutation recorded for a manual strip move; used by UNDO to restore precise state.
-enum class DifliMutationField
+enum class DiflisMutationField
 {
-    DifliOverride,        ///< Entry in the DIFLIS per-callsign override map
+    DiflisOverride,        ///< Entry in the DIFLIS per-callsign override map
     GroundRadarStatus,    ///< Ground Radar "status" scratchpad field
     TopskyClearanceFlag,  ///< TopSky clearance flag
     AssignedRunway        ///< Flight plan assigned runway
 };
 
 /// @brief Before-state for one field touched by a manual DIFLIS move.
-struct DifliMutation
+struct DiflisMutation
 {
-    DifliMutationField field       = DifliMutationField::DifliOverride;
+    DiflisMutationField field       = DiflisMutationField::DiflisOverride;
     std::string        prevValue;                                      ///< Previous value; meaningful only when prevExisted
     bool               prevExisted = false;                            ///< Distinguishes "was unset" from "was empty string"
 };
 
 /// @brief One undoable manual move. May record several field mutations for a single drop.
-struct DifliUndoEntry
+struct DiflisUndoEntry
 {
     std::string                callsign;
     std::string                fromGroup;
     std::string                toGroup;
-    std::vector<DifliMutation> mutations;
+    std::vector<DiflisMutation> mutations;
 };

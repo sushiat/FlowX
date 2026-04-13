@@ -1,5 +1,5 @@
 /**
- * @file RadarScreen_Difli.cpp
+ * @file RadarScreen_Diflis.cpp
  * @brief RadarScreen partial implementation: DIFLIS digital flight strip window rendering and popout creation.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
@@ -18,15 +18,15 @@
 #include <string>
 #include "constants.h"
 #include "helpers.h"
-#include "DifliModel.h"
+#include "DiflisModel.h"
 
 /// @brief Draws the DIFLIS (Digital Flight Strip) window — slice 1: window frame, column layout,
 /// group headers, one strip variant (simplified), and a status bar with clock + ATIS + UNDO.
 /// Strip drag/drop and group-transition writeback are added in a later slice.
-void RadarScreen::DrawDifliWindow(HDC hDC)
+void RadarScreen::DrawDiflisWindow(HDC hDC)
 {
     auto* settingsD = static_cast<CFlowX_Settings*>(this->GetPlugIn());
-    if (!settingsD->GetDifliVisible())
+    if (!settingsD->GetDiflisVisible())
     {
         return;
     }
@@ -35,22 +35,22 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
     const int X_BTN   = 11;
     const int PAD     = 4;
 
-    int WIN_W = this->difliWindowW;
-    int WIN_H = this->difliWindowH;
+    int WIN_W = this->diflisWindowW;
+    int WIN_H = this->diflisWindowH;
 
-    this->difliWindowW = WIN_W;
-    this->difliWindowH = WIN_H;
+    this->diflisWindowW = WIN_W;
+    this->diflisWindowH = WIN_H;
 
-    if (this->difliWindowPos.x == -1)
+    if (this->diflisWindowPos.x == -1)
     {
         RECT clip;
         GetClipBox(hDC, &clip);
-        this->difliWindowPos.x = std::max<LONG>(20, (clip.right - WIN_W) / 2);
-        this->difliWindowPos.y = std::max<LONG>(40, (clip.bottom - WIN_H) / 2);
+        this->diflisWindowPos.x = std::max<LONG>(20, (clip.right - WIN_W) / 2);
+        this->diflisWindowPos.y = std::max<LONG>(40, (clip.bottom - WIN_H) / 2);
     }
 
-    int wx = this->difliWindowPos.x;
-    int wy = this->difliWindowPos.y;
+    int wx = this->diflisWindowPos.x;
+    int wy = this->diflisWindowPos.y;
 
     // Font scale tracks window height, roughly 0.45..1.0 between ~640 and ~1440
     float scale = std::clamp(WIN_H / 1440.0f, 0.45f, 1.0f);
@@ -61,6 +61,17 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
     // ── Title bar + close/popout buttons ─────────────────────────────────────
     RECT xRect   = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
     RECT popRect = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
+
+    // Maximize + topmost toggles; only visible when this is a popout render (the two
+    // buttons live 4px to the left of the popin button, separated by the gap).
+    constexpr int GAP      = 4;
+    RECT          topRect  = {0, 0, 0, 0};
+    RECT          maxRect  = {0, 0, 0, 0};
+    if (this->isPopoutRender_)
+    {
+        topRect = {popRect.left - GAP - X_BTN - 1, wy + 1, popRect.left - GAP - 1, wy + 1 + X_BTN};
+        maxRect = {topRect.left - X_BTN - 1, wy + 1, topRect.left - 1, wy + 1 + X_BTN};
+    }
 
     POINT cursorD = {-9999, -9999};
     if (this->isPopoutRender_)
@@ -74,6 +85,10 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
     }
     bool xHovered   = PtInRect(&xRect, cursorD) != 0;
     bool popHovered = PtInRect(&popRect, cursorD) != 0;
+    bool topHovered = this->isPopoutRender_ && PtInRect(&topRect, cursorD) != 0;
+    bool maxHovered = this->isPopoutRender_ && PtInRect(&maxRect, cursorD) != 0;
+    bool isTopmost   = !this->diflisPopout || this->diflisPopout->IsTopmost();
+    bool isMaximized = this->diflisPopout && this->diflisPopout->IsMaximized();
 
     RECT winRect    = {wx, wy, wx + WIN_W, wy + WIN_H};
     RECT titleRect  = {wx, wy, wx + WIN_W, wy + TITLE_H};
@@ -109,6 +124,18 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
         FillRect(hDC, &popRect, popBrush);
         DeleteObject(popBrush);
     }
+    if (topHovered)
+    {
+        auto b = CreateSolidBrush(RGB(40, 100, 160));
+        FillRect(hDC, &topRect, b);
+        DeleteObject(b);
+    }
+    if (maxHovered)
+    {
+        auto b = CreateSolidBrush(RGB(40, 100, 160));
+        FillRect(hDC, &maxRect, b);
+        DeleteObject(b);
+    }
 
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &winRect, borderBrush);
@@ -122,23 +149,36 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                                   DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prevFont  = (HFONT)SelectObject(hDC, titleFont);
     SetTextColor(hDC, TAG_COLOR_WHITE);
-    RECT dragRect = {wx, wy, popRect.left - 1, wy + TITLE_H};
+    RECT dragRect = {wx, wy,
+                     (this->isPopoutRender_ ? maxRect.left : popRect.left) - 1, wy + TITLE_H};
     DrawTextA(hDC, "DIFLIS", -1, &dragRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     DrawTextA(hDC, "x", -1, &xRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     RECT popDrawRect = popRect;
     if (!this->isPopoutRender_)
         popDrawRect.top += 1;
     DrawTextA(hDC, this->isPopoutRender_ ? "v" : "^", -1, &popDrawRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    if (this->isPopoutRender_)
+    {
+        DrawTextA(hDC, isMaximized ? "R" : "M", -1, &maxRect,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DrawTextA(hDC, isTopmost ? "T" : "_", -1, &topRect,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
     SelectObject(hDC, prevFont);
     DeleteObject(titleFont);
 
     this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_WIN, "DIFLIS", dragRect, true, "");
     this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_CLOSE, "diflis", xRect, false, "");
     this->AddScreenObjectAuto(SCREEN_OBJECT_WIN_POPOUT, "diflis", popRect, false, "");
+    if (this->isPopoutRender_)
+    {
+        this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN, "diflis", maxRect, false, "");
+        this->AddScreenObjectAuto(SCREEN_OBJECT_DIFLIS_TOPMOST_BTN, "diflis", topRect, false, "");
+    }
 
     // ── Resolve airport diflis config ────────────────────────────────────────
     auto                  apIt = settingsD->FindMyAirport();
-    const DifliAirportConfig* dcfg = nullptr;
+    const DiflisAirportConfig* dcfg = nullptr;
     std::string           myIcao;
     if (apIt != settingsD->GetAirports().end())
     {
@@ -210,18 +250,18 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
 
     // Natural row heights per variant. Scales with both the global window scale and
     // the per-column strip width scale (narrower columns → smaller fonts → shorter strips).
-    auto variantH = [&](DifliStripVariant v, float wScale) -> int
+    auto variantH = [&](DiflisStripVariant v, float wScale) -> int
     {
         float s = scale * wScale;
         switch (v)
         {
-        case DifliStripVariant::Collapsed: return std::max(20, (int)std::round(50 * s));
-        case DifliStripVariant::Expanded:  return std::max(40, (int)std::round(110 * s));
+        case DiflisStripVariant::Collapsed: return std::max(20, (int)std::round(50 * s));
+        case DiflisStripVariant::Expanded:  return std::max(40, (int)std::round(110 * s));
         }
         return 22;
     };
-    auto isExpandedVariant = [](DifliStripVariant v)
-    { return v == DifliStripVariant::Expanded; };
+    auto isExpandedVariant = [](DiflisStripVariant v)
+    { return v == DiflisStripVariant::Expanded; };
 
     // ── Per-column layout: active groups, weights, rects ─────────────────────
     if (dcfg)
@@ -230,7 +270,7 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
         {
             struct Entry
             {
-                const DifliGroupDef* def;
+                const DiflisGroupDef* def;
                 int                  stripCount;
             };
             std::vector<Entry> entries;
@@ -241,7 +281,7 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                 if (g.columnIndex != c)
                     continue;
                 int cnt = 0;
-                for (const auto& s : this->difliStripsCache)
+                for (const auto& s : this->diflisStripsCache)
                     if (s.resolvedGroupId == g.id)
                         ++cnt;
                 if (g.collapseWhenEmpty && cnt == 0)
@@ -317,14 +357,14 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                 int avail        = std::max(0, stripAreaBot - stripAreaTop);
                 if (e.stripCount > 0 && avail > 0)
                 {
-                    DifliStripVariant chosen  = e.def->preferredVariant;
+                    DiflisStripVariant chosen  = e.def->preferredVariant;
                     int               rowH    = variantH(chosen, widthScale);
                     int               visible = e.stripCount;
 
                     if (rowH * visible > avail)
                     {
                         // Preferred doesn't fit — try fallback
-                        DifliStripVariant fb   = e.def->fallbackVariant;
+                        DiflisStripVariant fb   = e.def->fallbackVariant;
                         int               fbH  = variantH(fb, widthScale);
                         if (fbH * visible <= avail)
                         {
@@ -347,7 +387,7 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                     int drawn = 0;
                     int sy    = e.def->stackBottom ? (stripAreaBot - rowH)
                                                    : stripAreaTop;
-                    for (const auto& s : this->difliStripsCache)
+                    for (const auto& s : this->diflisStripsCache)
                     {
                         if (s.resolvedGroupId != e.def->id)
                             continue;
@@ -430,7 +470,7 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                         // same fixed width in collapsed so strips line up vertically. Label uses the
                         // callsign font for a consistent visual weight.
                         SelectObject(hDC, csFont);
-                        int  stW  = std::max(1, variantH(DifliStripVariant::Expanded, widthScale) - 3 - 4);
+                        int  stW  = std::max(1, variantH(DiflisStripVariant::Expanded, widthScale) - 3 - 4);
                         RECT stBtnR = {inner.right - stW, inner.top, inner.right, inner.bottom};
                         auto stBr   = CreateSolidBrush(bgDark);
                         FillRect(hDC, &stBtnR, stBr);
@@ -453,7 +493,7 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
                         std::string rwy    = s.rwy;
                         std::string status = s.status;
 
-                        if (chosen == DifliStripVariant::Collapsed)
+                        if (chosen == DiflisStripVariant::Collapsed)
                         {
                             // Collapsed: 5 cols total (callsign | type | stand | rwy | status).
                             // Callsign + status already drawn as outer dark cells. Body splits
@@ -731,20 +771,20 @@ void RadarScreen::DrawDifliWindow(HDC hDC)
     DeleteObject(groupSideFont);
 }
 /// @brief Creates the DIFLIS popout window, seeding position/size from settings or in-screen state.
-void RadarScreen::CreateDifliPopout(CFlowX_Settings* s)
+void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
 {
-    int w = s->GetDifliPopoutW();
-    int h = s->GetDifliPopoutH();
+    int w = s->GetDiflisPopoutW();
+    int h = s->GetDiflisPopoutH();
     if (w <= 0)
-        w = this->difliWindowW;
+        w = this->diflisWindowW;
     if (h <= 0)
-        h = this->difliWindowH;
-    int x = s->GetDifliPopoutX();
-    int y = s->GetDifliPopoutY();
+        h = this->diflisWindowH;
+    int x = s->GetDiflisPopoutX();
+    int y = s->GetDiflisPopoutY();
     if (x == -1)
     {
-        x = this->difliWindowPos.x;
-        y = this->difliWindowPos.y;
+        x = this->diflisWindowPos.x;
+        y = this->diflisWindowPos.y;
         if (this->esHwnd_)
         {
             POINT pt = {x, y};
@@ -752,12 +792,12 @@ void RadarScreen::CreateDifliPopout(CFlowX_Settings* s)
             x = pt.x;
             y = pt.y;
         }
-        s->SetDifliPopoutPos(x, y);
+        s->SetDiflisPopoutPos(x, y);
     }
-    this->difliPopout = std::make_unique<PopoutWindow>(
+    this->diflisPopout = std::make_unique<PopoutWindow>(
         "DIFLIS", x, y, w, h,
         [s](int nx, int ny)
-        { s->SetDifliPopoutPos(nx, ny); },
+        { s->SetDiflisPopoutPos(nx, ny); },
         nullptr,
         [](const HitArea& ha, POINT delta, int currentW, int currentH) -> std::pair<int, int>
         {
@@ -765,4 +805,10 @@ void RadarScreen::CreateDifliPopout(CFlowX_Settings* s)
                 return {0, 0};
             return {std::max(520, currentW + (int)delta.x), std::max(360, currentH + (int)delta.y)};
         });
+
+    // Apply persisted topmost + maximized states.
+    if (!s->GetDiflisPopoutTopmost())
+        this->diflisPopout->SetTopmost(false);
+    if (s->GetDiflisPopoutMaximized())
+        this->diflisPopout->SetMaximized(true);
 }

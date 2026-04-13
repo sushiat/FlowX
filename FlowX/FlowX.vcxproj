@@ -134,7 +134,7 @@
     <ClCompile Include="RadarScreen_Taxi.cpp" />
     <ClCompile Include="RadarScreen_TwrInbound.cpp" />
     <ClCompile Include="RadarScreen_TwrOutbound.cpp" />
-    <ClCompile Include="RadarScreen_Difli.cpp" />
+    <ClCompile Include="RadarScreen_Diflis.cpp" />
     <ClCompile Include="RadarScreen_Interaction.cpp" />
     <ClCompile Include="RadarScreen_Weather.cpp" />
     <ClCompile Include="tz.cpp" />
@@ -156,7 +156,7 @@
     <ClInclude Include="CFlowX_Settings.h" />
     <ClInclude Include="CFlowX_Tags.h" />
     <ClInclude Include="CFlowX_Timers.h" />
-    <ClInclude Include="DifliModel.h" />
+    <ClInclude Include="DiflisModel.h" />
     <ClInclude Include="reconnectSnapshot.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="CFlowX.h" />

@@ -12,7 +12,7 @@
 #include <map>
 #include <vector>
 
-#include "DifliModel.h"
+#include "DiflisModel.h"
 
 /// @brief Geographic ground frequency zone: a named polygon with an associated frequency string.
 struct geoGndFreq
@@ -199,7 +199,7 @@ struct TaxiNetworkConfig
 
 /// @brief DIFLIS window layout configuration loaded from the single top-level "diflis" block in config.json.
 /// @note All DIFLIS-related airport settings live under this one struct — no scattered keys elsewhere in config.h.
-struct DifliAirportConfig
+struct DiflisAirportConfig
 {
     std::vector<int>           columnWidths     = {28, 28, 28, 16};             ///< Per-column width percentages (one entry per column; should sum to ~100)
     COLORREF                   inboundBg        = RGB(176, 216, 255);           ///< Strip background for arrivals (HTML hex in config)
@@ -216,7 +216,7 @@ struct DifliAirportConfig
     int                        fontSizeStripLarge    = 30;                      ///< Base font size for the large strip text (callsign, runway, status button)
     int                        fontSizeStripMedium   = 20;                      ///< Base font size for the medium strip text (type, stand, squawk, adep/ades)
     int                        fontSizeStripSmall    = 16;                      ///< Base font size for the small strip text (reserved for future sub-cell use)
-    std::vector<DifliGroupDef> groups           = {};                            ///< All group definitions in rendering order; column/heightWeight decide placement
+    std::vector<DiflisGroupDef> groups           = {};                            ///< All group definitions in rendering order; column/heightWeight decide placement
 };
 
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
@@ -270,5 +270,5 @@ struct airport
     std::map<std::string, double>                    taxiWingspanAvoid         = {}; ///< Taxiway/taxilane ref -> max wingspan (m); aircraft at or below this size receive a soft routing penalty on this ref (prefer a parallel, narrower lane instead).
     std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
     TaxiNetworkConfig                                taxiNetworkConfig         = {}; ///< Tunable taxi graph, routing, snapping, and safety parameters (all fields default when absent from config.json).
-    DifliAirportConfig                               diflis                    = {}; ///< DIFLIS window configuration for this airport; loaded from the top-level "diflis" block in config.json.
+    DiflisAirportConfig                               diflis                    = {}; ///< DIFLIS window configuration for this airport; loaded from the top-level "diflis" block in config.json.
 };

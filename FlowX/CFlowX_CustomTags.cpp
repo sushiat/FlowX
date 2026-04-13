@@ -1080,7 +1080,7 @@ void CFlowX_CustomTags::UpdateTagCache()
         this->radarScreen->twrOutboundRowsCache.clear();
         this->radarScreen->twrInboundRowsCache.clear();
         this->radarScreen->weatherRowsCache.clear();
-        this->radarScreen->difliStripsCache.clear();
+        this->radarScreen->diflisStripsCache.clear();
         return;
     }
 
@@ -1454,7 +1454,7 @@ void CFlowX_CustomTags::UpdateTagCache()
     // Slice 1: simple state-derived classification. All strips are placed into groups by ground state / airborne.
     // Manual overrides, auto-clearing rules, and runway-specific routing land in later slices.
     {
-        this->radarScreen->difliStripsCache.clear();
+        this->radarScreen->diflisStripsCache.clear();
 
         auto apIt = this->FindMyAirport();
         if (apIt != this->airports.end() && !apIt->second.diflis.groups.empty())
@@ -1463,7 +1463,7 @@ void CFlowX_CustomTags::UpdateTagCache()
             const std::string& myIcao   = ap.icao;
             const auto&        groups   = ap.diflis.groups;
 
-            auto findGroup = [&](const std::string& id) -> const DifliGroupDef*
+            auto findGroup = [&](const std::string& id) -> const DiflisGroupDef*
             {
                 for (const auto& g : groups)
                     if (g.id == id)
@@ -1471,7 +1471,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                 return nullptr;
             };
 
-            auto firstGroupInColumn = [&](int col) -> const DifliGroupDef*
+            auto firstGroupInColumn = [&](int col) -> const DiflisGroupDef*
             {
                 for (const auto& g : groups)
                     if (g.columnIndex == col)
@@ -1493,7 +1493,7 @@ void CFlowX_CustomTags::UpdateTagCache()
                 if (!isInbound && !isOutbound)
                     continue;
 
-                DifliStripCache s;
+                DiflisStripCache s;
                 s.callsign     = fp.GetCallsign();
                 s.wtc          = fpd.GetAircraftWtc();
                 s.acType       = fpd.GetAircraftFPType();
@@ -1524,9 +1524,9 @@ void CFlowX_CustomTags::UpdateTagCache()
                 s.status = gs;
 
                 // Apply any manual override first (set by slice 3 drag-and-drop).
-                const DifliGroupDef* target = nullptr;
-                auto                 ovIt   = this->radarScreen->difliOverrides.find(s.callsign);
-                if (ovIt != this->radarScreen->difliOverrides.end())
+                const DiflisGroupDef* target = nullptr;
+                auto                 ovIt   = this->radarScreen->diflisOverrides.find(s.callsign);
+                if (ovIt != this->radarScreen->diflisOverrides.end())
                     target = findGroup(ovIt->second);
 
                 if (target == nullptr)
@@ -1581,22 +1581,22 @@ void CFlowX_CustomTags::UpdateTagCache()
                 s.textDim         = isInbound ? apIt->second.diflis.inboundTextDim
                                               : apIt->second.diflis.outboundTextDim;
                 s.resolvedGroupId = target->id;
-                this->radarScreen->difliStripsCache.push_back(std::move(s));
+                this->radarScreen->diflisStripsCache.push_back(std::move(s));
             }
 
             // Per-group sort (ETA ascending for arrivals, EOBT ascending for departures).
-            std::stable_sort(this->radarScreen->difliStripsCache.begin(),
-                             this->radarScreen->difliStripsCache.end(),
-                             [&](const DifliStripCache& a, const DifliStripCache& b)
+            std::stable_sort(this->radarScreen->diflisStripsCache.begin(),
+                             this->radarScreen->diflisStripsCache.end(),
+                             [&](const DiflisStripCache& a, const DiflisStripCache& b)
                              {
                                  if (a.resolvedGroupId != b.resolvedGroupId)
                                      return a.resolvedGroupId < b.resolvedGroupId;
-                                 const DifliGroupDef* g = findGroup(a.resolvedGroupId);
+                                 const DiflisGroupDef* g = findGroup(a.resolvedGroupId);
                                  if (g == nullptr)
                                      return false;
-                                 if (g->sort == DifliSortMode::EtaAsc)
+                                 if (g->sort == DiflisSortMode::EtaAsc)
                                      return a.etaMinutes < b.etaMinutes;
-                                 if (g->sort == DifliSortMode::EobtAsc)
+                                 if (g->sort == DiflisSortMode::EobtAsc)
                                      return a.eobt < b.eobt;
                                  return false;
                              });
