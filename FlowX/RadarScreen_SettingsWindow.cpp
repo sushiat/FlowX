@@ -166,8 +166,8 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
                        {"Clear TAXI routes", 26, false, false, false, false, 0, 0, {}},
                        {"Show TAXI network", 23, true, settings->GetShowTaxiOverlay(), false, false, 0, 0, {}},
                        {"Show TAXI labels", 24, true, settings->GetShowTaxiLabels(), false, false, 0, 0, {}},
-                       {"Show TAXI routes", 25, true, settings->GetShowTaxiRoutes(), false, false, 0, 0, {}},
                        {"Show TAXI graph", 29, true, settings->GetShowTaxiGraph(), false, false, 0, 0, {}},
+                       {"Show TAXI routes", 25, true, settings->GetShowTaxiRoutes(), false, false, 0, 0, {}},
                        {"Log TAXI tests", 31, true, settings->GetLogTaxiTests(), false, false, 0, 0, {}}}});
 
     // ── 2×2 grid layout inside the window body ──
