@@ -157,20 +157,44 @@ void RadarScreen::DrawNapReminder(HDC hDC)
 /// floats above it; otherwise it sits above the raw clip-box bottom.
 void RadarScreen::DrawStartButton(HDC hDC)
 {
-    const int BTN_W = 56;
-    const int BTN_H = 20;
+    const int BTN_H   = 20;
+    const int ICON_S  = 16;
+    const int PAD_L   = 2;  ///< Left padding before icon
+    const int PAD_R   = 2;  ///< Right padding after text
+    const int ICON_TX = 3;  ///< Gap between icon and text
+
+    // Measure "FlowX" at the render font so the button is exactly as wide as its contents.
+    HFONT font = CreateFontA(-11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT prev = (HFONT)SelectObject(hDC, font);
+    SIZE  textSz{};
+    GetTextExtentPoint32A(hDC, "FlowX", 5, &textSz);
+    const int BTN_W = PAD_L + ICON_S + ICON_TX + textSz.cx + PAD_R;
 
     // Re-read boundaries every frame so the button floats above whichever overlay is currently visible.
     // When chat is open, chat.top is the exact pixel where the panel begins — use it directly.
-    // When chat is closed, clip.bottom (the GDI drawable boundary) is the true visual edge.
+    // When chat is closed, anchor to the bottom of the EuroScope window's client rect. GetClipBox
+    // gives the radar-view clip which still leaves a visible gap below it; the window client rect
+    // extends further and GDI tolerates draws beyond the clip (they are painted by ES next frame).
     RECT clip;
     GetClipBox(hDC, &clip);
     RECT chat     = GetChatArea();
-    bool chatOpen = (chat.bottom > chat.top);
-    int  bottom   = chatOpen ? chat.top : clip.bottom + 5; // +5: EuroScope clip-box excludes the 5 px status-bar gap when chat is closed
-    int  bx       = clip.right - BTN_W;
-    int  by       = bottom - BTN_H;
-
+    bool chatOpen = (chat.bottom - chat.top) >= 10;
+    int  bottom   = clip.bottom;
+    if (chatOpen)
+    {
+        bottom = chat.top;
+    }
+    else
+    {
+        HWND esHwnd = WindowFromDC(hDC);
+        RECT cr;
+        if (esHwnd && GetClientRect(esHwnd, &cr))
+            bottom = cr.bottom;
+    }
+    int  bx      = clip.right - BTN_W;
+    int  by      = bottom - BTN_H;
     RECT btnRect = {bx, by, bx + BTN_W, by + BTN_H};
 
     // Reset hover tracking each frame so every new mouse-enter counts as a fresh transition.
@@ -204,12 +228,20 @@ void RadarScreen::DrawStartButton(HDC hDC)
 
     SetBkMode(hDC, TRANSPARENT);
 
-    HFONT font = CreateFontA(-11, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                             ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                             DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
-    HFONT prev = (HFONT)SelectObject(hDC, font);
+    // Icon at the left; text flush against the icon.
+    HICON icon = this->GetFlowxIcon();
+    if (icon)
+    {
+        int ix = bx + PAD_L;
+        int iy = by + (BTN_H - ICON_S) / 2;
+        DrawIconEx(hDC, ix, iy, icon, ICON_S, ICON_S, 0, nullptr, DI_NORMAL);
+    }
+
     SetTextColor(hDC, TAG_COLOR_WHITE);
-    DrawTextA(hDC, "FlowX", -1, &btnRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    RECT textRect = {bx + PAD_L + ICON_S + ICON_TX, by,
+                     bx + PAD_L + ICON_S + ICON_TX + textSz.cx, by + BTN_H};
+    DrawTextA(hDC, "FlowX", -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
     SelectObject(hDC, prev);
     DeleteObject(font);
 
@@ -282,10 +314,21 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     RECT clip;
     GetClipBox(hDC, &clip);
     RECT chat     = GetChatArea();
-    bool chatOpen = (chat.bottom > chat.top);
-    int  bottom   = chatOpen ? chat.top : clip.bottom + 5; // +5: matches DrawStartButton's status-bar gap offset
-    int  mx       = clip.right - MENU_W;
-    int  my       = bottom - BTN_H - MENU_H;
+    bool chatOpen = (chat.bottom - chat.top) >= 10;
+    int  bottom   = clip.bottom;
+    if (chatOpen)
+    {
+        bottom = chat.top;
+    }
+    else
+    {
+        HWND esHwndMenu = WindowFromDC(hDC);
+        RECT cr;
+        if (esHwndMenu && GetClientRect(esHwndMenu, &cr))
+            bottom = cr.bottom;
+    }
+    int mx = clip.right - MENU_W;
+    int my = bottom - BTN_H - MENU_H;
 
     // Hover detection — reset each frame so every enter counts as a fresh transition.
     this->startMenuLastHoverType = -1;

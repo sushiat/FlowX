@@ -45,9 +45,15 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
   private:
     PopoutWindow* currentPopout_       = nullptr;        ///< Set during RenderToPopout; used by AddScreenObjectAuto to route hit-area registration
     HWND          esHwnd_              = nullptr;        ///< EuroScope radar screen HWND; cached on first OnRefresh for use in Create*Popout
+    HICON         flowxIcon_           = nullptr;        ///< Cached flowx.ico handle loaded from the plugin directory; owned, destroyed in destructor
+    bool          flowxIconLoadTried_  = false;          ///< True after the first attempt to load flowxIcon_; prevents repeated filesystem hits when the file is missing
     bool          isPopoutRender_      = false;          ///< True while a draw function renders into a memory DC for a popout window
     POINT         popoutHoverPoint_    = {-9999, -9999}; ///< Cursor position inside the active popout window; {-9999,-9999} when outside
     ULONGLONG     taxiSafetyLastTickMs = 0;              ///< GetTickCount64 timestamp of last UpdateTaxiSafety() run; throttle guard.
+
+    /// @brief Lazily loads (and caches) flowx.ico from the plugin install directory.
+    /// @return Cached HICON, or nullptr if the file does not exist or could not be loaded.
+    HICON GetFlowxIcon();
 
     /// @brief Routes an AddScreenObject call to the active popout (isPopoutRender_) or to EuroScope (normal render).
     void AddScreenObjectAuto(int objectType, const char* objectId, RECT rect, bool dragable,

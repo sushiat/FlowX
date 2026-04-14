@@ -29,7 +29,26 @@ RadarScreen::RadarScreen()
     this->debug = false;
 }
 
-RadarScreen::~RadarScreen() = default;
+RadarScreen::~RadarScreen()
+{
+    if (this->flowxIcon_)
+    {
+        DestroyIcon(this->flowxIcon_);
+        this->flowxIcon_ = nullptr;
+    }
+}
+
+HICON RadarScreen::GetFlowxIcon()
+{
+    if (this->flowxIcon_ || this->flowxIconLoadTried_)
+        return this->flowxIcon_;
+    this->flowxIconLoadTried_ = true;
+    std::string path = GetPluginDirectory() + "\\flowx.ico";
+    this->flowxIcon_ = (HICON)LoadImageA(nullptr, path.c_str(), IMAGE_ICON,
+                                         0, 0,
+                                         LR_LOADFROMFILE | LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
+    return this->flowxIcon_;
+}
 
 /// @brief Notifies the plugin that the screen is closing, then deletes this RadarScreen.
 void RadarScreen::OnAsrContentToBeClosed()

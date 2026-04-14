@@ -69,14 +69,15 @@ class PopoutWindow
     int                bmpW          = 0;       ///< Width of contentBitmap in pixels
     int                bmpH          = 0;       ///< Height of contentBitmap in pixels
 
-    std::atomic<bool>  closeRequested_ = false; ///< Set on close click; polled by ES main thread
-    std::atomic<bool>  popInRequested_ = false; ///< Set on pop-in click; polled by ES main thread
-    std::atomic<bool>  directDragging_ = false; ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
-    bool               hasPopInButton_ = true;  ///< When false, no pop-in button is rendered or hit-tested (popout-only windows)
-    std::atomic<bool>  topmost_        = true;  ///< Current always-on-top state; SetTopmost flips ex-style + Z order
-    std::atomic<bool>  maximized_      = false; ///< Current maximized state; SetMaximized stores savedRect_ before resizing
-    RECT               savedRect_      = {};    ///< Window rect saved before maximize, used to restore
-    mutable std::mutex savedRectMutex_;         ///< Guards savedRect_
+    std::atomic<bool>  closeRequested_ = false;   ///< Set on close click; polled by ES main thread
+    std::atomic<bool>  popInRequested_ = false;   ///< Set on pop-in click; polled by ES main thread
+    std::atomic<bool>  directDragging_ = false;   ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
+    bool               hasPopInButton_ = true;    ///< When false, no pop-in button is rendered or hit-tested (popout-only windows)
+    HICON              taskbarIcon_    = nullptr; ///< When set, window is created with WS_EX_APPWINDOW (visible in taskbar) and the icon is assigned via WM_SETICON; not owned
+    std::atomic<bool>  topmost_        = true;    ///< Current always-on-top state; SetTopmost flips ex-style + Z order
+    std::atomic<bool>  maximized_      = false;   ///< Current maximized state; SetMaximized stores savedRect_ before resizing
+    RECT               savedRect_      = {};      ///< Window rect saved before maximize, used to restore
+    mutable std::mutex savedRectMutex_;           ///< Guards savedRect_
 
     std::atomic<int>          cursorX_ = {-9999};           ///< Client-coords X of the mouse; -9999 when outside window
     std::atomic<int>          cursorY_ = {-9999};           ///< Client-coords Y of the mouse; -9999 when outside window
@@ -107,7 +108,7 @@ class PopoutWindow
     using ContentPaintFn = std::function<void(HDC hDC, int w, int h)>;
 
     mutable std::mutex contentPaintMutex_; ///< Guards contentPaintFn_
-    ContentPaintFn     contentPaintFn_;     ///< When set, WM_PAINT calls this instead of blitting contentBitmap
+    ContentPaintFn     contentPaintFn_;    ///< When set, WM_PAINT calls this instead of blitting contentBitmap
 
     DirectDragFn                  onDirectDrag_;  ///< Instant resize callback; called on popout thread during drag; may be null
     std::function<void()>         onNeedsRefresh; ///< Reserved; may be called by the popout thread to hint at an ES repaint
@@ -137,7 +138,8 @@ class PopoutWindow
                  std::function<void(int, int)> onMoved,
                  std::function<void()>         onNeedsRefresh = nullptr,
                  DirectDragFn                  onDirectDrag   = nullptr,
-                 bool                          hasPopInButton = true);
+                 bool                          hasPopInButton = true,
+                 HICON                         taskbarIcon    = nullptr);
     ~PopoutWindow();
 
     PopoutWindow(const PopoutWindow&)            = delete;

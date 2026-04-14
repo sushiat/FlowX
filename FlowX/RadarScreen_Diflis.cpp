@@ -1031,7 +1031,7 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
         s->SetDiflisPopoutPos(x, y);
     }
     this->diflisPopout = std::make_unique<PopoutWindow>(
-        "DIFLIS", x, y, w, h,
+        "FlowX DIFLIS", x, y, w, h,
         [s](int nx, int ny)
         { s->SetDiflisPopoutPos(nx, ny); },
         [this]
@@ -1042,7 +1042,8 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
                 return {0, 0};
             return {std::max(520, currentW + (int)delta.x), std::max(360, currentH + (int)delta.y)};
         },
-        /*hasPopInButton=*/false);
+        /*hasPopInButton=*/false,
+        /*taskbarIcon=*/this->GetFlowxIcon());
 
     // Install content paint callback — runs on the popout thread.
     // Takes an immutable snapshot of DIFLIS state under the mutex, draws directly into
