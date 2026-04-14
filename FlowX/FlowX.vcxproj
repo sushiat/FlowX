@@ -111,7 +111,7 @@
   <ItemGroup>
     <ClCompile Include="CFlowX.cpp" />
     <ClCompile Include="CFlowX_Base.cpp" />
-    <ClCompile Include="CFlowX_CustomTags.cpp" />
+    <ClCompile Include="CFlowX_WindowCache.cpp" />
     <ClCompile Include="CFlowX_Functions.cpp" />
     <ClCompile Include="CFlowX_Logging.cpp" />
     <ClCompile Include="CFlowX_LookupsTools.cpp" />
@@ -129,6 +129,7 @@
     <ClCompile Include="PopoutWindow.cpp" />
     <ClCompile Include="RadarScreen.cpp" />
     <ClCompile Include="RadarScreen_ApproachEst.cpp" />
+    <ClCompile Include="RadarScreen_SettingsWindow.cpp" />
     <ClCompile Include="RadarScreen_DepRate.cpp" />
     <ClCompile Include="RadarScreen_StartMenu.cpp" />
     <ClCompile Include="RadarScreen_Taxi.cpp" />
@@ -149,7 +150,7 @@
     <ClInclude Include="..\include\date\tz.h" />
     <ClInclude Include="..\include\date\tz_private.h" />
     <ClInclude Include="CFlowX_Base.h" />
-    <ClInclude Include="CFlowX_CustomTags.h" />
+    <ClInclude Include="CFlowX_WindowCache.h" />
     <ClInclude Include="CFlowX_Functions.h" />
     <ClInclude Include="CFlowX_Logging.h" />
     <ClInclude Include="CFlowX_LookupsTools.h" />

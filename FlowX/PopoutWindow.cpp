@@ -25,8 +25,10 @@ PopoutWindow::PopoutWindow(std::string title_, int startX, int startY, int cW, i
                            std::function<void(int, int)> onMoved_,
                            std::function<void()>         onNeedsRefresh_,
                            DirectDragFn                  onDirectDrag_,
-                           bool                          hasPopInButton)
-    : hasPopInButton_(hasPopInButton), title(std::move(title_)), contentW(cW), contentH(cH),
+                           bool                          hasPopInButton,
+                           HICON                         taskbarIcon)
+    : hasPopInButton_(hasPopInButton), taskbarIcon_(taskbarIcon),
+      title(std::move(title_)), contentW(cW), contentH(cH),
       onDirectDrag_(std::move(onDirectDrag_)), onNeedsRefresh(std::move(onNeedsRefresh_)),
       onMoved(std::move(onMoved_))
 {
@@ -281,7 +283,12 @@ void PopoutWindow::ThreadProc(int startX, int startY, std::atomic<bool>& readyFl
     }
 
     // Window size equals content size — the content bitmap includes the title bar.
-    this->hwnd = CreateWindowExA(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, WNDCLASS_NAME,
+    // When a taskbar icon is provided, use WS_EX_APPWINDOW so the window appears in the
+    // taskbar; otherwise WS_EX_TOOLWINDOW keeps it out of the taskbar as before.
+    const DWORD exStyle = this->taskbarIcon_
+                              ? (WS_EX_TOPMOST | WS_EX_APPWINDOW | WS_EX_NOACTIVATE)
+                              : (WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+    this->hwnd = CreateWindowExA(exStyle, WNDCLASS_NAME,
                                  this->title.c_str(), WS_POPUP | WS_VISIBLE, startX, startY,
                                  this->contentW, this->contentH, nullptr, nullptr,
                                  GetModuleHandleA(nullptr), this);
@@ -291,6 +298,14 @@ void PopoutWindow::ThreadProc(int startX, int startY, std::atomic<bool>& readyFl
     if (!this->hwnd)
     {
         return;
+    }
+
+    if (this->taskbarIcon_)
+    {
+        SendMessageA(this->hwnd, WM_SETICON, ICON_BIG,
+                     reinterpret_cast<LPARAM>(this->taskbarIcon_));
+        SendMessageA(this->hwnd, WM_SETICON, ICON_SMALL,
+                     reinterpret_cast<LPARAM>(this->taskbarIcon_));
     }
 
     MSG msg;
@@ -661,6 +676,10 @@ LRESULT PopoutWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 std::lock_guard lock(this->eventMutex_);
                 this->pendingEvents_.push_back(std::move(ev));
             }
+            // Ask the main thread to re-render content so hover highlights update
+            // without waiting for the next EuroScope refresh tick.
+            if (this->onNeedsRefresh)
+                this->onNeedsRefresh();
         }
         return 0;
     }

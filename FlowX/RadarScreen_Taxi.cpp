@@ -8,7 +8,7 @@
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 #include "CFlowX_Functions.h"
 #include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"
@@ -179,13 +179,13 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
 {
     auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
 
-    if (!(this->showTaxiOverlay || this->showTaxiLabels))
+    if (!(settings->GetShowTaxiOverlay() || settings->GetShowTaxiLabels()))
         return;
     if (settings->osmData.ways.empty() && settings->osmData.holdingPositions.empty())
         return;
 
     // Pass 1 — draw polylines, one pen per way.
-    if (this->showTaxiOverlay)
+    if (settings->GetShowTaxiOverlay())
         for (const auto& way : settings->osmData.ways)
         {
             const COLORREF col  = (way.type == AerowayType::Taxiway_HoldingPoint)   ? RGB(255, 80, 80)
@@ -217,7 +217,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
         }
 
     // Pass 1b — derived runway centrelines (from TaxiGraph, not OSM ways).
-    if (this->showTaxiOverlay)
+    if (settings->GetShowTaxiOverlay())
     {
         HPEN rwPen  = CreatePen(PS_SOLID, 3, RGB(255, 140, 0));
         HPEN rwPrev = static_cast<HPEN>(SelectObject(hDC, rwPen));
@@ -264,7 +264,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
     };
 
     // Pass 3 — holding position nodes: filled orange circles with designator label.
-    if (this->showTaxiOverlay && !settings->osmData.holdingPositions.empty())
+    if (settings->GetShowTaxiOverlay() && !settings->osmData.holdingPositions.empty())
     {
         HPEN   hpPen       = CreatePen(PS_SOLID, 1, RGB(255, 140, 0));
         HBRUSH hpBrush     = CreateSolidBrush(RGB(255, 140, 0));
@@ -280,7 +280,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
             Ellipse(hDC, pt.x - 7, pt.y - 7, pt.x + 7, pt.y + 7);
 
             const std::string& lbl = hp.ref.empty() ? hp.name : hp.ref;
-            if (!lbl.empty() && this->showTaxiLabels)
+            if (!lbl.empty() && settings->GetShowTaxiLabels())
                 drawLabel({pt.x + 13, pt.y}, lbl, RGB(160, 80, 0));
         }
 
@@ -291,7 +291,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
     }
 
     // Pass 2 — way labels; gated on showTaxiLabels.
-    if (this->showTaxiLabels)
+    if (settings->GetShowTaxiLabels())
     {
         std::set<std::string> drawnIsxLabels;
         std::set<std::string> drawnHpLabels;
@@ -366,7 +366,7 @@ void RadarScreen::DrawTaxiOverlay(HDC hDC)
 
     // Pass 4 & 5 — config polygons for the active airport only.
     auto overlayAptIt = settings->FindMyAirport();
-    if (this->showTaxiOverlay && overlayAptIt != settings->GetAirports().end())
+    if (settings->GetShowTaxiOverlay() && overlayAptIt != settings->GetAirports().end())
     {
         const auto& apt = overlayAptIt->second;
 
@@ -453,6 +453,8 @@ void RadarScreen::DrawRoutePolyline(HDC hDC, const TaxiRoute& route, COLORREF co
 /// @brief Draws confirmed (2-second flash) and persistently tracked taxi routes.
 void RadarScreen::DrawTaxiRoutes(HDC hDC)
 {
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
     // Draw confirmed taxi routes (2-second flash); prune entries older than 2 s.
     if (!this->taxiAssigned.empty())
     {
@@ -621,7 +623,7 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
             this->hoveredTaxiTarget.clear(); // push-only aircraft: keep for DrawPlanningRoutes
     }
 
-    if (!this->showTaxiRoutes || this->taxiTracked.empty())
+    if (!settings->GetShowTaxiRoutes() || this->taxiTracked.empty())
     {
         for (const auto& cs : routesDone)
         {
@@ -658,6 +660,8 @@ void RadarScreen::DrawTaxiRoutes(HDC hDC)
 /// @brief Draws active push routes, the yellow suggested route, and the magenta/light-blue planning preview.
 void RadarScreen::DrawPlanningRoutes(HDC hDC)
 {
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+
     // Draw push routes: only when "Show routes" is on or the pushing aircraft is hovered.
     // Red during taxi-planning mode (active obstacle), orange otherwise.
     if (!this->pushTracked.empty())
@@ -675,7 +679,7 @@ void RadarScreen::DrawPlanningRoutes(HDC hDC)
             this->DrawRoutePolyline(hDC, this->pushTracked.at(this->hoveredTaxiTarget),
                                     pushHovCol, 3);
 
-        if (this->showTaxiRoutes)
+        if (settings->GetShowTaxiRoutes())
             for (const auto& [cs, pushRoute] : this->pushTracked)
             {
                 if (cs == this->hoveredTaxiTarget)

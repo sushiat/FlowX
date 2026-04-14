@@ -530,6 +530,11 @@ void CFlowX_Settings::LoadSettings()
             this->soundNoRoute        = j["global"].value("soundNoRoute", true);
             this->soundTaxiConflict   = j["global"].value("soundTaxiConflict", true);
             this->updateCheck         = j["global"].value("updateCheck", true);
+            this->showTaxiOverlay     = j["global"].value("showTaxiOverlay", false);
+            this->showTaxiLabels      = j["global"].value("showTaxiLabels", false);
+            this->showTaxiRoutes      = j["global"].value("showTaxiRoutes", false);
+            this->showTaxiGraph       = j["global"].value("showTaxiGraph", false);
+            this->logTaxiTests        = j["global"].value("logTaxiTests", false);
         }
         if (this->debug)
         {
@@ -601,6 +606,14 @@ void CFlowX_Settings::LoadSettings()
                     this->weatherPopoutX   = w.value("popoutX", -1);
                     this->weatherPopoutY   = w.value("popoutY", -1);
                 }
+                else if (name == "settingsWindow")
+                {
+                    this->settingsWindowX   = w.value("x", -1);
+                    this->settingsWindowY   = w.value("y", -1);
+                    this->settingsPoppedOut = w.value("poppedOut", false);
+                    this->settingsPopoutX   = w.value("popoutX", -1);
+                    this->settingsPopoutY   = w.value("popoutY", -1);
+                }
             }
         }
     }
@@ -630,6 +643,11 @@ void CFlowX_Settings::SaveSettings()
         j["global"]["soundNoRoute"]        = this->soundNoRoute;
         j["global"]["soundTaxiConflict"]   = this->soundTaxiConflict;
         j["global"]["updateCheck"]         = this->updateCheck;
+        j["global"]["showTaxiOverlay"]     = this->showTaxiOverlay;
+        j["global"]["showTaxiLabels"]      = this->showTaxiLabels;
+        j["global"]["showTaxiRoutes"]      = this->showTaxiRoutes;
+        j["global"]["showTaxiGraph"]       = this->showTaxiGraph;
+        j["global"]["logTaxiTests"]        = this->logTaxiTests;
 
         json windows = json::array();
         auto addWin  = [&](const char* name, int x, int y, bool vis)
@@ -713,6 +731,16 @@ void CFlowX_Settings::SaveSettings()
             w["poppedOut"] = this->weatherPoppedOut;
             w["popoutX"]   = this->weatherPopoutX;
             w["popoutY"]   = this->weatherPopoutY;
+            windows.push_back(w);
+        }
+        {
+            json w;
+            w["name"]      = "settingsWindow";
+            w["x"]         = this->settingsWindowX;
+            w["y"]         = this->settingsWindowY;
+            w["poppedOut"] = this->settingsPoppedOut;
+            w["popoutX"]   = this->settingsPopoutX;
+            w["popoutY"]   = this->settingsPopoutY;
             windows.push_back(w);
         }
         j["windowSettings"] = windows;

@@ -130,6 +130,7 @@ const int SCREEN_OBJECT_DIFLIS_STATUS_BTN   = 6724; ///< Per-strip status-field 
 const int SCREEN_OBJECT_DIFLIS_RESIZE       = 6725; ///< Bottom-right resize handle of the DIFLIS window
 const int SCREEN_OBJECT_DIFLIS_MAXIMIZE_BTN = 6726; ///< Maximize/restore toggle in the DIFLIS popout title bar
 const int SCREEN_OBJECT_DIFLIS_TOPMOST_BTN  = 6727; ///< Always-on-top toggle in the DIFLIS popout title bar
+const int SCREEN_OBJECT_SETTINGS_WIN        = 6728; ///< Settings window title bar (drag handle)
 /// @}
 
 /// @defgroup DiflisColors DIFLIS flight strip background + accent colours

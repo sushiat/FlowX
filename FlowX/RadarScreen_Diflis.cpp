@@ -8,7 +8,7 @@
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 #include "CFlowX_Functions.h"
 #include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"
@@ -1031,7 +1031,7 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
         s->SetDiflisPopoutPos(x, y);
     }
     this->diflisPopout = std::make_unique<PopoutWindow>(
-        "DIFLIS", x, y, w, h,
+        "FlowX DIFLIS", x, y, w, h,
         [s](int nx, int ny)
         { s->SetDiflisPopoutPos(nx, ny); },
         [this]
@@ -1042,7 +1042,8 @@ void RadarScreen::CreateDiflisPopout(CFlowX_Settings* s)
                 return {0, 0};
             return {std::max(520, currentW + (int)delta.x), std::max(360, currentH + (int)delta.y)};
         },
-        /*hasPopInButton=*/false);
+        /*hasPopInButton=*/false,
+        /*taskbarIcon=*/this->GetFlowxIcon());
 
     // Install content paint callback — runs on the popout thread.
     // Takes an immutable snapshot of DIFLIS state under the mutex, draws directly into
@@ -1110,7 +1111,7 @@ void RadarScreen::DiflisMoveStrip(const std::string& callsign, const std::string
     // Force an immediate strip-cache rebuild so BuildDiflisSnapshot picks up the new
     // override in the same OnRefresh tick. Without this, the strip "snaps back" to
     // its origin group for ~1 s until the next UpdateTagCache timer tick catches up.
-    if (auto* tags = dynamic_cast<CFlowX_CustomTags*>(this->GetPlugIn()))
+    if (auto* tags = dynamic_cast<CFlowX_WindowCache*>(this->GetPlugIn()))
         tags->RebuildDiflisStripCache();
 }
 
@@ -1136,6 +1137,6 @@ void RadarScreen::DiflisUndo()
         }
     }
 
-    if (auto* tags = dynamic_cast<CFlowX_CustomTags*>(this->GetPlugIn()))
+    if (auto* tags = dynamic_cast<CFlowX_WindowCache*>(this->GetPlugIn()))
         tags->RebuildDiflisStripCache();
 }

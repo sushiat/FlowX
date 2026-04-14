@@ -8,7 +8,7 @@
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 #include "CFlowX_Functions.h"
 #include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"
@@ -29,7 +29,26 @@ RadarScreen::RadarScreen()
     this->debug = false;
 }
 
-RadarScreen::~RadarScreen() = default;
+RadarScreen::~RadarScreen()
+{
+    if (this->flowxIcon_)
+    {
+        DestroyIcon(this->flowxIcon_);
+        this->flowxIcon_ = nullptr;
+    }
+}
+
+HICON RadarScreen::GetFlowxIcon()
+{
+    if (this->flowxIcon_ || this->flowxIconLoadTried_)
+        return this->flowxIcon_;
+    this->flowxIconLoadTried_ = true;
+    std::string path = GetPluginDirectory() + "\\flowx.ico";
+    this->flowxIcon_ = (HICON)LoadImageA(nullptr, path.c_str(), IMAGE_ICON,
+                                         0, 0,
+                                         LR_LOADFROMFILE | LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
+    return this->flowxIcon_;
+}
 
 /// @brief Notifies the plugin that the screen is closing, then deletes this RadarScreen.
 void RadarScreen::OnAsrContentToBeClosed()
@@ -190,7 +209,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
         {
             this->UpdateSwingoverState();
-            if (this->showTaxiGraph)
+            if (static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetShowTaxiGraph())
                 this->DrawTaxiGraph(hDC);
             this->DrawTaxiOverlay(hDC);
             this->DrawTaxiRoutes(hDC);
@@ -251,6 +270,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     this->approachEstPopout.reset();
                 }
             }
+            if (!settings->GetApproachEstVisible() && this->approachEstPopout)
+            {
+                this->approachEstPopout.reset();
+            }
             if (settings->GetApproachEstVisible() && settings->GetApproachEstPoppedOut() &&
                 !this->approachEstPopout)
             {
@@ -293,6 +316,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     settings->SetDepRatePoppedOut(false);
                     this->depRatePopout.reset();
                 }
+            }
+            if (!settings->GetDepRateVisible() && this->depRatePopout)
+            {
+                this->depRatePopout.reset();
             }
             if (settings->GetDepRateVisible() && settings->GetDepRatePoppedOut() &&
                 !this->depRatePopout)
@@ -344,6 +371,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     this->weatherPopout.reset();
                 }
             }
+            if (!settings->GetWeatherVisible() && this->weatherPopout)
+            {
+                this->weatherPopout.reset();
+            }
             if (settings->GetWeatherVisible() && settings->GetWeatherPoppedOut() &&
                 !this->weatherPopout)
             {
@@ -362,6 +393,50 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 else
                 {
                     this->DrawWeatherWindow(hDC);
+                }
+            }
+
+            // ── Settings ───────────────────────────────────────────────────────
+            if (this->settingsPopout)
+            {
+                if (this->settingsPopout->IsCloseRequested())
+                {
+                    settings->SetSettingsVisible(false);
+                    settings->SetSettingsPoppedOut(false);
+                    this->settingsPopout.reset();
+                }
+                else if (this->settingsPopout->IsPopInRequested())
+                {
+                    settings->SetSettingsPoppedOut(false);
+                    this->settingsPopout.reset();
+                }
+            }
+            if (settings->GetSettingsVisible() && settings->GetSettingsPoppedOut() &&
+                !this->settingsPopout)
+            {
+                this->CreateSettingsPopout(settings);
+            }
+            if (settings->GetSettingsVisible())
+            {
+                const int fo       = settings->GetFontOffset();
+                const int settingsW = 560 * (14 + fo) / 14;
+                const int settingsH = 420 * (14 + fo) / 14;
+                if (this->settingsPopout)
+                {
+                    if (this->settingsPopout->GetContentW() != settingsW ||
+                        this->settingsPopout->GetContentH() != settingsH)
+                    {
+                        this->settingsPopout->RequestResize(settingsW, settingsH);
+                    }
+                    this->RenderToPopout(hDC, this->settingsPopout.get(),
+                                         this->settingsWindowPos,
+                                         settingsW, settingsH,
+                                         [this](HDC dc)
+                                         { this->DrawSettingsWindow(dc); });
+                }
+                else
+                {
+                    this->DrawSettingsWindow(hDC);
                 }
             }
 
@@ -439,7 +514,7 @@ void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget Rada
         }
         if (RadarTarget.IsValid())
         {
-            static_cast<CFlowX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
+            static_cast<CFlowX_WindowCache*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
         }
     }
     catch (const std::exception& e)

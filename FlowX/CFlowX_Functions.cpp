@@ -724,6 +724,7 @@ void CFlowX_Functions::RedoFlags()
         {
             this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
             this->radarScreen->StartTagFunction(cs.c_str(), nullptr, 0, cs.c_str(), nullptr, EuroScopePlugIn::TAG_ITEM_FUNCTION_SET_CLEARED_FLAG, POINT(), RECT());
+            this->LogDebugMessage(cs + " CLR flag re-set", "RedoFlags");
         }
 
         // Queue a ground-status re-push for throttled background dispatch
@@ -731,6 +732,7 @@ void CFlowX_Functions::RedoFlags()
         if (it != this->groundStatus.end() && !it->second.empty())
         {
             this->redoFlagQueue.push_back({cs, it->second});
+            this->LogDebugMessage(cs + " queued GND state=" + it->second, "RedoFlags");
         }
     }
 }
