@@ -418,11 +418,19 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             }
             if (settings->GetSettingsVisible())
             {
+                const int fo       = settings->GetFontOffset();
+                const int settingsW = 560 * (14 + fo) / 14;
+                const int settingsH = 420 * (14 + fo) / 14;
                 if (this->settingsPopout)
                 {
+                    if (this->settingsPopout->GetContentW() != settingsW ||
+                        this->settingsPopout->GetContentH() != settingsH)
+                    {
+                        this->settingsPopout->RequestResize(settingsW, settingsH);
+                    }
                     this->RenderToPopout(hDC, this->settingsPopout.get(),
                                          this->settingsWindowPos,
-                                         560, 420,
+                                         settingsW, settingsH,
                                          [this](HDC dc)
                                          { this->DrawSettingsWindow(dc); });
                 }

@@ -20,9 +20,18 @@
 
 namespace
 {
-/// Fixed content size of the Settings window — roughly 4:3. Not resizable.
-constexpr int SETTINGS_WIN_W = 560;
-constexpr int SETTINGS_WIN_H = 420;
+/// Base content size of the Settings window at fontOffset 0 — roughly 4:3.
+/// Actual size scales linearly with fontOffset so every row/font increase grows the window.
+constexpr int SETTINGS_WIN_BASE_W = 560;
+constexpr int SETTINGS_WIN_BASE_H = 420;
+
+/// Compute the Settings window content size for a given font offset.
+inline std::pair<int, int> SettingsWinSize(int fo)
+{
+    const int w = SETTINGS_WIN_BASE_W * (14 + fo) / 14;
+    const int h = SETTINGS_WIN_BASE_H * (14 + fo) / 14;
+    return {w, h};
+}
 
 /// A single row inside a group box.
 struct SettingsRow
@@ -52,11 +61,11 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
     if (!settings->GetSettingsVisible())
         return;
 
-    const int TITLE_H = 13;
-    const int X_BTN   = 11;
-    const int op      = settings->GetBgOpacity();
-    const int WIN_W   = SETTINGS_WIN_W;
-    const int WIN_H   = SETTINGS_WIN_H;
+    const int TITLE_H    = 13;
+    const int X_BTN      = 11;
+    const int op         = settings->GetBgOpacity();
+    const int foEarly    = settings->GetFontOffset();
+    const auto [WIN_W, WIN_H] = SettingsWinSize(foEarly);
 
     if (this->settingsWindowPos.x == -1)
     {
@@ -357,8 +366,7 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
 
 void RadarScreen::CreateSettingsPopout(CFlowX_Settings* s)
 {
-    int w = SETTINGS_WIN_W;
-    int h = SETTINGS_WIN_H;
+    const auto [w, h] = SettingsWinSize(s->GetFontOffset());
     int x = s->GetSettingsPopoutX();
     int y = s->GetSettingsPopoutY();
     if (x == -1)
