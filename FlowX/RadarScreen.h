@@ -203,6 +203,14 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws the WX/ATIS window showing wind, QNH, and ATIS letter per configured airport.
     void DrawWeatherWindow(HDC hDC);
 
+    /// @brief Draws the Settings window — a 4:3 grid of group boxes with toggles/sliders replacing
+    /// the moved Start-menu sections. Click events reuse SCREEN_OBJECT_START_MENU_ITEM so the
+    /// existing menu-dispatch handler in RadarScreen_Interaction.cpp applies changes.
+    void DrawSettingsWindow(HDC hDC);
+
+    /// @brief Creates the Settings popout window with a fixed 560×420 size and persisted position.
+    void CreateSettingsPopout(CFlowX_Settings* s);
+
   public:
     POINT                                         approachEstLastDrag = {-1, -1};       ///< Previous drag cursor position for the Approach Estimate window; (-1,-1) when not dragging
     std::unique_ptr<PopoutWindow>                 approachEstPopout;                    ///< Non-null when the Approach Estimate window is in standalone popout mode
@@ -245,15 +253,12 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     std::string                                   napReminderAirport;                   ///< ICAO code of the airport whose NAP reminder is currently active
     POINT                                         napWindowPos = {-1, -1};              ///< Top-left corner of the NAP reminder window; (-1,-1) until first shown (auto-centred)
     std::map<std::string, depInfo>                radarTargetDepartureInfos;            ///< Callsign -> departure overlay data for aircraft currently shown on the radar
-    bool                                          logTaxiTests           = false;       ///< When true, assigned taxi routes are logged as JSON test case templates
-    bool                                          showTaxiGraph          = false;       ///< When true, the routing graph nodes and edges are drawn as a diagnostic overlay
-    bool                                          showTaxiLabels         = false;       ///< When true, taxiway name labels are drawn over the TAXI network overlay
-    bool                                          showTaxiOverlay        = false;       ///< When true, taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
-    bool                                          showTaxiRoutes         = false;       ///< When true, all assigned taxi routes are drawn persistently, clipped to the remaining portion
-    int                                           startBtnLastHoverType  = -1;          ///< Last object type reported by OnOverScreenObject for the Start button; used to detect hover transitions
-    bool                                          startBtnPressed        = false;       ///< True while the left mouse button is held down over the Start button
+    int                                           startBtnLastHoverType = -1;           ///< Last object type reported by OnOverScreenObject for the Start button; used to detect hover transitions
+    bool                                          startBtnPressed       = false;        ///< True while the left mouse button is held down over the Start button
+    std::string                                   startMenuLastHoverId;                 ///< Last object id hovered for Start menu / Settings items; used to detect row-to-row hover transitions
     int                                           startMenuLastHoverType = -1;          ///< Last object type reported by OnOverScreenObject for Start menu items; used to detect hover transitions
     bool                                          startMenuOpen          = false;       ///< True while the Start button popup menu is visible
+    bool                                          windowsSubmenuExpanded = false;       ///< True while the "Windows" group in the Start menu is expanded to reveal window toggle rows
     /// @brief A predicted taxi path intersection between two aircraft with conflicting routes.
     struct TaxiConflictInfo
     {
@@ -308,7 +313,10 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     POINT                              twrOutboundWindowPos   = {-1, -1}; ///< Top-left corner of the TWR Outbound window; (-1,-1) until first draw
     int                                winCloseLastHoverType  = -1;       ///< Last object type reported by OnOverScreenObject for window close buttons; used to detect enter/leave transitions
     int                                winPopoutLastHoverType = -1;       ///< Last object type reported by OnOverScreenObject for window popout buttons; used to detect enter/leave transitions
-    POINT                              weatherLastDrag        = {-1, -1}; ///< Previous drag cursor position for the WX/ATIS window
+    POINT                              settingsLastDrag       = {-1, -1}; ///< Previous drag cursor position for the Settings window
+    std::unique_ptr<PopoutWindow>      settingsPopout;                    ///< Non-null when the Settings window is in standalone popout mode
+    POINT                              settingsWindowPos = {-1, -1};      ///< Top-left corner of the Settings window; (-1,-1) until first draw (auto-centred)
+    POINT                              weatherLastDrag   = {-1, -1};      ///< Previous drag cursor position for the WX/ATIS window
     std::unique_ptr<PopoutWindow>      weatherPopout;                     ///< Non-null when the WX/ATIS window is in standalone popout mode
     std::vector<WeatherRowCache>       weatherRowsCache;                  ///< Cached per-airport rows for the WX/ATIS window; rebuilt every second by UpdateTagCache()
     int                                weatherWindowH   = 0;              ///< Last-rendered height of the WX/ATIS window in pixels; 0 until first draw

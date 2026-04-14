@@ -248,55 +248,32 @@ void RadarScreen::DrawStartMenu(HDC hDC)
         bool        hasFontButtons = false;
         bool        hasBgButtons   = false;
         bool        disabled       = false;
+        bool        isExpandable   = false; ///< Row is a submenu toggle; draws an arrow (▶ collapsed / ▼ expanded) instead of a checkbox
+        bool        expanded       = false; ///< Current state of the expandable row; also hides children when false
+        bool        isChild        = false; ///< Row is indented under the most recent expandable row; hidden when that row is collapsed
     };
 
-    const bool osmBusy = settings->IsOsmBusy();
+    // (Suppress unused-var warning when Commands/Windows are the only kept sections.)
+    (void)base;
 
-    MenuRow rows[] = {
-        {true, "Windows", false, false, -1},
-        {false, "Approach Estimate", true, settings->GetApproachEstVisible(), 16},
-        {false, "DEP/H", true, settings->GetDepRateVisible(), 4},
-        {false, "TWR Outbound", true, settings->GetTwrOutboundVisible(), 5},
-        {false, "TWR Inbound", true, settings->GetTwrInboundVisible(), 6},
-        {false, "WX/ATIS", true, settings->GetWeatherVisible(), 7},
-        {false, "DIFLIS", true, settings->GetDiflisVisible(), 32},
-        {true, "Commands", false, false, -1},
-        {false, "Redo CLR flags", false, false, 0},
-        {false, "Dismiss QNH", false, false, 12},
-        {false, "Save positions", false, false, 1},
-        {true, "Assists", false, false, -1},
-        {false, "Auto-Restore FPLN", true, settings->GetAutoRestore(), 3},
-        {false, "Auto PARK", true, settings->GetAutoParked(), 15},
-        {false, "Auto-Clear Scratch", true, settings->GetAutoScratchpadClear(), 18},
-        {false, "HP auto-scratch", true, settings->GetHpAutoScratch(), 28},
-        {true, "Notifications", false, false, -1},
-        {false, "Airborne", true, settings->GetSoundAirborne(), 19},
-        {false, "GND Transfer", true, settings->GetSoundGndTransfer(), 20},
-        {false, "Ready T/O", true, settings->GetSoundReadyTakeoff(), 21},
-        {false, "No Route", true, settings->GetSoundNoRoute(), 30},
-        {false, "Taxi Conflict", true, settings->GetSoundTaxiConflict(), 27},
-        {true, "Options", false, false, -1},
-        {false, "Debug mode", true, base->GetDebug(), 2},
-        {false, "Update check", true, settings->GetUpdateCheck(), 13},
-        {false, "Flash messages", true, settings->GetFlashOnMessage(), 14},
-        {false, "Appr Est Colors", true, settings->GetApprEstColors(), 17},
-        {false, "Fonts", false, false, -1, true},
-        {false, "BG opacity", false, false, -1, false, true},
-        {true, "TAXI", false, false, -1},
-        {false, "Update TAXI info", false, false, 22, false, false, osmBusy},
-        {false, "Clear TAXI routes", false, false, 26},
-        {false, "Show TAXI network", true, this->showTaxiOverlay, 23},
-        {false, "Show TAXI labels", true, this->showTaxiLabels, 24},
-        {false, "Show TAXI routes", true, this->showTaxiRoutes, 25},
-        {false, "Show TAXI graph", true, this->showTaxiGraph, 29},
-        {false, "Log TAXI tests", true, this->logTaxiTests, 31},
-    };
-    const int NUM_ROWS = (int)(sizeof(rows) / sizeof(rows[0]));
+    std::vector<MenuRow> rowList;
+    rowList.push_back({true, "Commands", false, false, -1});
+    rowList.push_back({false, "Redo CLR flags", false, false, 0});
+    rowList.push_back({false, "Dismiss QNH", false, false, 12});
+    rowList.push_back({false, "Save positions", false, false, 1});
+    rowList.push_back({true, "Windows", false, false, -1});
+    rowList.push_back({false, "Windows", false, false, 33, false, false, false, true,
+                       this->windowsSubmenuExpanded, false});
+    rowList.push_back({false, "Settings...", false, false, 34});
+
+    auto* rows         = rowList.data();
+    const int NUM_ROWS = static_cast<int>(rowList.size());
 
     // Compute total menu height: outer padding at bottom only (top header sits flush with the border), gaps before non-first headers, row heights.
     int MENU_H = OUTER_PAD;
-    for (auto [i, row] : std::views::enumerate(rows))
+    for (int i = 0; i < NUM_ROWS; ++i)
     {
+        const MenuRow& row = rowList[i];
         MENU_H += (row.isHeader && i > 0) ? GAP_H + HEADER_H : row.isHeader ? HEADER_H
                                                                             : ITEM_H;
     }
@@ -349,9 +326,13 @@ void RadarScreen::DrawStartMenu(HDC hDC)
                                    DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT prev       = (HFONT)SelectObject(hDC, itemFont);
 
-    int iy = my;
-    for (auto [i, row] : std::views::enumerate(rows))
+    int iy             = my;
+    int windowsRowY    = -1; ///< Y coordinate of the "Windows" expandable row — submenu pops out at this y
+    for (int i = 0; i < NUM_ROWS; ++i)
     {
+        const MenuRow& row = rowList[i];
+        if (row.isExpandable)
+            windowsRowY = iy;
         int  rh      = row.isHeader ? HEADER_H : ITEM_H;
         RECT rowRect = {mx, iy, mx + MENU_W, iy + rh}; // rowRect for headers is updated after gap advance below
 
@@ -461,10 +442,13 @@ void RadarScreen::DrawStartMenu(HDC hDC)
                 DeleteObject(hoverBrush);
             }
 
+            // Children of an expandable row are indented to visually nest under the parent.
+            const int CHILD_INDENT = row.isChild ? (CBX_S + CBX_GAP) : 0;
+
             if (row.hasCheckbox)
             {
                 int  cy      = iy + (ITEM_H - CBX_S) / 2;
-                int  cx      = mx + OUTER_PAD;
+                int  cx      = mx + OUTER_PAD + CHILD_INDENT;
                 RECT boxRect = {cx, cy, cx + CBX_S, cy + CBX_S};
 
                 auto boxBrush = CreateSolidBrush(row.checked ? RGB(30, 55, 95) : RGB(25, 25, 25));
@@ -484,11 +468,24 @@ void RadarScreen::DrawStartMenu(HDC hDC)
             }
 
             SelectObject(hDC, itemFont);
-            RECT textRect = {mx + OUTER_PAD + CBX_S + CBX_GAP, iy, mx + MENU_W - OUTER_PAD, iy + ITEM_H};
+            RECT textRect = {mx + OUTER_PAD + CBX_S + CBX_GAP + CHILD_INDENT, iy,
+                             mx + MENU_W - OUTER_PAD, iy + ITEM_H};
             SetTextColor(hDC, row.disabled ? RGB(70, 70, 70)
                               : rowHovered ? TAG_COLOR_WHITE
                                            : TAG_COLOR_LIST_GRAY);
             DrawTextA(hDC, row.label, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            if (row.isExpandable)
+            {
+                // Submenu popout arrow in the checkbox slot: "<" when collapsed (click pops out left),
+                // ">" when expanded (click collapses, arrow points away from submenu).
+                RECT arrowRect = {mx + OUTER_PAD + CHILD_INDENT, iy,
+                                  mx + OUTER_PAD + CHILD_INDENT + CBX_S, iy + ITEM_H};
+                SelectObject(hDC, cbxFont);
+                SetTextColor(hDC, rowHovered ? TAG_COLOR_WHITE : TAG_COLOR_LIST_GRAY);
+                DrawTextA(hDC, row.expanded ? ">" : "<", -1, &arrowRect,
+                          DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            }
 
             if (!row.disabled)
             {
@@ -504,6 +501,89 @@ void RadarScreen::DrawStartMenu(HDC hDC)
     auto borderBrush = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
     FrameRect(hDC, &menuRect, borderBrush);
     DeleteObject(borderBrush);
+
+    // ── Windows submenu popout (left of main menu) ─────────────────────────
+    if (this->windowsSubmenuExpanded && windowsRowY != -1)
+    {
+        struct SubRow
+        {
+            const char* label;
+            bool        checked;
+            int         itemIdx;
+        };
+        const SubRow subRows[] = {
+            {"Approach Estimate", settings->GetApproachEstVisible(), 16},
+            {"DEP/H", settings->GetDepRateVisible(), 4},
+            {"TWR Outbound", settings->GetTwrOutboundVisible(), 5},
+            {"TWR Inbound", settings->GetTwrInboundVisible(), 6},
+            {"WX/ATIS", settings->GetWeatherVisible(), 7},
+            {"DIFLIS", settings->GetDiflisVisible(), 32},
+        };
+        const int NUM_SUB = (int)(sizeof(subRows) / sizeof(subRows[0]));
+        const int SUB_W   = MENU_W;
+        const int SUB_H   = 2 * OUTER_PAD + NUM_SUB * ITEM_H;
+        // Top-align with the Windows row so it reads as "pops out from here".
+        int sx = mx - SUB_W - 2;
+        int sy = windowsRowY;
+        // Clamp so the submenu stays on-screen if the Start button is near the left edge.
+        if (sx < clip.left + 2)
+            sx = clip.left + 2;
+        // Clamp bottom edge against the chat/clip bottom.
+        if (sy + SUB_H > bottom)
+            sy = bottom - SUB_H;
+
+        RECT subRect    = {sx, sy, sx + SUB_W, sy + SUB_H};
+        auto subBgBrush = CreateSolidBrush(RGB(15, 15, 15));
+        FillRect(hDC, &subRect, subBgBrush);
+        DeleteObject(subBgBrush);
+
+        SelectObject(hDC, itemFont);
+        int siy = sy + OUTER_PAD;
+        for (int i = 0; i < NUM_SUB; ++i)
+        {
+            const auto& r       = subRows[i];
+            RECT        rowRect = {sx, siy, sx + SUB_W, siy + ITEM_H};
+            bool        hov     = PtInRect(&rowRect, cursor) != 0;
+            if (hov)
+            {
+                auto hoverBrush = CreateSolidBrush(RGB(45, 70, 115));
+                FillRect(hDC, &rowRect, hoverBrush);
+                DeleteObject(hoverBrush);
+            }
+
+            int  cy      = siy + (ITEM_H - CBX_S) / 2;
+            int  cx      = sx + OUTER_PAD;
+            RECT boxRect = {cx, cy, cx + CBX_S, cy + CBX_S};
+
+            auto boxBrush = CreateSolidBrush(r.checked ? RGB(30, 55, 95) : RGB(25, 25, 25));
+            FillRect(hDC, &boxRect, boxBrush);
+            DeleteObject(boxBrush);
+            auto boxBorder = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+            FrameRect(hDC, &boxRect, boxBorder);
+            DeleteObject(boxBorder);
+
+            if (r.checked)
+            {
+                SelectObject(hDC, cbxFont);
+                SetTextColor(hDC, TAG_COLOR_WHITE);
+                DrawTextA(hDC, "x", -1, &boxRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                SelectObject(hDC, itemFont);
+            }
+
+            RECT textRect = {cx + CBX_S + CBX_GAP, siy, sx + SUB_W - OUTER_PAD, siy + ITEM_H};
+            SetTextColor(hDC, hov ? TAG_COLOR_WHITE : TAG_COLOR_LIST_GRAY);
+            DrawTextA(hDC, r.label, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            std::string objId = std::format("MENU|{}", r.itemIdx);
+            AddScreenObject(SCREEN_OBJECT_START_MENU_ITEM, objId.c_str(), rowRect, false, r.label);
+
+            siy += ITEM_H;
+        }
+
+        auto subBorder = CreateSolidBrush(TAG_COLOR_DEFAULT_GRAY);
+        FrameRect(hDC, &subRect, subBorder);
+        DeleteObject(subBorder);
+    }
 
     SelectObject(hDC, prev);
     DeleteObject(headerFont);

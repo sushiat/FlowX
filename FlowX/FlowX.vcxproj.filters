@@ -57,6 +57,9 @@
     <ClCompile Include="RadarScreen_ApproachEst.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="RadarScreen_SettingsWindow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="RadarScreen_DepRate.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

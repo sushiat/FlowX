@@ -47,6 +47,17 @@ class CFlowX_Settings : public CFlowX_Logging
     bool                           autoScratchpadClear   = false; ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
     bool                           autoRestore           = false; ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     bool                           hpAutoScratch         = true;  ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
+    bool                           logTaxiTests          = false; ///< Whether assigned taxi routes are logged as JSON test case templates
+    bool                           settingsVisible       = false; ///< Whether the Settings window is currently open
+    bool                           settingsPoppedOut     = false; ///< Whether the Settings window is in standalone popout mode
+    int                            settingsWindowX       = -1;    ///< Last-saved X position of the Settings window (in-screen); -1 = not yet positioned
+    int                            settingsWindowY       = -1;    ///< Last-saved Y position of the Settings window (in-screen); -1 = not yet positioned
+    int                            settingsPopoutX       = -1;    ///< Last-saved standalone screen X; -1 = seed from in-screen position
+    int                            settingsPopoutY       = -1;    ///< Last-saved standalone screen Y; -1 = seed from in-screen position
+    bool                           showTaxiGraph         = false; ///< Whether the routing graph nodes and edges are drawn as a diagnostic overlay
+    bool                           showTaxiLabels        = false; ///< Whether taxiway name labels are drawn over the TAXI network overlay
+    bool                           showTaxiOverlay       = false; ///< Whether taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
+    bool                           showTaxiRoutes        = false; ///< Whether all assigned taxi routes are drawn persistently, clipped to the remaining portion
     int                            bgOpacity             = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
     bool                           depRatePoppedOut      = false; ///< Whether the DEP/H window is in standalone popout mode
     int                            depRatePopoutX        = -1;    ///< Last-saved standalone screen X; -1 = seed from in-screen position
@@ -741,5 +752,135 @@ class CFlowX_Settings : public CFlowX_Logging
     void SetWeatherVisible(bool v)
     {
         this->weatherVisible = v;
+    }
+
+    /// @brief Returns whether the taxi network overlay is drawn.
+    [[nodiscard]] bool GetShowTaxiOverlay() const
+    {
+        return this->showTaxiOverlay;
+    }
+
+    /// @brief Returns whether taxiway name labels are drawn.
+    [[nodiscard]] bool GetShowTaxiLabels() const
+    {
+        return this->showTaxiLabels;
+    }
+
+    /// @brief Returns whether assigned taxi routes are drawn persistently.
+    [[nodiscard]] bool GetShowTaxiRoutes() const
+    {
+        return this->showTaxiRoutes;
+    }
+
+    /// @brief Returns whether the routing graph diagnostic overlay is drawn.
+    [[nodiscard]] bool GetShowTaxiGraph() const
+    {
+        return this->showTaxiGraph;
+    }
+
+    /// @brief Returns whether taxi routes are logged as JSON test case templates.
+    [[nodiscard]] bool GetLogTaxiTests() const
+    {
+        return this->logTaxiTests;
+    }
+
+    /// @brief Toggles the taxi network overlay and persists immediately.
+    void ToggleShowTaxiOverlay()
+    {
+        this->showTaxiOverlay = !this->showTaxiOverlay;
+        SaveSettings();
+    }
+
+    /// @brief Toggles taxi labels and persists immediately.
+    void ToggleShowTaxiLabels()
+    {
+        this->showTaxiLabels = !this->showTaxiLabels;
+        SaveSettings();
+    }
+
+    /// @brief Toggles persistent taxi route drawing and persists immediately.
+    void ToggleShowTaxiRoutes()
+    {
+        this->showTaxiRoutes = !this->showTaxiRoutes;
+        SaveSettings();
+    }
+
+    /// @brief Toggles the routing graph overlay and persists immediately.
+    void ToggleShowTaxiGraph()
+    {
+        this->showTaxiGraph = !this->showTaxiGraph;
+        SaveSettings();
+    }
+
+    /// @brief Toggles taxi test logging and persists immediately.
+    void ToggleLogTaxiTests()
+    {
+        this->logTaxiTests = !this->logTaxiTests;
+        SaveSettings();
+    }
+
+    /// @brief Returns whether the Settings window is currently open.
+    [[nodiscard]] bool GetSettingsVisible() const
+    {
+        return this->settingsVisible;
+    }
+
+    /// @brief Sets the Settings window visibility (does not persist; window visibility is session-only).
+    void SetSettingsVisible(bool v)
+    {
+        this->settingsVisible = v;
+    }
+
+    /// @brief Returns whether the Settings window is in standalone popout mode.
+    [[nodiscard]] bool GetSettingsPoppedOut() const
+    {
+        return this->settingsPoppedOut;
+    }
+
+    /// @brief Sets the Settings window popout state and persists immediately.
+    void SetSettingsPoppedOut(bool v)
+    {
+        this->settingsPoppedOut = v;
+        this->SaveSettings();
+    }
+
+    /// @brief Returns the last-saved Settings in-screen X; -1 = not yet saved.
+    [[nodiscard]] int GetSettingsWindowX() const
+    {
+        return this->settingsWindowX;
+    }
+
+    /// @brief Returns the last-saved Settings in-screen Y; -1 = not yet saved.
+    [[nodiscard]] int GetSettingsWindowY() const
+    {
+        return this->settingsWindowY;
+    }
+
+    /// @brief Sets the Settings in-screen window position and persists immediately.
+    void SetSettingsWindowPos(int x, int y)
+    {
+        this->settingsWindowX = x;
+        this->settingsWindowY = y;
+        this->SaveSettings();
+    }
+
+    /// @brief Returns the last-saved Settings standalone-window screen X; -1 = not yet saved.
+    [[nodiscard]] int GetSettingsPopoutX() const
+    {
+        return this->settingsPopoutX;
+    }
+
+    /// @brief Returns the last-saved Settings standalone-window screen Y; -1 = not yet saved.
+    [[nodiscard]] int GetSettingsPopoutY() const
+    {
+        return this->settingsPopoutY;
+    }
+
+    /// @brief Sets the Settings standalone-window position and persists immediately.
+    void SetSettingsPopoutPos(int x, int y)
+    {
+        this->settingsPopoutX = x;
+        this->settingsPopoutY = y;
+        this->SaveSettings();
     }
 };

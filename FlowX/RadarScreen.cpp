@@ -190,7 +190,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
         {
             this->UpdateSwingoverState();
-            if (this->showTaxiGraph)
+            if (static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetShowTaxiGraph())
                 this->DrawTaxiGraph(hDC);
             this->DrawTaxiOverlay(hDC);
             this->DrawTaxiRoutes(hDC);
@@ -362,6 +362,42 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                 else
                 {
                     this->DrawWeatherWindow(hDC);
+                }
+            }
+
+            // ── Settings ───────────────────────────────────────────────────────
+            if (this->settingsPopout)
+            {
+                if (this->settingsPopout->IsCloseRequested())
+                {
+                    settings->SetSettingsVisible(false);
+                    settings->SetSettingsPoppedOut(false);
+                    this->settingsPopout.reset();
+                }
+                else if (this->settingsPopout->IsPopInRequested())
+                {
+                    settings->SetSettingsPoppedOut(false);
+                    this->settingsPopout.reset();
+                }
+            }
+            if (settings->GetSettingsVisible() && settings->GetSettingsPoppedOut() &&
+                !this->settingsPopout)
+            {
+                this->CreateSettingsPopout(settings);
+            }
+            if (settings->GetSettingsVisible())
+            {
+                if (this->settingsPopout)
+                {
+                    this->RenderToPopout(hDC, this->settingsPopout.get(),
+                                         this->settingsWindowPos,
+                                         560, 420,
+                                         [this](HDC dc)
+                                         { this->DrawSettingsWindow(dc); });
+                }
+                else
+                {
+                    this->DrawSettingsWindow(hDC);
                 }
             }
 

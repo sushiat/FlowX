@@ -56,9 +56,11 @@ void RadarScreen::OnOverScreenObject(int ObjectType, const char* sObjectId, POIN
 
         if (ObjectType == SCREEN_OBJECT_START_MENU_ITEM)
         {
-            if (ObjectType != this->startMenuLastHoverType)
+            std::string id(sObjectId ? sObjectId : "");
+            if (ObjectType != this->startMenuLastHoverType || id != this->startMenuLastHoverId)
             {
                 this->startMenuLastHoverType = ObjectType;
+                this->startMenuLastHoverId   = id;
                 this->RequestRefresh();
             }
         }
@@ -687,7 +689,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                         }
 
                         // Log test case template when "Log TAXI tests" is enabled.
-                        if (this->logTaxiTests && finalRoute.valid && !finalRoute.polyline.empty())
+                        if (settings->GetLogTaxiTests() && finalRoute.valid && !finalRoute.polyline.empty())
                         {
                             const std::string& cs = this->taxiPlanActive;
 
@@ -928,6 +930,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 settings->SetDiflisVisible(false);
                 this->diflisPopout.reset();
             }
+            else if (id == "settings")
+            {
+                settings->SetSettingsVisible(false);
+                settings->SetSettingsPoppedOut(false);
+                this->settingsPopout.reset();
+            }
             this->RequestRefresh();
             return;
         }
@@ -954,6 +962,11 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
             else if (id == "diflis" && !this->diflisPopout)
             {
                 this->CreateDiflisPopout(settings);
+            }
+            else if (id == "settings" && !this->settingsPopout)
+            {
+                settings->SetSettingsPoppedOut(true);
+                this->CreateSettingsPopout(settings);
             }
             this->RequestRefresh();
             return;
@@ -1083,23 +1096,23 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
                 else if (idx == 23) // Show TAXI network
                 {
-                    this->showTaxiOverlay = !this->showTaxiOverlay;
+                    settings->ToggleShowTaxiOverlay();
                 }
                 else if (idx == 24) // Show TAXI labels
                 {
-                    this->showTaxiLabels = !this->showTaxiLabels;
+                    settings->ToggleShowTaxiLabels();
                 }
                 else if (idx == 25) // Show TAXI routes
                 {
-                    this->showTaxiRoutes = !this->showTaxiRoutes;
+                    settings->ToggleShowTaxiRoutes();
                 }
                 else if (idx == 29) // Show TAXI graph
                 {
-                    this->showTaxiGraph = !this->showTaxiGraph;
+                    settings->ToggleShowTaxiGraph();
                 }
                 else if (idx == 31) // Log TAXI tests
                 {
-                    this->logTaxiTests = !this->logTaxiTests;
+                    settings->ToggleLogTaxiTests();
                 }
                 else if (idx == 32) // DIFLIS window
                 {
@@ -1148,9 +1161,21 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 {
                     settings->IncreaseBgOpacity();
                 }
+                else if (idx == 33) // Toggle Windows submenu
+                {
+                    this->windowsSubmenuExpanded = !this->windowsSubmenuExpanded;
+                }
+                else if (idx == 34) // Open Settings window
+                {
+                    settings->SetSettingsVisible(true);
+                }
             }
-            // Keep menu open for window toggles (4-7, 16), notification toggles (19-21), and TAXI toggles (23-24); close for all others
-            if (idx < 4 || idx == 12 || idx == 22 || (idx >= 13 && idx != 16 && idx != 17 && idx < 19))
+            // Keep the menu open while the user is toggling inside it (window toggles, submenu expand,
+            // taxi overlay toggles). Close it for any one-shot action (commands, opening Settings, etc.).
+            const bool keepOpen =
+                idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 16 || idx == 32 || // window toggles
+                idx == 33;                                                                // submenu expand
+            if (!keepOpen)
             {
                 this->startMenuOpen = false;
             }
@@ -1542,6 +1567,11 @@ void RadarScreen::OnMoveScreenObject(int ObjectType, const char* sObjectId, POIN
         if (objId == "WXATIS")
         {
             dragWindow(this->weatherWindowPos, this->weatherLastDrag);
+            return;
+        }
+        if (objId == "SETTINGS")
+        {
+            dragWindow(this->settingsWindowPos, this->settingsLastDrag);
             return;
         }
         if (objId == "DIFLIS_RESIZE")

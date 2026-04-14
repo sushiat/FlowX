@@ -129,6 +129,7 @@
     <ClCompile Include="PopoutWindow.cpp" />
     <ClCompile Include="RadarScreen.cpp" />
     <ClCompile Include="RadarScreen_ApproachEst.cpp" />
+    <ClCompile Include="RadarScreen_SettingsWindow.cpp" />
     <ClCompile Include="RadarScreen_DepRate.cpp" />
     <ClCompile Include="RadarScreen_StartMenu.cpp" />
     <ClCompile Include="RadarScreen_Taxi.cpp" />

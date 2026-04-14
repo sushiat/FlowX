@@ -661,6 +661,10 @@ LRESULT PopoutWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 std::lock_guard lock(this->eventMutex_);
                 this->pendingEvents_.push_back(std::move(ev));
             }
+            // Ask the main thread to re-render content so hover highlights update
+            // without waiting for the next EuroScope refresh tick.
+            if (this->onNeedsRefresh)
+                this->onNeedsRefresh();
         }
         return 0;
     }
