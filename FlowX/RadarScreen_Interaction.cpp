@@ -1007,7 +1007,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
 
         if (ObjectType == SCREEN_OBJECT_START_BTN && Button == EuroScopePlugIn::BUTTON_LEFT)
         {
-            this->startMenuOpen = !this->startMenuOpen;
+            this->startMenuOpen          = !this->startMenuOpen;
+            this->windowsSubmenuExpanded = false;
             this->RequestRefresh();
             return;
         }
