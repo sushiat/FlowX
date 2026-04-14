@@ -270,6 +270,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     this->approachEstPopout.reset();
                 }
             }
+            if (!settings->GetApproachEstVisible() && this->approachEstPopout)
+            {
+                this->approachEstPopout.reset();
+            }
             if (settings->GetApproachEstVisible() && settings->GetApproachEstPoppedOut() &&
                 !this->approachEstPopout)
             {
@@ -312,6 +316,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     settings->SetDepRatePoppedOut(false);
                     this->depRatePopout.reset();
                 }
+            }
+            if (!settings->GetDepRateVisible() && this->depRatePopout)
+            {
+                this->depRatePopout.reset();
             }
             if (settings->GetDepRateVisible() && settings->GetDepRatePoppedOut() &&
                 !this->depRatePopout)
@@ -362,6 +370,10 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
                     settings->SetWeatherPoppedOut(false);
                     this->weatherPopout.reset();
                 }
+            }
+            if (!settings->GetWeatherVisible() && this->weatherPopout)
+            {
+                this->weatherPopout.reset();
             }
             if (settings->GetWeatherVisible() && settings->GetWeatherPoppedOut() &&
                 !this->weatherPopout)
