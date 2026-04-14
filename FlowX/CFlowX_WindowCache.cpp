@@ -1,19 +1,19 @@
 /**
- * @file CFlowX_CustomTags.cpp
+ * @file CFlowX_WindowCache.cpp
  * @brief Custom GDI window cache builder; computes outbound and inbound row data in single-pass functions.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
 
 #include "pch.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 
 #include <filesystem>
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
 #include "helpers.h"
 
-void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             tttKey,
+void CFlowX_WindowCache::ComputeInboundCacheEntry(const std::string&             tttKey,
                                                  EuroScopePlugIn::CFlightPlan&  fp,
                                                  EuroScopePlugIn::CRadarTarget& rt,
                                                  TwrInboundRowCache&            row)
@@ -258,7 +258,7 @@ void CFlowX_CustomTags::ComputeInboundCacheEntry(const std::string&             
     // with the gap-adjusted display value after sorting.
 }
 
-void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
+void CFlowX_WindowCache::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
                                                   EuroScopePlugIn::CRadarTarget& rt,
                                                   TwrOutboundRowCache&           row)
 {
@@ -1067,7 +1067,7 @@ void CFlowX_CustomTags::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan& 
     }
 }
 
-void CFlowX_CustomTags::UpdateTagCache()
+void CFlowX_WindowCache::UpdateTagCache()
 {
     if (this->radarScreen == nullptr)
     {
@@ -1454,7 +1454,7 @@ void CFlowX_CustomTags::UpdateTagCache()
     this->RebuildDiflisStripCache();
 }
 
-void CFlowX_CustomTags::RebuildDiflisStripCache()
+void CFlowX_WindowCache::RebuildDiflisStripCache()
 {
     if (this->radarScreen == nullptr)
         return;
@@ -1669,7 +1669,7 @@ void CFlowX_CustomTags::RebuildDiflisStripCache()
     }
 }
 
-void CFlowX_CustomTags::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
+void CFlowX_WindowCache::UpdatePositionDerivedTags(EuroScopePlugIn::CRadarTarget rt)
 {
     this->dbg_positionCalls++;
 

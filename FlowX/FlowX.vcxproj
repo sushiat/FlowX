@@ -111,7 +111,7 @@
   <ItemGroup>
     <ClCompile Include="CFlowX.cpp" />
     <ClCompile Include="CFlowX_Base.cpp" />
-    <ClCompile Include="CFlowX_CustomTags.cpp" />
+    <ClCompile Include="CFlowX_WindowCache.cpp" />
     <ClCompile Include="CFlowX_Functions.cpp" />
     <ClCompile Include="CFlowX_Logging.cpp" />
     <ClCompile Include="CFlowX_LookupsTools.cpp" />
@@ -149,7 +149,7 @@
     <ClInclude Include="..\include\date\tz.h" />
     <ClInclude Include="..\include\date\tz_private.h" />
     <ClInclude Include="CFlowX_Base.h" />
-    <ClInclude Include="CFlowX_CustomTags.h" />
+    <ClInclude Include="CFlowX_WindowCache.h" />
     <ClInclude Include="CFlowX_Functions.h" />
     <ClInclude Include="CFlowX_Logging.h" />
     <ClInclude Include="CFlowX_LookupsTools.h" />

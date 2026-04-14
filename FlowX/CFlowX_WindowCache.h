@@ -1,6 +1,6 @@
 /**
- * @file CFlowX_CustomTags.h
- * @brief Declaration of CFlowX_CustomTags, the custom GDI window cache builder layer.
+ * @file CFlowX_WindowCache.h
+ * @brief Declaration of CFlowX_WindowCache, the custom GDI window cache builder layer.
  * @author Markus Korbel
  * @copyright (c) 2026, MIT License
  */
@@ -11,7 +11,7 @@
 
 /// @brief Plugin layer that builds and maintains the custom GDI window row caches
 /// (TWR Outbound, TWR Inbound) by computing all tag data in single-pass combined functions.
-class CFlowX_CustomTags : public CFlowX_Tags
+class CFlowX_WindowCache : public CFlowX_Tags
 {
   protected:
     /// @brief Computes all inbound fields for one row in a single pass.

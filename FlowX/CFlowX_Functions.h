@@ -6,10 +6,10 @@
  */
 
 #pragma once
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 
 /// @brief Plugin layer that implements all tag-function callbacks triggered by controller clicks.
-class CFlowX_Functions : public CFlowX_CustomTags
+class CFlowX_Functions : public CFlowX_WindowCache
 {
   protected:
     /// @brief Appends the aircraft to the end of the departure queue for its runway (right-click shortcut).

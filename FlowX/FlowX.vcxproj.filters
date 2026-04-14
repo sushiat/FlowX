@@ -21,7 +21,7 @@
     <ClCompile Include="CFlowX_Base.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CFlowX_CustomTags.cpp">
+    <ClCompile Include="CFlowX_WindowCache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="CFlowX_Functions.cpp">
@@ -101,7 +101,7 @@
     <ClInclude Include="CFlowX_Base.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CFlowX_CustomTags.h">
+    <ClInclude Include="CFlowX_WindowCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="CFlowX_Functions.h">

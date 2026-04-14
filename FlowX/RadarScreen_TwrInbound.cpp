@@ -8,7 +8,7 @@
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 #include "CFlowX_Functions.h"
 #include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"

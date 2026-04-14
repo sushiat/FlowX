@@ -8,7 +8,7 @@
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 #include "CFlowX_Functions.h"
 #include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"
@@ -1110,7 +1110,7 @@ void RadarScreen::DiflisMoveStrip(const std::string& callsign, const std::string
     // Force an immediate strip-cache rebuild so BuildDiflisSnapshot picks up the new
     // override in the same OnRefresh tick. Without this, the strip "snaps back" to
     // its origin group for ~1 s until the next UpdateTagCache timer tick catches up.
-    if (auto* tags = dynamic_cast<CFlowX_CustomTags*>(this->GetPlugIn()))
+    if (auto* tags = dynamic_cast<CFlowX_WindowCache*>(this->GetPlugIn()))
         tags->RebuildDiflisStripCache();
 }
 
@@ -1136,6 +1136,6 @@ void RadarScreen::DiflisUndo()
         }
     }
 
-    if (auto* tags = dynamic_cast<CFlowX_CustomTags*>(this->GetPlugIn()))
+    if (auto* tags = dynamic_cast<CFlowX_WindowCache*>(this->GetPlugIn()))
         tags->RebuildDiflisStripCache();
 }

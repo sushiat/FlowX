@@ -56,7 +56,7 @@ Structures are defined in `config.h`. Settings persistence (update check, flash,
 
 ### DIFLIS (Digital Flight Strip) window
 
-Popout-capable electronic strip board, toggled from the Start menu → Windows → DIFLIS. Column/group layout is data-driven from `config.json` under each airport's `"diflis"` key (`col4WidthPercent` + `groups[]`). Group membership is derived from EuroScope state (ground status, clearance flag, airborne) with a DIFLIS-owned override map for states that have no EuroScope counterpart (e.g. `STRIP_STORAGE`, `STANDING_BY`). The strip cache is rebuilt every tick by `CFlowX_CustomTags::UpdateTagCache` into `RadarScreen::diflisStripsCache`; rendering is `RadarScreen::DrawDiflisWindow`. Data model lives in `DiflisModel.h`.
+Popout-capable electronic strip board, toggled from the Start menu → Windows → DIFLIS. Column/group layout is data-driven from `config.json` under each airport's `"diflis"` key (`col4WidthPercent` + `groups[]`). Group membership is derived from EuroScope state (ground status, clearance flag, airborne) with a DIFLIS-owned override map for states that have no EuroScope counterpart (e.g. `STRIP_STORAGE`, `STANDING_BY`). The strip cache is rebuilt every tick by `CFlowX_WindowCache::UpdateTagCache` into `RadarScreen::diflisStripsCache`; rendering is `RadarScreen::DrawDiflisWindow`. Data model lives in `DiflisModel.h`.
 
 ### Tag item columns
 

@@ -8,7 +8,7 @@
 #include "pch.h"
 #include "RadarScreen.h"
 #include "CFlowX_Base.h"
-#include "CFlowX_CustomTags.h"
+#include "CFlowX_WindowCache.h"
 #include "CFlowX_Functions.h"
 #include "CFlowX_Settings.h"
 #include "CFlowX_Timers.h"
@@ -439,7 +439,7 @@ void RadarScreen::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget Rada
         }
         if (RadarTarget.IsValid())
         {
-            static_cast<CFlowX_CustomTags*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
+            static_cast<CFlowX_WindowCache*>(this->GetPlugIn())->UpdatePositionDerivedTags(RadarTarget);
         }
     }
     catch (const std::exception& e)
