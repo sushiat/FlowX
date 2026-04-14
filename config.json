@@ -1,5 +1,38 @@
 {
     "LOWW": {
+        "diflis": {
+            "columnWidths": [28, 28, 29, 15],
+            "inboundBg":       "#B0D8FF",
+            "inboundBgDark":   "#9AC4EC",
+            "inboundText":     "#000000",
+            "inboundTextDim":  "#5A5A5A",
+            "outboundBg":      "#D2D2D2",
+            "outboundBgDark":  "#BCBCBC",
+            "outboundText":    "#000000",
+            "outboundTextDim": "#5A5A5A",
+            "fontSizeStatusBar": 25,
+            "fontSizeGroupHeader": 16,
+            "fontSizeGroupSide": 14,
+            "fontSizeStripLarge": 30,
+            "fontSizeStripMedium": 20,
+            "fontSizeStripSmall": 16,
+            "crossCouple": {
+                "119.400": 123.800,
+                "121.600": 121.775
+            },
+            "groups": [
+                { "id": "LOCAL",                    "title": "LOCAL",    "column": 0, "heightWeight": 20, "rightHeader": "MANUAL", "acceptsDrop": false, "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "ARRIVALS",                 "title": "ARRIVALS", "column": 0, "heightWeight": 80, "rightHeader": "ETA ^",  "acceptsDrop": false, "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "etaAsc"},
+                { "id": "RWY_16_34",                "title": "RUNWAY 16/34","column": 1, "heightWeight": 50, "rightHeader": "",       "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Expanded",  "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "RWY_11_29",                "title": "RUNWAY 11/29","column": 1, "heightWeight": 50, "rightHeader": "",       "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Expanded",  "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "TAXI",                     "title": "TAXI",     "column": 2, "heightWeight": 50, "rightHeader": "",       "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Expanded", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "APRON_TRAFFIC_START_PUSH", "title": "APRON TRAFFIC - STARTING / PUSHING",    "column": 2, "heightWeight": 50, "rightHeader": "",       "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": false, "preferredVariant": "Expanded", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "STRIP_STORAGE",            "title": "STRIP STORAGE",  "column": 3, "heightWeight": 25, "rightHeader": "",       "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "STANDING_BY",              "title": "STANDING BY",     "column": 3, "heightWeight": 25, "rightHeader": "",       "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Expanded", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "CLEARANCE_DELIVERED",      "title": "CLEARANCE DELIVERED",      "column": 3, "heightWeight": 25, "rightHeader": "",       "acceptsDrop": false, "collapseWhenEmpty": true,  "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "none"},
+                { "id": "DEPARTURES",               "title": "DEPARTURES","column": 3,"heightWeight": 50, "rightHeader": "EOBT ^", "acceptsDrop": true,  "collapseWhenEmpty": false, "stackBottom": true, "preferredVariant": "Collapsed", "fallbackVariant": "Collapsed", "paginates": false, "sort": "eobtAsc"}
+            ]
+        },
         "fieldElevation": 600,
         "airborneTransfer": 1500,
         "airborneTransferWarning": 3000,

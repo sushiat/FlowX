@@ -1080,6 +1080,7 @@ void CFlowX_CustomTags::UpdateTagCache()
         this->radarScreen->twrOutboundRowsCache.clear();
         this->radarScreen->twrInboundRowsCache.clear();
         this->radarScreen->weatherRowsCache.clear();
+        this->radarScreen->diflisStripsCache.clear();
         return;
     }
 
@@ -1445,6 +1446,226 @@ void CFlowX_CustomTags::UpdateTagCache()
             this->radarScreen->weatherRowsCache.push_back(std::move(row));
             break; // only one airport per session
         }
+    }
+
+    // =========================================================
+    // DIFLIS — Digital flight strip cache for the primary airport
+    // =========================================================
+    this->RebuildDiflisStripCache();
+}
+
+void CFlowX_CustomTags::RebuildDiflisStripCache()
+{
+    if (this->radarScreen == nullptr)
+        return;
+
+    this->radarScreen->diflisStripsCache.clear();
+
+    if (this->GetConnectionType() == EuroScopePlugIn::CONNECTION_TYPE_NO)
+        return;
+
+    auto apIt = this->FindMyAirport();
+    if (apIt != this->airports.end() && !apIt->second.diflis.groups.empty())
+    {
+        const airport&     ap     = apIt->second;
+        const std::string& myIcao = ap.icao;
+        const auto&        groups = ap.diflis.groups;
+
+        auto findGroup = [&](const std::string& id) -> const DiflisGroupDef*
+        {
+            for (const auto& g : groups)
+                if (g.id == id)
+                    return &g;
+            return nullptr;
+        };
+
+        auto firstGroupInColumn = [&](int col) -> const DiflisGroupDef*
+        {
+            for (const auto& g : groups)
+                if (g.columnIndex == col)
+                    return &g;
+            return nullptr;
+        };
+
+        for (EuroScopePlugIn::CFlightPlan fp = this->FlightPlanSelectFirst(); fp.IsValid();
+             fp                              = this->FlightPlanSelectNext(fp))
+        {
+            EuroScopePlugIn::CFlightPlanData fpd    = fp.GetFlightPlanData();
+            std::string                      origin = fpd.GetOrigin();
+            std::string                      dest   = fpd.GetDestination();
+            to_upper(origin);
+            to_upper(dest);
+
+            bool isInbound  = (dest == myIcao);
+            bool isOutbound = (origin == myIcao);
+            if (!isInbound && !isOutbound)
+                continue;
+
+            DiflisStripCache s;
+            s.callsign = fp.GetCallsign();
+            s.wtc      = fpd.GetAircraftWtc();
+            s.acType   = fpd.GetAircraftFPType();
+            if (isInbound)
+            {
+                auto standIt = this->standAssignment.find(s.callsign);
+                if (standIt != this->standAssignment.end())
+                    s.stand = standIt->second;
+            }
+            else
+            {
+                auto depIt = this->departureStand.find(s.callsign);
+                if (depIt != this->departureStand.end())
+                    s.stand = depIt->second;
+            }
+            s.squawk       = fp.GetControllerAssignedData().GetSquawk();
+            s.originOrDest = isInbound ? origin : dest;
+            s.isInbound    = isInbound;
+            s.sidOrStar    = isInbound ? std::string{} : std::string{fpd.GetSidName()};
+            s.rwy          = isInbound ? fpd.GetArrivalRwy() : fpd.GetDepartureRwy();
+
+            // ETA (minutes to touchdown) for arrivals sort.
+            // Preferred source: twrInboundRowsCache.tttSeconds (computed from radar distance/GS)
+            // once the aircraft is in the inbound-list range. Fallback for traffic further out:
+            // CFlightPlanExtractedRoute::GetPointDistanceInMinutes on the destination point.
+            // onTtt=true means the strip has a radar-range TTT and should move to the runway group.
+            bool onTtt = false;
+            if (isInbound)
+            {
+                for (const auto& row : this->radarScreen->twrInboundRowsCache)
+                {
+                    if (row.callsign == s.callsign && row.tttSeconds >= 0)
+                    {
+                        s.etaMinutes = row.tttSeconds / 60;
+                        onTtt        = true;
+                        break;
+                    }
+                }
+                if (!onTtt)
+                {
+                    auto route = fp.GetExtractedRoute();
+                    int  n     = route.GetPointsNumber();
+                    if (n > 0)
+                    {
+                        int mins = route.GetPointDistanceInMinutes(n - 1);
+                        if (mins >= 0)
+                            s.etaMinutes = mins;
+                    }
+                }
+            }
+
+            std::string gs;
+            auto        gsIt = this->groundStatus.find(s.callsign);
+            if (gsIt != this->groundStatus.end())
+                gs = gsIt->second;
+            else
+                gs = fp.GetGroundState();
+            s.status = gs;
+
+            // Apply any manual override first (set by slice 3 drag-and-drop).
+            const DiflisGroupDef* target = nullptr;
+            auto                  ovIt   = this->radarScreen->diflisOverrides.find(s.callsign);
+            if (ovIt != this->radarScreen->diflisOverrides.end())
+                target = findGroup(ovIt->second);
+
+            if (target == nullptr)
+            {
+                if (isInbound)
+                {
+                    // Once an inbound has a TTT from the inbound list (i.e. within radar range),
+                    // move it from ARRIVALS to the matching runway group so controllers see the
+                    // strip advance down the board as the aircraft approaches.
+                    if (onTtt && !s.rwy.empty())
+                    {
+                        for (const auto& g : groups)
+                        {
+                            if (g.columnIndex == 0)
+                                continue;
+                            const std::string& id = g.id;
+                            if (id.find("_" + s.rwy + "_") != std::string::npos ||
+                                (id.size() >= s.rwy.size() + 1 &&
+                                 id.compare(id.size() - s.rwy.size() - 1, s.rwy.size() + 1,
+                                            "_" + s.rwy) == 0))
+                            {
+                                target = &g;
+                                break;
+                            }
+                        }
+                    }
+                    if (target == nullptr)
+                    {
+                        target = findGroup("ARRIVALS");
+                        if (target == nullptr)
+                            target = firstGroupInColumn(0);
+                    }
+                }
+                else // outbound
+                {
+                    EuroScopePlugIn::CRadarTarget rt       = this->RadarTargetSelect(s.callsign.c_str());
+                    bool                          airborne = rt.IsValid() && rt.GetPosition().IsValid() &&
+                                                             rt.GetPosition().GetReportedGS() > 50;
+                    if (airborne || gs == "DEPA")
+                    {
+                        target = findGroup("DEPARTURES");
+                    }
+                    else if (gs == "LINEUP")
+                    {
+                        target = firstGroupInColumn(1); // first runway group
+                    }
+                    else if (gs == "TAXI")
+                    {
+                        target = findGroup("TAXI");
+                    }
+                    else if (gs == "PUSH" || gs == "ST-UP")
+                    {
+                        target = findGroup("APRON_TRAFFIC_START_PUSH");
+                    }
+                    else if (fp.GetClearenceFlag())
+                    {
+                        target = findGroup("CLEARANCE_DELIVERED");
+                    }
+                    else
+                    {
+                        target = findGroup("STANDING_BY");
+                    }
+                }
+            }
+
+            if (target == nullptr)
+                continue;
+
+            s.bg              = isInbound ? apIt->second.diflis.inboundBg
+                                          : apIt->second.diflis.outboundBg;
+            s.bgDark          = isInbound ? apIt->second.diflis.inboundBgDark
+                                          : apIt->second.diflis.outboundBgDark;
+            s.text            = isInbound ? apIt->second.diflis.inboundText
+                                          : apIt->second.diflis.outboundText;
+            s.textDim         = isInbound ? apIt->second.diflis.inboundTextDim
+                                          : apIt->second.diflis.outboundTextDim;
+            s.resolvedGroupId = target->id;
+            this->radarScreen->diflisStripsCache.push_back(std::move(s));
+        }
+
+        // Per-group sort (ETA ascending for arrivals, EOBT ascending for departures).
+        std::stable_sort(this->radarScreen->diflisStripsCache.begin(),
+                         this->radarScreen->diflisStripsCache.end(),
+                         [&](const DiflisStripCache& a, const DiflisStripCache& b)
+                         {
+                             if (a.resolvedGroupId != b.resolvedGroupId)
+                                 return a.resolvedGroupId < b.resolvedGroupId;
+                             const DiflisGroupDef* g = findGroup(a.resolvedGroupId);
+                             if (g == nullptr)
+                                 return false;
+                             if (g->sort == DiflisSortMode::EtaAsc)
+                             {
+                                 // Unknown ETA (-1) sorts to the bottom.
+                                 int ea = a.etaMinutes < 0 ? INT_MAX : a.etaMinutes;
+                                 int eb = b.etaMinutes < 0 ? INT_MAX : b.etaMinutes;
+                                 return ea < eb;
+                             }
+                             if (g->sort == DiflisSortMode::EobtAsc)
+                                 return a.eobt < b.eobt;
+                             return false;
+                         });
     }
 }
 

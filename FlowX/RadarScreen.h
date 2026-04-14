@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <deque>
 #include <map>
 #include <memory>
 #include <set>
@@ -14,6 +15,8 @@
 #include <vector>
 
 #include "constants.h"
+#include "DiflisModel.h"
+#include "DiflisSnapshot.h"
 #include "EuroScope/EuroScopePlugIn.h"
 #include "PopoutWindow.h"
 #include "cachedTagData.h"
@@ -54,11 +57,19 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     void RenderToPopout(HDC screenDC, PopoutWindow* popout, POINT& windowPos, int w, int h,
                         std::function<void(HDC)> drawFn);
 
+    /// @brief Drains queued events from a popout and dispatches them on the EuroScope main thread.
+    /// Used for popouts that own their own rendering via SetContentPaintFn and therefore bypass
+    /// RenderToPopout's render-plus-drain path.
+    void DispatchPopoutEvents(PopoutWindow* popout);
+
     /// @brief Creates the Approach Estimate popout window, seeding position/size from settings or in-screen state.
     void CreateApproachEstPopout(CFlowX_Settings* s);
 
     /// @brief Creates the DEP/H popout window, seeding position/size from settings or in-screen state.
     void CreateDepRatePopout(CFlowX_Settings* s);
+
+    /// @brief Creates the DIFLIS popout window, seeding position/size from settings or in-screen state.
+    void CreateDiflisPopout(CFlowX_Settings* s);
 
     /// @brief Creates the WX/ATIS popout window, seeding position/size from settings or in-screen state.
     void CreateWeatherPopout(CFlowX_Settings* s);
@@ -145,6 +156,22 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws the DEP/H departure-rate window using pre-calculated depRateRowsCache.
     void DrawDepRateWindow(HDC hDC);
 
+    /// @brief Builds this->diflisSnapshot from the current RadarScreen/CFlowX state.
+    /// Called once per OnRefresh tick; publishes under diflisStateMutex_ so the popout
+    /// thread's paint fn can safely grab a copy.
+    void BuildDiflisSnapshot();
+
+    /// @brief Draws the DIFLIS window. Runs on the popout thread from its WM_PAINT via the
+    /// content-paint callback installed in CreateDiflisPopout. Reads no RadarScreen state —
+    /// everything comes via the parameters.
+    /// @param hDC           Target DC (the popout window DC).
+    /// @param popout        The popout window; used for `AddScreenObject` + `GetCursorPosition`.
+    /// @param snap          Immutable snapshot of all draw inputs for this paint.
+    /// @param outDropRects  Output: drop-target group rects (only acceptsDrop groups) populated
+    ///                      during the draw for later hit testing by OnMoveScreenObject.
+    void DrawDiflisWindow(HDC hDC, PopoutWindow* popout, const DiflisSnapshot& snap,
+                          std::vector<std::pair<std::string, RECT>>& outDropRects);
+
     /// @brief Draws the NAP reminder window when napReminderActive is true.
     void DrawNapReminder(HDC hDC);
 
@@ -193,6 +220,18 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                           depRateWindowH   = 0;                 ///< Last-rendered height of the DEP/H window in pixels; 0 until first draw
     int                                           depRateWindowW   = 0;                 ///< Last-rendered width of the DEP/H window in pixels; 0 until first draw
     POINT                                         depRateWindowPos = {-1, -1};          ///< Top-left corner of the departure rate window; (-1,-1) until first draw (auto-positioned to lower-right)
+    std::unique_ptr<PopoutWindow>                 diflisPopout;                         ///< DIFLIS popout window (popout-only; always created when visible)
+    DiflisSnapshot                                diflisSnapshot;                       ///< Per-tick immutable draw-input snapshot; built by BuildDiflisSnapshot and consumed by the popout-thread paint fn
+    mutable std::mutex                            diflisStateMutex_;                    ///< Guards diflisSnapshot + diflisGroupRects for cross-thread access (main thread writes, popout thread reads/writes)
+    std::vector<DiflisStripCache>                 diflisStripsCache;                    ///< Cached flight strips rebuilt every second by UpdateTagCache()
+    std::map<std::string, std::string>            diflisOverrides;                      ///< Callsign -> manually-forced group id (persists until auto-state explicitly clears it)
+    std::deque<DiflisUndoEntry>                   diflisUndoStack;                      ///< Bounded manual-move undo stack for the DIFLIS window (cap 32)
+    std::vector<std::pair<std::string, RECT>>     diflisGroupRects;                     ///< Per-draw transient: drop-target group rects (only acceptsDrop groups) used by OnMoveScreenObject
+    std::string                                   diflisDragCallsign;                   ///< Callsign currently being dragged in the DIFLIS window; empty when not dragging
+    std::string                                   diflisDragFromGroup;                  ///< Group id the dragged strip came from; captured at drag start
+    POINT                                         diflisDragCursor = {-9999, -9999};    ///< Live cursor position during an in-flight DIFLIS strip drag; drives the ghost overlay
+    int                                           diflisWindowH    = 720;               ///< Current height of the DIFLIS window in pixels (mirrors popout content size)
+    int                                           diflisWindowW    = 1100;              ///< Current width of the DIFLIS window in pixels (mirrors popout content size)
     std::set<std::string>                         gndTransferSquares;                   ///< Callsigns for which a GND-transfer green square is currently shown on the radar
     std::map<std::string, ULONGLONG>              gndTransferSquareTimes;               ///< Tick (GetTickCount64 ms) when each callsign's GND-transfer square first appeared; used to age-colour the square.
     std::map<std::string, std::string>            groundStations;                       ///< Callsign -> primary frequency string for online GND controllers (facility 3)
@@ -275,6 +314,13 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     int                                weatherWindowH   = 0;              ///< Last-rendered height of the WX/ATIS window in pixels; 0 until first draw
     int                                weatherWindowW   = 0;              ///< Last-rendered width of the WX/ATIS window in pixels; 0 until first draw
     POINT                              weatherWindowPos = {-1, -1};       ///< Top-left corner of the WX/ATIS window; (-1,-1) until first draw
+
+    /// @brief Applies a manual DIFLIS strip move: updates diflisOverrides and pushes a DiflisUndoEntry.
+    /// @note Override-only writeback for now; Ground Radar / TopSky side effects deferred.
+    void DiflisMoveStrip(const std::string& callsign, const std::string& fromGroup, const std::string& toGroup);
+
+    /// @brief Pops the most recent DIFLIS undo entry and reverts each recorded mutation.
+    void DiflisUndo();
 
     /// @brief Constructs a RadarScreen with debug mode off.
     RadarScreen();

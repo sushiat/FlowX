@@ -93,6 +93,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     std::map<std::string, int>                        dep_queuePos;                     ///< Callsign -> departure queue position (1-based); absent = not queued.
     int                                               dep_sequenceCounter = 0;          ///< Global sequence counter incremented at each takeoff.
     std::map<std::string, int>                        dep_sequenceNumber;               ///< Callsign -> departure sequence number assigned at takeoff.
+    std::map<std::string, std::string>                departureStand;                   ///< Callsign -> last stand an outbound was detected parked in (polygon-derived; display-only for DIFLIS, never cleared on leaving).
     std::map<std::string, std::string>                flightStripAnnotation;            ///< Callsign -> cached content of flight-strip annotation slot 8.
     std::map<std::string, std::string>                lastDepRunway;                    ///< Callsign -> last seen departure runway designator; used to detect runway changes and clear stale HP assignments.
     std::map<std::string, EuroScopePlugIn::CPosition> lastHpCheckPos;                   ///< Callsign -> aircraft position at the last holding-point polygon test; used to skip redundant checks.
@@ -168,6 +169,21 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @brief Records today's UTC date as the last NAP dismissal date and persists settings.
     /// @note Called by RadarScreen when the user clicks the ACK button on the NAP reminder window.
     void AckNapReminder();
+
+    /// @brief Returns the current ATIS letter for the given ICAO, or an empty string if none known.
+    [[nodiscard]] std::string GetAtisLetter(const std::string& icao) const
+    {
+        auto it = this->atisLetters.find(icao);
+        return (it != this->atisLetters.end()) ? it->second : std::string{};
+    }
+
+    /// @brief Returns the raw METAR pressure element for the given ICAO (e.g. "Q1013" / "A2992"),
+    ///        or an empty string if no METAR has been parsed yet.
+    [[nodiscard]] std::string GetAirportQnh(const std::string& icao) const
+    {
+        auto it = this->airportQNH.find(icao);
+        return (it != this->airportQNH.end()) ? it->second : std::string{};
+    }
 
     /// @brief Syncs current on-screen window positions into the settings layer and persists them.
     /// @note Called when the user clicks "Save positions" in the FlowX menu.

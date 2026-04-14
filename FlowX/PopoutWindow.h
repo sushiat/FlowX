@@ -69,24 +69,45 @@ class PopoutWindow
     int                bmpW          = 0;       ///< Width of contentBitmap in pixels
     int                bmpH          = 0;       ///< Height of contentBitmap in pixels
 
-    std::atomic<bool> closeRequested_ = false; ///< Set on close click; polled by ES main thread
-    std::atomic<bool> popInRequested_ = false; ///< Set on pop-in click; polled by ES main thread
-    std::atomic<bool> directDragging_ = false; ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
+    std::atomic<bool>  closeRequested_ = false; ///< Set on close click; polled by ES main thread
+    std::atomic<bool>  popInRequested_ = false; ///< Set on pop-in click; polled by ES main thread
+    std::atomic<bool>  directDragging_ = false; ///< True while onDirectDrag_ is actively handling a drag; suppresses RenderToPopout
+    bool               hasPopInButton_ = true;  ///< When false, no pop-in button is rendered or hit-tested (popout-only windows)
+    std::atomic<bool>  topmost_        = true;  ///< Current always-on-top state; SetTopmost flips ex-style + Z order
+    std::atomic<bool>  maximized_      = false; ///< Current maximized state; SetMaximized stores savedRect_ before resizing
+    RECT               savedRect_      = {};    ///< Window rect saved before maximize, used to restore
+    mutable std::mutex savedRectMutex_;         ///< Guards savedRect_
 
-    std::atomic<int>          cursorX_    = {-9999}; ///< Client-coords X of the mouse; -9999 when outside window
-    std::atomic<int>          cursorY_    = {-9999}; ///< Client-coords Y of the mouse; -9999 when outside window
-    bool                      dragging_   = false;   ///< True while a dragable hit area is being dragged; popout thread only
-    HitArea                   dragTarget_ = {};      ///< Hit area currently being dragged; popout thread only
-    POINT                     dragLastPt_ = {};      ///< Last mouse position during drag; used to compute delta; popout thread only
-    mutable std::mutex        eventMutex_;           ///< Guards pendingEvents_
-    mutable std::mutex        hitAreasMutex_;        ///< Guards hitAreas_
-    std::vector<HitArea>      hitAreas_;             ///< Cleared before each draw; populated via AddScreenObject
-    std::vector<PendingEvent> pendingEvents_;        ///< Events queued by the popout thread; consumed by RenderToPopout
+    std::atomic<int>          cursorX_ = {-9999};           ///< Client-coords X of the mouse; -9999 when outside window
+    std::atomic<int>          cursorY_ = {-9999};           ///< Client-coords Y of the mouse; -9999 when outside window
+    mutable std::mutex        dragOverlayMutex_;            ///< Guards all dragOverlay* fields below
+    HBITMAP                   dragOverlayBmp_    = nullptr; ///< Captured strip pixels; owned — deleted on replace/clear
+    int                       dragOverlayW_      = 0;       ///< Width of dragOverlayBmp_ in pixels
+    int                       dragOverlayH_      = 0;       ///< Height of dragOverlayBmp_ in pixels
+    POINT                     dragOverlayCenter_ = {0, 0};  ///< Offset (px) from strip top-left to the point the cursor should track (callsign box centre)
+    std::vector<RECT>         dragOverlayDropRects_;        ///< Drop-target rects (popout-local coords) to highlight when cursor is inside
+    bool                      dragOverlayActive_ = false;   ///< True while a drag overlay should be composited on top of the cached bitmap
+    bool                      dragging_          = false;   ///< True while a dragable hit area is being dragged; popout thread only
+    HitArea                   dragTarget_        = {};      ///< Hit area currently being dragged; popout thread only
+    POINT                     dragLastPt_        = {};      ///< Last mouse position during drag; used to compute delta; popout thread only
+    mutable std::mutex        eventMutex_;                  ///< Guards pendingEvents_
+    mutable std::mutex        hitAreasMutex_;               ///< Guards hitAreas_
+    std::vector<HitArea>      hitAreas_;                    ///< Cleared before each draw; populated via AddScreenObject
+    std::vector<PendingEvent> pendingEvents_;               ///< Events queued by the popout thread; consumed by RenderToPopout
 
     /// Callback signature for instant direct-drag handling on the popout thread.
     /// Receives the hit area, pixel delta, and current window size; returns the desired new {w, h}.
     /// Return {0, 0} to skip resize. Called on the popout thread — must be lock-free.
     using DirectDragFn = std::function<std::pair<int, int>(const HitArea&, POINT delta, int currentW, int currentH)>;
+
+    /// @brief Callback invoked from WM_PAINT on the popout thread to draw the window content.
+    /// Receives the window DC and current client size. When set, the PopoutWindow's WM_PAINT
+    /// skips the cached-bitmap blit, drag-overlay compositing, and button hover-overdraw
+    /// entirely — the paint fn is expected to own the full visual output.
+    using ContentPaintFn = std::function<void(HDC hDC, int w, int h)>;
+
+    mutable std::mutex contentPaintMutex_; ///< Guards contentPaintFn_
+    ContentPaintFn     contentPaintFn_;     ///< When set, WM_PAINT calls this instead of blitting contentBitmap
 
     DirectDragFn                  onDirectDrag_;  ///< Instant resize callback; called on popout thread during drag; may be null
     std::function<void()>         onNeedsRefresh; ///< Reserved; may be called by the popout thread to hint at an ES repaint
@@ -115,7 +136,8 @@ class PopoutWindow
     PopoutWindow(std::string title, int startX, int startY, int cW, int cH,
                  std::function<void(int, int)> onMoved,
                  std::function<void()>         onNeedsRefresh = nullptr,
-                 DirectDragFn                  onDirectDrag   = nullptr);
+                 DirectDragFn                  onDirectDrag   = nullptr,
+                 bool                          hasPopInButton = true);
     ~PopoutWindow();
 
     PopoutWindow(const PopoutWindow&)            = delete;
@@ -125,6 +147,20 @@ class PopoutWindow
 
     /// @brief Thread-safe: replaces the displayed content bitmap. Takes ownership of @p bmp.
     void UpdateContent(HBITMAP bmp, int w, int h);
+
+    /// @brief Thread-safe: installs a content paint callback invoked from WM_PAINT on the
+    /// popout thread. When set, the cached-bitmap blit path is bypassed and @p fn is expected
+    /// to draw the entire window content (including any title-bar buttons and drag overlays).
+    void SetContentPaintFn(ContentPaintFn fn);
+
+    /// @brief Enables a drag-overlay composited on top of the cached bitmap in WM_PAINT.
+    /// Takes ownership of @p stripBmp (deleted on replace / ClearDragOverlay / destructor).
+    /// @param centerOffset Pixel offset from strip top-left to the point that should follow the cursor.
+    /// @param dropRects    Rects (popout-local coords) to highlight when cursor is inside them.
+    void SetDragOverlay(HBITMAP stripBmp, int w, int h, POINT centerOffset, std::vector<RECT> dropRects);
+
+    /// @brief Clears any active drag overlay and frees the held bitmap.
+    void ClearDragOverlay();
 
     /// @brief Registers a hit area for the current frame; used by RenderToPopout via AddScreenObjectAuto.
     void AddScreenObject(int objectType, const char* objectId, RECT rect, bool dragable, const char* tooltip);
@@ -163,6 +199,25 @@ class PopoutWindow
         HWND hwndCopy = this->hwnd;
         if (hwndCopy)
             InvalidateRect(hwndCopy, nullptr, FALSE);
+    }
+
+    /// @brief Toggles always-on-top. When false, the window loses WS_EX_NOACTIVATE/TOOLWINDOW and
+    ///        gains WS_EX_APPWINDOW so it appears in the taskbar and can be activated normally.
+    /// Safe to call from any thread.
+    void SetTopmost(bool v);
+
+    /// @brief Toggles maximized (work-area-fill) mode. Saves the current rect on maximize and
+    ///        restores it on un-maximize. Also updates contentW/H so the content bitmap resizes.
+    /// Safe to call from any thread.
+    void SetMaximized(bool v);
+
+    [[nodiscard]] bool IsTopmost() const
+    {
+        return this->topmost_.load();
+    }
+    [[nodiscard]] bool IsMaximized() const
+    {
+        return this->maximized_.load();
     }
 
     [[nodiscard]] bool IsCloseRequested() const

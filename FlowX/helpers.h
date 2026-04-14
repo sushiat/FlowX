@@ -36,6 +36,13 @@ std::string FetchVatsimData();
 /// @note Performs an HTTP request and JSON parse entirely on the calling thread; call from a background thread.
 std::map<std::string, std::string> FetchAtisData(std::vector<std::string> airports);
 
+/// @brief Fills a rectangle with a solid color blended at the given opacity percentage.
+/// @param hDC Target device context.
+/// @param rect Rectangle to fill (in @p hDC coordinates).
+/// @param color Fill color (COLORREF).
+/// @param opacityPct Opacity in percent [0..100]; values >= 100 use a plain FillRect fast path.
+void FillRectAlpha(HDC hDC, const RECT& rect, COLORREF color, int opacityPct);
+
 /// @brief Base class for all plugin exceptions that can display a Win32 MessageBox.
 class flowxexception : public std::exception
 {

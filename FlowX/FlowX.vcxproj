@@ -128,6 +128,15 @@
     </ClCompile>
     <ClCompile Include="PopoutWindow.cpp" />
     <ClCompile Include="RadarScreen.cpp" />
+    <ClCompile Include="RadarScreen_ApproachEst.cpp" />
+    <ClCompile Include="RadarScreen_DepRate.cpp" />
+    <ClCompile Include="RadarScreen_StartMenu.cpp" />
+    <ClCompile Include="RadarScreen_Taxi.cpp" />
+    <ClCompile Include="RadarScreen_TwrInbound.cpp" />
+    <ClCompile Include="RadarScreen_TwrOutbound.cpp" />
+    <ClCompile Include="RadarScreen_Diflis.cpp" />
+    <ClCompile Include="RadarScreen_Interaction.cpp" />
+    <ClCompile Include="RadarScreen_Weather.cpp" />
     <ClCompile Include="tz.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -147,6 +156,8 @@
     <ClInclude Include="CFlowX_Settings.h" />
     <ClInclude Include="CFlowX_Tags.h" />
     <ClInclude Include="CFlowX_Timers.h" />
+    <ClInclude Include="DiflisModel.h" />
+    <ClInclude Include="DiflisSnapshot.h" />
     <ClInclude Include="reconnectSnapshot.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="CFlowX.h" />

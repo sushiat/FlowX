@@ -818,6 +818,24 @@ void CFlowX_Timers::CheckArrivedAtStand()
 
         this->LogDebugMessage(callSign + " auto-PARK at stand " + standIt->second, "GND");
     }
+
+    // Remember each outbound's departure stand (polygon-derived). Never cleared on leaving;
+    // overwritten only if the aircraft is subsequently detected inside a different stand.
+    for (const auto& [standName, occupier] : this->standOccupancy)
+    {
+        if (occupier.empty())
+            continue;
+        auto fp = this->FlightPlanSelect(occupier.c_str());
+        if (!fp.IsValid())
+            continue;
+        std::string dep = fp.GetFlightPlanData().GetOrigin();
+        to_upper(dep);
+        if (!this->airports.contains(dep))
+            continue;  // not a departure from one of our airports
+        auto existing = this->departureStand.find(occupier);
+        if (existing == this->departureStand.end() || existing->second != standName)
+            this->departureStand[occupier] = standName;
+    }
 }
 
 /// @brief Snapshots slow/grounded radar targets on the main thread, then offloads polygon tests to a worker thread.

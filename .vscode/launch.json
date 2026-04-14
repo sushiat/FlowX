@@ -18,6 +18,17 @@
             "request": "attach",
             "processId": "${command:pickProcess}",
             "symbolSearchPath": "${workspaceFolder}\\Debug"
+        },
+        {
+            "name": "Debug Tests",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\Debug\\FlowXTests.exe",
+            "args": ["--no-intro"],
+            "cwd": "${workspaceFolder}\\Debug",
+            "symbolSearchPath": "${workspaceFolder}\\Debug",
+            "preLaunchTask": "Build Debug",
+            "console": "integratedTerminal"
         }
     ]
 }

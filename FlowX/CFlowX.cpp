@@ -267,6 +267,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
             this->radarScreen->pushTracked.erase(callSign);
 
         this->standAssignment.erase(callSign);
+        this->departureStand.erase(callSign);
     }
     catch (const std::exception& e)
     {
