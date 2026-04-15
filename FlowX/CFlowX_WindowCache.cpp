@@ -14,9 +14,9 @@
 #include "helpers.h"
 
 void CFlowX_WindowCache::ComputeInboundCacheEntry(const std::string&             tttKey,
-                                                 EuroScopePlugIn::CFlightPlan&  fp,
-                                                 EuroScopePlugIn::CRadarTarget& rt,
-                                                 TwrInboundRowCache&            row)
+                                                  EuroScopePlugIn::CFlightPlan&  fp,
+                                                  EuroScopePlugIn::CRadarTarget& rt,
+                                                  TwrInboundRowCache&            row)
 {
     // ── Shared lookups ──
     std::string callSign = fp.GetCallsign();
@@ -90,8 +90,22 @@ void CFlowX_WindowCache::ComputeInboundCacheEntry(const std::string&            
             {
                 return -1;
             }
-            int mm = std::stoi(s.substr(0, colon));
-            int ss = std::stoi(s.substr(colon + 1));
+            const std::string mmStr = s.substr(0, colon);
+            const std::string ssStr = s.substr(colon + 1);
+            // Placeholder strings like "--:--" are set by CFlowX_Timers when TTT is
+            // unavailable at freeze time; parse as "no estimate" rather than throwing.
+            const auto isDigits = [](const std::string& str)
+            {
+                return !str.empty() &&
+                       std::all_of(str.begin(), str.end(), [](unsigned char c)
+                                   { return std::isdigit(c); });
+            };
+            if (!isDigits(mmStr) || !isDigits(ssStr))
+            {
+                return -1;
+            }
+            int mm = std::stoi(mmStr);
+            int ss = std::stoi(ssStr);
             return mm * 60 + ss;
         }
         int speed = rt.GetPosition().GetReportedGS();
@@ -259,8 +273,8 @@ void CFlowX_WindowCache::ComputeInboundCacheEntry(const std::string&            
 }
 
 void CFlowX_WindowCache::ComputeOutboundCacheEntry(EuroScopePlugIn::CFlightPlan&  fp,
-                                                  EuroScopePlugIn::CRadarTarget& rt,
-                                                  TwrOutboundRowCache&           row)
+                                                   EuroScopePlugIn::CRadarTarget& rt,
+                                                   TwrOutboundRowCache&           row)
 {
     // ── Shared lookups ──
     std::string callSign = fp.GetCallsign();
