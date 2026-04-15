@@ -156,6 +156,90 @@ static std::string BuildConfigKey(const std::set<std::string>& dep,
     return join(dep) + '_' + join(arr);
 }
 
+std::string TaxiGraph::MakeRunwayConfigKey(const std::set<std::string>& activeDepRwys,
+                                           const std::set<std::string>& activeArrRwys)
+{
+    return BuildConfigKey(activeDepRwys, activeArrRwys);
+}
+
+std::vector<std::string> TaxiGraph::ResolvePreferredSequence(
+    const airport&               ap,
+    const std::set<std::string>& activeDepRwys,
+    const std::set<std::string>& activeArrRwys,
+    const std::string&           destinationName)
+{
+    if (ap.preferredRoutes.empty() || destinationName.empty())
+        return {};
+    const std::string key = BuildConfigKey(activeDepRwys, activeArrRwys);
+    auto              it  = ap.preferredRoutes.find(key);
+    if (it == ap.preferredRoutes.end())
+        return {};
+    for (const auto& rule : it->second)
+    {
+        if (std::regex_match(destinationName, rule.destinationRegex))
+            return rule.mustInclude;
+    }
+    return {};
+}
+
+bool TaxiGraph::WayRefSequenceContiguous(const std::vector<std::string>& routeWayRefs,
+                                         const std::vector<std::string>& sequence)
+{
+    if (sequence.empty())
+        return true;
+    if (routeWayRefs.size() < sequence.size())
+        return false;
+    const size_t n = sequence.size();
+    for (size_t i = 0; i + n <= routeWayRefs.size(); ++i)
+    {
+        bool ok = true;
+        for (size_t j = 0; j < n; ++j)
+        {
+            if (routeWayRefs[i + j] != sequence[j])
+            {
+                ok = false;
+                break;
+            }
+        }
+        if (ok)
+            return true;
+    }
+    return false;
+}
+
+std::vector<GeoPoint> TaxiGraph::RepresentativeWaypointsForWayRefs(
+    const GeoPoint&                 from,
+    const GeoPoint&                 to,
+    const std::vector<std::string>& sequence) const
+{
+    std::vector<GeoPoint> out;
+    if (sequence.empty())
+        return out;
+    out.reserve(sequence.size());
+    for (const auto& ref : sequence)
+    {
+        auto it = wayRefNodes_.find(ref);
+        if (it == wayRefNodes_.end() || it->second.empty())
+            return {};
+
+        int    bestId   = -1;
+        double bestDist = std::numeric_limits<double>::max();
+        for (const int id : it->second)
+        {
+            const double d = PointToSegmentDistM(nodes_[id].pos, from, to);
+            if (d < bestDist)
+            {
+                bestDist = d;
+                bestId   = id;
+            }
+        }
+        if (bestId < 0)
+            return {};
+        out.push_back(nodes_[bestId].pos);
+    }
+    return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TaxiGraph::Build
 // ─────────────────────────────────────────────────────────────────────────────

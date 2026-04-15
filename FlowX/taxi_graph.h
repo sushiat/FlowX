@@ -253,6 +253,43 @@ class TaxiGraph
                                               char                         wtc                = 0,
                                               const std::string&           arrivalRunway      = {}) const;
 
+    /// @brief Builds the canonical taxi-config key used to look up per-runway rule maps
+    ///        (taxiFlowConfigs, preferredRoutes, ...) from an active runway selection.
+    /// @details Key format is "<dep>_<arr>", where each side is a '/'-joined list of
+    ///          runway designators in sorted order (e.g. {"16","29"}+{"16"} → "16/29_16").
+    [[nodiscard]] static std::string MakeRunwayConfigKey(const std::set<std::string>& activeDepRwys,
+                                                         const std::set<std::string>& activeArrRwys);
+
+    /// @brief Looks up the first matching preferred-route rule for @p destinationName under
+    ///        the given active runway configuration and returns its @c mustInclude sequence.
+    /// @param ap               Airport config containing @c preferredRoutes.
+    /// @param activeDepRwys    Active departure runways.
+    /// @param activeArrRwys    Active arrival runways.
+    /// @param destinationName  Bare destination name (stand designator or HP label, no prefix).
+    /// @return The ordered wayref sequence that must appear contiguously in the route;
+    ///         empty when no rule matches.
+    [[nodiscard]] static std::vector<std::string> ResolvePreferredSequence(
+        const airport&               ap,
+        const std::set<std::string>& activeDepRwys,
+        const std::set<std::string>& activeArrRwys,
+        const std::string&           destinationName);
+
+    /// @brief Returns true if @p sequence appears as a contiguous, in-order subsequence
+    ///        of @p routeWayRefs.
+    [[nodiscard]] static bool WayRefSequenceContiguous(const std::vector<std::string>& routeWayRefs,
+                                                       const std::vector<std::string>& sequence);
+
+    /// @brief For each wayref in @p sequence, returns a representative GeoPoint on that
+    ///        wayref suitable for use as a mandatory via-point in FindWaypointRoute.
+    /// @details Picks the Waypoint node on each wayref with the smallest perpendicular
+    ///          distance to the straight line between @p from and @p to, so the chosen
+    ///          via-points roughly follow the natural direction of travel. Returns an
+    ///          empty vector if any wayref has no nodes in the graph.
+    [[nodiscard]] std::vector<GeoPoint> RepresentativeWaypointsForWayRefs(
+        const GeoPoint&                 from,
+        const GeoPoint&                 to,
+        const std::vector<std::string>& sequence) const;
+
     /// @brief Returns the merged set of flow rules for the given active runway configuration.
     /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.
     /// Used by the taxi graph overlay to render directional chevrons.

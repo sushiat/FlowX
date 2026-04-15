@@ -8,6 +8,7 @@
 #pragma once
 
 #include <optional>
+#include <regex>
 #include <string>
 #include <map>
 #include <vector>
@@ -120,6 +121,23 @@ struct approachPath
 {
     std::string              name;  ///< Approach identifier (e.g. "RNP N")
     std::vector<approachFix> fixes; ///< Ordered list of fixes along the approach path (IAF first).
+};
+
+/// @brief Targeted routing override: forces the suggested route to contain a specific
+///        contiguous sequence of wayrefs when the destination name matches a regex.
+/// @details Used when global edge weights, flow rules, and turn penalties can't
+///          reproduce a real-world standard routing for a specific set of stands or
+///          holding points. Rules are evaluated at route planning time: the destination
+///          name (stand or HP label, without any prefix) is matched against
+///          @ref destinationRegex, and on the first matching rule the router must
+///          produce a route whose ordered wayref list contains @ref mustInclude as a
+///          contiguous subsequence. If no such route is feasible the unconstrained
+///          route is used as a graceful fallback.
+struct PreferredRoute
+{
+    std::string              destinationPattern; ///< Raw regex string as authored in config.json (kept for debug logging).
+    std::regex               destinationRegex;   ///< Compiled ECMAScript regex; full-match semantics against the destination name.
+    std::vector<std::string> mustInclude;        ///< Ordered wayref sequence that must appear contiguously in the produced route.
 };
 
 /// @brief A directional flow rule for a single taxiway.
@@ -262,32 +280,33 @@ struct runway
 /// @brief Full configuration for a single airport loaded from config.json.
 struct airport
 {
-    std::string                                      icao;                           ///< ICAO code (e.g. "LOWW")
-    std::string                                      gndFreq;                        ///< Default ground frequency string
-    double                                           osmCenterLat            = 0.0;  ///< Centre latitude for the Overpass API bounding circle (decimal degrees)
-    double                                           osmCenterLon            = 0.0;  ///< Centre longitude for the Overpass API bounding circle (decimal degrees)
-    int                                              osmRadiusM              = 6500; ///< Radius in metres for the Overpass API bounding circle (default 6500)
-    int                                              fieldElevation          = 0;    ///< Field elevation in feet (used to detect airborne state)
-    int                                              airborneTransfer        = 0;    ///< Altitude (ft) above which the TWR next-freq tag changes colour
-    int                                              airborneTransferWarning = 0;    ///< Altitude (ft) above which the TWR next-freq tag blinks orange
-    std::map<std::string, geoGndFreq>                geoGndFreq              = {};   ///< Geographic ground frequency zones
-    std::vector<std::string>                         ctrStations             = {};   ///< Centre frequencies in priority order (first online station on each freq wins)
-    std::map<std::string, taxiOutStands>             taxiOnlyZones           = {};   ///< Apron/zone polygons that always force taxi planning mode regardless of stand or clearance state
-    std::map<std::string, taxiOutStands>             taxiOutStands           = {};   ///< Taxi-out stand polygons
-    napReminder                                      nap_reminder            = {};   ///< NAP reminder configuration
-    std::string                                      defaultAppFreq;                 ///< Default approach frequency (used when no SID-specific one matches)
-    std::map<std::string, std::string>               nightTimeSids             = {}; ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
-    std::map<std::string, std::vector<std::string>>  sidAppFreqs               = {}; ///< Approach frequency -> list of SIDs that use it
-    std::map<std::string, std::vector<std::string>>  appFreqFallbacks          = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
-    std::map<std::string, runway>                    runways                   = {}; ///< Runway configurations keyed by designator
-    std::vector<std::string>                         taxiIntersections         = {}; ///< Intersection taxiway refs or prefix patterns (e.g. "Exit *") reclassified from taxiway to intersection type during OSM annotation.
-    std::vector<std::string>                         scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
-    std::vector<TaxiFlowRule>                        taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
-    std::map<std::string, standRoutingTarget>        standRoutingTargets       = {}; ///< Stand name → routing override; redirects inbound routing to a holding point or co-located stand (e.g. G16 → F16).
-    std::map<std::string, std::vector<TaxiFlowRule>> taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
-    std::map<std::string, double>                    taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0); aircraft wider than the limit are hard-blocked.
-    std::map<std::string, double>                    taxiWingspanAvoid         = {}; ///< Taxiway/taxilane ref -> max wingspan (m); aircraft at or below this size receive a soft routing penalty on this ref (prefer a parallel, narrower lane instead).
-    std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
-    TaxiNetworkConfig                                taxiNetworkConfig         = {}; ///< Tunable taxi graph, routing, snapping, and safety parameters (all fields default when absent from config.json).
-    DiflisAirportConfig                              diflis                    = {}; ///< DIFLIS window configuration for this airport; loaded from the top-level "diflis" block in config.json.
+    std::string                                        icao;                           ///< ICAO code (e.g. "LOWW")
+    std::string                                        gndFreq;                        ///< Default ground frequency string
+    double                                             osmCenterLat            = 0.0;  ///< Centre latitude for the Overpass API bounding circle (decimal degrees)
+    double                                             osmCenterLon            = 0.0;  ///< Centre longitude for the Overpass API bounding circle (decimal degrees)
+    int                                                osmRadiusM              = 6500; ///< Radius in metres for the Overpass API bounding circle (default 6500)
+    int                                                fieldElevation          = 0;    ///< Field elevation in feet (used to detect airborne state)
+    int                                                airborneTransfer        = 0;    ///< Altitude (ft) above which the TWR next-freq tag changes colour
+    int                                                airborneTransferWarning = 0;    ///< Altitude (ft) above which the TWR next-freq tag blinks orange
+    std::map<std::string, geoGndFreq>                  geoGndFreq              = {};   ///< Geographic ground frequency zones
+    std::vector<std::string>                           ctrStations             = {};   ///< Centre frequencies in priority order (first online station on each freq wins)
+    std::map<std::string, taxiOutStands>               taxiOnlyZones           = {};   ///< Apron/zone polygons that always force taxi planning mode regardless of stand or clearance state
+    std::map<std::string, taxiOutStands>               taxiOutStands           = {};   ///< Taxi-out stand polygons
+    napReminder                                        nap_reminder            = {};   ///< NAP reminder configuration
+    std::string                                        defaultAppFreq;                 ///< Default approach frequency (used when no SID-specific one matches)
+    std::map<std::string, std::string>                 nightTimeSids             = {}; ///< Truncated night SID key -> full SID name prefix (filed name has last char dropped; display restores it and appends "*")
+    std::map<std::string, std::vector<std::string>>    sidAppFreqs               = {}; ///< Approach frequency -> list of SIDs that use it
+    std::map<std::string, std::vector<std::string>>    appFreqFallbacks          = {}; ///< Target approach frequency -> ordered list of approach frequencies to try (target first, then fallbacks)
+    std::map<std::string, runway>                      runways                   = {}; ///< Runway configurations keyed by designator
+    std::vector<std::string>                           taxiIntersections         = {}; ///< Intersection taxiway refs or prefix patterns (e.g. "Exit *") reclassified from taxiway to intersection type during OSM annotation.
+    std::vector<std::string>                           scratchpadClearExclusions = {}; ///< Scratchpad prefixes exempt from auto-clear on LINEUP/DEPA click (e.g. ".cs", ".did"); comparison is case-insensitive
+    std::vector<TaxiFlowRule>                          taxiFlowGeneric           = {}; ///< Taxiway direction rules always active regardless of runway configuration.
+    std::map<std::string, standRoutingTarget>          standRoutingTargets       = {}; ///< Stand name → routing override; redirects inbound routing to a holding point or co-located stand (e.g. G16 → F16).
+    std::map<std::string, std::vector<TaxiFlowRule>>   taxiFlowConfigs           = {}; ///< Per-runway-config rules keyed by canonical "<dep>_<arr>" string (e.g. "16/29_16"); merged on top of taxiFlowGeneric at routing/render time.
+    std::map<std::string, std::vector<PreferredRoute>> preferredRoutes           = {}; ///< Per-runway-config targeted route overrides keyed by canonical "<dep>_<arr>" string; first rule whose destination regex matches wins.
+    std::map<std::string, double>                      taxiWingspanMax           = {}; ///< Taxiway/taxilane ref -> maximum wingspan in metres (e.g. "P" -> 36.0); aircraft wider than the limit are hard-blocked.
+    std::map<std::string, double>                      taxiWingspanAvoid         = {}; ///< Taxiway/taxilane ref -> max wingspan (m); aircraft at or below this size receive a soft routing penalty on this ref (prefer a parallel, narrower lane instead).
+    std::vector<std::array<std::string, 2>>            taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
+    TaxiNetworkConfig                                  taxiNetworkConfig         = {}; ///< Tunable taxi graph, routing, snapping, and safety parameters (all fields default when absent from config.json).
+    DiflisAirportConfig                                diflis                    = {}; ///< DIFLIS window configuration for this airport; loaded from the top-level "diflis" block in config.json.
 };

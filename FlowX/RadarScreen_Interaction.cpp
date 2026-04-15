@@ -478,6 +478,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 auto*                 timers    = static_cast<CFlowX_Timers*>(this->GetPlugIn());
                 double                goalBrng  = -1.0;
                 std::set<std::string> rwySearch = settings->GetActiveDepRunways();
+                std::string           destName; ///< Bare destination name for preferred-route matching.
                 if (isInbound)
                 {
                     auto standIt = timers->GetStandAssignment().find(callsign);
@@ -494,6 +495,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             {
                                 standKey = ourIcao + ":" + srt.target;
                                 dest     = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                                destName = srt.target;
                             }
                             else
                             {
@@ -501,11 +503,13 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                 dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                                   ? hp
                                                   : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                                destName    = srt.target;
                             }
                         }
                         else
                         {
-                            dest = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                            dest     = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                            destName = standName;
                         }
                         // Use stand heading to constrain goal-node snapping direction.
                         auto stIt = settings->GetGrStands().find(standKey);
@@ -543,7 +547,8 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                     auto hpIt = rwyIt->second.holdingPoints.find(hpName);
                                     if (hpIt != rwyIt->second.holdingPoints.end())
                                     {
-                                        dest = {hpIt->second.centerLat, hpIt->second.centerLon};
+                                        dest     = {hpIt->second.centerLat, hpIt->second.centerLon};
+                                        destName = hpName;
                                         break;
                                     }
                                 }
@@ -579,10 +584,53 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     vacArrRwy = timers->GetArrivalRunway(callsign);
                 }
 
-                this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
+                TaxiRoute suggested = settings->osmGraph.FindRoute(
                     origin, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(), heading, blocked,
                     {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly, goalBrng, vacWtc, vacArrRwy);
-                this->taxiGreenPreview = this->taxiSuggested[callsign];
+
+                // Preferred-route enforcement: if a configured rule matches this destination
+                // and its mustInclude sequence isn't already present contiguously in the
+                // unconstrained route, retry via FindWaypointRoute with representative
+                // via-points on each required wayref. If the retry produces a route that
+                // satisfies the sequence, use it; otherwise fall back to the unconstrained
+                // route so real-world overrides degrade gracefully instead of failing hard.
+                if (suggested.valid && hasAirport && !destName.empty())
+                {
+                    const auto& ap  = myAptTaxi->second;
+                    const auto  seq = TaxiGraph::ResolvePreferredSequence(
+                        ap, rwySearch, settings->GetActiveArrRunways(), destName);
+                    if (!seq.empty() && !TaxiGraph::WayRefSequenceContiguous(suggested.wayRefs, seq))
+                    {
+                        const auto wps = settings->osmGraph.RepresentativeWaypointsForWayRefs(origin, dest, seq);
+                        if (!wps.empty())
+                        {
+                            TaxiRoute constrained = settings->osmGraph.FindWaypointRoute(
+                                origin, wps, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(),
+                                heading, blocked, false, {}, settings->GetDebug(),
+                                this->taxiPlanForwardOnly, goalBrng, vacWtc, vacArrRwy);
+                            if (constrained.valid && TaxiGraph::WayRefSequenceContiguous(constrained.wayRefs, seq))
+                            {
+                                suggested = std::move(constrained);
+                                if (settings->GetDebug())
+                                    settings->LogDebugMessage(
+                                        callsign + " preferred-route applied for " + destName, "PREF");
+                            }
+                            else if (settings->GetDebug())
+                            {
+                                settings->LogDebugMessage(
+                                    callsign + " preferred-route infeasible for " + destName + " (fallback to unconstrained)", "PREF");
+                            }
+                        }
+                        else if (settings->GetDebug())
+                        {
+                            settings->LogDebugMessage(
+                                callsign + " preferred-route waypoints unavailable for " + destName, "PREF");
+                        }
+                    }
+                }
+
+                this->taxiSuggested[callsign] = std::move(suggested);
+                this->taxiGreenPreview        = this->taxiSuggested[callsign];
                 if (!this->taxiSuggested[callsign].valid && settings->GetDebug())
                     settings->LogDebugMessage(
                         callsign + " no route: " + this->taxiSuggested[callsign].debugTrace, "TAXI");

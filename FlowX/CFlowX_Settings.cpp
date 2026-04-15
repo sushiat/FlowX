@@ -1067,40 +1067,80 @@ void CFlowX_Settings::LoadConfig()
         if (json_airport.contains("taxiFlowGeneric"))
             for (const auto& r : json_airport["taxiFlowGeneric"])
                 ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});
+        // Normalise each side of a runway-config key: split on '/', sort, rejoin.
+        // Allows the config file to use any ordering (e.g. "29/16_16" → stored as "16/29_16").
+        auto normSide = [](const std::string& side) -> std::string
+        {
+            std::vector<std::string> parts;
+            size_t                   start = 0, end;
+            while ((end = side.find('/', start)) != std::string::npos)
+            {
+                parts.push_back(side.substr(start, end - start));
+                start = end + 1;
+            }
+            parts.push_back(side.substr(start));
+            std::ranges::sort(parts);
+            std::string out;
+            for (const auto& p : parts)
+            {
+                if (!out.empty())
+                    out += '/';
+                out += p;
+            }
+            return out;
+        };
+        auto normConfigKey = [&normSide](const std::string& rawKey) -> std::string
+        {
+            const auto sep = rawKey.find('_');
+            if (sep == std::string::npos)
+                return rawKey;
+            return normSide(rawKey.substr(0, sep)) + '_' + normSide(rawKey.substr(sep + 1));
+        };
+
         if (json_airport.contains("taxiFlowConfigs"))
         {
-            // Normalise each key: split on '_', sort each side on '/', rejoin.
-            // Allows the config file to use any ordering (e.g. "29/16_16" → stored as "16/29_16").
-            auto normSide = [](const std::string& side) -> std::string
-            {
-                std::vector<std::string> parts;
-                size_t                   start = 0, end;
-                while ((end = side.find('/', start)) != std::string::npos)
-                {
-                    parts.push_back(side.substr(start, end - start));
-                    start = end + 1;
-                }
-                parts.push_back(side.substr(start));
-                std::ranges::sort(parts);
-                std::string out;
-                for (const auto& p : parts)
-                {
-                    if (!out.empty())
-                        out += '/';
-                    out += p;
-                }
-                return out;
-            };
             for (auto& [rawKey, json_rules] : json_airport["taxiFlowConfigs"].items())
             {
-                const auto  sep = rawKey.find('_');
-                std::string normKey =
-                    (sep == std::string::npos)
-                        ? rawKey
-                        : normSide(rawKey.substr(0, sep)) + '_' + normSide(rawKey.substr(sep + 1));
+                const std::string normKey = normConfigKey(rawKey);
                 for (const auto& r : json_rules)
                     ap.taxiFlowConfigs[normKey].push_back(
                         {r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});
+            }
+        }
+        if (json_airport.contains("preferredRoutes"))
+        {
+            for (auto& [rawKey, json_rules] : json_airport["preferredRoutes"].items())
+            {
+                const std::string normKey = normConfigKey(rawKey);
+                for (const auto& r : json_rules)
+                {
+                    PreferredRoute pr;
+                    pr.destinationPattern = r.value("destination", std::string{});
+                    if (pr.destinationPattern.empty())
+                    {
+                        this->LogDebugMessage("preferredRoutes: rule with empty destination in \"" + icao + "\" / \"" + rawKey + "\" skipped", "Config");
+                        continue;
+                    }
+                    try
+                    {
+                        pr.destinationRegex = std::regex(pr.destinationPattern);
+                    }
+                    catch (const std::regex_error& e)
+                    {
+                        this->LogDebugMessage("preferredRoutes: invalid regex \"" + pr.destinationPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
+                        continue;
+                    }
+                    if (r.contains("mustInclude") && r["mustInclude"].is_array())
+                        for (const auto& w : r["mustInclude"])
+                            if (w.is_string())
+                                pr.mustInclude.push_back(w.get<std::string>());
+                    if (pr.mustInclude.empty())
+                    {
+                        this->LogDebugMessage("preferredRoutes: rule with empty mustInclude for \"" + pr.destinationPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\" skipped", "Config");
+                        continue;
+                    }
+                    ap.preferredRoutes[normKey].push_back(std::move(pr));
+                }
             }
         }
         if (json_airport.contains("taxiWingspanMax"))

@@ -450,6 +450,37 @@ The label must match the `ref` tag of the OSM `aeroway=holding_position` node ex
 
 If the label is not found in the OSM graph data, routing falls back to the stand centroid.
 
+### `preferredRoutes`
+
+Targeted routing overrides for destinations whose real-world standard routing can't be reproduced by the global edge weights, flow rules, and turn penalties alone. Rules are grouped per runway configuration (same normalized `"<dep>_<arr>"` keying as `taxiFlowConfigs`) and evaluated at route planning time: the destination name — a stand designator for inbounds, a holding-point label for outbounds — is matched against each rule's `destination` regex, and the **first** rule that matches wins. The router then produces a route whose ordered wayref list contains the rule's `mustInclude` sequence as a contiguous subsequence. If no such route is feasible from the aircraft's current position, routing falls back to the unconstrained result and a `[PREF]` line is logged to the debug log — rules degrade gracefully rather than failing hard.
+
+| Field | Type | Description |
+|---|---|---|
+| `destination` | string (ECMAScript regex) | Matched as a full match against the bare destination name (no `ICAO:` prefix, no `HP:` prefix). Stands and holding points share the same namespace; disambiguate with the pattern itself. |
+| `mustInclude` | array of strings | Ordered wayref sequence (same strings that appear in `TaxiRoute::wayRefs` debug output, e.g. `"W"`, `"Exit 22"`, `"TL 40 \"Blue Line\""`). The sequence must appear contiguously in the chosen route — no other wayrefs are allowed between two consecutive required entries. |
+
+Regex ranges with parity are expressed with character classes — no custom syntax is needed. For example, to match every even stand in F04–F36:
+
+```
+F(0[2468]|[123][02468])
+```
+
+Example:
+
+```json
+"preferredRoutes": {
+    "16_11": [
+        { "destination": "F(0[2468]|[123][02468])", "mustInclude": ["W", "Exit 22", "Exit 32"] },
+        { "destination": "B[0-9]{2}",               "mustInclude": ["Exit 12", "TL 32"] }
+    ],
+    "29_34": [
+        { "destination": "A1",                      "mustInclude": ["M", "Exit 2", "L", "W"] }
+    ]
+}
+```
+
+Because rules are hard constraints with graceful fallback, keep the list small and reserve it for cases where global tuning can't converge. The first-match-wins order means more specific rules should come before more general ones.
+
 ### `taxiNetworkConfig`
 
 Optional fine-tuning of the taxi graph builder, A\* router, interactive snapping, and safety monitor. Every sub-section and every field is optional — omitting any of them leaves the corresponding parameter at its default. All defaults match the values previously hardcoded in the plugin, so existing airports need no changes to `config.json`.

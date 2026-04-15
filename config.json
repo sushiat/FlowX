@@ -147,6 +147,8 @@
             "29/34_34": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "11_16":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ]
         },
+        "preferredRoutes": {
+        },
         "taxiIntersections": ["Exit *"],
         "runways": {
             "11": {
