@@ -517,6 +517,8 @@
             },
             "safety": {
                 "deviationThreshM": 40.0,
+                "endpointDeviationThreshM": 100.0,
+                "endpointRadiusM": 60.0,
                 "minSpeedKt": 3.0,
                 "maxPredictS": 60.0,
                 "conflictDeltaS": 30.0,

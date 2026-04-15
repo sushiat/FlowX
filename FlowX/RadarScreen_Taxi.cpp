@@ -808,9 +808,9 @@ GeoPoint PushZonePoint(const GeoPoint& origin, double bearingDeg, double distM)
 /// Walks @p armADistM in @p armABrng and @p armBDistM in @p armBBrng from @p pivot,
 /// then concatenates: armB-end → pivot → armA-end.
 TaxiRoute BuildPushZone(const TaxiGraph& graph, const GeoPoint& pivot,
-                               double armABrng, double armADistM,
-                               double armBBrng, double armBDistM,
-                               double wingspanM = 0.0)
+                        double armABrng, double armADistM,
+                        double armBBrng, double armBDistM,
+                        double wingspanM = 0.0)
 {
     TaxiRoute armA = graph.WalkGraph(pivot, armABrng, armADistM, wingspanM);
     TaxiRoute armB = graph.WalkGraph(pivot, armBBrng, armBDistM, wingspanM);
@@ -900,12 +900,14 @@ void RadarScreen::UpdateTaxiSafety()
                                                         ? safetyAptIt->second.taxiNetworkConfig
                                                         : kDefaultNC;
 
-    const double     DEVIATION_THRESH_M = nc.safety.deviationThreshM;
-    const double     MIN_GS_KT          = nc.safety.minSpeedKt;
-    constexpr double KT_TO_MS           = 0.514444;
-    const double     MAX_PREDICT_S      = nc.safety.maxPredictS;
-    const double     CONFLICT_DELTA_S   = nc.safety.conflictDeltaS;
-    const double     SAME_DIR_DEG       = nc.safety.sameDirDeg;
+    const double     DEVIATION_THRESH_M          = nc.safety.deviationThreshM;
+    const double     ENDPOINT_DEVIATION_THRESH_M = nc.safety.endpointDeviationThreshM;
+    const double     ENDPOINT_RADIUS_M           = nc.safety.endpointRadiusM;
+    const double     MIN_GS_KT                   = nc.safety.minSpeedKt;
+    constexpr double KT_TO_MS                    = 0.514444;
+    const double     MAX_PREDICT_S               = nc.safety.maxPredictS;
+    const double     CONFLICT_DELTA_S            = nc.safety.conflictDeltaS;
+    const double     SAME_DIR_DEG                = nc.safety.sameDirDeg;
 
     struct TimedPt
     {
@@ -946,7 +948,16 @@ void RadarScreen::UpdateTaxiSafety()
             for (size_t i = 1; i < route.polyline.size(); ++i)
                 minDist = std::min(minDist,
                                    PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
-            if (gs_kt > MIN_GS_KT && minDist > DEVIATION_THRESH_M)
+
+            // Relax the deviation threshold when the aircraft is close to either
+            // endpoint of the route — stands and holding points typically sit slightly
+            // off the graph, so the first and last few metres of motion legitimately
+            // stray from the polyline.
+            const double distToStart     = HaversineM(acPos, route.polyline.front());
+            const double distToEnd       = HaversineM(acPos, route.polyline.back());
+            const bool   nearEndpoint    = (distToStart <= ENDPOINT_RADIUS_M) || (distToEnd <= ENDPOINT_RADIUS_M);
+            const double effectiveThresh = nearEndpoint ? ENDPOINT_DEVIATION_THRESH_M : DEVIATION_THRESH_M;
+            if (gs_kt > MIN_GS_KT && minDist > effectiveThresh)
                 this->taxiDeviations.insert(cs);
         }
 

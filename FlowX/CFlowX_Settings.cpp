@@ -1165,12 +1165,14 @@ void CFlowX_Settings::LoadConfig()
             }
             if (jnc.contains("safety"))
             {
-                const auto& sf             = jnc["safety"];
-                nc.safety.deviationThreshM = sf.value("deviationThreshM", 40.0);
-                nc.safety.minSpeedKt       = sf.value("minSpeedKt", 3.0);
-                nc.safety.maxPredictS      = sf.value("maxPredictS", 60.0);
-                nc.safety.conflictDeltaS   = sf.value("conflictDeltaS", 30.0);
-                nc.safety.sameDirDeg       = sf.value("sameDirDeg", 45.0);
+                const auto& sf                     = jnc["safety"];
+                nc.safety.deviationThreshM         = sf.value("deviationThreshM", 40.0);
+                nc.safety.endpointDeviationThreshM = sf.value("endpointDeviationThreshM", 80.0);
+                nc.safety.endpointRadiusM          = sf.value("endpointRadiusM", 60.0);
+                nc.safety.minSpeedKt               = sf.value("minSpeedKt", 3.0);
+                nc.safety.maxPredictS              = sf.value("maxPredictS", 60.0);
+                nc.safety.conflictDeltaS           = sf.value("conflictDeltaS", 30.0);
+                nc.safety.sameDirDeg               = sf.value("sameDirDeg", 45.0);
             }
         }
 

@@ -512,6 +512,8 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `deviationThreshM` | number | `40.0` | Distance (m) an aircraft may deviate from its assigned route before a deviation warning is raised. |
+| `endpointDeviationThreshM` | number | `80.0` | Relaxed deviation threshold (m) used while the aircraft is within `endpointRadiusM` of the route's first or last node — accounts for stands and holding points sitting slightly off the graph. |
+| `endpointRadiusM` | number | `60.0` | Radius (m) around the first/last route node within which `endpointDeviationThreshM` replaces `deviationThreshM`. |
 | `minSpeedKt` | number | `3.0` | Minimum ground speed (kt) required before safety checks are evaluated. |
 | `maxPredictS` | number | `60.0` | Maximum prediction horizon (s) used when building conflict-detection paths. |
 | `conflictDeltaS` | number | `30.0` | Two aircraft at the same intersection are flagged as conflicting if their estimated arrival times differ by less than this value (s). |
@@ -524,7 +526,7 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
     "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
     "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
     "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
-    "safety":    { "deviationThreshM": 40.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
+    "safety":    { "deviationThreshM": 40.0, "endpointDeviationThreshM": 80.0, "endpointRadiusM": 60.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
 }
 ```
 

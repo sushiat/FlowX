@@ -189,11 +189,13 @@ struct TaxiNetworkConfig
     /// @brief Taxi safety-monitoring thresholds.
     struct Safety
     {
-        double conflictDeltaS   = 30.0; ///< Time window (s) within which two aircraft at the same intersection are flagged as conflicting.
-        double deviationThreshM = 40.0; ///< Distance (m) an aircraft may deviate from its assigned route before a warning is raised.
-        double maxPredictS      = 60.0; ///< Maximum prediction horizon (s) used for conflict detection.
-        double minSpeedKt       = 3.0;  ///< Minimum ground speed (kt) required before safety checks are evaluated.
-        double sameDirDeg       = 45.0; ///< Bearing difference (deg) below which two conflicting paths are considered same-direction (suppresses alert).
+        double conflictDeltaS           = 30.0; ///< Time window (s) within which two aircraft at the same intersection are flagged as conflicting.
+        double deviationThreshM         = 40.0; ///< Distance (m) an aircraft may deviate from its assigned route before a warning is raised.
+        double endpointDeviationThreshM = 80.0; ///< Relaxed deviation threshold (m) applied while the aircraft is within @ref endpointRadiusM of the route's start or end node.
+        double endpointRadiusM          = 60.0; ///< Radius (m) around the first/last route node within which @ref endpointDeviationThreshM replaces @ref deviationThreshM.
+        double maxPredictS              = 60.0; ///< Maximum prediction horizon (s) used for conflict detection.
+        double minSpeedKt               = 3.0;  ///< Minimum ground speed (kt) required before safety checks are evaluated.
+        double sameDirDeg               = 45.0; ///< Bearing difference (deg) below which two conflicting paths are considered same-direction (suppresses alert).
     } safety;
 };
 
@@ -201,23 +203,23 @@ struct TaxiNetworkConfig
 /// @note All DIFLIS-related airport settings live under this one struct — no scattered keys elsewhere in config.h.
 struct DiflisAirportConfig
 {
-    std::vector<int>           columnWidths     = {28, 28, 28, 16};             ///< Per-column width percentages (one entry per column; should sum to ~100)
-    COLORREF                   inboundBg        = RGB(176, 216, 255);           ///< Strip background for arrivals (HTML hex in config)
-    COLORREF                   inboundBgDark    = RGB(128, 176, 224);           ///< Darker accent for arrivals (callsign/status cells)
-    COLORREF                   inboundText      = RGB(0, 0, 0);                 ///< Main text color for arrivals
-    COLORREF                   inboundTextDim   = RGB(90, 90, 90);               ///< Dimmed text color for arrivals (sid, runway)
-    COLORREF                   outboundBg       = RGB(210, 210, 210);           ///< Strip background for departures
-    COLORREF                   outboundBgDark   = RGB(160, 160, 160);           ///< Darker accent for departures
-    COLORREF                   outboundText     = RGB(0, 0, 0);                 ///< Main text color for departures
-    COLORREF                   outboundTextDim  = RGB(90, 90, 90);               ///< Dimmed text color for departures
-    int                        fontSizeStatusBar     = 20;                      ///< Base font size for the bottom status bar (buttons + clock)
-    int                        fontSizeGroupHeader   = 16;                      ///< Base font size for group title text (centred header)
-    int                        fontSizeGroupSide     = 14;                      ///< Base font size for the right-side sub-header text (e.g. "ETA ^")
-    int                        fontSizeStripLarge    = 30;                      ///< Base font size for the large strip text (callsign, runway, status button)
-    int                        fontSizeStripMedium   = 20;                      ///< Base font size for the medium strip text (type, stand, squawk, adep/ades)
-    int                        fontSizeStripSmall    = 16;                      ///< Base font size for the small strip text (reserved for future sub-cell use)
-    std::vector<DiflisGroupDef> groups           = {};                            ///< All group definitions in rendering order; column/heightWeight decide placement
-    std::vector<std::pair<double, double>> crossCouple = {};                      ///< Cross-coupling pairs {covering, covered}: if the covering freq is online, the covered button inherits its color.
+    std::vector<int>                       columnWidths        = {28, 28, 28, 16};   ///< Per-column width percentages (one entry per column; should sum to ~100)
+    COLORREF                               inboundBg           = RGB(176, 216, 255); ///< Strip background for arrivals (HTML hex in config)
+    COLORREF                               inboundBgDark       = RGB(128, 176, 224); ///< Darker accent for arrivals (callsign/status cells)
+    COLORREF                               inboundText         = RGB(0, 0, 0);       ///< Main text color for arrivals
+    COLORREF                               inboundTextDim      = RGB(90, 90, 90);    ///< Dimmed text color for arrivals (sid, runway)
+    COLORREF                               outboundBg          = RGB(210, 210, 210); ///< Strip background for departures
+    COLORREF                               outboundBgDark      = RGB(160, 160, 160); ///< Darker accent for departures
+    COLORREF                               outboundText        = RGB(0, 0, 0);       ///< Main text color for departures
+    COLORREF                               outboundTextDim     = RGB(90, 90, 90);    ///< Dimmed text color for departures
+    int                                    fontSizeStatusBar   = 20;                 ///< Base font size for the bottom status bar (buttons + clock)
+    int                                    fontSizeGroupHeader = 16;                 ///< Base font size for group title text (centred header)
+    int                                    fontSizeGroupSide   = 14;                 ///< Base font size for the right-side sub-header text (e.g. "ETA ^")
+    int                                    fontSizeStripLarge  = 30;                 ///< Base font size for the large strip text (callsign, runway, status button)
+    int                                    fontSizeStripMedium = 20;                 ///< Base font size for the medium strip text (type, stand, squawk, adep/ades)
+    int                                    fontSizeStripSmall  = 16;                 ///< Base font size for the small strip text (reserved for future sub-cell use)
+    std::vector<DiflisGroupDef>            groups              = {};                 ///< All group definitions in rendering order; column/heightWeight decide placement
+    std::vector<std::pair<double, double>> crossCouple         = {};                 ///< Cross-coupling pairs {covering, covered}: if the covering freq is online, the covered button inherits its color.
 };
 
 /// @brief Configuration for a single runway including threshold, holding points, SID groups and vacate points.
@@ -271,5 +273,5 @@ struct airport
     std::map<std::string, double>                    taxiWingspanAvoid         = {}; ///< Taxiway/taxilane ref -> max wingspan (m); aircraft at or below this size receive a soft routing penalty on this ref (prefer a parallel, narrower lane instead).
     std::vector<std::array<std::string, 2>>          taxiLaneSwingoverPairs    = {}; ///< Pairs of taxilane refs that allow free swingover (e.g. {"TL 40 \"Blue Line\"", "TL 40 \"Orange Line\""}).
     TaxiNetworkConfig                                taxiNetworkConfig         = {}; ///< Tunable taxi graph, routing, snapping, and safety parameters (all fields default when absent from config.json).
-    DiflisAirportConfig                               diflis                    = {}; ///< DIFLIS window configuration for this airport; loaded from the top-level "diflis" block in config.json.
+    DiflisAirportConfig                              diflis                    = {}; ///< DIFLIS window configuration for this airport; loaded from the top-level "diflis" block in config.json.
 };
