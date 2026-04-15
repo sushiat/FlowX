@@ -34,7 +34,7 @@ void CFlowX_Logging::LogDebugSessionStart()
     {
         f << "\n";
         f << "================================================================================\n";
-        f << "  " PLUGIN_NAME " v" PLUGIN_VERSION " — debug session started " << ts << "\n";
+        f << "  " PLUGIN_NAME " v" PLUGIN_VERSION " -- debug session started " << ts << "\n";
         f << "================================================================================\n";
     }
 }
