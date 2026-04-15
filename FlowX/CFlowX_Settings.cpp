@@ -1130,6 +1130,32 @@ void CFlowX_Settings::LoadConfig()
                         this->LogDebugMessage("preferredRoutes: invalid regex \"" + pr.destinationPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
                         continue;
                     }
+                    pr.originPattern = r.value("origin", std::string{});
+                    if (!pr.originPattern.empty())
+                    {
+                        try
+                        {
+                            pr.originRegex = std::regex(pr.originPattern);
+                        }
+                        catch (const std::regex_error& e)
+                        {
+                            this->LogDebugMessage("preferredRoutes: invalid origin regex \"" + pr.originPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
+                            pr.originPattern.clear();
+                        }
+                    }
+                    pr.originExcludePattern = r.value("originExclude", std::string{});
+                    if (!pr.originExcludePattern.empty())
+                    {
+                        try
+                        {
+                            pr.originExcludeRegex = std::regex(pr.originExcludePattern);
+                        }
+                        catch (const std::regex_error& e)
+                        {
+                            this->LogDebugMessage("preferredRoutes: invalid originExclude regex \"" + pr.originExcludePattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
+                            pr.originExcludePattern.clear();
+                        }
+                    }
                     if (r.contains("mustInclude") && r["mustInclude"].is_array())
                         for (const auto& w : r["mustInclude"])
                             if (w.is_string())

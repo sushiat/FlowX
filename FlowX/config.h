@@ -135,9 +135,13 @@ struct approachPath
 ///          route is used as a graceful fallback.
 struct PreferredRoute
 {
-    std::string              destinationPattern; ///< Raw regex string as authored in config.json (kept for debug logging).
-    std::regex               destinationRegex;   ///< Compiled ECMAScript regex; full-match semantics against the destination name.
-    std::vector<std::string> mustInclude;        ///< Ordered wayref sequence that must appear contiguously in the produced route.
+    std::string              destinationPattern;   ///< Raw regex string as authored in config.json (kept for debug logging).
+    std::regex               destinationRegex;     ///< Compiled ECMAScript regex; full-match semantics against the destination name.
+    std::string              originPattern;        ///< Empty = no allow-list. Optional origin wayref allow-list.
+    std::regex               originRegex;          ///< Only meaningful when @ref originPattern is non-empty.
+    std::string              originExcludePattern; ///< Empty = no deny-list. Optional origin wayref deny-list.
+    std::regex               originExcludeRegex;   ///< Only meaningful when @ref originExcludePattern is non-empty.
+    std::vector<std::string> mustInclude;          ///< Ordered wayref sequence that must appear contiguously in the produced route.
 };
 
 /// @brief A directional flow rule for a single taxiway.

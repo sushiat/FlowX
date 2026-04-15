@@ -10,8 +10,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
+#include <map>
 #include <numbers>
 #include <queue>
+#include <set>
 #include <unordered_map>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,7 +169,8 @@ std::vector<std::string> TaxiGraph::ResolvePreferredSequence(
     const airport&               ap,
     const std::set<std::string>& activeDepRwys,
     const std::set<std::string>& activeArrRwys,
-    const std::string&           destinationName)
+    const std::string&           destinationName,
+    const std::string&           originWayRef)
 {
     if (ap.preferredRoutes.empty() || destinationName.empty())
         return {};
@@ -176,33 +180,35 @@ std::vector<std::string> TaxiGraph::ResolvePreferredSequence(
         return {};
     for (const auto& rule : it->second)
     {
-        if (std::regex_match(destinationName, rule.destinationRegex))
-            return rule.mustInclude;
+        if (!std::regex_match(destinationName, rule.destinationRegex))
+            continue;
+        // Allow-list: origin must be known AND match.
+        if (!rule.originPattern.empty() &&
+            (originWayRef.empty() || !std::regex_match(originWayRef, rule.originRegex)))
+            continue;
+        // Deny-list: origin must be known AND match to exclude.  An unknown origin
+        // bypasses the deny-list (default-safe behavior for rules scoped by exclusion).
+        if (!rule.originExcludePattern.empty() && !originWayRef.empty() &&
+            std::regex_match(originWayRef, rule.originExcludeRegex))
+            continue;
+        return rule.mustInclude;
     }
     return {};
 }
 
-bool TaxiGraph::WayRefSequenceContiguous(const std::vector<std::string>& routeWayRefs,
-                                         const std::vector<std::string>& sequence)
+bool TaxiGraph::WayRefSequenceSubsequence(const std::vector<std::string>& routeWayRefs,
+                                          const std::vector<std::string>& sequence)
 {
     if (sequence.empty())
         return true;
-    if (routeWayRefs.size() < sequence.size())
-        return false;
-    const size_t n = sequence.size();
-    for (size_t i = 0; i + n <= routeWayRefs.size(); ++i)
+    size_t j = 0;
+    for (const auto& ref : routeWayRefs)
     {
-        bool ok = true;
-        for (size_t j = 0; j < n; ++j)
+        if (ref == sequence[j])
         {
-            if (routeWayRefs[i + j] != sequence[j])
-            {
-                ok = false;
-                break;
-            }
+            if (++j == sequence.size())
+                return true;
         }
-        if (ok)
-            return true;
     }
     return false;
 }
@@ -212,32 +218,151 @@ std::vector<GeoPoint> TaxiGraph::RepresentativeWaypointsForWayRefs(
     const GeoPoint&                 to,
     const std::vector<std::string>& sequence) const
 {
+    const auto            ids = RepresentativeNodeIdsForWayRefs(from, to, sequence);
     std::vector<GeoPoint> out;
+    out.reserve(ids.size());
+    for (const int id : ids)
+        out.push_back(nodes_[id].pos);
+    return out;
+}
+
+std::vector<int> TaxiGraph::RepresentativeNodeIdsForWayRefs(
+    const GeoPoint&                 from,
+    const GeoPoint&                 to,
+    const std::vector<std::string>& sequence,
+    std::string*                    diagnostic) const
+{
+    std::vector<int> out;
     if (sequence.empty())
         return out;
     out.reserve(sequence.size());
-    for (const auto& ref : sequence)
-    {
-        auto it = wayRefNodes_.find(ref);
-        if (it == wayRefNodes_.end() || it->second.empty())
-            return {};
 
-        int    bestId   = -1;
-        double bestDist = std::numeric_limits<double>::max();
-        for (const int id : it->second)
+    // Per-node set of wayRefs touched by any incident edge (incoming or
+    // outgoing).  Used to identify junction nodes shared by two specific refs.
+    const int                                    nodeCount = static_cast<int>(adj_.size());
+    std::vector<std::unordered_set<std::string>> nodeRefs(nodeCount);
+    for (int nid = 0; nid < nodeCount; ++nid)
+    {
+        for (const auto& e : adj_[nid])
         {
-            const double d = PointToSegmentDistM(nodes_[id].pos, from, to);
-            if (d < bestDist)
+            if (e.wayRef.empty())
+                continue;
+            nodeRefs[nid].insert(e.wayRef);
+            nodeRefs[e.to].insert(e.wayRef);
+        }
+    }
+
+    // Chain semantics (backward walk — anchor from @p to):
+    //   rep[N-1]               — nearest JUNCTION node touching edges on BOTH
+    //                            seq[N-2] AND seq[N-1], anchored on @p to.
+    //                            (If N==1, just nearest node on seq[0].)
+    //   rep[k], 0 < k < N-1    — nearest JUNCTION node touching edges on BOTH
+    //                            seq[k-1] AND seq[k], anchored on rep[k+1].
+    //   rep[0]                 — nearest node touching seq[0], anchored on
+    //                            rep[1] (if it exists).
+    //
+    // Walking backward is important when the destination side is more
+    // geometrically constrained than the origin side: anchoring from @p to
+    // first picks the junction actually adjacent to the target, then chains
+    // predecessors back toward @p from along ways reachable to that junction.
+    // Forward-walking can otherwise pick a same-name-but-disconnected junction
+    // (e.g. two separate "TL 42" stretches that share a label but not a path).
+    out.resize(sequence.size(), -1);
+    GeoPoint anchor = to;
+    for (int si = static_cast<int>(sequence.size()) - 1; si >= 0; --si)
+    {
+        const auto& ref = sequence[si];
+
+        std::unordered_set<int> candidates;
+        const bool              requireJunction = (si > 0);
+        for (int nid = 0; nid < nodeCount; ++nid)
+        {
+            if (!nodeRefs[nid].count(ref))
+                continue;
+            if (requireJunction && !nodeRefs[nid].count(sequence[si - 1]))
+                continue;
+            candidates.insert(nid);
+        }
+        // Relax: if no node sits at the seq[si-1]/seq[si] junction, fall back to
+        // any node touching seq[si].  Leg B_k may still fail, but the caller
+        // then gets an actionable leg-level diagnostic instead of a blanket
+        // "waypoints unavailable".
+        if (candidates.empty() && requireJunction)
+        {
+            if (diagnostic)
             {
-                bestDist = d;
-                bestId   = id;
+                if (!diagnostic->empty())
+                    *diagnostic += "; ";
+                *diagnostic += "no junction node for [" + sequence[si - 1] +
+                               "]/[" + ref + "], relaxed";
+            }
+            for (int nid = 0; nid < nodeCount; ++nid)
+                if (nodeRefs[nid].count(ref))
+                    candidates.insert(nid);
+        }
+        if (candidates.empty())
+        {
+            if (diagnostic)
+            {
+                if (!diagnostic->empty())
+                    *diagnostic += "; ";
+                *diagnostic += "no node touches [" + ref + "]";
+            }
+            return {};
+        }
+
+        const bool isFirst = (si == 0);
+        int        bestId  = -1;
+        double     bestD   = std::numeric_limits<double>::max();
+        for (const int id : candidates)
+        {
+            double d = HaversineM(nodes_[id].pos, anchor);
+            if (isFirst)
+                d += HaversineM(nodes_[id].pos, from);
+            if (d < bestD)
+            {
+                bestD  = d;
+                bestId = id;
             }
         }
         if (bestId < 0)
             return {};
-        out.push_back(nodes_[bestId].pos);
+        out[si] = bestId;
+        anchor  = nodes_[bestId].pos;
     }
     return out;
+}
+
+TaxiRoute TaxiGraph::RouteBetweenNodes(int                          startId,
+                                       int                          goalId,
+                                       double                       wingspanM,
+                                       const std::set<std::string>& activeDepRwys,
+                                       const std::set<std::string>& activeArrRwys,
+                                       const std::set<std::string>& allowedWayRefs,
+                                       double                       initialBearingDeg,
+                                       const std::set<int>&         blockedNodes,
+                                       const std::string&           terminateOnWayRef) const
+{
+    if (startId < 0 || goalId < 0 ||
+        startId >= static_cast<int>(nodes_.size()) ||
+        goalId >= static_cast<int>(nodes_.size()))
+        return {};
+
+    std::set<std::string> excludedRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanMax)
+            if (wingspanM > maxWs)
+                excludedRefs.insert(ref);
+
+    std::set<std::string> avoidRefs;
+    if (wingspanM > 0.0)
+        for (const auto& [ref, maxWs] : apt_.taxiWingspanAvoid)
+            if (wingspanM <= maxWs)
+                avoidRefs.insert(ref);
+
+    return RunAStar(startId, goalId, excludedRefs, avoidRefs, blockedNodes,
+                    activeDepRwys, activeArrRwys, initialBearingDeg,
+                    {}, false, {}, false, allowedWayRefs, terminateOnWayRef);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -551,6 +676,14 @@ int TaxiGraph::NearestNode(const GeoPoint& pos, double maxM) const
     return bestId;
 }
 
+std::string TaxiGraph::NearestWayRef(const GeoPoint& pos) const
+{
+    const int id = NearestNode(pos);
+    if (id < 0)
+        return {};
+    return nodes_[id].wayRef;
+}
+
 int TaxiGraph::NearestForwardNode(const GeoPoint& pos, double headingDeg, double maxM) const
 {
     double    bestD  = std::numeric_limits<double>::max();
@@ -668,20 +801,67 @@ std::vector<int> TaxiGraph::NearestCandidateNodes(
 // TaxiGraph::FindRoute  (A*)
 // ─────────────────────────────────────────────────────────────────────────────
 
-TaxiRoute TaxiGraph::RunAStar(int                          startId,
-                              int                          goalId,
-                              const std::set<std::string>& excludedRefs,
-                              const std::set<std::string>& avoidRefs,
-                              const std::set<int>&         blockedNodes,
-                              const std::set<std::string>& activeDepRwys,
-                              const std::set<std::string>& activeArrRwys,
-                              double                       initialBearingDeg,
-                              const std::set<std::string>& suppressFlowWayRefs,
-                              bool                         ignoreAllPenalties,
-                              const std::set<int>&         preferredNodes,
-                              bool                         emitDebugTrace) const
+TaxiRoute TaxiGraph::RunAStar(int                             startId,
+                              int                             goalId,
+                              const std::set<std::string>&    excludedRefs,
+                              const std::set<std::string>&    avoidRefs,
+                              const std::set<int>&            blockedNodes,
+                              const std::set<std::string>&    activeDepRwys,
+                              const std::set<std::string>&    activeArrRwys,
+                              double                          initialBearingDeg,
+                              const std::set<std::string>&    suppressFlowWayRefs,
+                              bool                            ignoreAllPenalties,
+                              const std::set<int>&            preferredNodes,
+                              bool                            emitDebugTrace,
+                              const std::set<std::string>&    allowedWayRefs,
+                              const std::string&              terminateOnWayRef,
+                              const std::vector<std::string>& sequenceConstraint) const
 {
-    if (startId == goalId)
+    // State-augmented mode: when sequenceConstraint is non-empty, the A* state
+    // is (nodeId, seqIdx) where seqIdx is the number of sequence elements
+    // already traversed (0..S).  Only edges that advance, continue, or
+    // pass-through the sequence are allowed once seqIdx > 0:
+    //   - If seqIdx < S and edge.wayRef == sequence[seqIdx]: advance to seqIdx+1
+    //   - Else if seqIdx == 0: unrestricted (pre-sequence)
+    //   - Else if seqIdx == S: unrestricted (post-sequence)
+    //   - Else if edge.wayRef is empty or intersection: pass-through
+    //   - Else if edge.wayRef == sequence[seqIdx-1]: continue current ref
+    //   - Else: blocked
+    // Goal condition is (nodeId == goalId AND seqIdx == S).
+    // When sequenceConstraint is empty the data structures are sized exactly
+    // like the non-augmented case (stride=1) — zero overhead on the hot path.
+    const int  S      = static_cast<int>(sequenceConstraint.size());
+    const int  stride = S + 1;
+    const bool useSeq = S > 0;
+    // Flat state index: nodeId * stride + seqIdx.  When useSeq is false,
+    // stride is 1 and the index collapses to nodeId — identical layout to
+    // the original non-augmented code.
+    auto sIdx = [stride](int n, int s)
+    { return n * stride + s; };
+    // Sequence-transition helper: computes the new seqIdx after traversing
+    // an edge with wayRef w from state (_, curS).  Returns -1 when the
+    // transition is blocked by the sequence rules.
+    // Subsequence semantics: advance when the current required ref is matched;
+    // otherwise stay at the same seqIdx.  The sequence entries must appear in
+    // order in the final route's wayRefs list, but unrelated refs may appear
+    // between them (verified post-A* by WayRefSequenceSubsequence).
+    auto seqTransition = [&](int curS, const std::string& w) -> int
+    {
+        if (!useSeq)
+            return 0;
+        if (curS < S && w == sequenceConstraint[curS])
+            return curS + 1;
+        return curS;
+    };
+    // Multi-goal mode: when terminateOnWayRef is set, the first node reached
+    // whose arriving-edge wayRef matches the target ref is treated as the goal.
+    // The caller still supplies a @p goalId to drive the Euclidean heuristic
+    // (biasing expansion toward that region), but the actual termination is
+    // content-based.  Used by preferred-route inner legs which want "any node
+    // on wayref X reachable under the whitelist" rather than a pre-picked ID.
+    int        effectiveGoalId   = goalId;
+    const bool useTerminateOnRef = !terminateOnWayRef.empty();
+    if (startId == goalId && !useSeq)
     {
         TaxiRoute r;
         r.polyline   = {nodes_[startId].pos};
@@ -690,7 +870,10 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         return r;
     }
 
-    const int    MAX_NODES             = apt_.taxiNetworkConfig.routing.maxNodeExpansions;
+    // State-augmented mode multiplies the reachable state space by (S+1),
+    // so scale the expansion budget accordingly to avoid premature cut-off
+    // when a multi-segment constrained route is being explored.
+    const int    MAX_NODES             = apt_.taxiNetworkConfig.routing.maxNodeExpansions * stride;
     const double WAYREF_CHANGE_PENALTY = apt_.taxiNetworkConfig.routing.wayrefChangePenalty;
     const double SOFT_TURN_COST        = apt_.taxiNetworkConfig.routing.softTurnCostPerDeg;
     const double MIN_COST_PER_M        = apt_.taxiNetworkConfig.flowRules.withFlowMult; // admissibility bound
@@ -710,51 +893,136 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     struct PQEntry
     {
         double f;
-        int    id;
+        int    id;  // flat state index (nodeId * stride + seqIdx)
+        int    nid; // nodeId (duplicated for fast access in the loop)
+        int    sIx; // seqIdx
     };
     auto cmp = [](const PQEntry& a, const PQEntry& b)
     { return a.f > b.f; };
     std::priority_queue<PQEntry, std::vector<PQEntry>, decltype(cmp)> open(cmp);
 
-    std::vector<double>      g(nodes_.size(), std::numeric_limits<double>::max());
-    std::vector<int>         prev(nodes_.size(), -1);
-    std::vector<double>      incomingBearing(nodes_.size(), -1.0);
-    std::vector<std::string> incomingWayRef(nodes_.size(), "");
-    std::vector<bool>        closed(nodes_.size(), false);
-    std::vector<double>      dbgEdgeCost(emitDebugTrace ? nodes_.size() : 0, 0.0);
-    std::vector<double>      dbgTurnPenalty(emitDebugTrace ? nodes_.size() : 0, 0.0);
-    std::vector<double>      dbgSoftTurn(emitDebugTrace ? nodes_.size() : 0, 0.0);
-    std::vector<double>      dbgDepMult(emitDebugTrace ? nodes_.size() : 0, 1.0);
-    std::vector<double>      dbgBearingDiff(emitDebugTrace ? nodes_.size() : 0, 0.0);
+    const size_t             stateCount = nodes_.size() * static_cast<size_t>(stride);
+    std::vector<double>      g(stateCount, std::numeric_limits<double>::max());
+    std::vector<int>         prev(stateCount, -1);
+    std::vector<double>      incomingBearing(stateCount, -1.0);
+    std::vector<std::string> incomingWayRef(stateCount, "");
+    std::vector<bool>        closed(stateCount, false);
+    std::vector<double>      dbgEdgeCost(emitDebugTrace ? stateCount : 0, 0.0);
+    std::vector<double>      dbgTurnPenalty(emitDebugTrace ? stateCount : 0, 0.0);
+    std::vector<double>      dbgSoftTurn(emitDebugTrace ? stateCount : 0, 0.0);
+    std::vector<double>      dbgDepMult(emitDebugTrace ? stateCount : 0, 1.0);
+    std::vector<double>      dbgBearingDiff(emitDebugTrace ? stateCount : 0, 0.0);
     int                      nodesExpanded = 0;
+    int                      goalStateIdx  = -1;
+
+    // Sequence diagnostic: max seqIdx ever reached + sample of wayRefs that
+    // blocked further progress at that level.  Dumped into debugTrace on
+    // useSeq failure so the caller can log *why* the constrained A* failed.
+    int                                  dbgMaxSeq = 0;
+    std::map<int, std::set<std::string>> dbgBlockedRefsAtSeq;
+    std::map<int, int>                   dbgTurnBlocksAtSeq;
+    std::map<int, std::set<std::string>> dbgTurnBlockedRefsAtSeq;
+    std::map<int, int>                   dbgExpandedAtSeq;
+    std::map<int, int>                   dbgRelaxedAtSeq;
+    std::map<int, std::set<std::string>> dbgAdvancesAtSeq; // edges that advanced INTO this seq level
 
     // Seed the aircraft's current heading so the first edge is turn-checked.
-    incomingBearing[startId] = initialBearingDeg;
+    const int startStateIdx        = sIdx(startId, 0);
+    incomingBearing[startStateIdx] = initialBearingDeg;
 
-    g[startId] = 0.0;
-    open.push({HEURISTIC_W * HaversineM(nodes_[startId].pos, goalPos), startId});
+    g[startStateIdx] = 0.0;
+    open.push({HEURISTIC_W * HaversineM(nodes_[startId].pos, goalPos), startStateIdx, startId, 0});
 
     while (!open.empty())
     {
-        const auto [f, cur] = open.top();
+        const auto entry = open.top();
         open.pop();
+        const int cur     = entry.id;
+        const int curNode = entry.nid;
+        const int curSeq  = entry.sIx;
 
         // Skip stale priority-queue entries; once closed, g[cur] is optimal.
         if (closed[cur])
             continue;
         closed[cur] = true;
+        if (useSeq)
+            dbgExpandedAtSeq[curSeq]++;
 
-        if (cur == goalId)
+        if (curNode == goalId && (!useSeq || curSeq == S))
+        {
+            effectiveGoalId = curNode;
+            goalStateIdx    = cur;
             break;
+        }
+        if (useTerminateOnRef && curNode != startId && incomingWayRef[cur] == terminateOnWayRef)
+        {
+            // Guard against single-node-ref graph artifacts: a stub "TL 42"
+            // edge embedded inside another way is not the real taxiway.
+            // Require the node to have at least one OTHER outgoing edge on
+            // the same ref, proving it's part of a real chain.  Intersection
+            // refs (Exit NN) are naturally short — 1-2 edges — so the
+            // continuation check is skipped for them, otherwise termination
+            // on an intersection ref never fires.
+            bool acceptable = isxWayRefs_.count(terminateOnWayRef) > 0;
+            if (!acceptable)
+            {
+                for (const auto& e : adj_[curNode])
+                {
+                    if (e.to == (prev[cur] >= 0 ? prev[cur] / stride : -1))
+                        continue;
+                    if (e.wayRef == terminateOnWayRef)
+                    {
+                        acceptable = true;
+                        break;
+                    }
+                }
+            }
+            if (acceptable)
+            {
+                effectiveGoalId = curNode;
+                goalStateIdx    = cur;
+                break;
+            }
+        }
         if (++nodesExpanded > MAX_NODES)
             break;
 
-        for (const auto& edge : adj_[cur])
+        for (const auto& edge : adj_[curNode])
         {
             if (!excludedRefs.empty() && excludedRefs.contains(edge.wayRef))
                 continue;
+            // Hard whitelist: edges on non-empty wayRefs must be in the allowed
+            // set.  Empty-wayRef edges (junction connectors) and intersection
+            // refs (Exit NN) always pass.  Kept for backward-compatibility with
+            // the (now obsolete) leg-splicing path; state-augmented sequence
+            // mode uses seqTransition instead.
+            if (!allowedWayRefs.empty() && !edge.wayRef.empty() &&
+                !allowedWayRefs.contains(edge.wayRef) && !isxWayRefs_.count(edge.wayRef))
+                continue;
             if (!blockedNodes.empty() && blockedNodes.contains(edge.to) && edge.to != goalId)
                 continue;
+
+            // Sequence-transition gate: compute the new seqIdx for this edge.
+            // In state-augmented mode this determines whether the edge is
+            // allowed at all and where in state space it lands.
+            const int newSeq = seqTransition(curSeq, edge.wayRef);
+            if (newSeq < 0)
+            {
+                if (useSeq && curSeq >= dbgMaxSeq)
+                {
+                    if (curSeq > dbgMaxSeq)
+                    {
+                        dbgMaxSeq = curSeq;
+                    }
+                    auto& s = dbgBlockedRefsAtSeq[curSeq];
+                    if (s.size() < 8)
+                        s.insert(edge.wayRef);
+                }
+                continue;
+            }
+            if (useSeq && newSeq > dbgMaxSeq)
+                dbgMaxSeq = newSeq;
+            const int toStateIdx = sIdx(edge.to, newSeq);
 
             // Block HP-to-HP transitions: two different Taxiway_HoldingPoint
             // ways must not connect directly (shared junction nodes can create
@@ -776,7 +1044,18 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
                                            ? 135.0
                                            : apt_.taxiNetworkConfig.routing.hardTurnDeg;
                 if (bd_turn > limit)
+                {
+                    if (useSeq)
+                    {
+                        dbgTurnBlocksAtSeq[curSeq]++;
+                        auto& s = dbgTurnBlockedRefsAtSeq[curSeq];
+                        if (s.size() < 8)
+                            s.insert(std::format("{}->{}@{:.0f}",
+                                                 incomingWayRef[cur].empty() ? "-" : incomingWayRef[cur],
+                                                 edge.wayRef.empty() ? "-" : edge.wayRef, bd_turn));
+                    }
                     continue;
+                }
             }
 
             double           edgeCost;
@@ -867,38 +1146,133 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
 
             const double ng = g[cur] + edgeCost + turnPenalty;
 
-            if (ng < g[edge.to])
+            if (ng < g[toStateIdx])
             {
-                g[edge.to]               = ng;
-                prev[edge.to]            = cur;
-                incomingBearing[edge.to] = edge.bearingDeg;
-                incomingWayRef[edge.to]  = edge.wayRef;
+                if (useSeq)
+                {
+                    dbgRelaxedAtSeq[newSeq]++;
+                    if (newSeq > curSeq)
+                    {
+                        auto& s = dbgAdvancesAtSeq[newSeq];
+                        if (s.size() < 4)
+                            s.insert(std::format("{}->{}@{:.0f}",
+                                                 incomingWayRef[cur].empty() ? "-" : incomingWayRef[cur],
+                                                 edge.wayRef, incomingBearing[cur] >= 0 ? BearingDiff(incomingBearing[cur], edge.bearingDeg) : 0.0));
+                    }
+                }
+                g[toStateIdx]               = ng;
+                prev[toStateIdx]            = cur;
+                incomingBearing[toStateIdx] = edge.bearingDeg;
+                incomingWayRef[toStateIdx]  = edge.wayRef;
                 if (emitDebugTrace)
                 {
-                    dbgEdgeCost[edge.to]    = edgeCost;
-                    dbgTurnPenalty[edge.to] = turnPenalty;
-                    dbgSoftTurn[edge.to]    = (bd > SOFT_TURN_THRESH && !isxWayRefs_.count(incomingWayRef[cur]))
-                                                  ? (bd - SOFT_TURN_THRESH) * SOFT_TURN_COST
-                                                  : 0.0;
-                    dbgDepMult[edge.to]     = depMult;
-                    dbgBearingDiff[edge.to] = bd;
+                    dbgEdgeCost[toStateIdx]    = edgeCost;
+                    dbgTurnPenalty[toStateIdx] = turnPenalty;
+                    dbgSoftTurn[toStateIdx]    = (bd > SOFT_TURN_THRESH && !isxWayRefs_.count(incomingWayRef[cur]))
+                                                     ? (bd - SOFT_TURN_THRESH) * SOFT_TURN_COST
+                                                     : 0.0;
+                    dbgDepMult[toStateIdx]     = depMult;
+                    dbgBearingDiff[toStateIdx] = bd;
                 }
-                open.push({ng + HEURISTIC_W * HaversineM(nodes_[edge.to].pos, goalPos), edge.to});
+                open.push({ng + HEURISTIC_W * HaversineM(nodes_[edge.to].pos, goalPos),
+                           toStateIdx, edge.to, newSeq});
             }
         }
     } // while
 
-    if (prev[goalId] == -1 && goalId != startId)
-        return {};
+    // If the loop exited without finding a goal state, fail.  In state-
+    // augmented mode the goal requires both nodeId and seqIdx to match; in
+    // the non-augmented case goalStateIdx == sIdx(goalId, 0) when reached.
+    if (goalStateIdx < 0)
+    {
+        // Fallback for the simple (non-sequence, non-terminate) case where
+        // the outer loop exit condition preserved the original goalId-prev
+        // invariant without setting goalStateIdx.
+        if (!useSeq && !useTerminateOnRef)
+        {
+            const int flatGoal = sIdx(goalId, 0);
+            if (prev[flatGoal] == -1 && goalId != startId)
+                return {};
+            goalStateIdx = flatGoal;
+        }
+        else
+        {
+            TaxiRoute r;
+            r.valid = false;
+            if (useSeq)
+            {
+                r.debugTrace = std::format("seqMaxReached={}/{} expanded={}", dbgMaxSeq, S, nodesExpanded);
+                for (int lvl = 0; lvl <= S; ++lvl)
+                {
+                    int ex = dbgExpandedAtSeq.count(lvl) ? dbgExpandedAtSeq[lvl] : 0;
+                    int rx = dbgRelaxedAtSeq.count(lvl) ? dbgRelaxedAtSeq[lvl] : 0;
+                    if (ex == 0 && rx == 0)
+                        continue;
+                    r.debugTrace += std::format(" L{}:exp={}rx={}", lvl, ex, rx);
+                    auto it = dbgAdvancesAtSeq.find(lvl);
+                    if (it != dbgAdvancesAtSeq.end())
+                    {
+                        r.debugTrace += "adv[";
+                        bool first = true;
+                        for (const auto& a : it->second)
+                        {
+                            if (!first)
+                                r.debugTrace += ",";
+                            r.debugTrace += a;
+                            first = false;
+                        }
+                        r.debugTrace += "]";
+                    }
+                }
+                for (const auto& [lvl, cnt] : dbgTurnBlocksAtSeq)
+                {
+                    r.debugTrace += std::format(" turnBlk{}={}", lvl, cnt);
+                    auto it = dbgTurnBlockedRefsAtSeq.find(lvl);
+                    if (it != dbgTurnBlockedRefsAtSeq.end())
+                    {
+                        r.debugTrace += "[";
+                        bool first = true;
+                        for (const auto& rf : it->second)
+                        {
+                            if (!first)
+                                r.debugTrace += ",";
+                            r.debugTrace += rf;
+                            first = false;
+                        }
+                        r.debugTrace += "]";
+                    }
+                }
+                for (const auto& [lvl, refs] : dbgBlockedRefsAtSeq)
+                {
+                    r.debugTrace += std::format(" blockedAt{}=[", lvl);
+                    bool first = true;
+                    for (const auto& rf : refs)
+                    {
+                        if (!first)
+                            r.debugTrace += ",";
+                        r.debugTrace += rf.empty() ? "\"\"" : rf;
+                        first = false;
+                    }
+                    r.debugTrace += "]";
+                }
+            }
+            return r;
+        }
+    }
 
     // Reconstruct path.
     TaxiRoute route;
     route.valid     = true;
-    route.totalCost = g[goalId];
+    route.totalCost = g[goalStateIdx];
+    // Path is stored as state indices; convert to node IDs via `/ stride`.
+    std::vector<int> statePath;
+    for (int s = goalStateIdx; s != -1; s = prev[s])
+        statePath.push_back(s);
+    std::ranges::reverse(statePath);
     std::vector<int> path;
-    for (int n = goalId; n != -1; n = prev[n])
-        path.push_back(n);
-    std::ranges::reverse(path);
+    path.reserve(statePath.size());
+    for (const int s : statePath)
+        path.push_back(s / stride);
 
     std::string lastRef;
     // Debug: accumulate per-wayRef segment stats for the trace.
@@ -911,7 +1285,8 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     std::string dbgSegRef;
     for (size_t pi = 0; pi < path.size(); ++pi)
     {
-        const int nId = path[pi];
+        const int nId      = path[pi];
+        const int stateIdx = statePath[pi];
         route.polyline.push_back(nodes_[nId].pos);
         const std::string& ref = nodes_[nId].wayRef;
         if (!ref.empty() && ref != lastRef)
@@ -942,17 +1317,18 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
         }
         if (pi > 0)
         {
-            const double stepDist = HaversineM(nodes_[prev[nId] == -1 ? nId : prev[nId]].pos, nodes_[nId].pos);
+            const int    prevNode = path[pi - 1];
+            const double stepDist = HaversineM(nodes_[prevNode].pos, nodes_[nId].pos);
             route.totalDistM += stepDist;
             if (emitDebugTrace)
             {
                 dbgSegDist += stepDist;
-                dbgSegCost += dbgEdgeCost[nId];
-                dbgSegPenalty += dbgTurnPenalty[nId];
-                dbgSegSoftTurn += dbgSoftTurn[nId];
-                dbgSegDepMult = dbgDepMult[nId];
-                if (dbgBearingDiff[nId] > dbgSegMaxBd)
-                    dbgSegMaxBd = dbgBearingDiff[nId];
+                dbgSegCost += dbgEdgeCost[stateIdx];
+                dbgSegPenalty += dbgTurnPenalty[stateIdx];
+                dbgSegSoftTurn += dbgSoftTurn[stateIdx];
+                dbgSegDepMult = dbgDepMult[stateIdx];
+                if (dbgBearingDiff[stateIdx] > dbgSegMaxBd)
+                    dbgSegMaxBd = dbgBearingDiff[stateIdx];
             }
         }
     }
@@ -972,21 +1348,23 @@ TaxiRoute TaxiGraph::RunAStar(int                          startId,
     return route;
 }
 
-TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
-                               const GeoPoint&              to,
-                               double                       wingspanM,
-                               const std::set<std::string>& activeDepRwys,
-                               const std::set<std::string>& activeArrRwys,
-                               double                       initialBearingDeg,
-                               const std::set<int>&         blockedNodes,
-                               const std::set<std::string>& suppressFlowWayRefs,
-                               bool                         ignoreAllPenalties,
-                               const std::set<int>&         preferredNodes,
-                               bool                         emitDebugTrace,
-                               bool                         forwardOnly,
-                               double                       goalBearingDeg,
-                               char                         wtc,
-                               const std::string&           arrivalRunway) const
+TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
+                               const GeoPoint&                 to,
+                               double                          wingspanM,
+                               const std::set<std::string>&    activeDepRwys,
+                               const std::set<std::string>&    activeArrRwys,
+                               double                          initialBearingDeg,
+                               const std::set<int>&            blockedNodes,
+                               const std::set<std::string>&    suppressFlowWayRefs,
+                               bool                            ignoreAllPenalties,
+                               const std::set<int>&            preferredNodes,
+                               bool                            emitDebugTrace,
+                               bool                            forwardOnly,
+                               double                          goalBearingDeg,
+                               char                            wtc,
+                               const std::string&              arrivalRunway,
+                               const std::set<std::string>&    allowedWayRefs,
+                               const std::vector<std::string>& sequenceConstraint) const
 {
     if (nodes_.empty())
         return {};
@@ -1236,17 +1614,25 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     // Try A* from each (start, goal) combination; keep the cheapest result
     // by total cost plus snap distances from the aircraft's actual position
     // and the stand's approach point.
-    TaxiRoute best;
-    double    bestScore = std::numeric_limits<double>::max();
+    TaxiRoute   best;
+    double      bestScore = std::numeric_limits<double>::max();
+    std::string seqFailureTrace; // latched diagnostic from first failed attempt
     for (const int startId : candidates)
     {
         for (const int goalId : goalCandidates)
         {
             TaxiRoute r = RunAStar(startId, goalId, excludedRefs, avoidRefs, blockedNodes, activeDepRwys,
                                    activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
-                                   ignoreAllPenalties, preferredNodes, emitDebugTrace);
+                                   ignoreAllPenalties, preferredNodes, emitDebugTrace, allowedWayRefs, "",
+                                   sequenceConstraint);
             if (!r.valid)
+            {
+                if (!sequenceConstraint.empty() && seqFailureTrace.empty() && !r.debugTrace.empty())
+                    seqFailureTrace = std::format("start#{}[{}] goal#{}[{}] {}",
+                                                  startId, nodes_[startId].wayRef,
+                                                  goalId, nodes_[goalId].wayRef, r.debugTrace);
                 continue;
+            }
             const double snapDist = HaversineM(from, nodes_[startId].pos) + HaversineM(to, nodes_[goalId].pos);
             const double score    = r.totalCost + snapDist;
             if (emitDebugTrace)
@@ -1279,6 +1665,8 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
         else
             best.debugTrace = "FindRoute FAILED: " + candidateInfo;
     }
+    if (!best.valid && !seqFailureTrace.empty())
+        best.debugTrace = seqFailureTrace + (best.debugTrace.empty() ? "" : "\n" + best.debugTrace);
     return best;
 }
 
@@ -1286,21 +1674,22 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
 // TaxiGraph::FindWaypointRoute
 // ─────────────────────────────────────────────────────────────────────────────
 
-TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
-                                       const std::vector<GeoPoint>& waypoints,
-                                       const GeoPoint&              dest,
-                                       double                       wingspanM,
-                                       const std::set<std::string>& activeDepRwys,
-                                       const std::set<std::string>& activeArrRwys,
-                                       double                       initialBearingDeg,
-                                       const std::set<int>&         blockedNodes,
-                                       bool                         ignoreAllPenalties,
-                                       const std::set<int>&         preferredNodes,
-                                       bool                         emitDebugTrace,
-                                       bool                         forwardOnly,
-                                       double                       goalBearingDeg,
-                                       char                         wtc,
-                                       const std::string&           arrivalRunway) const
+TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&                           origin,
+                                       const std::vector<GeoPoint>&              waypoints,
+                                       const GeoPoint&                           dest,
+                                       double                                    wingspanM,
+                                       const std::set<std::string>&              activeDepRwys,
+                                       const std::set<std::string>&              activeArrRwys,
+                                       double                                    initialBearingDeg,
+                                       const std::set<int>&                      blockedNodes,
+                                       bool                                      ignoreAllPenalties,
+                                       const std::set<int>&                      preferredNodes,
+                                       bool                                      emitDebugTrace,
+                                       bool                                      forwardOnly,
+                                       double                                    goalBearingDeg,
+                                       char                                      wtc,
+                                       const std::string&                        arrivalRunway,
+                                       const std::vector<std::set<std::string>>& legAllowedWayRefs) const
 {
     std::vector<GeoPoint> stops;
     stops.push_back(origin);
@@ -1333,10 +1722,15 @@ TaxiRoute TaxiGraph::FindWaypointRoute(const GeoPoint&              origin,
         const double      segGoalBrng = isLastSeg ? goalBearingDeg : -1.0;
         const char        segWtc      = (i == 1) ? wtc : char{0};
         const std::string segArrRwy   = (i == 1) ? arrivalRunway : std::string{};
-        TaxiRoute         seg         = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
-                                                  segInitBearing, blockedNodes, suppressFlowWayRefs,
-                                                  ignoreAllPenalties, preferredNodes, emitDebugTrace,
-                                                  (i == 1) ? forwardOnly : false, segGoalBrng, segWtc, segArrRwy);
+        // Per-leg whitelist: if supplied, restricts edge wayRefs for this segment
+        // to force contiguity across preferred-route sequence elements.
+        const std::set<std::string> segAllowed =
+            (legAllowedWayRefs.size() == stops.size() - 1) ? legAllowedWayRefs[i - 1] : std::set<std::string>{};
+        TaxiRoute seg = FindRoute(stops[i - 1], stops[i], wingspanM, activeDepRwys, activeArrRwys,
+                                  segInitBearing, blockedNodes, suppressFlowWayRefs,
+                                  ignoreAllPenalties, preferredNodes, emitDebugTrace,
+                                  (i == 1) ? forwardOnly : false, segGoalBrng, segWtc, segArrRwy,
+                                  segAllowed);
         if (!seg.valid)
         {
             combined.valid = false;
@@ -2010,7 +2404,8 @@ std::vector<TaxiFlowRule> TaxiGraph::GetActiveFlowRules(
 // ─────────────────────────────────────────────────────────────────────────────
 
 GeoPoint TaxiGraph::BestDepartureHP(const std::set<std::string>& activeDepRwys,
-                                    const airport&               ap) const
+                                    const airport&               ap,
+                                    std::string*                 outName) const
 {
     for (const auto& rwyDes : activeDepRwys)
     {
@@ -2031,7 +2426,11 @@ GeoPoint TaxiGraph::BestDepartureHP(const std::set<std::string>& activeDepRwys,
                 best = &hp;
         }
         if (best)
+        {
+            if (outName)
+                *outName = best->name;
             return {best->centerLat, best->centerLon};
+        }
     }
     return {};
 }

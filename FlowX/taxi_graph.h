@@ -212,21 +212,23 @@ class TaxiGraph
     ///                          bearing); only nodes within ±20° of this bearing are considered.
     ///                          -1 = unconstrained (all directions).
     /// @return Populated TaxiRoute on success; TaxiRoute{valid=false} if no path found.
-    [[nodiscard]] TaxiRoute FindRoute(const GeoPoint&              from,
-                                      const GeoPoint&              to,
-                                      double                       wingspanM,
-                                      const std::set<std::string>& activeDepRwys,
-                                      const std::set<std::string>& activeArrRwys,
-                                      double                       initialBearingDeg   = -1.0,
-                                      const std::set<int>&         blockedNodes        = {},
-                                      const std::set<std::string>& suppressFlowWayRefs = {},
-                                      bool                         ignoreAllPenalties  = false,
-                                      const std::set<int>&         preferredNodes      = {},
-                                      bool                         emitDebugTrace      = false,
-                                      bool                         forwardOnly         = false,
-                                      double                       goalBearingDeg      = -1.0,
-                                      char                         wtc                 = 0,
-                                      const std::string&           arrivalRunway       = {}) const;
+    [[nodiscard]] TaxiRoute FindRoute(const GeoPoint&                 from,
+                                      const GeoPoint&                 to,
+                                      double                          wingspanM,
+                                      const std::set<std::string>&    activeDepRwys,
+                                      const std::set<std::string>&    activeArrRwys,
+                                      double                          initialBearingDeg   = -1.0,
+                                      const std::set<int>&            blockedNodes        = {},
+                                      const std::set<std::string>&    suppressFlowWayRefs = {},
+                                      bool                            ignoreAllPenalties  = false,
+                                      const std::set<int>&            preferredNodes      = {},
+                                      bool                            emitDebugTrace      = false,
+                                      bool                            forwardOnly         = false,
+                                      double                          goalBearingDeg      = -1.0,
+                                      char                            wtc                 = 0,
+                                      const std::string&              arrivalRunway       = {},
+                                      const std::set<std::string>&    allowedWayRefs      = {},
+                                      const std::vector<std::string>& sequenceConstraint  = {}) const;
 
     /// @brief Concatenates multiple A* segments: origin → wp[0] → wp[1] → … → dest.
     /// @param origin            Route start.
@@ -237,21 +239,22 @@ class TaxiGraph
     /// @param activeArrRwys     Passed to each FindRoute call.
     /// @param initialBearingDeg Aircraft heading; forwarded to the first FindRoute segment.
     /// @param blockedNodes      Forwarded to every FindRoute call.
-    [[nodiscard]] TaxiRoute FindWaypointRoute(const GeoPoint&              origin,
-                                              const std::vector<GeoPoint>& waypoints,
-                                              const GeoPoint&              dest,
-                                              double                       wingspanM,
-                                              const std::set<std::string>& activeDepRwys,
-                                              const std::set<std::string>& activeArrRwys,
-                                              double                       initialBearingDeg  = -1.0,
-                                              const std::set<int>&         blockedNodes       = {},
-                                              bool                         ignoreAllPenalties = false,
-                                              const std::set<int>&         preferredNodes     = {},
-                                              bool                         emitDebugTrace     = false,
-                                              bool                         forwardOnly        = false,
-                                              double                       goalBearingDeg     = -1.0,
-                                              char                         wtc                = 0,
-                                              const std::string&           arrivalRunway      = {}) const;
+    [[nodiscard]] TaxiRoute FindWaypointRoute(const GeoPoint&                           origin,
+                                              const std::vector<GeoPoint>&              waypoints,
+                                              const GeoPoint&                           dest,
+                                              double                                    wingspanM,
+                                              const std::set<std::string>&              activeDepRwys,
+                                              const std::set<std::string>&              activeArrRwys,
+                                              double                                    initialBearingDeg  = -1.0,
+                                              const std::set<int>&                      blockedNodes       = {},
+                                              bool                                      ignoreAllPenalties = false,
+                                              const std::set<int>&                      preferredNodes     = {},
+                                              bool                                      emitDebugTrace     = false,
+                                              bool                                      forwardOnly        = false,
+                                              double                                    goalBearingDeg     = -1.0,
+                                              char                                      wtc                = 0,
+                                              const std::string&                        arrivalRunway      = {},
+                                              const std::vector<std::set<std::string>>& legAllowedWayRefs  = {}) const;
 
     /// @brief Builds the canonical taxi-config key used to look up per-runway rule maps
     ///        (taxiFlowConfigs, preferredRoutes, ...) from an active runway selection.
@@ -266,18 +269,27 @@ class TaxiGraph
     /// @param activeDepRwys    Active departure runways.
     /// @param activeArrRwys    Active arrival runways.
     /// @param destinationName  Bare destination name (stand designator or HP label, no prefix).
-    /// @return The ordered wayref sequence that must appear contiguously in the route;
-    ///         empty when no rule matches.
+    /// @param originWayRef     Wayref of the aircraft's current position (stand name or taxiway ref);
+    ///                         empty when unknown. Used to filter rules via their optional
+    ///                         @c origin allow-list and @c originExclude deny-list.
+    /// @return The ordered wayref sequence that must appear as an in-order subsequence in the
+    ///         route; empty when no rule matches.
     [[nodiscard]] static std::vector<std::string> ResolvePreferredSequence(
         const airport&               ap,
         const std::set<std::string>& activeDepRwys,
         const std::set<std::string>& activeArrRwys,
-        const std::string&           destinationName);
+        const std::string&           destinationName,
+        const std::string&           originWayRef);
 
-    /// @brief Returns true if @p sequence appears as a contiguous, in-order subsequence
-    ///        of @p routeWayRefs.
-    [[nodiscard]] static bool WayRefSequenceContiguous(const std::vector<std::string>& routeWayRefs,
-                                                       const std::vector<std::string>& sequence);
+    /// @brief Returns the wayRef of the graph node nearest to @p pos, or an empty string
+    ///        when no node is within reach. Used by preferred-route origin matching to
+    ///        identify what taxiway the aircraft is currently on.
+    [[nodiscard]] std::string NearestWayRef(const GeoPoint& pos) const;
+
+    /// @brief Returns true if @p sequence appears as an in-order subsequence of
+    ///        @p routeWayRefs (other wayrefs may appear between required entries).
+    [[nodiscard]] static bool WayRefSequenceSubsequence(const std::vector<std::string>& routeWayRefs,
+                                                        const std::vector<std::string>& sequence);
 
     /// @brief For each wayref in @p sequence, returns a representative GeoPoint on that
     ///        wayref suitable for use as a mandatory via-point in FindWaypointRoute.
@@ -289,6 +301,29 @@ class TaxiGraph
         const GeoPoint&                 from,
         const GeoPoint&                 to,
         const std::vector<std::string>& sequence) const;
+
+    /// @brief Like RepresentativeWaypointsForWayRefs but returns node IDs instead
+    ///        of GeoPoints, allowing callers to route directly between the picked
+    ///        nodes without re-snapping.
+    [[nodiscard]] std::vector<int> RepresentativeNodeIdsForWayRefs(
+        const GeoPoint&                 from,
+        const GeoPoint&                 to,
+        const std::vector<std::string>& sequence,
+        std::string*                    diagnostic = nullptr) const;
+
+    /// @brief Thin public wrapper over the internal A* that routes between two
+    ///        specific graph node IDs under a hard wayref whitelist.  Used by
+    ///        the preferred-route sequence enforcer which needs exact start/goal
+    ///        node control that FindRoute's snap logic does not provide.
+    [[nodiscard]] TaxiRoute RouteBetweenNodes(int                          startId,
+                                              int                          goalId,
+                                              double                       wingspanM,
+                                              const std::set<std::string>& activeDepRwys,
+                                              const std::set<std::string>& activeArrRwys,
+                                              const std::set<std::string>& allowedWayRefs,
+                                              double                       initialBearingDeg = -1.0,
+                                              const std::set<int>&         blockedNodes      = {},
+                                              const std::string&           terminateOnWayRef = "") const;
 
     /// @brief Returns the merged set of flow rules for the given active runway configuration.
     /// Combines taxiFlowGeneric with the taxiFlowConfigs entry whose key matches dep+arr.
@@ -337,9 +372,12 @@ class TaxiGraph
 
     /// @brief Returns the centroid of the first (lowest config-order) assignable holding point
     ///        on the first active departure runway found in @p activeDepRwys.
+    /// @param outName  Optional out-parameter receiving the chosen holding-point name
+    ///                 (e.g. "B1"); left untouched when no suitable HP is found.
     /// @return {0,0} if no suitable holding point is found.
     [[nodiscard]] GeoPoint BestDepartureHP(const std::set<std::string>& activeDepRwys,
-                                           const airport&               ap) const;
+                                           const airport&               ap,
+                                           std::string*                 outName = nullptr) const;
 
     /// @brief Computes the centroid of a stand polygon.
     /// @param icaoStandKey  Key in the grStands map, e.g. "LOWW:B67".
@@ -551,16 +589,19 @@ class TaxiGraph
     ///        leading to these nodes receive a cost discount to bias routing toward the
     ///        drawn path.
     /// @return Populated TaxiRoute on success; invalid TaxiRoute if no path found.
-    [[nodiscard]] TaxiRoute RunAStar(int                          startId,
-                                     int                          goalId,
-                                     const std::set<std::string>& excludedRefs,
-                                     const std::set<std::string>& avoidRefs,
-                                     const std::set<int>&         blockedNodes,
-                                     const std::set<std::string>& activeDepRwys,
-                                     const std::set<std::string>& activeArrRwys,
-                                     double                       initialBearingDeg,
-                                     const std::set<std::string>& suppressFlowWayRefs = {},
-                                     bool                         ignoreAllPenalties  = false,
-                                     const std::set<int>&         preferredNodes      = {},
-                                     bool                         emitDebugTrace      = false) const;
+    [[nodiscard]] TaxiRoute RunAStar(int                             startId,
+                                     int                             goalId,
+                                     const std::set<std::string>&    excludedRefs,
+                                     const std::set<std::string>&    avoidRefs,
+                                     const std::set<int>&            blockedNodes,
+                                     const std::set<std::string>&    activeDepRwys,
+                                     const std::set<std::string>&    activeArrRwys,
+                                     double                          initialBearingDeg,
+                                     const std::set<std::string>&    suppressFlowWayRefs = {},
+                                     bool                            ignoreAllPenalties  = false,
+                                     const std::set<int>&            preferredNodes      = {},
+                                     bool                            emitDebugTrace      = false,
+                                     const std::set<std::string>&    allowedWayRefs      = {},
+                                     const std::string&              terminateOnWayRef   = "",
+                                     const std::vector<std::string>& sequenceConstraint  = {}) const;
 };

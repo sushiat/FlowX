@@ -148,6 +148,10 @@
             "11_16":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ]
         },
         "preferredRoutes": {
+            "16_16":    [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ],
+            "16_11":    [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ],
+            "16_11/16": [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ],
+            "29/16_16": [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ]
         },
         "taxiIntersections": ["Exit *"],
         "runways": {

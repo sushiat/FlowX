@@ -556,7 +556,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                         }
                     }
                     if (dest.lat == 0.0 && dest.lon == 0.0)
-                        dest = settings->osmGraph.BestDepartureHP(rwySearch, ap);
+                        dest = settings->osmGraph.BestDepartureHP(rwySearch, ap, &destName);
                 }
 
                 if (dest.lat == 0.0 && dest.lon == 0.0)
@@ -596,35 +596,80 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 // route so real-world overrides degrade gracefully instead of failing hard.
                 if (suggested.valid && hasAirport && !destName.empty())
                 {
-                    const auto& ap  = myAptTaxi->second;
-                    const auto  seq = TaxiGraph::ResolvePreferredSequence(
-                        ap, rwySearch, settings->GetActiveArrRunways(), destName);
-                    if (!seq.empty() && !TaxiGraph::WayRefSequenceContiguous(suggested.wayRefs, seq))
+                    const auto& ap = myAptTaxi->second;
+                    // Origin wayref resolution for preferred-route origin filters:
+                    // stand polygon containment wins over nearest-node lookup because
+                    // a parked aircraft's nearest graph node can be an adjacent
+                    // taxilink rather than the stand itself when the stand has sparse
+                    // node coverage.
+                    std::string originRef;
+                    for (const auto& [standName, poly] : ap.taxiOutStands)
                     {
-                        const auto wps = settings->osmGraph.RepresentativeWaypointsForWayRefs(origin, dest, seq);
-                        if (!wps.empty())
+                        if (CFlowX_LookupsTools::PointInsidePolygon(
+                                static_cast<int>(poly.lat.size()),
+                                const_cast<double*>(poly.lon.data()),
+                                const_cast<double*>(poly.lat.data()),
+                                origin.lon, origin.lat))
                         {
-                            TaxiRoute constrained = settings->osmGraph.FindWaypointRoute(
-                                origin, wps, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(),
-                                heading, blocked, false, {}, settings->GetDebug(),
-                                this->taxiPlanForwardOnly, goalBrng, vacWtc, vacArrRwy);
-                            if (constrained.valid && TaxiGraph::WayRefSequenceContiguous(constrained.wayRefs, seq))
-                            {
-                                suggested = std::move(constrained);
-                                if (settings->GetDebug())
-                                    settings->LogDebugMessage(
-                                        callsign + " preferred-route applied for " + destName, "PREF");
-                            }
-                            else if (settings->GetDebug())
-                            {
+                            originRef = standName;
+                            break;
+                        }
+                    }
+                    if (originRef.empty())
+                        originRef = settings->osmGraph.NearestWayRef(origin);
+                    const auto seq = TaxiGraph::ResolvePreferredSequence(
+                        ap, rwySearch, settings->GetActiveArrRunways(), destName, originRef);
+                    if (!seq.empty() && !TaxiGraph::WayRefSequenceSubsequence(suggested.wayRefs, seq))
+                    {
+                        // State-augmented retry: run a single FindRoute with the sequence
+                        // constraint baked into A* state.  This avoids the cross-leg
+                        // discontinuities that plagued the earlier per-leg splicing
+                        // approach (each leg inherited the previous leg's exit bearing,
+                        // blocking legitimate turns and creating unreachable start nodes).
+                        TaxiRoute constrained = settings->osmGraph.FindRoute(
+                            origin, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(),
+                            heading, blocked, {}, false, {}, false, this->taxiPlanForwardOnly,
+                            goalBrng, vacWtc, vacArrRwy, {}, seq);
+                        if (constrained.valid &&
+                            TaxiGraph::WayRefSequenceSubsequence(constrained.wayRefs, seq))
+                        {
+                            suggested = std::move(constrained);
+                            if (settings->GetDebug())
                                 settings->LogDebugMessage(
-                                    callsign + " preferred-route infeasible for " + destName + " (fallback to unconstrained)", "PREF");
-                            }
+                                    callsign + " preferred-route applied for " + destName +
+                                        " origin=" + (originRef.empty() ? "?" : originRef),
+                                    "PREF");
                         }
                         else if (settings->GetDebug())
                         {
+                            std::string seqStr;
+                            for (const auto& s : seq)
+                            {
+                                if (!seqStr.empty())
+                                    seqStr += " -> ";
+                                seqStr += "[" + s + "]";
+                            }
+                            std::string gotStr;
+                            if (!constrained.valid)
+                            {
+                                gotStr = "(no path)";
+                                if (!constrained.debugTrace.empty())
+                                    gotStr += " " + constrained.debugTrace;
+                            }
+                            else
+                            {
+                                for (const auto& s : constrained.wayRefs)
+                                {
+                                    if (!gotStr.empty())
+                                        gotStr += " -> ";
+                                    gotStr += "[" + s + "]";
+                                }
+                            }
                             settings->LogDebugMessage(
-                                callsign + " preferred-route waypoints unavailable for " + destName, "PREF");
+                                callsign + " preferred-route infeasible for " + destName +
+                                    " origin=" + (originRef.empty() ? "?" : originRef) +
+                                    " seq=" + seqStr + " got=" + gotStr + " (fallback to unconstrained)",
+                                "PREF");
                         }
                     }
                 }

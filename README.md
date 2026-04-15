@@ -452,12 +452,14 @@ If the label is not found in the OSM graph data, routing falls back to the stand
 
 ### `preferredRoutes`
 
-Targeted routing overrides for destinations whose real-world standard routing can't be reproduced by the global edge weights, flow rules, and turn penalties alone. Rules are grouped per runway configuration (same normalized `"<dep>_<arr>"` keying as `taxiFlowConfigs`) and evaluated at route planning time: the destination name — a stand designator for inbounds, a holding-point label for outbounds — is matched against each rule's `destination` regex, and the **first** rule that matches wins. The router then produces a route whose ordered wayref list contains the rule's `mustInclude` sequence as a contiguous subsequence. If no such route is feasible from the aircraft's current position, routing falls back to the unconstrained result and a `[PREF]` line is logged to the debug log — rules degrade gracefully rather than failing hard.
+Targeted routing overrides for destinations whose real-world standard routing can't be reproduced by the global edge weights, flow rules, and turn penalties alone. Rules are grouped per runway configuration (same normalized `"<dep>_<arr>"` keying as `taxiFlowConfigs`) and evaluated at route planning time: the destination name — a stand designator for inbounds, a holding-point label for outbounds — is matched against each rule's `destination` regex, and the **first** rule whose destination matches and whose optional origin filters are satisfied wins. The router then produces a route whose ordered wayref list contains the rule's `mustInclude` sequence as an in-order subsequence (other wayrefs may appear between the required entries). If no such route is feasible from the aircraft's current position, routing falls back to the unconstrained result and a `[PREF]` line is logged to the debug log — rules degrade gracefully rather than failing hard.
 
 | Field | Type | Description |
 |---|---|---|
 | `destination` | string (ECMAScript regex) | Matched as a full match against the bare destination name (no `ICAO:` prefix, no `HP:` prefix). Stands and holding points share the same namespace; disambiguate with the pattern itself. |
-| `mustInclude` | array of strings | Ordered wayref sequence (same strings that appear in `TaxiRoute::wayRefs` debug output, e.g. `"W"`, `"Exit 22"`, `"TL 40 \"Blue Line\""`). The sequence must appear contiguously in the chosen route — no other wayrefs are allowed between two consecutive required entries. |
+| `origin` | string (ECMAScript regex, optional) | Allow-list on the aircraft's starting wayref. When set, the rule only fires if the origin wayref is **known** (non-empty) **and** matches this pattern. Origin wayref resolves by stand-polygon containment first (the aircraft's parked stand name) and falls back to the nearest graph node's wayref (the taxiway it's currently rolling on). |
+| `originExclude` | string (ECMAScript regex, optional) | Deny-list on the starting wayref. When set, the rule is skipped if the origin wayref is known and matches this pattern. An unknown origin bypasses the deny-list — rules scoped purely by exclusion still fire when the aircraft's starting wayref can't be resolved. |
+| `mustInclude` | array of strings | Ordered wayref sequence (same strings that appear in `TaxiRoute::wayRefs` debug output, e.g. `"W"`, `"Exit 22"`, `"TL 40 \"Blue Line\""`). The sequence must appear in order in the chosen route; unrelated wayrefs may appear between consecutive required entries. |
 
 Regex ranges with parity are expressed with character classes — no custom syntax is needed. For example, to match every even stand in F04–F36:
 
@@ -465,21 +467,31 @@ Regex ranges with parity are expressed with character classes — no custom synt
 F(0[2468]|[123][02468])
 ```
 
+Stand-range origin filters work the same way — `"E4[1-7]"` matches an aircraft parked on any of E41 through E47, and `"TL 4[0-9]"` excludes any aircraft currently rolling on TL 40–49.
+
 Example:
 
 ```json
 "preferredRoutes": {
     "16_11": [
-        { "destination": "F(0[2468]|[123][02468])", "mustInclude": ["W", "Exit 22", "Exit 32"] },
-        { "destination": "B[0-9]{2}",               "mustInclude": ["Exit 12", "TL 32"] }
+        {
+            "destination":   "B1",
+            "originExclude": "TL 4[0-9]",
+            "mustInclude":   ["W", "Exit 21", "Exit 31"]
+        },
+        {
+            "destination":   "F(0[2468]|[123][02468])",
+            "origin":        "Exit 2[0-9]|W",
+            "mustInclude":   ["W", "Exit 22", "Exit 32"]
+        }
     ],
     "29_34": [
-        { "destination": "A1",                      "mustInclude": ["M", "Exit 2", "L", "W"] }
+        { "destination": "A1", "mustInclude": ["M", "Exit 2", "L", "W"] }
     ]
 }
 ```
 
-Because rules are hard constraints with graceful fallback, keep the list small and reserve it for cases where global tuning can't converge. The first-match-wins order means more specific rules should come before more general ones.
+Because rules are hard constraints with graceful fallback, keep the list small and reserve it for cases where global tuning can't converge. The first-match-wins order means more specific rules should come before more general ones, and origin filters should be used to scope rules away from aircraft that don't need them.
 
 ### `taxiNetworkConfig`
 
