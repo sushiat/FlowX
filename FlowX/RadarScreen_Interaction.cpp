@@ -401,6 +401,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
                 this->taxiPlanIsPush      = isPush;
                 this->taxiPlanForwardOnly = inTaxiOut;
+
+                // Aircraft has left its stand — any previously assigned push block is
+                // stale and would otherwise interfere with routing (the aircraft's own
+                // push zone gets treated as an obstacle by subsequent taxi planning).
+                if (!isPush)
+                    this->pushTracked.erase(callsign);
             }
 
             this->taxiPlanActive = callsign;
