@@ -515,6 +515,13 @@
                 "waypointM": 40.0,
                 "goalSnapM": 170.0
             },
+            "targetSelection": {
+                "narrowConeDeg": 10.0,
+                "mediumConeDeg": 20.0,
+                "wideConeDeg": 90.0,
+                "nearRadiusM": 80.0,
+                "farRadiusM": 170.0
+            },
             "safety": {
                 "deviationThreshM": 40.0,
                 "endpointDeviationThreshM": 100.0,

@@ -507,6 +507,18 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 | `suggestedRouteM` | number | `20.0` | 3 | Snap to the suggested route polyline. |
 | `waypointM` | number | `40.0` | 4 (lowest) | Snap to any graph waypoint node. |
 
+#### `targetSelection` — goal-node selection around the destination stand
+
+Six-tier search used when routing to a stand approach point. Tiers are tried in order `(narrow, near) → (narrow, far) → (medium, near) → (medium, far) → (wide, near) → (wide, far)` and the first non-empty tier wins. Cones widen so closely aligned nodes are preferred; within each cone the near radius is tried before the far radius so the closest taxilane behind the stand beats a far-but-aligned one.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `narrowConeDeg` | number | `10.0` | Tight cone (°) around the stand approach bearing; catches nodes closely aligned with the stand heading. |
+| `mediumConeDeg` | number | `20.0` | Medium cone (°) used when no node is found inside `narrowConeDeg`. |
+| `wideConeDeg` | number | `90.0` | Wide cone (°) used as a last resort; prevents picking nodes behind the stand (> 90° off the approach axis). |
+| `nearRadiusM` | number | `80.0` | Near radius (m) tried inside each cone before `farRadiusM`; covers taxilanes running immediately behind straight stands. |
+| `farRadiusM` | number | `170.0` | Far radius (m) tried inside each cone after `nearRadiusM`; covers diagonal stands and edge cases where the nearest taxilane is further out. |
+
 #### `safety` — taxi safety monitoring
 
 | Field | Type | Default | Description |
@@ -525,8 +537,9 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
     "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0, "multWingspanAvoid": 3.0 },
     "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
     "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
-    "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
-    "safety":    { "deviationThreshM": 40.0, "endpointDeviationThreshM": 80.0, "endpointRadiusM": 60.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
+    "snapping":        { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
+    "targetSelection": { "narrowConeDeg": 10.0, "mediumConeDeg": 20.0, "wideConeDeg": 90.0, "nearRadiusM": 80.0, "farRadiusM": 170.0 },
+    "safety":          { "deviationThreshM": 40.0, "endpointDeviationThreshM": 80.0, "endpointRadiusM": 60.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
 }
 ```
 

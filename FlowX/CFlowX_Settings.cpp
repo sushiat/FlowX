@@ -1163,6 +1163,15 @@ void CFlowX_Settings::LoadConfig()
                 nc.snapping.waypointM       = s.value("waypointM", 40.0);
                 nc.snapping.goalSnapM       = s.value("goalSnapM", 170.0);
             }
+            if (jnc.contains("targetSelection"))
+            {
+                const auto& ts                   = jnc["targetSelection"];
+                nc.targetSelection.narrowConeDeg = ts.value("narrowConeDeg", 10.0);
+                nc.targetSelection.mediumConeDeg = ts.value("mediumConeDeg", 20.0);
+                nc.targetSelection.wideConeDeg   = ts.value("wideConeDeg", 90.0);
+                nc.targetSelection.nearRadiusM   = ts.value("nearRadiusM", 80.0);
+                nc.targetSelection.farRadiusM    = ts.value("farRadiusM", 170.0);
+            }
             if (jnc.contains("safety"))
             {
                 const auto& sf                     = jnc["safety"];

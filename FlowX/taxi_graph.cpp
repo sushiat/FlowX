@@ -1079,13 +1079,34 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&              from,
     {
         const double     goalSnapR = apt_.taxiNetworkConfig.snapping.goalSnapM;
         std::vector<int> goalPool;
-        // Graduated cone search: prefer nodes most aligned with the stand
-        // approach bearing, widening progressively if nothing is found.
+        // Combined alignment/distance tier search around the stand approach
+        // bearing. Tiers are tried in order and the first non-empty result
+        // wins: cones widen progressively (narrow → medium → wide) and within
+        // each cone the near radius is tried before the far radius. All six
+        // thresholds are tunable via taxiNetworkConfig.targetSelection.
+        //
+        // This avoids two failure modes of single-axis searches:
+        //  - a tight-cone-only search locks onto a far-but-aligned node
+        //    (144 m on one taxilane) while ignoring a closer off-axis node
+        //    (22 m on the taxilane right behind the stand);
+        //  - a wide-cone-only search picks off-axis nodes 50-100 m away that
+        //    are not actually behind the stand.
+        const auto&  ts    = apt_.taxiNetworkConfig.targetSelection;
+        const double nearR = ts.nearRadiusM;
+        const double farR  = ts.farRadiusM;
         if (goalBearingDeg >= 0.0)
         {
-            for (const double cone : {5.0, 20.0, 90.0})
+            const std::pair<double, double> tiers[] = {
+                {ts.narrowConeDeg, nearR},
+                {ts.narrowConeDeg, farR},
+                {ts.mediumConeDeg, nearR},
+                {ts.mediumConeDeg, farR},
+                {ts.wideConeDeg, nearR},
+                {ts.wideConeDeg, farR},
+            };
+            for (const auto& [cone, radius] : tiers)
             {
-                goalPool = NearestCandidateNodes(to, goalBearingDeg, goalSnapR, 0.0, 10, 0, cone);
+                goalPool = NearestCandidateNodes(to, goalBearingDeg, radius, 0.0, 10, 0, cone);
                 if (!goalPool.empty())
                     break;
             }

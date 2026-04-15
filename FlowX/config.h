@@ -186,6 +186,22 @@ struct TaxiNetworkConfig
         double goalSnapM       = 170.0; ///< Snap radius (m) for searching goal-node candidates near the destination stand; must cover the longest taxilane between a stand centroid and the nearest graph node.
     } snapping;
 
+    /// @brief Goal-node selection around the destination stand approach point.
+    /// @details Tiers are tried in order (narrow/near, narrow/far, medium/near,
+    ///          medium/far, wide/near, wide/far) and the first non-empty tier
+    ///          wins. Cones widen progressively so closely aligned nodes are
+    ///          preferred; within each cone, the near radius is tried before
+    ///          the far radius so the closest taxilane behind the stand wins
+    ///          over a far-but-aligned one.
+    struct TargetSelection
+    {
+        double narrowConeDeg = 10.0;  ///< Tight cone (deg) around the stand approach bearing; catches nodes closely aligned with the stand heading.
+        double mediumConeDeg = 20.0;  ///< Medium cone (deg) used when no node is found inside @ref narrowConeDeg.
+        double wideConeDeg   = 90.0;  ///< Wide cone (deg) used as a last resort; prevents picking nodes behind the stand (> 90° off the approach axis).
+        double nearRadiusM   = 80.0;  ///< Near radius (m) tried inside each cone before @ref farRadiusM; covers taxilanes running immediately behind straight stands.
+        double farRadiusM    = 170.0; ///< Far radius (m) tried inside each cone after @ref nearRadiusM; covers diagonal stands and edge cases where the nearest taxilane is further out.
+    } targetSelection;
+
     /// @brief Taxi safety-monitoring thresholds.
     struct Safety
     {
