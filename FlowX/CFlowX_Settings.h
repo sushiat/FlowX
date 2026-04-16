@@ -44,8 +44,8 @@ class CFlowX_Settings : public CFlowX_Logging
     int                            approachEstWindowX    = -1;    ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
     int                            approachEstWindowY    = -1;    ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
     bool                           autoParked            = true;  ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
-    bool                           autoScratchpadClear   = false; ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
-    bool                           autoRestore           = false; ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    bool                           autoScratchpadClear   = true;  ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
+    bool                           autoRestore           = true;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
     bool                           hpAutoScratch         = true;  ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
     bool                           logTaxiTests          = false; ///< Whether assigned taxi routes are logged as JSON test case templates
     bool                           settingsVisible       = false; ///< Whether the Settings window is currently open

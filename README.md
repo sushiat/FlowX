@@ -1,6 +1,6 @@
 # FlowX
 
-FlowX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure management tooling, same-SID / wake-turbulence separation tracking, inbound time-to-touchdown display, automatic holding point detection, and a range of convenience functions.
+FlowX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure and arrival flow management, and a range of convenience functions.
 
 The plugin ships with a `config.json` file that defines all airport-specific data. It is currently configured for **LOWW (Vienna International Airport)**. Adding other airports requires only changes to `config.json` — no recompilation is needed.
 
@@ -13,9 +13,13 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
   - [Installation](#installation)
 - [Tag Items](#tag-items)
 - [Tag Functions](#tag-functions)
+- [Taxi Planning](#taxi-planning)
+- [Aircraft Ground Tags](#aircraft-ground-tags)
 - [Custom Windows](#custom-windows)
-- [Chat Commands](#chat-commands)
 - [Start Menu](#start-menu)
+- [Assists](#assists)
+- [Notifications](#notifications)
+- [Chat Commands](#chat-commands)
 - [config.json Reference](#configjson-reference)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -27,19 +31,20 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 
 ### Prerequisites
 
-- [EuroScope](https://euroscope.hu/) (developed against v3.2.9, confirmed working with v3.2.3 and later beta versions)
+- [EuroScope](https://euroscope.hu/) (developed against v3.2.3)
 - A sector file / profile that includes the airports you want to configure in `config.json`
 
 ### Installation
 
 1. Download the latest `FlowX.zip` from the [Releases](https://github.com/sushiat/FlowX/releases/latest) page.
-2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, `click.wav`, `noRoute.wav`, and `taxiConflict.wav` into your plugin directory.
+2. Extract `FlowX.dll`, `config.json`, all sound files and the icon file into your plugin directory.
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `FlowX.dll`.
-4. Successful load is confirmed in the **Messages** chat:
+4. Allow the FlowX to draw onto `Ground Radar display`
+5. Successful load is confirmed in the **Messages** chat:
    ```
-   [08:34:10] FlowX: Version 0.6.0 loaded.
+   [08:34:10] FlowX: Version 0.7.0 loaded.
    ```
-5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
+6. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
 > **Sound files** (all must be placed alongside `FlowX.dll`):
 > - `nap.wav` — plays when the NAP reminder window appears; stops on acknowledgement.
@@ -50,11 +55,15 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 > - `noRoute.wav` — plays when the taxi router cannot find a valid route to the assigned holding point.
 > - `taxiConflict.wav` — plays when a taxi conflict is detected between two aircraft with active routes.
 
+> **`flowx.ico`** used for custom window icons and the start menu.
+
 > **`settings.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores all plugin preferences, the screen positions of all custom windows, and the last NAP reminder dismissal date. Delete it to reset everything to defaults.
 
 ---
 
 ## Tag Items
+
+![Tag Items](Screenshots/tag_items.png)
 
 Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = FlowX / \<name\>**. Only the following five items are registered with EuroScope. All other columns (HP, spacing, TTT, etc.) are rendered inside the custom GDI windows described below.
 
@@ -90,23 +99,143 @@ Only two tag functions are registered with EuroScope and can be assigned to tag 
 
 ---
 
+## Taxi Planning
+
+FlowX includes an interactive taxi router that computes A\*-based routes over the OSM taxiway graph. Planning is triggered directly on the radar screen — no separate menu is needed.
+
+### Starting a route
+
+Right-click any ground aircraft on the radar screen to enter taxi planning mode. The plugin automatically determines whether to start **taxi planning** or **pushback planning** based on the aircraft's current position:
+
+- **Inside a parking stand polygon** (and not in a taxi-out apron) → pushback planning
+- **Everywhere else** (taxi-out apron, rolling, inbounds) → taxi planning
+
+### Taxi route planning
+
+![Taxi planning](Screenshots/taxi_planning.png)
+
+When taxi planning starts, the router immediately computes a suggested route to the aircraft's destination — the assigned holding point for departures, or the assigned stand approach point for inbounds. This suggested route is shown as a **yellow line**.
+
+Moving the mouse across the taxiway network shows a **magenta line** — a live preview of the route the router would compute to wherever the cursor is snapped. The cursor snaps to nearby graph nodes, intersection waypoints, holding points, and the yellow suggested route itself.
+
+- **Left-click near the aircraft** (within ~80 px of the radar target) — accepts the **yellow suggested route**
+- **Left-click anywhere else** — accepts the **magenta manual route** to the cursor position
+- **Side mouse button (X1/X2)** — shortcut to accept the yellow suggested route from anywhere on screen
+- **Middle-click** — add a custom waypoint the route has to pass
+- **Middle-click + drag** — draw a custom waypoint path; the router threads the A\* route through the drawn points in sequence
+
+#### Custom waypoints
+
+![Custom waypoint](Screenshots/taxi_custom_waypoint.png)
+
+Pressing the middle mouse button places a waypoint at the cursor position. Multiple custom waypoints can be placed along the route.
+
+The controller can also draw a path: hold the middle button and drag across the taxiway network — the router collects nearby graph nodes as preferred nodes along the drawn path — then release to commit the waypoint. The route is immediately recomputed through all waypoints in order. Multiple waypoints can be placed this way; each gesture adds one.
+
+When waypoints are present, the router operates in **custom route mode**: all flow restrictions and preferred-route rules from `config.json` are disabled, and the router finds the geometrically shortest path through the waypoints. This lets the controller override both one-way taxiway flow and any configured preferred routing for that specific aircraft.
+
+### Approved route
+
+![Approved route](Screenshots/taxi_approved.png)
+
+Once a route is accepted (by any of the methods above), the line turns **green**. The ground state is automatically set to TAXI (for departures) or TXIN (for inbounds). The route is tracked and monitored for deviations and conflicts from this point on.
+
+Double right-clicking an aircraft clears its assigned route.
+
+#### Deviation monitoring
+
+![Route deviation warning](Screenshots/taxi_route_warning.png)
+
+Every 250 ms, each tracked aircraft's distance to its assigned route polyline is measured. If it exceeds `deviationThreshM` (default 40 m) while the ground speed is above `minSpeedKt` (default 3 kt), the aircraft is flagged. A relaxed threshold (`endpointDeviationThreshM`, default 80 m) applies within `endpointRadiusM` (60 m) of the route's start or end node, to account for stands and holding points sitting slightly off the graph. When deviation is detected, a yellow connector line is drawn from the aircraft to the nearest point on its route, and a yellow **`!ROUTE`** label appears next to the aircraft symbol.
+
+#### Conflict detection
+
+![Taxi conflict alert](Screenshots/taxi_conflict.png)
+
+For each tracked moving aircraft, a timed predicted path is built by projecting forward along its remaining route at the current ground speed, up to `maxPredictS` seconds (default 60 s). The system then performs a pairwise check across all predicted paths: when two paths cross, the estimated arrival times at the intersection are compared. If they differ by less than `conflictDeltaS` (default 30 s), it is flagged as a conflict. Same-direction paths (bearing difference < `sameDirDeg`, default 45°) are excluded to avoid false alerts on aircraft following each other.
+
+Conflicts are colour-coded by time-to-intersection:
+
+- **15–30 s**: yellow marker at the conflict point and a yellow **`CONFLICT`** label next to each aircraft involved.
+- **< 15 s**: marker and label both turn **red** — the most urgent tier.
+
+If the **Taxi Conflict** sound notification setting is enabled, an audio alert fires once per conflict pair as soon as the predicted separation drops below 15 s and has persisted for at least 2 seconds. The sound plays at most once per pair; it is re-armed only if the conflict clears and then reappears.
+
+### Pushback planning
+
+![Push planning — zone preview](Screenshots/push_planning.png) ![Push block confirmed](Screenshots/push_block.png)
+
+Right-clicking an aircraft at its parking stand enters pushback planning mode. The router computes viable taxiway pivot points in the aircraft's push direction (backwards from the aircraft heading), filtered by wingspan.
+
+Moving the mouse adjusts the **blue push-zone preview** — a line segment on the taxiway that the aircraft will occupy during the push. Left-clicking confirms the zone: the line turns **orange**, the segment is reserved as a push block, and the aircraft's ground state is set to PUSH. Other taxi routes will treat the orange block as an obstacle.
+
+---
+
+## Aircraft Ground Tags
+
+FlowX draws additional overlays directly on the radar screen for ground-taxiing aircraft. These are rendered next to the GroundRadar plugin target.
+
+### Departure info tag
+
+![Outbound tag](Screenshots/outbound_tag.png)
+
+Shown for every departing aircraft in TAXI or DEPA ground state. The tag is draggable and connected to the radar target by a leader line. It contains:
+
+- **Dep info text** — mirrors the DEP? column from TWR Outbound (e.g. spacing to the previous departure in seconds or NM), coloured green / yellow / red by readiness.
+- **SID colour dot** — a filled circle below the dep info text, coloured by the aircraft's SID group (same colour coding as the Same-SID tag item).
+- **HP label** — the assigned holding point (e.g. `A2`), shown to the right of the SID dot when one is assigned.
+- **`,T` suffix** — appended to the dep info text when the aircraft has not yet been transferred to TWR by the GND controller.
+- **Queue number** — when the aircraft has a departure queue position, its number is shown in a small box above the radar target dot.
+
+#### Departure sequencing
+
+![Departure sequencing](Screenshots/departure_sequencing.png)
+
+Right-clicking the SID colour dot appends the aircraft to the end of the departure queue for its runway (next available number). Left-clicking the dot triggers a frequency transfer to TWR (GND controllers only).
+
+To insert an aircraft at a specific queue position, use the **#** column in the TWR Outbound list: left-click opens a popup to select any position (shifting others down), right-click appends to end.
+
+Queue positions auto-progress: once an aircraft transitions to LINE UP or DEPA state, it is automatically removed from the queue and all same-runway positions behind it are shifted down by one. This keeps the displayed numbers consistent without manual intervention.
+
+### GND transfer square
+
+![Inbound tag](Screenshots/inbound_tag.png)
+
+Shown for landed inbound aircraft once their ground speed drops below 50 kt for the first time after touchdown. Indicates the aircraft is ready to be handed off to GND frequency. The square is clickable.
+
+| Colour | Meaning |
+|---|---|
+| Green | Just vacated — transfer is due |
+| Yellow | ~25 s elapsed — transfer is overdue |
+| Red | ~35 s elapsed — transfer is significantly overdue |
+
+---
+
 ## Custom Windows
 
-FlowX draws six custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `settings.json` in the plugin directory.
+FlowX draws seven custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `settings.json` in the plugin directory. Most windows can be popped out into their own native Win32 window via the `^` button in the title bar.
 
 ### Approach Estimate
+
+![Approach Estimate](Screenshots/approach_estimate.png)
 
 A vertical time bar showing all tracked inbound aircraft for up to two runway groups (left / right), ordered by estimated time to touchdown. Each runway's aircraft appear on the side configured via `estimateBarSide` in `config.json`. Aircraft labels are coloured by inbound-list colour when **Appr Est Colors** is enabled, or always green otherwise. Go-around aircraft are shown with a red background; TTT-frozen aircraft with yellow. The window is resizable by dragging its lower-right corner.
 
 ### DEP/H — Departure Rate
 
+![DEP/H](Screenshots/departures.png)
+
 Shows the hourly departure count and 15-minute average spacing per runway. Rebuilds every second. No interaction.
 
 ### NAP Reminder
 
+![NAP Reminder](Screenshots/nap_reminder.png)
+
 A modal overlay that appears at the configured local time (see `napReminder` in config) to alert controllers of the start of noise abatement procedures. `nap.wav` plays on appearance and stops on acknowledgement. Draggable; dismissed via the **ACK** button.
 
 ### TWR Outbound
+
+![TWR Outbound](Screenshots/tower_outbound.png)
 
 Tracks all departing aircraft. Rows are sorted by a composite key (holding point position, then ground state, then callsign). Aircraft that have departed and are no longer being tracked are shown dimmed at reduced size.
 
@@ -141,6 +270,8 @@ Required time is derived from the holding point configuration (default 120 s).
 
 ### TWR Inbound
 
+![TWR Inbound](Screenshots/tower_inbound.png)
+
 Tracks aircraft on approach, ordered by time to touchdown per runway. Aircraft furthest from the threshold are dimmed. Rows are grouped by runway with a blank separator between groups.
 
 | Column | Source | Description | Left click | Right click |
@@ -157,6 +288,8 @@ Tracks aircraft on approach, ordered by time to touchdown per runway. Aircraft f
 
 ### WX/ATIS
 
+![WX/ATIS](Screenshots/wx_atis.png) ![WX/ATIS — unacknowledged QNH change](Screenshots/wx_atis_new.png)
+
 Shows wind, QNH, ATIS letter, and RVR (when present) for every airport in `config.json`. Wind/QNH/RVR are parsed from METAR; the ATIS letter is polled from the VATSIM v3 data feed every 60 seconds. Clicking an airport row acknowledges any pending QNH change.
 
 | Column | Description |
@@ -166,57 +299,81 @@ Shows wind, QNH, ATIS letter, and RVR (when present) for every airport in `confi
 | ATIS | Current ATIS letter; greyed out when no ATIS is online |
 | RVR | RVR reading(s) from METAR, shown as a second line when present |
 
----
+### DIFLIS (Digital Flight Strip)
 
-## Chat Commands
+> **Prototype** — DIFLIS is under active development and not yet fully implemented. Layout and functionality may change.
 
-All commands are entered in any EuroScope chat channel, prefixed with `.flowx`.
-Running `.flowx` alone prints the loaded version and a command list.
+A popout-capable electronic flight strip board, toggled from Start → Windows → DIFLIS. Layout is fully data-driven from the `"diflis"` block in `config.json`: column widths, group definitions (title, column index, height weight, sort mode, collapse behaviour), and strip colour palettes are all configurable per airport.
 
-| Command | Saved | Description |
-|---|---|---|
-| `.flowx debug` | Yes | Toggle verbose debug logging in the Messages window |
-| `.flowx update` | Yes | Toggle the background update check on startup |
-| `.flowx flash` | Yes | Toggle flashing of unread message indicator for FlowX messages |
-| `.flowx gnd` | No | Force ground station to be treated as online (cross-coupling scenarios) |
-| `.flowx twr` | No | Force tower station to be treated as online (cross-coupling scenarios) |
-| `.flowx redoflags` | — | Toggle all existing clearance flags off then back on (useful for newly joined controllers) |
-| `.flowx autorestore` | Yes | Toggle auto-restore on quick reconnect. When enabled, if a pilot disconnects and reconnects within 90 seconds with a matching flight plan (same callsign, pilot name, airports, aircraft type, route, squawk, and position within 1 nm), their clearance flag and ground state are automatically restored. |
-| `.flowx reset` | — | Reload `config.json` and reset all settings to defaults |
-| `.flowx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
+Strips are automatically placed into groups based on EuroScope ground state, clearance flag, and airborne status. Controllers can drag strips between groups to override placement (e.g. moving a strip to a "Standing By" or "Storage" group that has no EuroScope counterpart). The strip cache is rebuilt every tick so state changes are reflected immediately.
+
+Each strip shows callsign, aircraft type, stand, runway, SID/STAR, squawk, and status. Strips can render in collapsed (single-row) or expanded (two-row) variants depending on group configuration and available space.
+
+### Settings
+
+![Settings](Screenshots/settings.png)
+
+A dedicated settings window opened from Start → Settings. Organises all plugin toggles into four groups: **Assists** (Auto-Restore, Auto PARK, Auto-Clear Scratch, HP auto-scratch), **Notifications** (sound toggles for Airborne, GND Transfer, Ready T/O, No Route, Taxi Conflict), **Options** (Debug mode, Update check, Flash messages, Appr Est Colors, Fonts, BG opacity), and **Taxi** (Update/Clear TAXI info, Show TAXI network/labels/graph/routes, Log TAXI tests). Can be popped out into its own window.
 
 ---
 
 ## Start Menu
 
-Click the **FlowX** button in the bottom-right corner of the radar screen to open the start menu. It has three sections:
+![Start Menu](Screenshots/start_menu.png)
 
-**Windows** — toggle visibility of each custom window:
-Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
+Click the **FlowX** button in the bottom-right corner of the radar screen to open the start menu. It has two sections:
 
 **Commands** — one-shot actions:
 
 | Item | Description |
 |---|---|
-| Redo CLR flags | Toggles all existing clearance flags off then back on (same as `.flowx redoflags`) |
+| Redo CLR flags | Toggles all existing clearance flags off then back on |
 | Dismiss QNH | Bulk-clears all pending QNH change markers |
 | Save positions | Saves current window positions to `settings.json` |
 
-**Options** — persistent toggles (saved to `settings.json`):
+**Windows** — expandable submenu to toggle visibility of each custom window (Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS, DIFLIS).
 
-| Option | Default | Description |
+**Settings...** — opens the [Settings](#settings) window where all plugin toggles, sound notifications, taxi overlays, and font/opacity controls are configured.
+
+---
+
+## Assists
+
+Assists are automation helpers that reduce repetitive actions. They are toggled in the **Assists** group of the Settings window.
+
+| Setting | Default | Description |
 |---|---|---|
-| Debug mode | Off | Verbose debug logging in the Messages window |
-| Auto-Restore FPLN | Off | Auto-restores clearance flag and ground state on quick reconnect (within 90 s) |
-| Update check | On | Background check for a newer plugin version on startup |
-| Flash messages | Off | Flashes the unread message indicator for FlowX messages |
-| Auto Parked | On | Automatically sets arriving aircraft to PARK when they stop at their assigned stand |
-| Appr Est Colors | Off | Uses inbound-list colours in the Approach Estimate window instead of always-green |
-| Auto-Clear Scratch | Off | Automatically clears the scratchpad when this controller clicks LINEUP or DEPA, unless the content starts with a prefix in `scratchpadClearExclusions` |
-| HP auto-scratch | On | When a GND controller sets a scratchpad entry beginning with `.`, automatically assigns the matching holding point and confirms it via scratchpad |
-| Show TAXI routes | Off | Show all active taxi routes and push zone reservations on the radar screen (individual routes are always shown on hover regardless of this setting) |
-| Fonts | — | Increase / decrease font size offset for all custom windows |
-| BG opacity | 100% | Increase / decrease background opacity of all custom windows (20–100%) |
+| **Auto-Restore FPLN** | On | When a pilot disconnects, FlowX captures a snapshot of their clearance flag and ground state. If they reconnect within 90 seconds with a matching flight plan, those values are automatically restored — useful for brief network drops during pushback or taxi. |
+| **Auto PARK** | On | Automatically sets an arriving aircraft's ground state to PARK once it has stopped at its assigned stand. Removes the need to manually update the strip for parked inbounds. |
+| **Auto-Clear Scratch** | On | Clears the scratchpad automatically when the LINEUP or DEPA button is clicked, provided the current scratchpad content does not start with any of the `scratchpadClearExclusions` prefixes defined in `config.json`. Keeps strips clean after departure without manual intervention. |
+| **HP auto-scratch** | On | TWR only. Watches for scratchpad entries starting with `.` and interprets them as holding-point shortcuts. `.NAME` assigns the HP and appends a trailing dot (`.NAME.`) to mark it as processed and prevent re-triggering; `.NAME?` registers an HP request and leaves the pad unchanged. When TWR later assigns the HP via the popup and it matches the requested name, the scratchpad is automatically set to `.NAME ok` so GND sees the approval. If a different HP is assigned instead, the stale request is cleared from the pad. |
+
+---
+
+## Notifications
+
+Notification sounds alert the controller to events that may need immediate attention. Each is toggled individually in the **Notifications** group of the Settings window. All sounds require the controller to be logged in at TWR facility or above. Sound files must be placed alongside `FlowX.dll`.
+
+| Setting | Default | Description |
+|---|---|---|
+| **Airborne** | On | Plays once when a departure is detected airborne. |
+| **GND Transfer** | On | Plays when a tracked inbound aircraft's ground speed drops below 50 kt after landing, indicating it is about to vacate or has vacated the runway and is ready to be transferred to GND. |
+| **Ready T/O** | On | Plays when a lined-up aircraft that was previously held (departure info was not `OK` while in LINEUP) becomes clear for takeoff and remains `OK` for 5 seconds. Suppressed if the aircraft was already clear when LINEUP was given. |
+| **No Route** | On | Plays when the taxi router fails to find a valid route during taxi planning. |
+| **Taxi Conflict** | On | Plays once per conflict pair when the predicted time to intersection drops below 15 s and has persisted for at least 2 seconds. See [Conflict detection](#conflict-detection). |
+
+---
+
+## Chat Commands
+
+All commands are entered in any EuroScope chat channel, prefixed with `.flowx`.
+Running `.flowx` alone prints the loaded version and a list of available commands.
+
+| Command | Description |
+|---|---|
+| `.flowx debugstats` | Print internal performance counters (position updates, tag item calls, timer ticks, stand launches/skips) to the Messages window |
+
+> **Note:** Most toggles that were previously chat commands (debug, update, flash, autorestore, etc.) have moved to the [Settings](#settings) window.
 
 ---
 
@@ -241,6 +398,9 @@ Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
 | `gndFreq` | string | Default ground frequency |
 | `defaultAppFreq` | string | Default approach frequency used when no SID-specific match exists |
 | `ctrStations` | array of strings | Centre primary frequencies in priority order. The first frequency that has at least one online centre station wins. |
+| `osmCenterLat` | number | Centre latitude (decimal degrees) for the Overpass API bounding circle used to fetch taxiway data |
+| `osmCenterLon` | number | Centre longitude (decimal degrees) for the Overpass API bounding circle |
+| `osmRadiusM` | integer | Radius in metres for the Overpass API bounding circle (default `6500`) |
 
 ```json
 "fieldElevation": 600,
@@ -248,7 +408,10 @@ Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
 "airborneTransferWarning": 3000,
 "gndFreq": "121.6",
 "defaultAppFreq": "134.675",
-"ctrStations": ["129.200", "134.440", "134.350", "132.600"]
+"ctrStations": ["129.200", "134.440", "134.350", "132.600"],
+"osmCenterLat": 48.1103,
+"osmCenterLon": 16.5697,
+"osmRadiusM": 6500
 ```
 
 ### `geoGndFreq`
@@ -344,10 +507,12 @@ Pairs of taxilane refs that are physically the same strip painted with two direc
 
 Taxiway direction rules that are always active, regardless of which runways are in use. Each rule specifies a preferred direction of travel on a named taxiway. The router applies a cost penalty to edges that go against the grain.
 
+Each rule may optionally include an `againstFlowMult` override that replaces the global `taxiNetworkConfig.flowRules.againstFlowMult` for that taxiway only.
+
 ```json
 "taxiFlowGeneric": [
     { "taxiway": "P", "direction": "N" },
-    { "taxiway": "Q", "direction": "S" }
+    { "taxiway": "Q", "direction": "S", "againstFlowMult": 5.0 }
 ]
 ```
 
@@ -438,17 +603,21 @@ A list of scratchpad prefixes that are exempt from the **Auto-Clear Scratch** fe
 
 ### `standRoutingTargets`
 
-Maps stand names to the label of an OSM holding position node. When an inbound aircraft is assigned one of these stands, the taxi router terminates at that holding position instead of routing to the centre of the stand polygon. Use this for uncontrolled aprons where the tower hands off to a marshaller at a defined point.
+Maps stand names to a routing override target. When an inbound aircraft is assigned one of these stands, the taxi router terminates at the override target instead of routing to the stand's own approach point. Two target types are supported:
 
-The label must match the `ref` tag of the OSM `aeroway=holding_position` node exactly.
+| Type | Description |
+|---|---|
+| `"hp"` | Target is a holding-point label (resolved via `HoldingPointByLabel`). Use for uncontrolled aprons where the tower hands off to a marshaller at a defined point. The label must match the `ref` tag of the OSM `aeroway=holding_position` node exactly. |
+| `"stand"` | Target is another stand name (resolved via `StandApproachPoint`). Use when two stands share a physical position and routing should use the co-located stand's approach point (e.g. G16 → F16). |
 
 ```json
 "standRoutingTargets": {
-    "GAC": "P1"
+    "GAC": { "type": "hp", "target": "P1" },
+    "G16": { "type": "stand", "target": "F16" }
 }
 ```
 
-If the label is not found in the OSM graph data, routing falls back to the stand centroid.
+If the target cannot be resolved (HP label not found in the OSM graph, or stand not in Ground Radar data), routing falls back to the original stand's approach point.
 
 ### `preferredRoutes`
 
@@ -502,8 +671,7 @@ Optional fine-tuning of the taxi graph builder, A\* router, interactive snapping
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `subdivisionIntervalM` | number | `15.0` | Long OSM way segments are subdivided into waypoint nodes at this interval (metres). |
-| `osmHoldingPositionSnapM` | number | `25.0` | Maximum radius (m) to snap an OSM stop-bar node onto the nearest taxiway waypoint and promote it to a HoldingPosition node. |
-| `configHoldingPointSnapM` | number | `40.0` | Maximum radius (m) to snap a config holding-point polygon centroid onto the nearest taxiway waypoint. Larger than the OSM value because centroids may sit a few metres back from the taxiway edge. |
+| `osmHoldingPositionSnapM` | number | `25.0` | Maximum radius (m) for projecting an OSM stop-bar node onto the nearest taxiway edge via edge splitting. The projected point becomes a HoldingPoint node at sub-metre accuracy on the taxiway centreline. |
 
 #### `edgeCosts` — base type multipliers
 
@@ -514,7 +682,7 @@ Applied at graph-build time to all edges of the corresponding aeroway type. High
 | `multIntersection` | number | `1.1` | Slight penalty for taxiway-intersection edges. |
 | `multTaxilane` | number | `3.0` | Stand-access taxilane edges are strongly discouraged vs main taxiways. |
 | `multRunway` | number | `20.0` | Runway edges are only traversed to vacate the runway; never preferred for taxi. |
-| `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding point / holding position node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
+| `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding-point node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
 | `multWingspanAvoid` | number | `3.0` | Cost multiplier applied to `taxiWingspanAvoid` refs when the aircraft wingspan fits the avoid threshold. Higher values produce a stronger preference for the parallel narrower lane. |
 
 #### `flowRules` — direction enforcement
@@ -538,6 +706,7 @@ Controls how heavily active taxiway flow rules penalise against-flow routing.
 | `backwardSnapM` | number | `300.0` | Radius (m) used to collect up to 2 backward start-node candidates for A\*. |
 | `heuristicWeight` | number | `1.0` | Weight applied to the A\* heuristic. Values above 1.0 are more goal-directed but may expand nodes sub-optimally; 1.0 is correct for small graphs. |
 | `maxNodeExpansions` | integer | `5000` | Maximum number of nodes A\* expands before giving up. Higher values find better routes at greater CPU cost. |
+| `softTurnCostPerDeg` | number | `0.0` | Cost added per degree of bearing change at each edge transition; `0` disables. Penalises winding routes and favours straighter paths. |
 
 #### `snapping` — interactive planning
 
@@ -545,10 +714,11 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 
 | Field | Type | Default | Priority | Description |
 |---|---|---|---|---|
-| `holdingPointM` | number | `30.0` | 1 (highest) | Snap to holding-point / holding-position nodes. |
+| `holdingPointM` | number | `45.0` | 1 (highest) | Snap to holding-point nodes. |
 | `intersectionM` | number | `15.0` | 2 | Snap to intersection waypoint nodes (labelled "Exit …"). |
 | `suggestedRouteM` | number | `20.0` | 3 | Snap to the suggested route polyline. |
-| `waypointM` | number | `40.0` | 4 (lowest) | Snap to any graph waypoint node. |
+| `waypointM` | number | `40.0` | 4 | Snap to any graph waypoint node. |
+| `goalSnapM` | number | `170.0` | — | Snap radius (m) for searching goal-node candidates near the destination stand; must cover the longest taxilane between a stand centroid and the nearest graph node. |
 
 #### `targetSelection` — goal-node selection around the destination stand
 
@@ -576,15 +746,56 @@ Six-tier search used when routing to a stand approach point. Tiers are tried in 
 
 ```json
 "taxiNetworkConfig": {
-    "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0, "configHoldingPointSnapM": 40.0 },
+    "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0 },
     "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0, "multWingspanAvoid": 3.0 },
     "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
-    "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
-    "snapping":        { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
+    "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000, "softTurnCostPerDeg": 0.0 },
+    "snapping":        { "holdingPointM": 45.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0, "goalSnapM": 170.0 },
     "targetSelection": { "narrowConeDeg": 10.0, "mediumConeDeg": 20.0, "wideConeDeg": 90.0, "nearRadiusM": 80.0, "farRadiusM": 170.0 },
     "safety":          { "deviationThreshM": 40.0, "endpointDeviationThreshM": 80.0, "endpointRadiusM": 60.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
 }
 ```
+
+### Taxi diagnostic overlays
+
+Two overlays can be enabled from the **Taxi** group of the Settings window to help diagnose routing issues without leaving EuroScope.
+
+#### Show TAXI network
+
+![Taxi network overlay](Screenshots/taxi_network.png)
+
+Draws the raw OSM geometry loaded from the taxiway cache, colour-coded by way type:
+
+- **Yellow** — taxiway
+- **Cyan** — taxilane
+- **Red** — holding-point way
+- **Green** — intersection way
+- **Orange** — runway (OSM ways and derived centrelines, drawn bold)
+
+Holding-position circles are drawn at each OSM holding position. Enable **Show TAXI labels** alongside this overlay to render taxiway name labels at each way's midpoint — useful for identifying which `wayRef` strings to use in flow rules and `mustInclude` sequences.
+
+Use this overlay to verify that the OSM data was fetched and parsed correctly, and to check that holding positions and taxiway types are being interpreted as expected.
+
+#### Show TAXI graph
+
+![Taxi routing graph overlay](Screenshots/taxi_graph.png)
+
+Draws the internal A\* routing graph built from the OSM data, showing every node and directed edge. Edges are colour-coded by their cost multiplier (cost ÷ distance):
+
+- **White** — neutral taxiway (no active flow rule)
+- **Green** — taxiway with an active flow rule for the current runway configuration
+- **Yellow** — taxilane (≥ 2× cost)
+- **Orange (bold)** — holding-point connector (≥ 5× cost)
+- **Red** — runway edge (≥ 30× cost)
+
+Nodes are drawn as small coloured squares:
+
+- **Cyan** — regular waypoint node
+- **Red** — holding-point node
+
+Use this overlay to diagnose unexpected routes: a taxiway that should be one-directional appears white instead of green if no flow rule is matching, and a missing edge indicates the OSM data has a gap or the subdivision interval needs adjusting.
+
+---
 
 ### `runways`
 
@@ -652,9 +863,9 @@ Each holding point entry defines the polygon that detects when an aircraft is at
 }
 ```
 
-#### Vacate points
+#### Suggested vacate points
 
-Vacate points define recommended runway exit points for arriving aircraft based on their assigned stand and the gap to the following (trailing) inbound.
+Recommended runway exit points for arriving aircraft based on their assigned stand and the gap to the following (trailing) inbound.
 
 | Field | Type | Description |
 |---|---|---|
@@ -662,7 +873,7 @@ Vacate points define recommended runway exit points for arriving aircraft based 
 | `stands` | array of strings | Stand names (or glob-style patterns with `*`) associated with this vacate |
 
 ```json
-"vacatePoints": {
+"suggestedVacatePoints": {
     "A3": {
         "minGap": 5,
         "stands": ["F04", "F08", "H*", "K*"]
@@ -671,6 +882,23 @@ Vacate points define recommended runway exit points for arriving aircraft based 
         "minGap": 3,
         "stands": ["E*", "F*"]
     }
+}
+```
+
+#### Vacate points (exit restrictions)
+
+Allowed runway vacation exits with optional WTC restrictions. Unlisted HP refs are excluded from inbound taxi routing. Used by the taxi router to constrain which exits an arriving aircraft may vacate via.
+
+| Field | Type | Description |
+|---|---|---|
+| `excludeWtc` | array of strings | WTC categories that cannot use this exit (e.g. `["H", "J"]`) |
+| `excludeRef` | object | Per-WTC map of refs excluded when vacating via this exit (e.g. `{"H": ["D"]}`) |
+
+```json
+"vacatePoints": {
+    "A3": {},
+    "A4": { "excludeWtc": ["H", "J"] },
+    "A5": { "excludeRef": { "H": ["D"] } }
 }
 ```
 
@@ -697,6 +925,7 @@ A post-build event copies the required fixture files into the output directory a
 | `FlowXTests/fixtures/osm_taxiways_LOWW.json` | `$(OutDir)` | Snapshot of the OSM taxiway cache |
 | `FlowXTests/fixtures/Groundradar/ICAO_Aircraft.json` | `$(SolutionDir)Groundradar\` | Aircraft wingspan data |
 | `FlowXTests/fixtures/Groundradar/GRpluginStands.txt` | `$(SolutionDir)Groundradar\` | Stand polygon data |
+| `FlowXTests/fixtures/taxi-test.json` | `$(OutDir)` | Fixture-driven taxi route test cases |
 
 ### Running
 
@@ -711,7 +940,8 @@ A non-zero exit code means one or more tests failed. Pass `--help` for doctest o
 | File | Real source compiled | Coverage |
 |---|---|---|
 | `test_geometry.cpp` | `taxi_graph.h` | Haversine distance, bearing, bearing-diff, point-to-segment distance, segment intersection |
-| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan hard-exclusion and soft-avoidance |
+| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan hard-exclusion and soft-avoidance, edge splitting, preferred-route matching, goal selection, departure HP resolution |
+| `test_taxi_routes.cpp` | `taxi_graph.cpp` | Fixture-driven regression tests against the real LOWW TaxiGraph using `taxi-test.json` — verifies route validity, mustInclude/mustNotInclude wayref constraints, and distance ranges |
 | `test_osm.cpp` | `osm_taxiways.cpp` | OSM JSON parsing (taxiways, taxilanes, runways, holding positions, stands) |
 | `test_lookups.cpp` | `CFlowX_LookupsTools.cpp` | Point-in-polygon, colour parsing, holding-point annotation encoding, weight category ranking |
 | `test_helpers.cpp` | *(helpers are inline/header-only)* | String split/join, trim, upper-case, frequency annotation formatting |
