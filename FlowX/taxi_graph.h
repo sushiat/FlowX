@@ -44,6 +44,7 @@ struct TaxiNode
     std::string  label;       ///< ref or name (for debug output and snap labels).
     std::string  wayRef;      ///< Taxiway ref this node belongs to; empty for stand/HP nodes.
     uint8_t      wayPriority; ///< Way-type priority used to resolve ref conflicts at junctions (taxiway > taxilane > intersection).
+    int          waySubId{};  ///< Distinguishes branches of the same wayRef (e.g. three OSM ways all named "Exit 3").
 };
 
 /// @brief An ordered sequence of geographic positions forming a taxi path.
@@ -520,7 +521,8 @@ class TaxiGraph
                          TaxiNodeType     type,
                          std::string_view label,
                          std::string_view wayRef,
-                         uint8_t          wayPriority = 0);
+                         uint8_t          wayPriority = 0,
+                         int              waySubId    = 0);
 
     /// @brief Returns the (cx, cy) spatial grid cell for @p p.
     [[nodiscard]] std::pair<int, int> GridCell(const GeoPoint& p) const;

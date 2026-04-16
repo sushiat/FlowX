@@ -46,7 +46,8 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                                 TaxiNodeType     type,
                                 std::string_view label,
                                 std::string_view wayRef,
-                                uint8_t          wayPriority)
+                                uint8_t          wayPriority,
+                                int              waySubId)
 {
     // Grid-accelerated lookup: only scan cells within mergeThreshM.
     const int rings = static_cast<int>(std::ceil(mergeThreshM / GRID_CELL_M)) + 1;
@@ -97,6 +98,7 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                     {
                         nodes_[nid].wayRef      = std::string(wayRef);
                         nodes_[nid].wayPriority = wayPriority;
+                        nodes_[nid].waySubId    = waySubId;
                     }
                 }
                 // Promote empty-ref nodes (stand/HP connectors) when a named
@@ -107,13 +109,14 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                 {
                     nodes_[nid].wayRef      = std::string(wayRef);
                     nodes_[nid].wayPriority = wayPriority;
+                    nodes_[nid].waySubId    = waySubId;
                 }
                 return nid;
             }
         }
     }
     const int id = static_cast<int>(nodes_.size());
-    nodes_.push_back({id, pos, type, std::string(label), std::string(wayRef), wayPriority});
+    nodes_.push_back({id, pos, type, std::string(label), std::string(wayRef), wayPriority, waySubId});
     adj_.emplace_back();
     GridInsert(id);
     return id;
@@ -438,6 +441,11 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     const double     MULT_RUNWAY       = apt_.taxiNetworkConfig.edgeCosts.multRunway;
 
     // ── Step 1: ways ─────────────────────────────────────────────────────────
+    // Track a per-ref sub-ID so multiple OSM ways sharing the same ref
+    // (e.g. three intersection branches all named "Exit 3") get distinct
+    // sub-IDs on their nodes.  This lets candidate selection keep one node
+    // per branch instead of collapsing all branches into a single bucket.
+    std::map<std::string, int> waySubIdCounter;
     for (const auto& way : osm.ways)
     {
         if (way.type == AerowayType::Unknown)
@@ -450,7 +458,8 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             : (way.type == AerowayType::Runway)               ? MULT_RUNWAY
                                                               : MULT_TAXIWAY;
 
-        const std::string& ref = way.ref.empty() ? way.name : way.ref;
+        const std::string& ref   = way.ref.empty() ? way.name : way.ref;
+        const int          subId = ref.empty() ? 0 : waySubIdCounter[ref]++;
 
         if (way.type == AerowayType::Taxiway_Intersection && !ref.empty())
             isxWayRefs_.insert(ref);
@@ -495,14 +504,14 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
             const double SUBDIV_M = apt_.taxiNetworkConfig.graph.subdivisionIntervalM;
             const int    nSteps   = static_cast<int>(std::floor(dist / SUBDIV_M));
 
-            int prev = FindOrCreateNode(a, 1.0, TaxiNodeType::Waypoint, ref, ref, refPriority);
+            int prev = FindOrCreateNode(a, 1.0, TaxiNodeType::Waypoint, ref, ref, refPriority, subId);
 
             for (int s = 1; s < nSteps; ++s)
             {
                 const double   t   = static_cast<double>(s) * SUBDIV_M / dist;
                 const GeoPoint mid = {a.lat + (b.lat - a.lat) * t,
                                       a.lon + (b.lon - a.lon) * t};
-                const int      cur = FindOrCreateNode(mid, 0.001, TaxiNodeType::Waypoint, ref, ref, refPriority);
+                const int      cur = FindOrCreateNode(mid, 0.001, TaxiNodeType::Waypoint, ref, ref, refPriority, subId);
                 if (cur == prev)
                     continue;
                 const double d = HaversineM(nodes_[prev].pos, nodes_[cur].pos);
@@ -511,7 +520,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
                 prev = cur;
             }
 
-            const int nB = FindOrCreateNode(b, 1.0, TaxiNodeType::Waypoint, ref, ref, refPriority);
+            const int nB = FindOrCreateNode(b, 1.0, TaxiNodeType::Waypoint, ref, ref, refPriority, subId);
             if (nB != prev)
             {
                 const double d = HaversineM(nodes_[prev].pos, nodes_[nB].pos);
@@ -1407,9 +1416,7 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
     // wayRef so that nearby intersections are also evaluated as potential starts.
     const std::string onEdgeRef = WayRefOnEdge(from, initialBearingDeg);
 
-    std::vector<int>      candidates;
-    std::set<int>         seen;
-    std::set<std::string> seenRefs;
+    std::vector<int> candidates;
     if (!onEdgeRef.empty())
     {
         // On-network: use candidates matching the detected wayRef.
@@ -1465,25 +1472,21 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
     }
     else
     {
-        // Off-network: keep the 3 nearest overall, then add the nearest node
-        // from each additional wayRef for diversity.
-        for (size_t i = 0; i < pool.size() && candidates.size() < 3; ++i)
-        {
-            candidates.push_back(pool[i]);
-            seen.insert(pool[i]);
-            seenRefs.insert(nodes_[pool[i]].wayRef);
-        }
+        // Off-network: one candidate per (wayRef, waySubId), closest to
+        // the aircraft.  Each intersection branch keeps its own nearest
+        // node so an expensive arm can't shadow a cheaper one.
+        using BranchKey = std::pair<std::string, int>;
+        std::map<BranchKey, int> bestStart;
         for (const int id : pool)
         {
-            if (seen.count(id))
-                continue;
-            const std::string& ref = nodes_[id].wayRef;
-            if (ref.empty() || seenRefs.count(ref))
-                continue;
-            candidates.push_back(id);
-            seen.insert(id);
-            seenRefs.insert(ref);
+            BranchKey  key{nodes_[id].wayRef, nodes_[id].waySubId};
+            const auto dist = HaversineM(from, nodes_[id].pos);
+            auto       it   = bestStart.find(key);
+            if (it == bestStart.end() || dist < HaversineM(from, nodes_[it->second].pos))
+                bestStart[key] = id;
         }
+        for (const auto& [_, id] : bestStart)
+            candidates.push_back(id);
     }
 
     // Per-edge wingspan check: build a set of excluded wayRefs.
@@ -1552,20 +1555,21 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
         const auto&  ts        = apt_.taxiNetworkConfig.targetSelection;
 
         // Two-tier search (near then far) within the 90° wide cone, keeping
-        // only the node closest to the destination per wayRef.  This prevents
-        // A* from routing to a same-wayRef node closer to the origin (cheaper
-        // path but stops short of the gate) and ensures a closer taxilane
-        // always wins over a farther one.
-        auto bestPerRef = [&](const std::vector<int>& pool) -> std::vector<int>
+        // only the node closest to a reference point per (wayRef, waySubId).
+        // Grouping by sub-ID means each OSM way branch (e.g. three fillet
+        // arms all named "Exit 3") retains its own closest node; one
+        // unreachable arm can't eliminate the usable one from the pool.
+        using BranchKey    = std::pair<std::string, int>; // (wayRef, waySubId)
+        auto bestPerBranch = [&](const std::vector<int>& pool, const GeoPoint& ref) -> std::vector<int>
         {
-            std::map<std::string, int> best; // wayRef → node id closest to `to`
+            std::map<BranchKey, int> best;
             for (const int id : pool)
             {
-                const auto& ref  = nodes_[id].wayRef;
-                const auto  dist = HaversineM(to, nodes_[id].pos);
-                auto        it   = best.find(ref);
-                if (it == best.end() || dist < HaversineM(to, nodes_[it->second].pos))
-                    best[ref] = id;
+                BranchKey  key{nodes_[id].wayRef, nodes_[id].waySubId};
+                const auto dist = HaversineM(ref, nodes_[id].pos);
+                auto       it   = best.find(key);
+                if (it == best.end() || dist < HaversineM(ref, nodes_[it->second].pos))
+                    best[key] = id;
             }
             std::vector<int> result;
             result.reserve(best.size());
@@ -1577,14 +1581,14 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
         std::vector<int> goalPool;
         if (goalBearingDeg >= 0.0)
         {
-            goalPool = bestPerRef(
-                NearestCandidateNodes(to, goalBearingDeg, ts.nearRadiusM, 0.0, 20, 0, ts.wideConeDeg));
+            goalPool = bestPerBranch(
+                NearestCandidateNodes(to, goalBearingDeg, ts.nearRadiusM, 0.0, 20, 0, ts.wideConeDeg), to);
             if (goalPool.empty())
-                goalPool = bestPerRef(
-                    NearestCandidateNodes(to, goalBearingDeg, ts.farRadiusM, 0.0, 20, 0, ts.wideConeDeg));
+                goalPool = bestPerBranch(
+                    NearestCandidateNodes(to, goalBearingDeg, ts.farRadiusM, 0.0, 20, 0, ts.wideConeDeg), to);
         }
         if (goalPool.empty())
-            goalPool = bestPerRef(NearestCandidateNodes(to, -1.0, goalSnapR, 0.0, 20, 0));
+            goalPool = bestPerBranch(NearestCandidateNodes(to, -1.0, goalSnapR, 0.0, 20, 0), to);
         if (goalPool.empty())
         {
             const int fb = NearestNode(to);
@@ -1609,38 +1613,73 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
     // Try A* from each (start, goal) combination; keep the cheapest result
     // by total cost plus snap distances from the aircraft's actual position
     // and the stand's approach point.
-    TaxiRoute   best;
-    double      bestScore = std::numeric_limits<double>::max();
-    std::string seqFailureTrace; // latched diagnostic from first failed attempt
-    for (const int startId : candidates)
+    //
+    // Two-pass: first try only the closest start per (wayRef, waySubId) —
+    // the aircraft should depart from the node it's actually sitting on.
+    // If no valid route is found (e.g. the closest node is past a blocked
+    // intersection), retry with the full candidate set.
+    using BranchKey = std::pair<std::string, int>;
+    std::map<BranchKey, int> closestStart;
+    for (const int id : candidates)
     {
-        for (const int goalId : goalCandidates)
+        BranchKey  key{nodes_[id].wayRef, nodes_[id].waySubId};
+        const auto dist = HaversineM(from, nodes_[id].pos);
+        auto       it   = closestStart.find(key);
+        if (it == closestStart.end() || dist < HaversineM(from, nodes_[it->second].pos))
+            closestStart[key] = id;
+    }
+    std::vector<int> primaryStarts;
+    primaryStarts.reserve(closestStart.size());
+    for (const auto& [_, id] : closestStart)
+        primaryStarts.push_back(id);
+
+    auto runAStarPass = [&](const std::vector<int>& starts) -> std::pair<TaxiRoute, std::string>
+    {
+        TaxiRoute   best;
+        double      bestScore = std::numeric_limits<double>::max();
+        std::string seqTrace;
+        for (const int startId : starts)
         {
-            TaxiRoute r = RunAStar(startId, goalId, excludedRefs, avoidRefs, blockedNodes, activeDepRwys,
-                                   activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
-                                   ignoreAllPenalties, preferredNodes, emitDebugTrace, allowedWayRefs, "",
-                                   sequenceConstraint);
-            if (!r.valid)
+            for (const int goalId : goalCandidates)
             {
-                if (!sequenceConstraint.empty() && seqFailureTrace.empty() && !r.debugTrace.empty())
-                    seqFailureTrace = std::format("start#{}[{}] goal#{}[{}] {}",
-                                                  startId, nodes_[startId].wayRef,
-                                                  goalId, nodes_[goalId].wayRef, r.debugTrace);
-                continue;
-            }
-            const double snapDist = HaversineM(from, nodes_[startId].pos) + HaversineM(to, nodes_[goalId].pos);
-            const double score    = r.totalCost + snapDist;
-            if (emitDebugTrace)
-                r.debugTrace = std::format("start #{} [{}] goal #{} [{}] score={:.0f} (cost={:.0f} snap={:.0f})\n",
-                                           startId, nodes_[startId].wayRef, goalId, nodes_[goalId].wayRef,
-                                           score, r.totalCost, snapDist) +
-                               r.debugTrace;
-            if (score < bestScore)
-            {
-                bestScore = score;
-                best      = std::move(r);
+                TaxiRoute r = RunAStar(startId, goalId, excludedRefs, avoidRefs, blockedNodes, activeDepRwys,
+                                       activeArrRwys, initialBearingDeg, suppressFlowWayRefs,
+                                       ignoreAllPenalties, preferredNodes, emitDebugTrace, allowedWayRefs, "",
+                                       sequenceConstraint);
+                if (!r.valid)
+                {
+                    if (!sequenceConstraint.empty() && seqTrace.empty() && !r.debugTrace.empty())
+                        seqTrace = std::format("start#{}[{}] goal#{}[{}] {}",
+                                               startId, nodes_[startId].wayRef,
+                                               goalId, nodes_[goalId].wayRef, r.debugTrace);
+                    continue;
+                }
+                const double snapDist = HaversineM(from, nodes_[startId].pos) + HaversineM(to, nodes_[goalId].pos);
+                const double score    = r.totalCost + snapDist;
+                if (emitDebugTrace)
+                    r.debugTrace =
+                        std::format("start #{} [{}] goal #{} [{}] score={:.0f} (cost={:.0f} snap={:.0f})\n",
+                                    startId, nodes_[startId].wayRef, goalId, nodes_[goalId].wayRef, score,
+                                    r.totalCost, snapDist) +
+                        r.debugTrace;
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best      = std::move(r);
+                }
             }
         }
+        return {std::move(best), std::move(seqTrace)};
+    };
+
+    auto [best, seqFailureTrace] = runAStarPass(primaryStarts);
+    if (!best.valid && candidates.size() > primaryStarts.size())
+    {
+        auto [wider, widerTrace] = runAStarPass(candidates);
+        if (wider.valid)
+            best = std::move(wider);
+        if (seqFailureTrace.empty())
+            seqFailureTrace = std::move(widerTrace);
     }
     if (emitDebugTrace)
     {
