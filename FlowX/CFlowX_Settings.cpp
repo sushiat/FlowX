@@ -517,8 +517,8 @@ void CFlowX_Settings::LoadSettings()
         if (j.contains("global"))
         {
             this->autoParked          = j["global"].value("autoParked", true);
-            this->autoScratchpadClear = j["global"].value("autoScratchpadClear", false);
-            this->autoRestore         = j["global"].value("autoRestore", false);
+            this->autoScratchpadClear = j["global"].value("autoScratchpadClear", true);
+            this->autoRestore         = j["global"].value("autoRestore", true);
             this->hpAutoScratch       = j["global"].value("hpAutoScratch", true);
             this->bgOpacity           = j["global"].value("bgOpacity", 100);
             this->debug               = j["global"].value("debug", false);

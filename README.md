@@ -17,6 +17,8 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 - [Aircraft Ground Tags](#aircraft-ground-tags)
 - [Custom Windows](#custom-windows)
 - [Start Menu](#start-menu)
+- [Assists](#assists)
+- [Notifications](#notifications)
 - [Chat Commands](#chat-commands)
 - [config.json Reference](#configjson-reference)
 - [Testing](#testing)
@@ -157,7 +159,7 @@ Conflicts are colour-coded by time-to-intersection:
 - **15–30 s**: yellow marker at the conflict point and a yellow **`CONFLICT`** label next to each aircraft involved.
 - **< 15 s**: marker and label both turn **red** — the most urgent tier.
 
-If `taxiConflict.wav` is present in the plugin directory and the **Taxi conflict sound** setting is enabled, an audio alert fires once per conflict pair as soon as the predicted separation drops below 15 s and has persisted for at least 2 seconds. The sound plays at most once per pair; it is re-armed only if the conflict clears and then reappears.
+If the **Taxi Conflict** sound notification setting is enabled, an audio alert fires once per conflict pair as soon as the predicted separation drops below 15 s and has persisted for at least 2 seconds. The sound plays at most once per pair; it is re-armed only if the conflict clears and then reappears.
 
 ### Pushback planning
 
@@ -332,6 +334,33 @@ Click the **FlowX** button in the bottom-right corner of the radar screen to ope
 **Windows** — expandable submenu to toggle visibility of each custom window (Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS, DIFLIS).
 
 **Settings...** — opens the [Settings](#settings) window where all plugin toggles, sound notifications, taxi overlays, and font/opacity controls are configured.
+
+---
+
+## Assists
+
+Assists are automation helpers that reduce repetitive actions. They are toggled in the **Assists** group of the Settings window.
+
+| Setting | Default | Description |
+|---|---|---|
+| **Auto-Restore FPLN** | On | When a pilot disconnects, FlowX captures a snapshot of their clearance flag and ground state. If they reconnect within 90 seconds with a matching flight plan, those values are automatically restored — useful for brief network drops during pushback or taxi. |
+| **Auto PARK** | On | Automatically sets an arriving aircraft's ground state to PARK once it has stopped at its assigned stand. Removes the need to manually update the strip for parked inbounds. |
+| **Auto-Clear Scratch** | On | Clears the scratchpad automatically when the LINEUP or DEPA button is clicked, provided the current scratchpad content does not start with any of the `scratchpadClearExclusions` prefixes defined in `config.json`. Keeps strips clean after departure without manual intervention. |
+| **HP auto-scratch** | On | TWR only. Watches for scratchpad entries starting with `.` and interprets them as holding-point shortcuts. `.NAME` assigns the HP and appends a trailing dot (`.NAME.`) to mark it as processed and prevent re-triggering; `.NAME?` registers an HP request and leaves the pad unchanged. When TWR later assigns the HP via the popup and it matches the requested name, the scratchpad is automatically set to `.NAME ok` so GND sees the approval. If a different HP is assigned instead, the stale request is cleared from the pad. |
+
+---
+
+## Notifications
+
+Notification sounds alert the controller to events that may need immediate attention. Each is toggled individually in the **Notifications** group of the Settings window. All sounds require the controller to be logged in at TWR facility or above. Sound files must be placed alongside `FlowX.dll`.
+
+| Setting | Default | Description |
+|---|---|---|
+| **Airborne** | On | Plays once when a departure is detected airborne. |
+| **GND Transfer** | On | Plays when a tracked inbound aircraft's ground speed drops below 50 kt after landing, indicating it is about to vacate or has vacated the runway and is ready to be transferred to GND. |
+| **Ready T/O** | On | Plays when a lined-up aircraft that was previously held (departure info was not `OK` while in LINEUP) becomes clear for takeoff and remains `OK` for 5 seconds. Suppressed if the aircraft was already clear when LINEUP was given. |
+| **No Route** | On | Plays when the taxi router fails to find a valid route during taxi planning. |
+| **Taxi Conflict** | On | Plays once per conflict pair when the predicted time to intersection drops below 15 s and has persisted for at least 2 seconds. See [Conflict detection](#conflict-detection). |
 
 ---
 
