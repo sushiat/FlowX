@@ -756,6 +756,47 @@ Six-tier search used when routing to a stand approach point. Tiers are tried in 
 }
 ```
 
+### Taxi diagnostic overlays
+
+Two overlays can be enabled from the **Taxi** group of the Settings window to help diagnose routing issues without leaving EuroScope.
+
+#### Show TAXI network
+
+![Taxi network overlay](Screenshots/taxi_network.png)
+
+Draws the raw OSM geometry loaded from the taxiway cache, colour-coded by way type:
+
+- **Yellow** — taxiway
+- **Cyan** — taxilane
+- **Red** — holding-point way
+- **Green** — intersection way
+- **Orange** — runway (OSM ways and derived centrelines, drawn bold)
+
+Holding-position circles are drawn at each OSM holding position. Enable **Show TAXI labels** alongside this overlay to render taxiway name labels at each way's midpoint — useful for identifying which `wayRef` strings to use in flow rules and `mustInclude` sequences.
+
+Use this overlay to verify that the OSM data was fetched and parsed correctly, and to check that holding positions and taxiway types are being interpreted as expected.
+
+#### Show TAXI graph
+
+![Taxi routing graph overlay](Screenshots/taxi_graph.png)
+
+Draws the internal A\* routing graph built from the OSM data, showing every node and directed edge. Edges are colour-coded by their cost multiplier (cost ÷ distance):
+
+- **White** — neutral taxiway (no active flow rule)
+- **Green** — taxiway with an active flow rule for the current runway configuration
+- **Yellow** — taxilane (≥ 2× cost)
+- **Orange (bold)** — holding-point connector (≥ 5× cost)
+- **Red** — runway edge (≥ 30× cost)
+
+Nodes are drawn as small coloured squares:
+
+- **Cyan** — regular waypoint node
+- **Red** — holding-point node
+
+Use this overlay to diagnose unexpected routes: a taxiway that should be one-directional appears white instead of green if no flow rule is matching, and a missing edge indicates the OSM data has a gap or the subdivision interval needs adjusting.
+
+---
+
 ### `runways`
 
 Per-runway configuration keyed by runway designator.
