@@ -92,7 +92,7 @@ static GeoPoint ResolvePosition(const std::string&                    label,
                 }
                 else
                 {
-                    GeoPoint hp = graph.HoldingPositionByLabel(srt.target);
+                    GeoPoint hp = graph.HoldingPointByLabel(srt.target);
                     if (hp.lat != 0.0 || hp.lon != 0.0)
                         return hp;
                 }
@@ -106,11 +106,11 @@ static GeoPoint ResolvePosition(const std::string&                    label,
 
     if (label.starts_with("HP:"))
     {
-        return graph.HoldingPositionByLabel(label.substr(3));
+        return graph.HoldingPointByLabel(label.substr(3));
     }
 
-    // Fallback: try as raw holding position label
-    return graph.HoldingPositionByLabel(label);
+    // Fallback: try as raw holding point label
+    return graph.HoldingPointByLabel(label);
 }
 
 /// @brief Returns true when the position lies inside any taxiOutStands polygon.

@@ -128,6 +128,121 @@ void TaxiGraph::AddEdge(int from, int to, double cost, float flowMult,
     adj_[from].push_back({to, cost, flowMult, wayRef, bearingDeg});
 }
 
+int TaxiGraph::SplitEdgeAtProjection(const GeoPoint& hpPos, double maxSnapM,
+                                     TaxiNodeType type, std::string_view label)
+{
+    // Phase A: find the nearest edge via spatial grid scan.
+    const int rings      = static_cast<int>(std::ceil(maxSnapM / GRID_CELL_M)) + 1;
+    auto [cx0, cy0]      = GridCell(hpPos);
+    double   bestDist    = maxSnapM;
+    int      bestFromId  = -1;
+    int      bestEdgeIdx = -1;
+    double   bestT       = 0.0;
+    GeoPoint bestProj    = {};
+
+    for (int dx = -rings; dx <= rings; ++dx)
+    {
+        for (int dy = -rings; dy <= rings; ++dy)
+        {
+            auto it = grid_.find(GridKey(cx0 + dx, cy0 + dy));
+            if (it == grid_.end())
+                continue;
+            for (const int nid : it->second)
+            {
+                for (int ei = 0; ei < static_cast<int>(adj_[nid].size()); ++ei)
+                {
+                    const auto& e  = adj_[nid][ei];
+                    auto        sp = ProjectOnSegment(hpPos, nodes_[nid].pos, nodes_[e.to].pos);
+                    if (sp.distM < bestDist)
+                    {
+                        bestDist    = sp.distM;
+                        bestFromId  = nid;
+                        bestEdgeIdx = ei;
+                        bestT       = sp.t;
+                        bestProj    = sp.proj;
+                    }
+                }
+            }
+        }
+    }
+    if (bestFromId < 0)
+        return -1;
+
+    const int bestToId = adj_[bestFromId][bestEdgeIdx].to;
+
+    // Phase B: if projection is very close to an endpoint, promote it directly.
+    if (HaversineM(bestProj, nodes_[bestFromId].pos) < 1.0)
+    {
+        nodes_[bestFromId].type  = type;
+        nodes_[bestFromId].label = std::string(label);
+        return bestFromId;
+    }
+    if (HaversineM(bestProj, nodes_[bestToId].pos) < 1.0)
+    {
+        nodes_[bestToId].type  = type;
+        nodes_[bestToId].label = std::string(label);
+        return bestToId;
+    }
+
+    // Phase C: create a new node at the projected position.
+    const int newId     = FindOrCreateNode(bestProj, 0.5, type, std::string(label),
+                                           nodes_[bestFromId].wayRef,
+                                           nodes_[bestFromId].wayPriority,
+                                           nodes_[bestFromId].waySubId);
+    nodes_[newId].type  = type;
+    nodes_[newId].label = std::string(label);
+
+    // Phase D: capture original edge properties before modifying adj_ vectors.
+    const double      fwdCost     = adj_[bestFromId][bestEdgeIdx].cost;
+    const float       fwdFlowMult = adj_[bestFromId][bestEdgeIdx].flowMult;
+    const std::string fwdWayRef   = adj_[bestFromId][bestEdgeIdx].wayRef;
+    const double      fwdBearing  = adj_[bestFromId][bestEdgeIdx].bearingDeg;
+
+    double revCost     = 0.0;
+    float  revFlowMult = 1.0f;
+    double revBearing  = 0.0;
+    int    revIdx      = -1;
+    for (int i = 0; i < static_cast<int>(adj_[bestToId].size()); ++i)
+    {
+        if (adj_[bestToId][i].to == bestFromId && adj_[bestToId][i].wayRef == fwdWayRef)
+        {
+            revCost     = adj_[bestToId][i].cost;
+            revFlowMult = adj_[bestToId][i].flowMult;
+            revBearing  = adj_[bestToId][i].bearingDeg;
+            revIdx      = i;
+            break;
+        }
+    }
+
+    // Phase E: remove old edges (erase higher index first to keep the other valid).
+    if (revIdx >= 0 && bestFromId == bestToId)
+    {
+        // Self-loop edge (shouldn't happen, but be safe).
+        int hi = std::max(bestEdgeIdx, revIdx);
+        int lo = std::min(bestEdgeIdx, revIdx);
+        adj_[bestFromId].erase(adj_[bestFromId].begin() + hi);
+        adj_[bestFromId].erase(adj_[bestFromId].begin() + lo);
+    }
+    else
+    {
+        adj_[bestFromId].erase(adj_[bestFromId].begin() + bestEdgeIdx);
+        if (revIdx >= 0)
+            adj_[bestToId].erase(adj_[bestToId].begin() + revIdx);
+    }
+
+    // Phase F: add split edges with proportional costs.
+    const double t = bestT;
+    AddEdge(bestFromId, newId, fwdCost * t, fwdFlowMult, fwdWayRef, fwdBearing);
+    AddEdge(newId, bestToId, fwdCost * (1.0 - t), fwdFlowMult, fwdWayRef, fwdBearing);
+    if (revIdx >= 0)
+    {
+        AddEdge(bestToId, newId, revCost * (1.0 - t), revFlowMult, fwdWayRef, revBearing);
+        AddEdge(newId, bestFromId, revCost * t, revFlowMult, fwdWayRef, revBearing);
+    }
+
+    return newId;
+}
+
 double TaxiGraph::FlowMult(double bearingDeg, const std::string& wayRef) const
 {
     const double WITH_FLOW_MAX  = apt_.taxiNetworkConfig.flowRules.withFlowMaxDeg;
@@ -531,62 +646,15 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     }
 
     // ── Step 2: OSM holding position nodes ───────────────────────────────────
-    // Promote the nearest existing Waypoint node to HoldingPosition type rather than
-    // creating a separate node with a long connecting edge. The OSM stop-bar node is
-    // typically already on the taxiway centreline; snapping within osmHoldingPositionSnapM is sufficient.
+    // Split the nearest edge at the point closest to each OSM stop-bar position
+    // and promote the new node to HoldingPoint.  This places the node on the
+    // taxiway centreline at sub-metre accuracy instead of snapping to the nearest
+    // existing subdivision waypoint (which could be up to ~7.5 m away).
     for (const auto& hp : osm.holdingPositions)
     {
-        const std::string& label    = hp.ref.empty() ? hp.name : hp.ref;
-        double             bestDist = apt_.taxiNetworkConfig.graph.osmHoldingPositionSnapM;
-        int                bestId   = -1;
-        for (const auto& n : nodes_)
-        {
-            if (n.type != TaxiNodeType::Waypoint)
-                continue;
-            const double d = HaversineM(n.pos, hp.pos);
-            if (d < bestDist)
-            {
-                bestDist = d;
-                bestId   = n.id;
-            }
-        }
-        if (bestId >= 0)
-        {
-            nodes_[bestId].type  = TaxiNodeType::HoldingPosition;
-            nodes_[bestId].label = label;
-        }
-    }
-
-    // ── Step 3: config holding points ────────────────────────────────────────
-    // Same approach: promote the nearest Waypoint node rather than adding a separate
-    // node + long edge. Search up to configHoldingPointSnapM because config HP centres
-    // are polygon centroids that may sit a few metres back from the taxiway edge.
-    for (const auto& [rwyDes, rwy] : ap.runways)
-    {
-        for (const auto& [hpName, hp] : rwy.holdingPoints)
-        {
-            if (!hp.assignable)
-                continue;
-            const GeoPoint hpPos{hp.centerLat, hp.centerLon};
-            double         bestDist = apt_.taxiNetworkConfig.graph.configHoldingPointSnapM;
-            int            bestId   = -1;
-            for (const auto& n : nodes_)
-            {
-                if (n.type != TaxiNodeType::Waypoint)
-                    continue;
-                const double d = HaversineM(n.pos, hpPos);
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    bestId   = n.id;
-                }
-            }
-            if (bestId >= 0)
-            {
-                nodes_[bestId].type  = TaxiNodeType::HoldingPoint;
-                nodes_[bestId].label = hpName;
-            }
-        }
+        const std::string& label = hp.ref.empty() ? hp.name : hp.ref;
+        SplitEdgeAtProjection(hp.pos, apt_.taxiNetworkConfig.graph.osmHoldingPositionSnapM,
+                              TaxiNodeType::HoldingPoint, label);
     }
 
     // ── Step 5: stands ───────────────────────────────────────────────────────
@@ -611,7 +679,7 @@ void TaxiGraph::Build(const OsmAirportData& osm, const airport& ap)
     wayRefNodes_.clear();
     for (const auto& n : nodes_)
     {
-        if (n.type == TaxiNodeType::HoldingPoint || n.type == TaxiNodeType::HoldingPosition)
+        if (n.type == TaxiNodeType::HoldingPoint)
             hpNodeIds_.push_back(n.id);
         else if (n.type == TaxiNodeType::Waypoint)
         {
@@ -1544,12 +1612,25 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
         }
     }
 
+    // If the destination matches a holding-point node exactly, force it as
+    // the sole goal — the user (or HP assignment) explicitly chose this HP;
+    // the router must not substitute a cheaper nearby node.
+    std::vector<int> goalCandidates;
+    for (const int hpId : hpNodeIds_)
+    {
+        if (HaversineM(to, nodes_[hpId].pos) < 1.0)
+        {
+            goalCandidates.push_back(hpId);
+            break;
+        }
+    }
+
     // Collect goal candidates: nearest nodes diversified by wayRef, so A*
     // can reach stands accessible from multiple taxilanes (e.g. F37 between
     // TL 36 and TL 37).  Nodes on wingspan-excluded wayRefs are skipped when
     // non-excluded alternatives exist (e.g. prefer TL 40 over Blue Line for
     // wide-body aircraft); if all candidates are excluded, keep them anyway.
-    std::vector<int> goalCandidates;
+    if (goalCandidates.empty())
     {
         const double goalSnapR = apt_.taxiNetworkConfig.snapping.goalSnapM;
         const auto&  ts        = apt_.taxiNetworkConfig.targetSelection;
@@ -2195,7 +2276,7 @@ std::pair<GeoPoint, std::string> TaxiGraph::SnapNearest(const GeoPoint& rawPos,
 
 std::string TaxiGraph::PrefixedLabel(const GeoPoint& rawPos, double maxM) const
 {
-    // Priority 1: nearest HoldingPoint / HoldingPosition within an extended
+    // Priority 1: nearest HoldingPoint within an extended
     // radius.  A taxiway Waypoint node that is closer should not shadow a
     // nearby HP — the HP is always the more meaningful label.
     constexpr double HP_RADIUS_M = 80.0;
@@ -2463,7 +2544,12 @@ GeoPoint TaxiGraph::BestDepartureHP(const std::set<std::string>& activeDepRwys,
         {
             if (outName)
                 *outName = best->name;
-            return {best->centerLat, best->centerLon};
+            // Prefer the graph node position (edge-split accuracy) over the
+            // config polygon centroid so FindRoute's HP-goal match fires.
+            GeoPoint graphPos = HoldingPointByLabel(best->name);
+            return (graphPos.lat != 0.0 || graphPos.lon != 0.0)
+                       ? graphPos
+                       : GeoPoint{best->centerLat, best->centerLon};
         }
     }
     return {};
@@ -2503,7 +2589,7 @@ GeoPoint TaxiGraph::StandApproachPoint(const std::string&                    ica
     return OffsetPoint(centroid, approachBearing, 20.0);
 }
 
-GeoPoint TaxiGraph::HoldingPositionByLabel(const std::string& label) const
+GeoPoint TaxiGraph::HoldingPointByLabel(const std::string& label) const
 {
     for (const int id : hpNodeIds_)
     {

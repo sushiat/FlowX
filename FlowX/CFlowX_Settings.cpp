@@ -1190,7 +1190,6 @@ void CFlowX_Settings::LoadConfig()
                 const auto& g                    = jnc["graph"];
                 nc.graph.subdivisionIntervalM    = g.value("subdivisionIntervalM", 15.0);
                 nc.graph.osmHoldingPositionSnapM = g.value("osmHoldingPositionSnapM", 25.0);
-                nc.graph.configHoldingPointSnapM = g.value("configHoldingPointSnapM", 40.0);
             }
             if (jnc.contains("edgeCosts"))
             {

@@ -78,7 +78,7 @@ struct standRoutingTarget
 {
     enum class Type
     {
-        hp,   ///< Target is a holding-point label (resolved via HoldingPositionByLabel).
+        hp,   ///< Target is a holding-point label (resolved via HoldingPointByLabel).
         stand ///< Target is another stand name (resolved via StandApproachPoint).
     };
     Type        type   = Type::hp; ///< Whether the target is a holding point or a stand.
@@ -162,8 +162,7 @@ struct TaxiNetworkConfig
     /// @brief Graph construction parameters.
     struct Graph
     {
-        double configHoldingPointSnapM = 40.0; ///< Max snap radius (m) when promoting a config HP polygon centroid to a HoldingPoint node.
-        double osmHoldingPositionSnapM = 25.0; ///< Max snap radius (m) when promoting an OSM stop-bar node to a HoldingPosition node.
+        double osmHoldingPositionSnapM = 25.0; ///< Max snap radius (m) when promoting an OSM stop-bar node to a HoldingPoint node.
         double subdivisionIntervalM    = 15.0; ///< Interval (m) at which long OSM way segments are subdivided into waypoint nodes.
     } graph;
 
@@ -172,7 +171,7 @@ struct TaxiNetworkConfig
     {
         double multIntersection   = 1.1;  ///< Cost multiplier for taxiway-intersection edges (slight penalty).
         double multRunway         = 20.0; ///< Cost multiplier for runway edges (strongly discouraged; only used to vacate the runway).
-        double multRunwayApproach = 18.0; ///< Cost multiplier applied to edges arriving at a HoldingPoint/HoldingPosition node (approaching the runway threshold); slightly below multRunway so vacating via the HP is still preferred over staying on the runway.
+        double multRunwayApproach = 18.0; ///< Cost multiplier applied to edges arriving at a HoldingPoint node (approaching the runway threshold); slightly below multRunway so vacating via the HP is still preferred over staying on the runway.
         double multTaxilane       = 3.0;  ///< Cost multiplier for stand-access taxilane edges (prefer main taxiways).
         double multWingspanAvoid  = 3.0;  ///< Cost multiplier applied to taxiWingspanAvoid refs when the aircraft wingspan fits the avoid threshold.
     } edgeCosts;
@@ -201,7 +200,7 @@ struct TaxiNetworkConfig
     /// @brief Cursor snap radii used during interactive taxi planning.
     struct Snapping
     {
-        double holdingPointM   = 30.0;  ///< Snap radius (m) to holding-point / holding-position nodes (highest priority).
+        double holdingPointM   = 45.0;  ///< Snap radius (m) to holding-point / holding-position nodes (highest priority).
         double intersectionM   = 15.0;  ///< Snap radius (m) to intersection waypoint nodes (second priority).
         double suggestedRouteM = 20.0;  ///< Snap radius (m) to the suggested route polyline (third priority).
         double waypointM       = 40.0;  ///< Snap radius (m) to any waypoint node (lowest priority).

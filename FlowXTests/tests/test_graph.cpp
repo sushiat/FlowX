@@ -600,7 +600,7 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node does not incur a
 
     // With HP: same way but an OsmHoldingPosition placed exactly at B.
     // B is a way node → within the 25 m snap radius → B is promoted to
-    // HoldingPosition type, but its wayRef remains "M" (a plain taxiway).
+    // HoldingPoint type, but its wayRef remains "M" (a plain taxiway).
     // The approach penalty (step 8) only fires on Taxiway_HoldingPoint wayRefs
     // (e.g. "A1", "B4"), so stop bars on plain taxiways are NOT penalised.
     OsmAirportData     osmWithHp = MakeStraightWay();
@@ -624,39 +624,6 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node does not incur a
 
     // Cost must be equal: snapping an OSM stop bar to a plain taxiway node adds
     // no routing penalty.
-    CHECK(rWithHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.05));
-}
-
-TEST_CASE("TaxiGraph - config holdingPoint snapped to way node does not incur approach penalty")
-{
-    // Same as the OSM snap test, but triggered via airport runway config
-    // (configHoldingPointSnapM = 40 m default).  B is promoted to HoldingPoint type,
-    // but its wayRef remains "M".  The approach penalty only fires on Taxiway_HoldingPoint
-    // wayRefs, so config HP snaps on plain taxiways carry no penalty.
-    airport ap = MakeAirport();
-    runway  rwy;
-    rwy.designator = "11";
-    holdingPoint hp;
-    hp.name                 = "M1";
-    hp.assignable           = true; // required: snap is skipped for non-assignable HPs
-    hp.centerLat            = 48.1100;
-    hp.centerLon            = 16.5427; // exactly at B
-    rwy.holdingPoints["M1"] = hp;
-    ap.runways["11"]        = rwy;
-
-    TaxiGraph baseline, withHp;
-    baseline.Build(MakeStraightWay(), MakeAirport());
-    withHp.Build(MakeStraightWay(), ap);
-
-    GeoPoint A{48.1100, 16.5400};
-    GeoPoint C{48.1100, 16.5454};
-
-    TaxiRoute rBaseline = baseline.FindRoute(A, C, 0.0, {}, {});
-    TaxiRoute rWithHp   = withHp.FindRoute(A, C, 0.0, {}, {});
-
-    REQUIRE(rBaseline.valid);
-    REQUIRE(rWithHp.valid);
-
     CHECK(rWithHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.05));
 }
 
@@ -691,21 +658,17 @@ TEST_CASE("TaxiGraph - HP node beyond snap radius does not incur approach penalt
 
 TEST_CASE("TaxiGraph - route to a promoted HoldingPoint node succeeds")
 {
-    // Config HP at B promotes B to a HoldingPoint node.  Routing A→B must still
+    // OSM HP at B promotes B to a HoldingPoint node.  Routing A→B must still
     // return a valid route (approach cost is high but the route exists).
-    airport ap = MakeAirport();
-    runway  rwy;
-    rwy.designator = "11";
-    holdingPoint hp;
-    hp.name                 = "M1";
-    hp.assignable           = true; // required: snap is skipped for non-assignable HPs
-    hp.centerLat            = 48.1100;
-    hp.centerLon            = 16.5427; // exactly at B
-    rwy.holdingPoints["M1"] = hp;
-    ap.runways["11"]        = rwy;
+    OsmAirportData     osmWithHp = MakeStraightWay();
+    OsmHoldingPosition osmHp;
+    osmHp.id  = 100;
+    osmHp.ref = "M1";
+    osmHp.pos = GeoPoint{48.1100, 16.5427}; // exactly at B
+    osmWithHp.holdingPositions.push_back(osmHp);
 
     TaxiGraph g;
-    g.Build(MakeStraightWay(), ap);
+    g.Build(osmWithHp, MakeAirport());
 
     GeoPoint A{48.1100, 16.5400};
     GeoPoint B{48.1100, 16.5427};
@@ -713,6 +676,40 @@ TEST_CASE("TaxiGraph - route to a promoted HoldingPoint node succeeds")
     TaxiRoute route = g.FindRoute(A, B, 0.0, {}, {});
     REQUIRE(route.valid);
     CHECK(route.totalDistM == doctest::Approx(200.0).epsilon(0.25));
+}
+
+TEST_CASE("TaxiGraph - edge-split HP node placed at accurate position")
+{
+    // Place an HP centroid midway between two subdivision nodes (not on any
+    // existing waypoint).  The edge-splitting logic must inject a new node at the
+    // projected position within 1 m accuracy, and routing through it must work.
+    // At lat 48.11, 1° lon ≈ 74 000 m.  Midpoint between A and B is at
+    // lon = (16.5400 + 16.5427) / 2 = 16.54135, ~100 m from A.
+    airport ap = MakeAirport();
+    runway  rwy;
+    rwy.designator = "11";
+    holdingPoint hp;
+    hp.name                  = "MID";
+    hp.assignable            = false; // non-assignable HPs also get nodes now
+    hp.centerLat             = 48.1100;
+    hp.centerLon             = 16.54135; // ~100 m from A, between subdivision nodes
+    rwy.holdingPoints["MID"] = hp;
+    ap.runways["11"]         = rwy;
+
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), ap);
+
+    // Verify routing from A through the HP position works.
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint hpPos{48.1100, 16.54135};
+
+    TaxiRoute route = g.FindRoute(A, hpPos, 0.0, {}, {});
+    REQUIRE(route.valid);
+    CHECK(route.totalDistM == doctest::Approx(100.0).epsilon(0.15));
+
+    // Verify the HP node exists in the graph within 1 m of the target position.
+    GeoPoint resolved = g.HoldingPointByLabel("MID");
+    CHECK(HaversineM(resolved, hpPos) < 1.0);
 }
 
 // ─── Start == goal ────────────────────────────────────────────────────────────

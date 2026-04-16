@@ -29,10 +29,9 @@
 /// @brief Classification of a node in the taxi routing graph.
 enum class TaxiNodeType
 {
-    Waypoint,        ///< Generic geometry point along a taxiway/taxilane way.
-    HoldingPoint,    ///< Config-defined holding-point centroid (from holdingPoints polygon).
-    HoldingPosition, ///< OSM node with aeroway=holding_position.
-    Stand,           ///< Stand polygon centroid derived from GRpluginStands data.
+    Waypoint,     ///< Generic geometry point along a taxiway/taxilane way.
+    HoldingPoint, ///< Holding-point node placed via edge-splitting from OSM holding_position data.
+    Stand,        ///< Stand polygon centroid derived from GRpluginStands data.
 };
 
 /// @brief A single vertex in the taxi routing graph.
@@ -131,6 +130,35 @@ inline double PointToSegmentDistM(const GeoPoint& P, const GeoPoint& A, const Ge
     const double   t = std::clamp((apx * abx + apy * aby) / len2, 0.0, 1.0);
     const GeoPoint proj{A.lat + aby * t / scaleLat, A.lon + abx * t / scaleLon};
     return HaversineM(P, proj);
+}
+
+/// @brief Projection result of a point onto a segment: parameter t ∈ [0,1], projected point, and distance.
+struct SegmentProjection
+{
+    double   t;     ///< Parameter along A→B where the projection falls (0 = at A, 1 = at B).
+    GeoPoint proj;  ///< The projected point on the segment.
+    double   distM; ///< Distance from P to proj, in metres.
+};
+
+/// @brief Projects point @p P onto segment [@p A, @p B] and returns the full projection result.
+inline SegmentProjection ProjectOnSegment(const GeoPoint& P, const GeoPoint& A, const GeoPoint& B)
+{
+    const double cosLat   = std::cos(A.lat * std::numbers::pi / 180.0);
+    const double scaleLat = TAXI_EARTH_R * std::numbers::pi / 180.0;
+    const double scaleLon = TAXI_EARTH_R * cosLat * std::numbers::pi / 180.0;
+
+    const double abx = (B.lon - A.lon) * scaleLon;
+    const double aby = (B.lat - A.lat) * scaleLat;
+    const double apx = (P.lon - A.lon) * scaleLon;
+    const double apy = (P.lat - A.lat) * scaleLat;
+
+    const double len2 = abx * abx + aby * aby;
+    if (len2 < 1e-10)
+        return {0.0, A, HaversineM(P, A)};
+
+    const double   t    = std::clamp((apx * abx + apy * aby) / len2, 0.0, 1.0);
+    const GeoPoint proj = {A.lat + aby * t / scaleLat, A.lon + abx * t / scaleLon};
+    return {t, proj, HaversineM(P, proj)};
 }
 
 /// @brief Parametric intersection of two geo line segments using flat-earth projection centred on @p a0.
@@ -339,7 +367,7 @@ class TaxiGraph
                                                                double          maxM) const;
 
     /// @brief Returns a type-prefixed label for the nearest graph node within @p maxM metres.
-    ///   - HoldingPoint / HoldingPosition → "HP:label"
+    ///   - HoldingPoint → "HP:label"
     ///   - Stand → "STAND:label" (ICAO prefix stripped; just the stand designator)
     ///   - Waypoint or no match → "GEO:lat,lon" using @p rawPos
     /// Intended for generating taxi-test.json fixture entries.
@@ -363,7 +391,7 @@ class TaxiGraph
     /// @brief Determines the best snap point for interactive planning mode.
     ///
     /// Priority order:
-    ///   1. Nearest HoldingPoint / HoldingPosition node within 30 m.
+    ///   1. Nearest HoldingPoint node within the configured snap radius.
     ///   2. Nearest Waypoint that is a pre-intersection position within 15 m.
     ///   3. Nearest point on @p suggested route polyline within 20 m.
     ///   4. Nearest Waypoint node within 40 m.
@@ -396,9 +424,9 @@ class TaxiGraph
     [[nodiscard]] static GeoPoint StandApproachPoint(const std::string&                    icaoStandKey,
                                                      const std::map<std::string, grStand>& grStands);
 
-    /// @brief Returns the position of the HoldingPoint or HoldingPosition node whose label
+    /// @brief Returns the position of the HoldingPoint node whose label
     ///        matches @p label (case-sensitive), or {0,0} if not found.
-    [[nodiscard]] GeoPoint HoldingPositionByLabel(const std::string& label) const;
+    [[nodiscard]] GeoPoint HoldingPointByLabel(const std::string& label) const;
 
     /// @brief Returns node IDs within @p radiusM metres of any point in @p polyline.
     /// Use to convert a push-route polyline into a blocked-node set for FindRoute.
@@ -502,7 +530,7 @@ class TaxiGraph
     double                         gridLonStep_{}; ///< Grid cell width in degrees (set in Build).
     std::unordered_map<int64_t, std::vector<int>>
                      grid_;       ///< Spatial hash: packed(cx,cy) → node IDs; rebuilt every Build().
-    std::vector<int> hpNodeIds_;  ///< IDs of all HoldingPoint/HoldingPosition nodes; built in Build() for O(k) SnapForPlanning priority-1 scan.
+    std::vector<int> hpNodeIds_;  ///< IDs of all HoldingPoint nodes; built in Build() for O(k) SnapForPlanning priority-1 scan.
     std::vector<int> isxNodeIds_; ///< IDs of all intersection Waypoint nodes (label contains "Exit"); built in Build() for O(k) SnapForPlanning priority-2 scan.
     std::unordered_map<std::string, std::vector<int>>
         wayRefNodes_; ///< wayRef → node IDs for all Waypoint nodes on that ref; built in Build() for O(k) SwingoverSnap scans.
@@ -523,6 +551,12 @@ class TaxiGraph
                          std::string_view wayRef,
                          uint8_t          wayPriority = 0,
                          int              waySubId    = 0);
+
+    /// @brief Injects a node at the closest point on the nearest edge to @p hpPos,
+    ///        splitting that edge, and promotes the node to @p type with @p label.
+    /// @return ID of the new (or merged) HP node, or -1 if no edge is within @p maxSnapM.
+    int SplitEdgeAtProjection(const GeoPoint& hpPos, double maxSnapM,
+                              TaxiNodeType type, std::string_view label);
 
     /// @brief Returns the (cx, cy) spatial grid cell for @p p.
     [[nodiscard]] std::pair<int, int> GridCell(const GeoPoint& p) const;

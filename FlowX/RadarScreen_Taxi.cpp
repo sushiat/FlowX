@@ -1225,21 +1225,20 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
     for (int b = 0; b < STYLE_COUNT; ++b)
         DeleteObject(stylePens[b]);
 
-    // Pass 2 — nodes: 6 × 6 px square coloured by type.
-    //   Waypoint       → cyan
-    //   HoldingPosition→ red
-    //   Stand          → green  (added lazily; only visible after a route to a stand is computed)
-    //   HoldingPoint   → not drawn (config centroids; not useful in visual debug)
+    // Pass 2 — nodes: coloured squares by type.
+    //   Waypoint        → cyan   4 × 4 px
+    //   HoldingPoint    → red    8 × 8 px
+    //   Stand           → green  4 × 4 px
     for (const auto& n : nodes)
     {
-        if (n.type == TaxiNodeType::HoldingPoint)
-            continue;
-        const COLORREF col = (n.type == TaxiNodeType::HoldingPosition) ? RGB(220, 50, 50)
-                             : (n.type == TaxiNodeType::Stand)         ? RGB(50, 220, 50)
-                                                                       : RGB(0, 200, 255);
-        const POINT    pt  = toPixel(n.pos);
-        HBRUSH         br  = CreateSolidBrush(col);
-        const RECT     r   = {pt.x - 2, pt.y - 2, pt.x + 2, pt.y + 2};
+        const bool     isHP = (n.type == TaxiNodeType::HoldingPoint);
+        const COLORREF col  = (n.type == TaxiNodeType::HoldingPoint) ? RGB(220, 50, 50)
+                              : (n.type == TaxiNodeType::Stand)      ? RGB(50, 220, 50)
+                                                                     : RGB(0, 200, 255);
+        const POINT    pt   = toPixel(n.pos);
+        const int      sz   = isHP ? 4 : 2;
+        HBRUSH         br   = CreateSolidBrush(col);
+        const RECT     r    = {pt.x - sz, pt.y - sz, pt.x + sz, pt.y + sz};
         FillRect(hDC, &r, br);
         DeleteObject(br);
     }
@@ -1505,7 +1504,7 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
                 }
                 else
                 {
-                    GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(srt.target);
+                    GeoPoint hp = settings->osmGraph.HoldingPointByLabel(srt.target);
                     dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                       ? hp
                                       : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());

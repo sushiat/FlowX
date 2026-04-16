@@ -499,7 +499,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             }
                             else
                             {
-                                GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(srt.target);
+                                GeoPoint hp = settings->osmGraph.HoldingPointByLabel(srt.target);
                                 dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                                   ? hp
                                                   : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
@@ -547,8 +547,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                     auto hpIt = rwyIt->second.holdingPoints.find(hpName);
                                     if (hpIt != rwyIt->second.holdingPoints.end())
                                     {
-                                        dest     = {hpIt->second.centerLat, hpIt->second.centerLon};
-                                        destName = hpName;
+                                        // Prefer graph node position so FindRoute's HP-goal match fires.
+                                        GeoPoint hpGP = settings->osmGraph.HoldingPointByLabel(hpName);
+                                        dest          = (hpGP.lat != 0.0 || hpGP.lon != 0.0)
+                                                            ? hpGP
+                                                            : GeoPoint{hpIt->second.centerLat, hpIt->second.centerLon};
+                                        destName      = hpName;
                                         break;
                                     }
                                 }
