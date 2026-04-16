@@ -770,6 +770,23 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             this->gndTransferSquares.erase(this->taxiPlanActive);
                             this->gndTransferSquareTimes.erase(this->taxiPlanActive);
                         }
+
+                        // Auto-assign the runway holding point when the taxi route
+                        // ends at one that belongs to the aircraft's departure runway.
+                        if (!inbound && !finalRoute.wayRefs.empty() && myAptState != settings->GetAirports().end())
+                        {
+                            const std::string& lastRef = finalRoute.wayRefs.back();
+                            std::string        depRwy  = fp.GetFlightPlanData().GetDepartureRwy();
+                            auto               rwyIt   = myAptState->second.runways.find(depRwy);
+                            if (rwyIt != myAptState->second.runways.end())
+                            {
+                                auto hpIt = rwyIt->second.holdingPoints.find(lastRef);
+                                if (hpIt != rwyIt->second.holdingPoints.end() && hpIt->second.assignable)
+                                    static_cast<CFlowX_Timers*>(this->GetPlugIn())
+                                        ->AssignHoldingPoint(fp, lastRef);
+                            }
+                        }
+
                         if (settings->GetDebug())
                         {
                             const std::string& cs    = this->taxiPlanActive;
