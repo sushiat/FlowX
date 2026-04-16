@@ -147,6 +147,12 @@
             "29/34_34": [ { "taxiway": "M", "direction": "E" }, { "taxiway": "L", "direction": "W" }, { "taxiway": "E", "direction": "S" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ],
             "11_16":    [ { "taxiway": "M", "direction": "W" }, { "taxiway": "L", "direction": "E" }, { "taxiway": "E", "direction": "N" }, { "taxiway": "D", "direction": "N" }, { "taxiway": "W", "direction": "S" } ]
         },
+        "preferredRoutes": {
+            "16_16":    [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ],
+            "16_11":    [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ],
+            "16_11/16": [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ],
+            "29/16_16": [ { "destination": "B1", "originExclude": "TL 43", "mustInclude": ["W", "Exit 21", "Exit 31"] } ]
+        },
         "taxiIntersections": ["Exit *"],
         "runways": {
             "11": {
@@ -515,8 +521,17 @@
                 "waypointM": 40.0,
                 "goalSnapM": 170.0
             },
+            "targetSelection": {
+                "narrowConeDeg": 10.0,
+                "mediumConeDeg": 20.0,
+                "wideConeDeg": 90.0,
+                "nearRadiusM": 80.0,
+                "farRadiusM": 170.0
+            },
             "safety": {
                 "deviationThreshM": 40.0,
+                "endpointDeviationThreshM": 100.0,
+                "endpointRadiusM": 60.0,
                 "minSpeedKt": 3.0,
                 "maxPredictS": 60.0,
                 "conflictDeltaS": 30.0,

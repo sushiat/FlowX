@@ -450,6 +450,49 @@ The label must match the `ref` tag of the OSM `aeroway=holding_position` node ex
 
 If the label is not found in the OSM graph data, routing falls back to the stand centroid.
 
+### `preferredRoutes`
+
+Targeted routing overrides for destinations whose real-world standard routing can't be reproduced by the global edge weights, flow rules, and turn penalties alone. Rules are grouped per runway configuration (same normalized `"<dep>_<arr>"` keying as `taxiFlowConfigs`) and evaluated at route planning time: the destination name — a stand designator for inbounds, a holding-point label for outbounds — is matched against each rule's `destination` regex, and the **first** rule whose destination matches and whose optional origin filters are satisfied wins. The router then produces a route whose ordered wayref list contains the rule's `mustInclude` sequence as an in-order subsequence (other wayrefs may appear between the required entries). If no such route is feasible from the aircraft's current position, routing falls back to the unconstrained result and a `[PREF]` line is logged to the debug log — rules degrade gracefully rather than failing hard.
+
+| Field | Type | Description |
+|---|---|---|
+| `destination` | string (ECMAScript regex) | Matched as a full match against the bare destination name (no `ICAO:` prefix, no `HP:` prefix). Stands and holding points share the same namespace; disambiguate with the pattern itself. |
+| `origin` | string (ECMAScript regex, optional) | Allow-list on the aircraft's starting wayref. When set, the rule only fires if the origin wayref is **known** (non-empty) **and** matches this pattern. Origin wayref resolves by stand-polygon containment first (the aircraft's parked stand name) and falls back to the nearest graph node's wayref (the taxiway it's currently rolling on). |
+| `originExclude` | string (ECMAScript regex, optional) | Deny-list on the starting wayref. When set, the rule is skipped if the origin wayref is known and matches this pattern. An unknown origin bypasses the deny-list — rules scoped purely by exclusion still fire when the aircraft's starting wayref can't be resolved. |
+| `mustInclude` | array of strings | Ordered wayref sequence (same strings that appear in `TaxiRoute::wayRefs` debug output, e.g. `"W"`, `"Exit 22"`, `"TL 40 \"Blue Line\""`). The sequence must appear in order in the chosen route; unrelated wayrefs may appear between consecutive required entries. |
+
+Regex ranges with parity are expressed with character classes — no custom syntax is needed. For example, to match every even stand in F04–F36:
+
+```
+F(0[2468]|[123][02468])
+```
+
+Stand-range origin filters work the same way — `"E4[1-7]"` matches an aircraft parked on any of E41 through E47, and `"TL 4[0-9]"` excludes any aircraft currently rolling on TL 40–49.
+
+Example:
+
+```json
+"preferredRoutes": {
+    "16_11": [
+        {
+            "destination":   "B1",
+            "originExclude": "TL 4[0-9]",
+            "mustInclude":   ["W", "Exit 21", "Exit 31"]
+        },
+        {
+            "destination":   "F(0[2468]|[123][02468])",
+            "origin":        "Exit 2[0-9]|W",
+            "mustInclude":   ["W", "Exit 22", "Exit 32"]
+        }
+    ],
+    "29_34": [
+        { "destination": "A1", "mustInclude": ["M", "Exit 2", "L", "W"] }
+    ]
+}
+```
+
+Because rules are hard constraints with graceful fallback, keep the list small and reserve it for cases where global tuning can't converge. The first-match-wins order means more specific rules should come before more general ones, and origin filters should be used to scope rules away from aircraft that don't need them.
+
 ### `taxiNetworkConfig`
 
 Optional fine-tuning of the taxi graph builder, A\* router, interactive snapping, and safety monitor. Every sub-section and every field is optional — omitting any of them leaves the corresponding parameter at its default. All defaults match the values previously hardcoded in the plugin, so existing airports need no changes to `config.json`.
@@ -507,11 +550,25 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 | `suggestedRouteM` | number | `20.0` | 3 | Snap to the suggested route polyline. |
 | `waypointM` | number | `40.0` | 4 (lowest) | Snap to any graph waypoint node. |
 
+#### `targetSelection` — goal-node selection around the destination stand
+
+Six-tier search used when routing to a stand approach point. Tiers are tried in order `(narrow, near) → (narrow, far) → (medium, near) → (medium, far) → (wide, near) → (wide, far)` and the first non-empty tier wins. Cones widen so closely aligned nodes are preferred; within each cone the near radius is tried before the far radius so the closest taxilane behind the stand beats a far-but-aligned one.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `narrowConeDeg` | number | `10.0` | Tight cone (°) around the stand approach bearing; catches nodes closely aligned with the stand heading. |
+| `mediumConeDeg` | number | `20.0` | Medium cone (°) used when no node is found inside `narrowConeDeg`. |
+| `wideConeDeg` | number | `90.0` | Wide cone (°) used as a last resort; prevents picking nodes behind the stand (> 90° off the approach axis). |
+| `nearRadiusM` | number | `80.0` | Near radius (m) tried inside each cone before `farRadiusM`; covers taxilanes running immediately behind straight stands. |
+| `farRadiusM` | number | `170.0` | Far radius (m) tried inside each cone after `nearRadiusM`; covers diagonal stands and edge cases where the nearest taxilane is further out. |
+
 #### `safety` — taxi safety monitoring
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `deviationThreshM` | number | `40.0` | Distance (m) an aircraft may deviate from its assigned route before a deviation warning is raised. |
+| `endpointDeviationThreshM` | number | `80.0` | Relaxed deviation threshold (m) used while the aircraft is within `endpointRadiusM` of the route's first or last node — accounts for stands and holding points sitting slightly off the graph. |
+| `endpointRadiusM` | number | `60.0` | Radius (m) around the first/last route node within which `endpointDeviationThreshM` replaces `deviationThreshM`. |
 | `minSpeedKt` | number | `3.0` | Minimum ground speed (kt) required before safety checks are evaluated. |
 | `maxPredictS` | number | `60.0` | Maximum prediction horizon (s) used when building conflict-detection paths. |
 | `conflictDeltaS` | number | `30.0` | Two aircraft at the same intersection are flagged as conflicting if their estimated arrival times differ by less than this value (s). |
@@ -523,8 +580,9 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
     "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0, "multWingspanAvoid": 3.0 },
     "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
     "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
-    "snapping":  { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
-    "safety":    { "deviationThreshM": 40.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
+    "snapping":        { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
+    "targetSelection": { "narrowConeDeg": 10.0, "mediumConeDeg": 20.0, "wideConeDeg": 90.0, "nearRadiusM": 80.0, "farRadiusM": 170.0 },
+    "safety":          { "deviationThreshM": 40.0, "endpointDeviationThreshM": 80.0, "endpointRadiusM": 60.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
 }
 ```
 

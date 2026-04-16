@@ -215,4 +215,8 @@ class CFlowX_Timers : public CFlowX_LookupsTools
         auto it = this->ttt_inbound.find(callsign);
         return (it != this->ttt_inbound.end()) ? it->second.flightPlan.designator : std::string{};
     }
+
+    /// @brief Writes a holding-point name into the flight-strip annotation and syncs to other controllers.
+    /// @note Called from RadarScreen when a taxi route ending at a runway HP is accepted.
+    void AssignHoldingPoint(EuroScopePlugIn::CFlightPlan& fp, const std::string& hpName);
 };

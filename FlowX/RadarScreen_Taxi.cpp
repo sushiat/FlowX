@@ -808,9 +808,9 @@ GeoPoint PushZonePoint(const GeoPoint& origin, double bearingDeg, double distM)
 /// Walks @p armADistM in @p armABrng and @p armBDistM in @p armBBrng from @p pivot,
 /// then concatenates: armB-end → pivot → armA-end.
 TaxiRoute BuildPushZone(const TaxiGraph& graph, const GeoPoint& pivot,
-                               double armABrng, double armADistM,
-                               double armBBrng, double armBDistM,
-                               double wingspanM = 0.0)
+                        double armABrng, double armADistM,
+                        double armBBrng, double armBDistM,
+                        double wingspanM = 0.0)
 {
     TaxiRoute armA = graph.WalkGraph(pivot, armABrng, armADistM, wingspanM);
     TaxiRoute armB = graph.WalkGraph(pivot, armBBrng, armBDistM, wingspanM);
@@ -900,12 +900,14 @@ void RadarScreen::UpdateTaxiSafety()
                                                         ? safetyAptIt->second.taxiNetworkConfig
                                                         : kDefaultNC;
 
-    const double     DEVIATION_THRESH_M = nc.safety.deviationThreshM;
-    const double     MIN_GS_KT          = nc.safety.minSpeedKt;
-    constexpr double KT_TO_MS           = 0.514444;
-    const double     MAX_PREDICT_S      = nc.safety.maxPredictS;
-    const double     CONFLICT_DELTA_S   = nc.safety.conflictDeltaS;
-    const double     SAME_DIR_DEG       = nc.safety.sameDirDeg;
+    const double     DEVIATION_THRESH_M          = nc.safety.deviationThreshM;
+    const double     ENDPOINT_DEVIATION_THRESH_M = nc.safety.endpointDeviationThreshM;
+    const double     ENDPOINT_RADIUS_M           = nc.safety.endpointRadiusM;
+    const double     MIN_GS_KT                   = nc.safety.minSpeedKt;
+    constexpr double KT_TO_MS                    = 0.514444;
+    const double     MAX_PREDICT_S               = nc.safety.maxPredictS;
+    const double     CONFLICT_DELTA_S            = nc.safety.conflictDeltaS;
+    const double     SAME_DIR_DEG                = nc.safety.sameDirDeg;
 
     struct TimedPt
     {
@@ -946,7 +948,16 @@ void RadarScreen::UpdateTaxiSafety()
             for (size_t i = 1; i < route.polyline.size(); ++i)
                 minDist = std::min(minDist,
                                    PointToSegmentDistM(acPos, route.polyline[i - 1], route.polyline[i]));
-            if (gs_kt > MIN_GS_KT && minDist > DEVIATION_THRESH_M)
+
+            // Relax the deviation threshold when the aircraft is close to either
+            // endpoint of the route — stands and holding points typically sit slightly
+            // off the graph, so the first and last few metres of motion legitimately
+            // stray from the polyline.
+            const double distToStart     = HaversineM(acPos, route.polyline.front());
+            const double distToEnd       = HaversineM(acPos, route.polyline.back());
+            const bool   nearEndpoint    = (distToStart <= ENDPOINT_RADIUS_M) || (distToEnd <= ENDPOINT_RADIUS_M);
+            const double effectiveThresh = nearEndpoint ? ENDPOINT_DEVIATION_THRESH_M : DEVIATION_THRESH_M;
+            if (gs_kt > MIN_GS_KT && minDist > effectiveThresh)
                 this->taxiDeviations.insert(cs);
         }
 
@@ -1214,21 +1225,20 @@ void RadarScreen::DrawTaxiGraph(HDC hDC)
     for (int b = 0; b < STYLE_COUNT; ++b)
         DeleteObject(stylePens[b]);
 
-    // Pass 2 — nodes: 6 × 6 px square coloured by type.
-    //   Waypoint       → cyan
-    //   HoldingPosition→ red
-    //   Stand          → green  (added lazily; only visible after a route to a stand is computed)
-    //   HoldingPoint   → not drawn (config centroids; not useful in visual debug)
+    // Pass 2 — nodes: coloured squares by type.
+    //   Waypoint        → cyan   4 × 4 px
+    //   HoldingPoint    → red    8 × 8 px
+    //   Stand           → green  4 × 4 px
     for (const auto& n : nodes)
     {
-        if (n.type == TaxiNodeType::HoldingPoint)
-            continue;
-        const COLORREF col = (n.type == TaxiNodeType::HoldingPosition) ? RGB(220, 50, 50)
-                             : (n.type == TaxiNodeType::Stand)         ? RGB(50, 220, 50)
-                                                                       : RGB(0, 200, 255);
-        const POINT    pt  = toPixel(n.pos);
-        HBRUSH         br  = CreateSolidBrush(col);
-        const RECT     r   = {pt.x - 2, pt.y - 2, pt.x + 2, pt.y + 2};
+        const bool     isHP = (n.type == TaxiNodeType::HoldingPoint);
+        const COLORREF col  = (n.type == TaxiNodeType::HoldingPoint) ? RGB(220, 50, 50)
+                              : (n.type == TaxiNodeType::Stand)      ? RGB(50, 220, 50)
+                                                                     : RGB(0, 200, 255);
+        const POINT    pt   = toPixel(n.pos);
+        const int      sz   = isHP ? 4 : 2;
+        HBRUSH         br   = CreateSolidBrush(col);
+        const RECT     r    = {pt.x - sz, pt.y - sz, pt.x + sz, pt.y + sz};
         FillRect(hDC, &r, br);
         DeleteObject(br);
     }
@@ -1494,7 +1504,7 @@ void RadarScreen::DrawPushDeadEnds(HDC hDC)
                 }
                 else
                 {
-                    GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(srt.target);
+                    GeoPoint hp = settings->osmGraph.HoldingPointByLabel(srt.target);
                     dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                       ? hp
                                       : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());

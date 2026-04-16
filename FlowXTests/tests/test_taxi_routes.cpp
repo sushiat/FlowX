@@ -92,7 +92,7 @@ static GeoPoint ResolvePosition(const std::string&                    label,
                 }
                 else
                 {
-                    GeoPoint hp = graph.HoldingPositionByLabel(srt.target);
+                    GeoPoint hp = graph.HoldingPointByLabel(srt.target);
                     if (hp.lat != 0.0 || hp.lon != 0.0)
                         return hp;
                 }
@@ -106,11 +106,11 @@ static GeoPoint ResolvePosition(const std::string&                    label,
 
     if (label.starts_with("HP:"))
     {
-        return graph.HoldingPositionByLabel(label.substr(3));
+        return graph.HoldingPointByLabel(label.substr(3));
     }
 
-    // Fallback: try as raw holding position label
-    return graph.HoldingPositionByLabel(label);
+    // Fallback: try as raw holding point label
+    return graph.HoldingPointByLabel(label);
 }
 
 /// @brief Returns true when the position lies inside any taxiOutStands polygon.
@@ -277,6 +277,56 @@ TEST_CASE("TaxiRoute - real world taxi tests")
                                                       heading, {}, {}, false, {}, false, forwardOnly, goalBrng)
                              : acc.osmGraph.FindWaypointRoute(routeFrom, waypoints, to, wingspan, depRwys, arrRwys,
                                                               routeBearing, {}, false, {}, false, forwardOnly, goalBrng);
+
+        // Mirror RadarScreen_Interaction's preferred-route enforcement on the waypoint-less
+        // branch so fixture cases that depend on config.json preferredRoutes behave as live.
+        if (waypoints.empty() && !hasSwingover && tail.valid)
+        {
+            std::string destName;
+            if (toLabel.starts_with("STAND:"))
+                destName = toLabel.substr(6);
+            else if (toLabel.starts_with("HP:"))
+                destName = toLabel.substr(3);
+
+            if (!destName.empty())
+            {
+                for (const auto& [icao, ap] : acc.airports)
+                {
+                    if (ap.preferredRoutes.empty())
+                        continue;
+                    std::string originRef;
+                    for (const auto& [standName, poly] : ap.taxiOutStands)
+                    {
+                        if (poly.lat.empty())
+                            continue;
+                        if (CFlowX_LookupsTools::PointInsidePolygon(
+                                static_cast<int>(poly.lat.size()),
+                                const_cast<double*>(poly.lon.data()),
+                                const_cast<double*>(poly.lat.data()),
+                                from.lon, from.lat))
+                        {
+                            originRef = standName;
+                            break;
+                        }
+                    }
+                    if (originRef.empty())
+                        originRef = acc.osmGraph.NearestWayRef(from);
+
+                    const auto seq = TaxiGraph::ResolvePreferredSequence(
+                        ap, depRwys, arrRwys, destName, originRef);
+                    if (!seq.empty() && !TaxiGraph::WayRefSequenceSubsequence(tail.wayRefs, seq))
+                    {
+                        TaxiRoute constrained = acc.osmGraph.FindRoute(
+                            from, to, wingspan, depRwys, arrRwys, heading, {}, {}, false, {},
+                            false, forwardOnly, goalBrng, 0, {}, {}, seq);
+                        if (constrained.valid &&
+                            TaxiGraph::WayRefSequenceSubsequence(constrained.wayRefs, seq))
+                            tail = std::move(constrained);
+                    }
+                    break;
+                }
+            }
+        }
 
         // For swingover cases, replicate the combined route that RadarScreen builds:
         // fixed crossing segment (from → swingoverOrigin) + tail (swingoverOrigin → to).

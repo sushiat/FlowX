@@ -24,6 +24,10 @@
 #include "helpers.h"
 #include "osm_taxiways.h"
 
+std::thread        RadarScreen::s_hookThread;
+std::atomic<DWORD> RadarScreen::s_hookThreadId{0};
+std::atomic<bool>  RadarScreen::s_xButtonPressed{false};
+
 RadarScreen::RadarScreen()
 {
     this->debug = false;
@@ -31,6 +35,17 @@ RadarScreen::RadarScreen()
 
 RadarScreen::~RadarScreen()
 {
+    // Tear down the mouse-hook thread. PostThreadMessage requires a real thread id,
+    // so spin briefly (typically zero iterations) until the hook thread publishes it.
+    if (s_hookThread.joinable())
+    {
+        DWORD tid = 0;
+        while ((tid = s_hookThreadId.load(std::memory_order_acquire)) == 0)
+            std::this_thread::yield();
+        PostThreadMessageW(tid, WM_QUIT, 0, 0);
+        s_hookThread.join();
+        s_hookThreadId.store(0, std::memory_order_release);
+    }
     if (this->flowxIcon_)
     {
         DestroyIcon(this->flowxIcon_);
@@ -38,15 +53,66 @@ RadarScreen::~RadarScreen()
     }
 }
 
+/// @brief Low-level mouse hook. Latches a flag on X1/X2 button-down so the UI thread can
+/// run the taxi-plan accept path on the next OnRefresh tick. Runs in the dedicated hook
+/// thread's message pipeline, so it must return quickly and must not touch EuroScope API.
+LRESULT CALLBACK RadarScreen::LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION && wParam == WM_XBUTTONDOWN)
+        s_xButtonPressed.store(true, std::memory_order_relaxed);
+    return CallNextHookEx(nullptr, nCode, wParam, lParam);
+}
+
+/// @brief Installs the mouse hook on first call and drains any pending X-button press.
+/// The hook is installed on a dedicated thread with its own message pump so that the
+/// EuroScope UI thread's heavy per-frame work (taxi preview recomputation, etc.) cannot
+/// stall global mouse event delivery. When a press was latched and a yellow suggested
+/// route exists, synthesizes a left-click at taxiOriginPx to run the existing accept path.
+void RadarScreen::UpdateTaxiAcceptXButton()
+{
+    if (!s_hookThread.joinable())
+    {
+        s_hookThread = std::thread([]()
+                                   {
+            s_hookThreadId.store(GetCurrentThreadId(), std::memory_order_release);
+            HHOOK h = SetWindowsHookExW(WH_MOUSE_LL, &LowLevelMouseProc,
+                                        GetModuleHandleW(nullptr), 0);
+            MSG   msg;
+            while (GetMessageW(&msg, nullptr, 0, 0) > 0)
+            {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+            if (h)
+                UnhookWindowsHookEx(h); });
+    }
+
+    if (!s_xButtonPressed.exchange(false, std::memory_order_relaxed))
+        return;
+
+    if (this->taxiPlanActive.empty() || this->taxiPlanIsPush)
+        return;
+
+    auto it = this->taxiSuggested.find(this->taxiPlanActive);
+    if (it == this->taxiSuggested.end() || !it->second.valid)
+        return;
+
+    const std::string cs = this->taxiPlanActive; // accept path clears taxiPlanActive
+    RECT              r  = {};
+    this->OnClickScreenObject(
+        SCREEN_OBJECT_TAXI_PLANNING, cs.c_str(), this->taxiOriginPx, r,
+        EuroScopePlugIn::BUTTON_LEFT);
+}
+
 HICON RadarScreen::GetFlowxIcon()
 {
     if (this->flowxIcon_ || this->flowxIconLoadTried_)
         return this->flowxIcon_;
     this->flowxIconLoadTried_ = true;
-    std::string path = GetPluginDirectory() + "\\flowx.ico";
-    this->flowxIcon_ = (HICON)LoadImageA(nullptr, path.c_str(), IMAGE_ICON,
-                                         0, 0,
-                                         LR_LOADFROMFILE | LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
+    std::string path          = GetPluginDirectory() + "\\flowx.ico";
+    this->flowxIcon_          = (HICON)LoadImageA(nullptr, path.c_str(), IMAGE_ICON,
+                                                  0, 0,
+                                                  LR_LOADFROMFILE | LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
     return this->flowxIcon_;
 }
 
@@ -209,6 +275,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
         if (Phase == EuroScopePlugIn::REFRESH_PHASE_BEFORE_TAGS)
         {
             this->UpdateSwingoverState();
+            this->UpdateTaxiAcceptXButton();
             if (static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetShowTaxiGraph())
                 this->DrawTaxiGraph(hDC);
             this->DrawTaxiOverlay(hDC);
@@ -418,7 +485,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             }
             if (settings->GetSettingsVisible())
             {
-                const int fo       = settings->GetFontOffset();
+                const int fo        = settings->GetFontOffset();
                 const int settingsW = 560 * (14 + fo) / 14;
                 const int settingsH = 420 * (14 + fo) / 14;
                 if (this->settingsPopout)

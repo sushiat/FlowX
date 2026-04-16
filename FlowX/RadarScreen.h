@@ -7,11 +7,13 @@
 
 #pragma once
 
+#include <atomic>
 #include <deque>
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "constants.h"
@@ -43,13 +45,16 @@ struct depInfo
 class RadarScreen : public EuroScopePlugIn::CRadarScreen
 {
   private:
-    PopoutWindow* currentPopout_       = nullptr;        ///< Set during RenderToPopout; used by AddScreenObjectAuto to route hit-area registration
-    HWND          esHwnd_              = nullptr;        ///< EuroScope radar screen HWND; cached on first OnRefresh for use in Create*Popout
-    HICON         flowxIcon_           = nullptr;        ///< Cached flowx.ico handle loaded from the plugin directory; owned, destroyed in destructor
-    bool          flowxIconLoadTried_  = false;          ///< True after the first attempt to load flowxIcon_; prevents repeated filesystem hits when the file is missing
-    bool          isPopoutRender_      = false;          ///< True while a draw function renders into a memory DC for a popout window
-    POINT         popoutHoverPoint_    = {-9999, -9999}; ///< Cursor position inside the active popout window; {-9999,-9999} when outside
-    ULONGLONG     taxiSafetyLastTickMs = 0;              ///< GetTickCount64 timestamp of last UpdateTaxiSafety() run; throttle guard.
+    PopoutWindow*             currentPopout_ = nullptr;              ///< Set during RenderToPopout; used by AddScreenObjectAuto to route hit-area registration
+    HWND                      esHwnd_        = nullptr;              ///< EuroScope radar screen HWND; cached on first OnRefresh for use in Create*Popout
+    HICON                     flowxIcon_     = nullptr;              ///< Cached flowx.ico handle loaded from the plugin directory; owned, destroyed in destructor
+    static std::thread        s_hookThread;                          ///< Dedicated thread owning the WH_MOUSE_LL hook so the EuroScope UI thread's workload can't stall global mouse delivery.
+    static std::atomic<DWORD> s_hookThreadId;                        ///< Set by the hook thread on entry; used by the UI thread to post WM_QUIT on shutdown.
+    static std::atomic<bool>  s_xButtonPressed;                      ///< Latched by LowLevelMouseProc on X1/X2 down; consumed by UpdateTaxiAcceptXButton on the UI thread.
+    bool                      flowxIconLoadTried_  = false;          ///< True after the first attempt to load flowxIcon_; prevents repeated filesystem hits when the file is missing
+    bool                      isPopoutRender_      = false;          ///< True while a draw function renders into a memory DC for a popout window
+    POINT                     popoutHoverPoint_    = {-9999, -9999}; ///< Cursor position inside the active popout window; {-9999,-9999} when outside
+    ULONGLONG                 taxiSafetyLastTickMs = 0;              ///< GetTickCount64 timestamp of last UpdateTaxiSafety() run; throttle guard.
 
     /// @brief Lazily loads (and caches) flowx.ico from the plugin install directory.
     /// @return Cached HICON, or nullptr if the file does not exist or could not be loaded.
@@ -132,7 +137,17 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// Computes the fixed swingover segment (taxiSwingoverFixedSeg / taxiSwingoverOrigin) on activation.
     /// No-op when not in non-push taxi planning mode.
     void UpdateSwingoverState();
-    void RecalculateTaxiPreview();
+
+    /// @brief Installs the global WH_MOUSE_LL hook on first call and consumes any pending
+    /// X-button press. When an X1/X2 down event was latched and a valid yellow suggested
+    /// route exists, synthesizes a left-click at taxiOriginPx to reuse the normal accept path.
+    /// The hook is needed because EuroScope filters X1/X2 out before dispatching to plugins.
+    void UpdateTaxiAcceptXButton();
+
+    /// @brief Low-level mouse hook callback. Runs on the UI thread in the system message
+    /// pipeline. Sets s_xButtonPressed on WM_XBUTTONDOWN; must not call EuroScope API.
+    static LRESULT CALLBACK LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam);
+    void                    RecalculateTaxiPreview();
 
     /// @brief Draws the OSM taxiway/taxilane polylines, derived runway centrelines, holding-position
     /// circles, and way labels. Gated on showTaxiOverlay / showTaxiLabels.

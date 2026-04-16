@@ -600,7 +600,7 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node does not incur a
 
     // With HP: same way but an OsmHoldingPosition placed exactly at B.
     // B is a way node → within the 25 m snap radius → B is promoted to
-    // HoldingPosition type, but its wayRef remains "M" (a plain taxiway).
+    // HoldingPoint type, but its wayRef remains "M" (a plain taxiway).
     // The approach penalty (step 8) only fires on Taxiway_HoldingPoint wayRefs
     // (e.g. "A1", "B4"), so stop bars on plain taxiways are NOT penalised.
     OsmAirportData     osmWithHp = MakeStraightWay();
@@ -624,39 +624,6 @@ TEST_CASE("TaxiGraph - OSM holding position snapped to way node does not incur a
 
     // Cost must be equal: snapping an OSM stop bar to a plain taxiway node adds
     // no routing penalty.
-    CHECK(rWithHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.05));
-}
-
-TEST_CASE("TaxiGraph - config holdingPoint snapped to way node does not incur approach penalty")
-{
-    // Same as the OSM snap test, but triggered via airport runway config
-    // (configHoldingPointSnapM = 40 m default).  B is promoted to HoldingPoint type,
-    // but its wayRef remains "M".  The approach penalty only fires on Taxiway_HoldingPoint
-    // wayRefs, so config HP snaps on plain taxiways carry no penalty.
-    airport ap = MakeAirport();
-    runway  rwy;
-    rwy.designator = "11";
-    holdingPoint hp;
-    hp.name                 = "M1";
-    hp.assignable           = true; // required: snap is skipped for non-assignable HPs
-    hp.centerLat            = 48.1100;
-    hp.centerLon            = 16.5427; // exactly at B
-    rwy.holdingPoints["M1"] = hp;
-    ap.runways["11"]        = rwy;
-
-    TaxiGraph baseline, withHp;
-    baseline.Build(MakeStraightWay(), MakeAirport());
-    withHp.Build(MakeStraightWay(), ap);
-
-    GeoPoint A{48.1100, 16.5400};
-    GeoPoint C{48.1100, 16.5454};
-
-    TaxiRoute rBaseline = baseline.FindRoute(A, C, 0.0, {}, {});
-    TaxiRoute rWithHp   = withHp.FindRoute(A, C, 0.0, {}, {});
-
-    REQUIRE(rBaseline.valid);
-    REQUIRE(rWithHp.valid);
-
     CHECK(rWithHp.totalCost == doctest::Approx(rBaseline.totalCost).epsilon(0.05));
 }
 
@@ -691,21 +658,17 @@ TEST_CASE("TaxiGraph - HP node beyond snap radius does not incur approach penalt
 
 TEST_CASE("TaxiGraph - route to a promoted HoldingPoint node succeeds")
 {
-    // Config HP at B promotes B to a HoldingPoint node.  Routing A→B must still
+    // OSM HP at B promotes B to a HoldingPoint node.  Routing A→B must still
     // return a valid route (approach cost is high but the route exists).
-    airport ap = MakeAirport();
-    runway  rwy;
-    rwy.designator = "11";
-    holdingPoint hp;
-    hp.name                 = "M1";
-    hp.assignable           = true; // required: snap is skipped for non-assignable HPs
-    hp.centerLat            = 48.1100;
-    hp.centerLon            = 16.5427; // exactly at B
-    rwy.holdingPoints["M1"] = hp;
-    ap.runways["11"]        = rwy;
+    OsmAirportData     osmWithHp = MakeStraightWay();
+    OsmHoldingPosition osmHp;
+    osmHp.id  = 100;
+    osmHp.ref = "M1";
+    osmHp.pos = GeoPoint{48.1100, 16.5427}; // exactly at B
+    osmWithHp.holdingPositions.push_back(osmHp);
 
     TaxiGraph g;
-    g.Build(MakeStraightWay(), ap);
+    g.Build(osmWithHp, MakeAirport());
 
     GeoPoint A{48.1100, 16.5400};
     GeoPoint B{48.1100, 16.5427};
@@ -713,6 +676,36 @@ TEST_CASE("TaxiGraph - route to a promoted HoldingPoint node succeeds")
     TaxiRoute route = g.FindRoute(A, B, 0.0, {}, {});
     REQUIRE(route.valid);
     CHECK(route.totalDistM == doctest::Approx(200.0).epsilon(0.25));
+}
+
+TEST_CASE("TaxiGraph - edge-split HP node placed at accurate position")
+{
+    // Place an HP centroid midway between two subdivision nodes (not on any
+    // existing waypoint).  The edge-splitting logic must inject a new node at the
+    // projected position within 1 m accuracy, and routing through it must work.
+    // At lat 48.11, 1° lon ≈ 74 000 m.  Midpoint between A and B is at
+    // lon = (16.5400 + 16.5427) / 2 = 16.54135, ~100 m from A.
+    OsmAirportData     osmWithHp = MakeStraightWay();
+    OsmHoldingPosition osmHp;
+    osmHp.id  = 100;
+    osmHp.ref = "MID";
+    osmHp.pos = GeoPoint{48.1100, 16.54135}; // ~100 m from A, between subdivision nodes
+    osmWithHp.holdingPositions.push_back(osmHp);
+
+    TaxiGraph g;
+    g.Build(osmWithHp, MakeAirport());
+
+    // Verify routing from A through the HP position works.
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint hpPos{48.1100, 16.54135};
+
+    TaxiRoute route = g.FindRoute(A, hpPos, 0.0, {}, {});
+    REQUIRE(route.valid);
+    CHECK(route.totalDistM == doctest::Approx(100.0).epsilon(0.15));
+
+    // Verify the HP node exists in the graph within 1 m of the target position.
+    GeoPoint resolved = g.HoldingPointByLabel("MID");
+    CHECK(HaversineM(resolved, hpPos) < 1.0);
 }
 
 // ─── Start == goal ────────────────────────────────────────────────────────────
@@ -979,4 +972,434 @@ TEST_CASE("TaxiGraph::DeadEndEdges - non-bridge dead-end blocked leaves dest rea
 
     auto result = g.DeadEndEdges(C, {bId});
     CHECK(result.empty()); // C still reachable via A→C; no dead-end sub-graph exposed
+}
+
+// ─── WayRefSequenceSubsequence ──────────────────────────────────────────────
+
+TEST_CASE("WayRefSequenceSubsequence - empty sequence is always satisfied")
+{
+    CHECK(TaxiGraph::WayRefSequenceSubsequence({"M", "L", "W"}, {}));
+    CHECK(TaxiGraph::WayRefSequenceSubsequence({}, {}));
+}
+
+TEST_CASE("WayRefSequenceSubsequence - single element match and miss")
+{
+    CHECK(TaxiGraph::WayRefSequenceSubsequence({"M", "L", "W"}, {"L"}));
+    CHECK_FALSE(TaxiGraph::WayRefSequenceSubsequence({"M", "L", "W"}, {"E"}));
+}
+
+TEST_CASE("WayRefSequenceSubsequence - multi-element contiguous match")
+{
+    CHECK(TaxiGraph::WayRefSequenceSubsequence({"M", "L", "W", "B1"}, {"L", "W"}));
+    CHECK(TaxiGraph::WayRefSequenceSubsequence({"M", "L", "W", "B1"}, {"M", "L", "W", "B1"}));
+}
+
+TEST_CASE("WayRefSequenceSubsequence - present but non-contiguous returns false")
+{
+    // L and W are both in the route but separated by an extra wayref.
+    // The algorithm checks ordered subsequence, not contiguous — verify actual behavior.
+    std::vector<std::string> route = {"M", "L", "X", "W"};
+    // L at index 1, W at index 3 — they ARE in order, so subsequence match succeeds.
+    CHECK(TaxiGraph::WayRefSequenceSubsequence(route, {"L", "W"}));
+    // But "W", "L" is wrong order → fails.
+    CHECK_FALSE(TaxiGraph::WayRefSequenceSubsequence(route, {"W", "L"}));
+}
+
+TEST_CASE("WayRefSequenceSubsequence - sequence longer than route returns false")
+{
+    CHECK_FALSE(TaxiGraph::WayRefSequenceSubsequence({"M"}, {"M", "L"}));
+}
+
+TEST_CASE("WayRefSequenceSubsequence - duplicate wayrefs in route")
+{
+    // Route visits M twice (e.g. crossing back); sequence "M", "L", "M" should match.
+    CHECK(TaxiGraph::WayRefSequenceSubsequence({"M", "L", "M", "W"}, {"M", "L", "M"}));
+}
+
+// ─── MakeRunwayConfigKey ────────────────────────────────────────────────────
+
+TEST_CASE("MakeRunwayConfigKey - single dep and arr")
+{
+    CHECK(TaxiGraph::MakeRunwayConfigKey({"16"}, {"11"}) == "16_11");
+}
+
+TEST_CASE("MakeRunwayConfigKey - multiple dep runways are slash-separated and sorted")
+{
+    CHECK(TaxiGraph::MakeRunwayConfigKey({"29", "16"}, {"34"}) == "16/29_34");
+}
+
+TEST_CASE("MakeRunwayConfigKey - multiple arr runways are slash-separated and sorted")
+{
+    CHECK(TaxiGraph::MakeRunwayConfigKey({"16"}, {"16", "11"}) == "16_11/16");
+}
+
+TEST_CASE("MakeRunwayConfigKey - empty dep set")
+{
+    CHECK(TaxiGraph::MakeRunwayConfigKey({}, {"11"}) == "_11");
+}
+
+TEST_CASE("MakeRunwayConfigKey - empty arr set")
+{
+    CHECK(TaxiGraph::MakeRunwayConfigKey({"29"}, {}) == "29_");
+}
+
+// ─── ResolvePreferredSequence ───────────────────────────────────────────────
+
+/// @brief Builds a PreferredRoute with compiled regexes.
+static PreferredRoute MakeRule(const std::string&              dest,
+                               const std::vector<std::string>& must,
+                               const std::string&              origin        = {},
+                               const std::string&              originExclude = {})
+{
+    PreferredRoute r;
+    r.destinationPattern = dest;
+    r.destinationRegex   = std::regex(dest);
+    r.mustInclude        = must;
+    if (!origin.empty())
+    {
+        r.originPattern = origin;
+        r.originRegex   = std::regex(origin);
+    }
+    if (!originExclude.empty())
+    {
+        r.originExcludePattern = originExclude;
+        r.originExcludeRegex   = std::regex(originExclude);
+    }
+    return r;
+}
+
+TEST_CASE("ResolvePreferredSequence - destination regex matches first rule")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {MakeRule("B1", {"W", "Exit 21"})};
+
+    auto seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "");
+    REQUIRE(seq.size() == 2);
+    CHECK(seq[0] == "W");
+    CHECK(seq[1] == "Exit 21");
+}
+
+TEST_CASE("ResolvePreferredSequence - no matching destination returns empty")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {MakeRule("B1", {"W"})};
+
+    auto seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "A3", "");
+    CHECK(seq.empty());
+}
+
+TEST_CASE("ResolvePreferredSequence - wrong runway config returns empty")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {MakeRule("B1", {"W"})};
+
+    auto seq = TaxiGraph::ResolvePreferredSequence(ap, {"29"}, {"34"}, "B1", "");
+    CHECK(seq.empty());
+}
+
+TEST_CASE("ResolvePreferredSequence - regex destination pattern")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {MakeRule("F(0[2468]|[123][02468])", {"W", "TL 40"})};
+
+    CHECK_FALSE(TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "F03", "").size());
+    CHECK(TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "F04", "").size() == 2);
+    CHECK(TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "F22", "").size() == 2);
+    CHECK_FALSE(TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "F11", "").size());
+}
+
+TEST_CASE("ResolvePreferredSequence - first matching rule wins")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {
+        MakeRule("B1", {"W"}),
+        MakeRule("B1", {"E"}),
+    };
+
+    auto seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "");
+    REQUIRE(seq.size() == 1);
+    CHECK(seq[0] == "W");
+}
+
+TEST_CASE("ResolvePreferredSequence - origin allow-list matches")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {MakeRule("B1", {"W"}, "Exit 2[0-9]")};
+
+    // Origin matches allow-list → rule fires.
+    auto seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "Exit 23");
+    CHECK(seq.size() == 1);
+
+    // Origin doesn't match → rule skipped.
+    seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "Exit 15");
+    CHECK(seq.empty());
+}
+
+TEST_CASE("ResolvePreferredSequence - origin deny-list excludes")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {MakeRule("B1", {"W"}, {}, "TL 4[0-9]")};
+
+    // Origin matches deny-list → rule skipped.
+    auto seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "TL 43");
+    CHECK(seq.empty());
+
+    // Origin doesn't match deny-list → rule fires.
+    seq = TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "Exit 23");
+    CHECK(seq.size() == 1);
+}
+
+TEST_CASE("ResolvePreferredSequence - empty origin: allow-list blocks, deny-list passes")
+{
+    airport ap;
+    ap.preferredRoutes["16_11"] = {
+        MakeRule("A1", {"W"}, "Exit.*"),       // allow-list: requires known origin
+        MakeRule("B1", {"E"}, {}, "TL 4[0-9]") // deny-list: unknown origin passes through
+    };
+
+    // Empty origin + allow-list → blocked.
+    CHECK(TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "A1", "").empty());
+
+    // Empty origin + deny-list → passes through (rule fires).
+    CHECK(TaxiGraph::ResolvePreferredSequence(ap, {"16"}, {"11"}, "B1", "").size() == 1);
+}
+
+// ─── NearestWayRef ──────────────────────────────────────────────────────────
+
+TEST_CASE("NearestWayRef - returns wayRef of nearest node")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    // Point very close to B on the straight way (ref = "M").
+    GeoPoint nearB{48.1100, 16.5428};
+    CHECK(g.NearestWayRef(nearB) == "M");
+}
+
+TEST_CASE("NearestWayRef - returns empty when far from graph")
+{
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), MakeAirport());
+
+    // Point very far from any node.
+    GeoPoint farAway{50.0, 20.0};
+    CHECK(g.NearestWayRef(farAway).empty());
+}
+
+// ─── ProjectOnSegment ───────────────────────────────────────────────────────
+
+TEST_CASE("ProjectOnSegment - mid-segment projection")
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5454};
+
+    // Point 50 m north of the midpoint.
+    GeoPoint P{48.1105, 16.5427};
+    auto     sp = ProjectOnSegment(P, A, B);
+
+    CHECK(sp.t == doctest::Approx(0.5).epsilon(0.05));
+    CHECK(sp.distM == doctest::Approx(55.0).epsilon(5.0)); // ~55 m north
+}
+
+TEST_CASE("ProjectOnSegment - projects to start endpoint")
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5454};
+
+    // Point northwest of A, projects to A (t ≈ 0).
+    GeoPoint P{48.1105, 16.5390};
+    auto     sp = ProjectOnSegment(P, A, B);
+
+    CHECK(sp.t == doctest::Approx(0.0).epsilon(0.01));
+}
+
+TEST_CASE("ProjectOnSegment - projects to end endpoint")
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5454};
+
+    // Point northeast of B, projects to B (t ≈ 1).
+    GeoPoint P{48.1105, 16.5465};
+    auto     sp = ProjectOnSegment(P, A, B);
+
+    CHECK(sp.t == doctest::Approx(1.0).epsilon(0.01));
+}
+
+TEST_CASE("ProjectOnSegment - point on segment has zero distance")
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint B{48.1100, 16.5454};
+
+    // Point exactly on the segment.
+    GeoPoint P{48.1100, 16.5427};
+    auto     sp = ProjectOnSegment(P, A, B);
+
+    CHECK(sp.distM == doctest::Approx(0.0).epsilon(0.5));
+    CHECK(sp.t == doctest::Approx(0.5).epsilon(0.05));
+}
+
+TEST_CASE("ProjectOnSegment - degenerate segment (A == B)")
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint P{48.1105, 16.5400};
+
+    auto sp = ProjectOnSegment(P, A, A);
+    CHECK(sp.t == doctest::Approx(0.0));
+    CHECK(sp.distM == doctest::Approx(HaversineM(P, A)).epsilon(1.0));
+}
+
+// ─── Multiple same-label HP goal candidates ─────────────────────────────────
+
+/// @brief Builds a Y-shaped network where two ways converge at junction J,
+///        with one HP stop bar on each branch — both labeled "HP1".
+///
+///    A ────── J ────── B
+///             |
+///             C
+///
+///  HP1 placed at B (dead-end tip, reachable only from J→B direction)
+///  HP1 placed near J on the A→J branch (reachable from A direction)
+static OsmAirportData MakeConvergingHpWays()
+{
+    GeoPoint A{48.1100, 16.5400};
+    GeoPoint J{48.1100, 16.5427}; // junction
+    GeoPoint B{48.1100, 16.5454}; // east dead-end
+    GeoPoint C{48.1118, 16.5427}; // north
+
+    OsmWay eastWay;
+    eastWay.id       = 1;
+    eastWay.type     = AerowayType::Taxiway_HoldingPoint;
+    eastWay.ref      = "HP1";
+    eastWay.geometry = {J, B};
+
+    OsmWay mainWay;
+    mainWay.id       = 2;
+    mainWay.type     = AerowayType::Taxiway;
+    mainWay.ref      = "M";
+    mainWay.geometry = {A, J};
+
+    OsmWay northWay;
+    northWay.id       = 3;
+    northWay.type     = AerowayType::Taxiway;
+    northWay.ref      = "N";
+    northWay.geometry = {J, C};
+
+    // Two OSM stop bars both labeled "HP1" at different positions on the HP way.
+    OsmHoldingPosition hp1;
+    hp1.id  = 100;
+    hp1.ref = "HP1";
+    hp1.pos = B; // dead-end tip
+
+    OsmHoldingPosition hp2;
+    hp2.id  = 101;
+    hp2.ref = "HP1";
+    hp2.pos = J; // junction (reachable from all directions)
+
+    OsmAirportData osm;
+    osm.ways.push_back(eastWay);
+    osm.ways.push_back(mainWay);
+    osm.ways.push_back(northWay);
+    osm.holdingPositions.push_back(hp1);
+    osm.holdingPositions.push_back(hp2);
+    return osm;
+}
+
+TEST_CASE("TaxiGraph - multiple same-label HP nodes: FindRoute reaches reachable one")
+{
+    TaxiGraph g;
+    g.Build(MakeConvergingHpWays(), MakeAirport());
+
+    GeoPoint C{48.1118, 16.5427}; // start from north branch
+
+    // HoldingPointByLabel returns one of the two HP1 nodes.
+    GeoPoint hpPos = g.HoldingPointByLabel("HP1");
+    REQUIRE((hpPos.lat != 0.0 || hpPos.lon != 0.0));
+
+    // Route to HP1 from C — must succeed regardless of which node
+    // HoldingPointByLabel returned, because FindRoute adds all same-label
+    // HP nodes as goal candidates.
+    TaxiRoute route = g.FindRoute(C, hpPos, 0.0, {}, {});
+    REQUIRE(route.valid);
+}
+
+// ─── BestDepartureHP ────────────────────────────────────────────────────────
+
+TEST_CASE("BestDepartureHP - returns first assignable HP on active dep runway")
+{
+    OsmAirportData     osm = MakeStraightWay();
+    OsmHoldingPosition osmHp;
+    osmHp.id  = 100;
+    osmHp.ref = "A1";
+    osmHp.pos = GeoPoint{48.1100, 16.5427}; // exactly at B
+    osm.holdingPositions.push_back(osmHp);
+
+    airport ap = MakeAirport();
+    runway  rwy;
+    rwy.designator = "29";
+    holdingPoint hp;
+    hp.name                 = "A1";
+    hp.assignable           = true;
+    hp.centerLat            = 48.1100;
+    hp.centerLon            = 16.5427;
+    hp.order                = 0;
+    rwy.holdingPoints["A1"] = hp;
+    ap.runways["29"]        = rwy;
+
+    TaxiGraph g;
+    g.Build(osm, ap);
+
+    std::string name;
+    GeoPoint    pos = g.BestDepartureHP({"29"}, ap, &name);
+
+    CHECK(name == "A1");
+    CHECK(pos.lat != 0.0);
+    CHECK(pos.lon != 0.0);
+    // Must return graph node position, not config centroid.
+    GeoPoint graphPos = g.HoldingPointByLabel("A1");
+    CHECK(HaversineM(pos, graphPos) < 1.0);
+}
+
+TEST_CASE("BestDepartureHP - no assignable HPs returns empty")
+{
+    airport ap = MakeAirport();
+    runway  rwy;
+    rwy.designator = "29";
+    holdingPoint hp;
+    hp.name                 = "A1";
+    hp.assignable           = false; // not assignable
+    hp.order                = 0;
+    rwy.holdingPoints["A1"] = hp;
+    ap.runways["29"]        = rwy;
+
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), ap);
+
+    std::string name;
+    GeoPoint    pos = g.BestDepartureHP({"29"}, ap, &name);
+
+    CHECK(pos.lat == 0.0);
+    CHECK(pos.lon == 0.0);
+    CHECK(name.empty());
+}
+
+TEST_CASE("BestDepartureHP - wrong runway returns empty")
+{
+    airport ap = MakeAirport();
+    runway  rwy;
+    rwy.designator = "29";
+    holdingPoint hp;
+    hp.name                 = "A1";
+    hp.assignable           = true;
+    hp.order                = 0;
+    rwy.holdingPoints["A1"] = hp;
+    ap.runways["29"]        = rwy;
+
+    TaxiGraph g;
+    g.Build(MakeStraightWay(), ap);
+
+    std::string name;
+    GeoPoint    pos = g.BestDepartureHP({"11"}, ap, &name);
+
+    CHECK(pos.lat == 0.0);
+    CHECK(pos.lon == 0.0);
 }

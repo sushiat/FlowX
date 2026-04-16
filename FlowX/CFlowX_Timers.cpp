@@ -831,7 +831,7 @@ void CFlowX_Timers::CheckArrivedAtStand()
         std::string dep = fp.GetFlightPlanData().GetOrigin();
         to_upper(dep);
         if (!this->airports.contains(dep))
-            continue;  // not a departure from one of our airports
+            continue; // not a departure from one of our airports
         auto existing = this->departureStand.find(occupier);
         if (existing == this->departureStand.end() || existing->second != standName)
             this->departureStand[occupier] = standName;
@@ -1719,4 +1719,14 @@ void CFlowX_Timers::ClearGndTransfer(const std::string& callsign)
 {
     this->gndTransfer_list.erase(callsign);
     this->gndTransfer_soundPlayed.erase(callsign);
+}
+
+void CFlowX_Timers::AssignHoldingPoint(EuroScopePlugIn::CFlightPlan& fp, const std::string& hpName)
+{
+    std::string callSign = fp.GetCallsign();
+    this->flightStripAnnotation[callSign] =
+        AppendHoldingPointToFlightStripAnnotation(this->flightStripAnnotation[callSign], hpName);
+    fp.GetControllerAssignedData().SetFlightStripAnnotation(
+        8, this->flightStripAnnotation[callSign].c_str());
+    this->PushToOtherControllers(fp);
 }

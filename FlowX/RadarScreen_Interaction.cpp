@@ -401,6 +401,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 }
                 this->taxiPlanIsPush      = isPush;
                 this->taxiPlanForwardOnly = inTaxiOut;
+
+                // Aircraft has left its stand — any previously assigned push block is
+                // stale and would otherwise interfere with routing (the aircraft's own
+                // push zone gets treated as an obstacle by subsequent taxi planning).
+                if (!isPush)
+                    this->pushTracked.erase(callsign);
             }
 
             this->taxiPlanActive = callsign;
@@ -472,6 +478,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 auto*                 timers    = static_cast<CFlowX_Timers*>(this->GetPlugIn());
                 double                goalBrng  = -1.0;
                 std::set<std::string> rwySearch = settings->GetActiveDepRunways();
+                std::string           destName; ///< Bare destination name for preferred-route matching.
                 if (isInbound)
                 {
                     auto standIt = timers->GetStandAssignment().find(callsign);
@@ -488,18 +495,21 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             {
                                 standKey = ourIcao + ":" + srt.target;
                                 dest     = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                                destName = srt.target;
                             }
                             else
                             {
-                                GeoPoint hp = settings->osmGraph.HoldingPositionByLabel(srt.target);
+                                GeoPoint hp = settings->osmGraph.HoldingPointByLabel(srt.target);
                                 dest        = (hp.lat != 0.0 || hp.lon != 0.0)
                                                   ? hp
                                                   : TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                                destName    = srt.target;
                             }
                         }
                         else
                         {
-                            dest = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                            dest     = TaxiGraph::StandApproachPoint(standKey, settings->GetGrStands());
+                            destName = standName;
                         }
                         // Use stand heading to constrain goal-node snapping direction.
                         auto stIt = settings->GetGrStands().find(standKey);
@@ -537,7 +547,12 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                                     auto hpIt = rwyIt->second.holdingPoints.find(hpName);
                                     if (hpIt != rwyIt->second.holdingPoints.end())
                                     {
-                                        dest = {hpIt->second.centerLat, hpIt->second.centerLon};
+                                        // Prefer graph node position so FindRoute's HP-goal match fires.
+                                        GeoPoint hpGP = settings->osmGraph.HoldingPointByLabel(hpName);
+                                        dest          = (hpGP.lat != 0.0 || hpGP.lon != 0.0)
+                                                            ? hpGP
+                                                            : GeoPoint{hpIt->second.centerLat, hpIt->second.centerLon};
+                                        destName      = hpName;
                                         break;
                                     }
                                 }
@@ -545,7 +560,7 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                         }
                     }
                     if (dest.lat == 0.0 && dest.lon == 0.0)
-                        dest = settings->osmGraph.BestDepartureHP(rwySearch, ap);
+                        dest = settings->osmGraph.BestDepartureHP(rwySearch, ap, &destName);
                 }
 
                 if (dest.lat == 0.0 && dest.lon == 0.0)
@@ -573,10 +588,98 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                     vacArrRwy = timers->GetArrivalRunway(callsign);
                 }
 
-                this->taxiSuggested[callsign] = settings->osmGraph.FindRoute(
+                TaxiRoute suggested = settings->osmGraph.FindRoute(
                     origin, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(), heading, blocked,
                     {}, false, {}, settings->GetDebug(), this->taxiPlanForwardOnly, goalBrng, vacWtc, vacArrRwy);
-                this->taxiGreenPreview = this->taxiSuggested[callsign];
+
+                // Preferred-route enforcement: if a configured rule matches this destination
+                // and its mustInclude sequence isn't already present contiguously in the
+                // unconstrained route, retry via FindWaypointRoute with representative
+                // via-points on each required wayref. If the retry produces a route that
+                // satisfies the sequence, use it; otherwise fall back to the unconstrained
+                // route so real-world overrides degrade gracefully instead of failing hard.
+                if (suggested.valid && hasAirport && !destName.empty())
+                {
+                    const auto& ap = myAptTaxi->second;
+                    // Origin wayref resolution for preferred-route origin filters:
+                    // stand polygon containment wins over nearest-node lookup because
+                    // a parked aircraft's nearest graph node can be an adjacent
+                    // taxilink rather than the stand itself when the stand has sparse
+                    // node coverage.
+                    std::string originRef;
+                    for (const auto& [standName, poly] : ap.taxiOutStands)
+                    {
+                        if (CFlowX_LookupsTools::PointInsidePolygon(
+                                static_cast<int>(poly.lat.size()),
+                                const_cast<double*>(poly.lon.data()),
+                                const_cast<double*>(poly.lat.data()),
+                                origin.lon, origin.lat))
+                        {
+                            originRef = standName;
+                            break;
+                        }
+                    }
+                    if (originRef.empty())
+                        originRef = settings->osmGraph.NearestWayRef(origin);
+                    const auto seq = TaxiGraph::ResolvePreferredSequence(
+                        ap, rwySearch, settings->GetActiveArrRunways(), destName, originRef);
+                    if (!seq.empty() && !TaxiGraph::WayRefSequenceSubsequence(suggested.wayRefs, seq))
+                    {
+                        // State-augmented retry: run a single FindRoute with the sequence
+                        // constraint baked into A* state.  This avoids the cross-leg
+                        // discontinuities that plagued the earlier per-leg splicing
+                        // approach (each leg inherited the previous leg's exit bearing,
+                        // blocking legitimate turns and creating unreachable start nodes).
+                        TaxiRoute constrained = settings->osmGraph.FindRoute(
+                            origin, dest, taxiWs, rwySearch, settings->GetActiveArrRunways(),
+                            heading, blocked, {}, false, {}, false, this->taxiPlanForwardOnly,
+                            goalBrng, vacWtc, vacArrRwy, {}, seq);
+                        if (constrained.valid &&
+                            TaxiGraph::WayRefSequenceSubsequence(constrained.wayRefs, seq))
+                        {
+                            suggested = std::move(constrained);
+                            if (settings->GetDebug())
+                                settings->LogDebugMessage(
+                                    callsign + " preferred-route applied for " + destName +
+                                        " origin=" + (originRef.empty() ? "?" : originRef),
+                                    "PREF");
+                        }
+                        else if (settings->GetDebug())
+                        {
+                            std::string seqStr;
+                            for (const auto& s : seq)
+                            {
+                                if (!seqStr.empty())
+                                    seqStr += " -> ";
+                                seqStr += "[" + s + "]";
+                            }
+                            std::string gotStr;
+                            if (!constrained.valid)
+                            {
+                                gotStr = "(no path)";
+                                if (!constrained.debugTrace.empty())
+                                    gotStr += " " + constrained.debugTrace;
+                            }
+                            else
+                            {
+                                for (const auto& s : constrained.wayRefs)
+                                {
+                                    if (!gotStr.empty())
+                                        gotStr += " -> ";
+                                    gotStr += "[" + s + "]";
+                                }
+                            }
+                            settings->LogDebugMessage(
+                                callsign + " preferred-route infeasible for " + destName +
+                                    " origin=" + (originRef.empty() ? "?" : originRef) +
+                                    " seq=" + seqStr + " got=" + gotStr + " (fallback to unconstrained)",
+                                "PREF");
+                        }
+                    }
+                }
+
+                this->taxiSuggested[callsign] = std::move(suggested);
+                this->taxiGreenPreview        = this->taxiSuggested[callsign];
                 if (!this->taxiSuggested[callsign].valid && settings->GetDebug())
                     settings->LogDebugMessage(
                         callsign + " no route: " + this->taxiSuggested[callsign].debugTrace, "TAXI");
@@ -671,6 +774,23 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                             this->gndTransferSquares.erase(this->taxiPlanActive);
                             this->gndTransferSquareTimes.erase(this->taxiPlanActive);
                         }
+
+                        // Auto-assign the runway holding point when the taxi route
+                        // ends at one that belongs to the aircraft's departure runway.
+                        if (!inbound && !finalRoute.wayRefs.empty() && myAptState != settings->GetAirports().end())
+                        {
+                            const std::string& lastRef = finalRoute.wayRefs.back();
+                            std::string        depRwy  = fp.GetFlightPlanData().GetDepartureRwy();
+                            auto               rwyIt   = myAptState->second.runways.find(depRwy);
+                            if (rwyIt != myAptState->second.runways.end())
+                            {
+                                auto hpIt = rwyIt->second.holdingPoints.find(lastRef);
+                                if (hpIt != rwyIt->second.holdingPoints.end() && hpIt->second.assignable)
+                                    static_cast<CFlowX_Timers*>(this->GetPlugIn())
+                                        ->AssignHoldingPoint(fp, lastRef);
+                            }
+                        }
+
                         if (settings->GetDebug())
                         {
                             const std::string& cs    = this->taxiPlanActive;

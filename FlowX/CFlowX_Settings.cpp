@@ -1067,40 +1067,106 @@ void CFlowX_Settings::LoadConfig()
         if (json_airport.contains("taxiFlowGeneric"))
             for (const auto& r : json_airport["taxiFlowGeneric"])
                 ap.taxiFlowGeneric.push_back({r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});
+        // Normalise each side of a runway-config key: split on '/', sort, rejoin.
+        // Allows the config file to use any ordering (e.g. "29/16_16" → stored as "16/29_16").
+        auto normSide = [](const std::string& side) -> std::string
+        {
+            std::vector<std::string> parts;
+            size_t                   start = 0, end;
+            while ((end = side.find('/', start)) != std::string::npos)
+            {
+                parts.push_back(side.substr(start, end - start));
+                start = end + 1;
+            }
+            parts.push_back(side.substr(start));
+            std::ranges::sort(parts);
+            std::string out;
+            for (const auto& p : parts)
+            {
+                if (!out.empty())
+                    out += '/';
+                out += p;
+            }
+            return out;
+        };
+        auto normConfigKey = [&normSide](const std::string& rawKey) -> std::string
+        {
+            const auto sep = rawKey.find('_');
+            if (sep == std::string::npos)
+                return rawKey;
+            return normSide(rawKey.substr(0, sep)) + '_' + normSide(rawKey.substr(sep + 1));
+        };
+
         if (json_airport.contains("taxiFlowConfigs"))
         {
-            // Normalise each key: split on '_', sort each side on '/', rejoin.
-            // Allows the config file to use any ordering (e.g. "29/16_16" → stored as "16/29_16").
-            auto normSide = [](const std::string& side) -> std::string
-            {
-                std::vector<std::string> parts;
-                size_t                   start = 0, end;
-                while ((end = side.find('/', start)) != std::string::npos)
-                {
-                    parts.push_back(side.substr(start, end - start));
-                    start = end + 1;
-                }
-                parts.push_back(side.substr(start));
-                std::ranges::sort(parts);
-                std::string out;
-                for (const auto& p : parts)
-                {
-                    if (!out.empty())
-                        out += '/';
-                    out += p;
-                }
-                return out;
-            };
             for (auto& [rawKey, json_rules] : json_airport["taxiFlowConfigs"].items())
             {
-                const auto  sep = rawKey.find('_');
-                std::string normKey =
-                    (sep == std::string::npos)
-                        ? rawKey
-                        : normSide(rawKey.substr(0, sep)) + '_' + normSide(rawKey.substr(sep + 1));
+                const std::string normKey = normConfigKey(rawKey);
                 for (const auto& r : json_rules)
                     ap.taxiFlowConfigs[normKey].push_back(
                         {r.value("taxiway", std::string{}), r.value("direction", std::string{}), r.value("againstFlowMult", 0.0)});
+            }
+        }
+        if (json_airport.contains("preferredRoutes"))
+        {
+            for (auto& [rawKey, json_rules] : json_airport["preferredRoutes"].items())
+            {
+                const std::string normKey = normConfigKey(rawKey);
+                for (const auto& r : json_rules)
+                {
+                    PreferredRoute pr;
+                    pr.destinationPattern = r.value("destination", std::string{});
+                    if (pr.destinationPattern.empty())
+                    {
+                        this->LogDebugMessage("preferredRoutes: rule with empty destination in \"" + icao + "\" / \"" + rawKey + "\" skipped", "Config");
+                        continue;
+                    }
+                    try
+                    {
+                        pr.destinationRegex = std::regex(pr.destinationPattern);
+                    }
+                    catch (const std::regex_error& e)
+                    {
+                        this->LogDebugMessage("preferredRoutes: invalid regex \"" + pr.destinationPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
+                        continue;
+                    }
+                    pr.originPattern = r.value("origin", std::string{});
+                    if (!pr.originPattern.empty())
+                    {
+                        try
+                        {
+                            pr.originRegex = std::regex(pr.originPattern);
+                        }
+                        catch (const std::regex_error& e)
+                        {
+                            this->LogDebugMessage("preferredRoutes: invalid origin regex \"" + pr.originPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
+                            pr.originPattern.clear();
+                        }
+                    }
+                    pr.originExcludePattern = r.value("originExclude", std::string{});
+                    if (!pr.originExcludePattern.empty())
+                    {
+                        try
+                        {
+                            pr.originExcludeRegex = std::regex(pr.originExcludePattern);
+                        }
+                        catch (const std::regex_error& e)
+                        {
+                            this->LogDebugMessage("preferredRoutes: invalid originExclude regex \"" + pr.originExcludePattern + "\" in \"" + icao + "\" / \"" + rawKey + "\": " + e.what(), "Config");
+                            pr.originExcludePattern.clear();
+                        }
+                    }
+                    if (r.contains("mustInclude") && r["mustInclude"].is_array())
+                        for (const auto& w : r["mustInclude"])
+                            if (w.is_string())
+                                pr.mustInclude.push_back(w.get<std::string>());
+                    if (pr.mustInclude.empty())
+                    {
+                        this->LogDebugMessage("preferredRoutes: rule with empty mustInclude for \"" + pr.destinationPattern + "\" in \"" + icao + "\" / \"" + rawKey + "\" skipped", "Config");
+                        continue;
+                    }
+                    ap.preferredRoutes[normKey].push_back(std::move(pr));
+                }
             }
         }
         if (json_airport.contains("taxiWingspanMax"))
@@ -1124,7 +1190,6 @@ void CFlowX_Settings::LoadConfig()
                 const auto& g                    = jnc["graph"];
                 nc.graph.subdivisionIntervalM    = g.value("subdivisionIntervalM", 15.0);
                 nc.graph.osmHoldingPositionSnapM = g.value("osmHoldingPositionSnapM", 25.0);
-                nc.graph.configHoldingPointSnapM = g.value("configHoldingPointSnapM", 40.0);
             }
             if (jnc.contains("edgeCosts"))
             {
@@ -1163,14 +1228,25 @@ void CFlowX_Settings::LoadConfig()
                 nc.snapping.waypointM       = s.value("waypointM", 40.0);
                 nc.snapping.goalSnapM       = s.value("goalSnapM", 170.0);
             }
+            if (jnc.contains("targetSelection"))
+            {
+                const auto& ts                   = jnc["targetSelection"];
+                nc.targetSelection.narrowConeDeg = ts.value("narrowConeDeg", 10.0);
+                nc.targetSelection.mediumConeDeg = ts.value("mediumConeDeg", 20.0);
+                nc.targetSelection.wideConeDeg   = ts.value("wideConeDeg", 90.0);
+                nc.targetSelection.nearRadiusM   = ts.value("nearRadiusM", 80.0);
+                nc.targetSelection.farRadiusM    = ts.value("farRadiusM", 170.0);
+            }
             if (jnc.contains("safety"))
             {
-                const auto& sf             = jnc["safety"];
-                nc.safety.deviationThreshM = sf.value("deviationThreshM", 40.0);
-                nc.safety.minSpeedKt       = sf.value("minSpeedKt", 3.0);
-                nc.safety.maxPredictS      = sf.value("maxPredictS", 60.0);
-                nc.safety.conflictDeltaS   = sf.value("conflictDeltaS", 30.0);
-                nc.safety.sameDirDeg       = sf.value("sameDirDeg", 45.0);
+                const auto& sf                     = jnc["safety"];
+                nc.safety.deviationThreshM         = sf.value("deviationThreshM", 40.0);
+                nc.safety.endpointDeviationThreshM = sf.value("endpointDeviationThreshM", 80.0);
+                nc.safety.endpointRadiusM          = sf.value("endpointRadiusM", 60.0);
+                nc.safety.minSpeedKt               = sf.value("minSpeedKt", 3.0);
+                nc.safety.maxPredictS              = sf.value("maxPredictS", 60.0);
+                nc.safety.conflictDeltaS           = sf.value("conflictDeltaS", 30.0);
+                nc.safety.sameDirDeg               = sf.value("sameDirDeg", 45.0);
             }
         }
 
