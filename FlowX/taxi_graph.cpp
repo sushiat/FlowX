@@ -1612,15 +1612,20 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
         }
     }
 
-    // If the destination matches a holding-point node exactly, force it as
-    // the sole goal — the user (or HP assignment) explicitly chose this HP;
-    // the router must not substitute a cheaper nearby node.
+    // If the destination matches a holding-point node exactly, force all nodes
+    // sharing that label as goal candidates.  Multiple OSM stop bars can create
+    // separate nodes with the same label (e.g. two converging taxi lanes each
+    // have a "B1" stop bar); the router must be able to reach whichever node
+    // is accessible from the current direction.
     std::vector<int> goalCandidates;
     for (const int hpId : hpNodeIds_)
     {
         if (HaversineM(to, nodes_[hpId].pos) < 1.0)
         {
-            goalCandidates.push_back(hpId);
+            const std::string& hpLabel = nodes_[hpId].label;
+            for (const int id : hpNodeIds_)
+                if (nodes_[id].label == hpLabel)
+                    goalCandidates.push_back(id);
             break;
         }
     }

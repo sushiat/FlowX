@@ -685,19 +685,15 @@ TEST_CASE("TaxiGraph - edge-split HP node placed at accurate position")
     // projected position within 1 m accuracy, and routing through it must work.
     // At lat 48.11, 1° lon ≈ 74 000 m.  Midpoint between A and B is at
     // lon = (16.5400 + 16.5427) / 2 = 16.54135, ~100 m from A.
-    airport ap = MakeAirport();
-    runway  rwy;
-    rwy.designator = "11";
-    holdingPoint hp;
-    hp.name                  = "MID";
-    hp.assignable            = false; // non-assignable HPs also get nodes now
-    hp.centerLat             = 48.1100;
-    hp.centerLon             = 16.54135; // ~100 m from A, between subdivision nodes
-    rwy.holdingPoints["MID"] = hp;
-    ap.runways["11"]         = rwy;
+    OsmAirportData     osmWithHp = MakeStraightWay();
+    OsmHoldingPosition osmHp;
+    osmHp.id  = 100;
+    osmHp.ref = "MID";
+    osmHp.pos = GeoPoint{48.1100, 16.54135}; // ~100 m from A, between subdivision nodes
+    osmWithHp.holdingPositions.push_back(osmHp);
 
     TaxiGraph g;
-    g.Build(MakeStraightWay(), ap);
+    g.Build(osmWithHp, MakeAirport());
 
     // Verify routing from A through the HP position works.
     GeoPoint A{48.1100, 16.5400};
