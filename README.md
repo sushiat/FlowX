@@ -1,6 +1,6 @@
 # FlowX
 
-FlowX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure management tooling, same-SID / wake-turbulence separation tracking, inbound time-to-touchdown display, automatic holding point detection, and a range of convenience functions.
+FlowX is an [EuroScope](https://euroscope.hu/) plugin for VATSIM air traffic controllers. It is primarily aimed at delivery, ground, and tower controllers and provides departure and arrival flow management, and a range of convenience functions.
 
 The plugin ships with a `config.json` file that defines all airport-specific data. It is currently configured for **LOWW (Vienna International Airport)**. Adding other airports requires only changes to `config.json` — no recompilation is needed.
 
@@ -14,8 +14,8 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 - [Tag Items](#tag-items)
 - [Tag Functions](#tag-functions)
 - [Custom Windows](#custom-windows)
-- [Chat Commands](#chat-commands)
 - [Start Menu](#start-menu)
+- [Chat Commands](#chat-commands)
 - [config.json Reference](#configjson-reference)
 - [Testing](#testing)
 - [Contributing](#contributing)
@@ -27,19 +27,20 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 
 ### Prerequisites
 
-- [EuroScope](https://euroscope.hu/) (developed against v3.2.9, confirmed working with v3.2.3 and later beta versions)
+- [EuroScope](https://euroscope.hu/) (developed against v3.2.3)
 - A sector file / profile that includes the airports you want to configure in `config.json`
 
 ### Installation
 
 1. Download the latest `FlowX.zip` from the [Releases](https://github.com/sushiat/FlowX/releases/latest) page.
-2. Extract `FlowX.dll`, `config.json`, `nap.wav`, `airbourne.wav`, `readyTakeoff.wav`, `gndtransfer.wav`, `click.wav`, `noRoute.wav`, and `taxiConflict.wav` into your plugin directory.
+2. Extract `FlowX.dll`, `config.json`, all sound files and the icon file into your plugin directory.
 3. In EuroScope open **OTHER SET → Plug-ins**, click **Load** and select `FlowX.dll`.
-4. Successful load is confirmed in the **Messages** chat:
+4. Allow the FlowX to draw onto `Ground Radar display`
+5. Successful load is confirmed in the **Messages** chat:
    ```
-   [08:34:10] FlowX: Version 0.6.0 loaded.
+   [08:34:10] FlowX: Version 0.7.0 loaded.
    ```
-5. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
+6. Add the desired tag item columns to your departure list (see [Tag Items](#tag-items) below).
 
 > **Sound files** (all must be placed alongside `FlowX.dll`):
 > - `nap.wav` — plays when the NAP reminder window appears; stops on acknowledgement.
@@ -49,6 +50,8 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 > - `click.wav` — plays on start-menu clicks.
 > - `noRoute.wav` — plays when the taxi router cannot find a valid route to the assigned holding point.
 > - `taxiConflict.wav` — plays when a taxi conflict is detected between two aircraft with active routes.
+
+> **`flowx.ico`** used for custom window icons and the start menu.
 
 > **`settings.json`** is created automatically by the plugin in the same directory as `FlowX.dll`. It stores all plugin preferences, the screen positions of all custom windows, and the last NAP reminder dismissal date. Delete it to reset everything to defaults.
 
@@ -92,7 +95,7 @@ Only two tag functions are registered with EuroScope and can be assigned to tag 
 
 ## Custom Windows
 
-FlowX draws six custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `settings.json` in the plugin directory.
+FlowX draws seven custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `settings.json` in the plugin directory. Most windows can be popped out into their own native Win32 window via the `^` button in the title bar.
 
 ### Approach Estimate
 
@@ -166,57 +169,50 @@ Shows wind, QNH, ATIS letter, and RVR (when present) for every airport in `confi
 | ATIS | Current ATIS letter; greyed out when no ATIS is online |
 | RVR | RVR reading(s) from METAR, shown as a second line when present |
 
----
+### DIFLIS (Digital Flight Strip)
 
-## Chat Commands
+> **Prototype** — DIFLIS is under active development and not yet fully implemented. Layout and functionality may change.
 
-All commands are entered in any EuroScope chat channel, prefixed with `.flowx`.
-Running `.flowx` alone prints the loaded version and a command list.
+A popout-capable electronic flight strip board, toggled from Start → Windows → DIFLIS. Layout is fully data-driven from the `"diflis"` block in `config.json`: column widths, group definitions (title, column index, height weight, sort mode, collapse behaviour), and strip colour palettes are all configurable per airport.
 
-| Command | Saved | Description |
-|---|---|---|
-| `.flowx debug` | Yes | Toggle verbose debug logging in the Messages window |
-| `.flowx update` | Yes | Toggle the background update check on startup |
-| `.flowx flash` | Yes | Toggle flashing of unread message indicator for FlowX messages |
-| `.flowx gnd` | No | Force ground station to be treated as online (cross-coupling scenarios) |
-| `.flowx twr` | No | Force tower station to be treated as online (cross-coupling scenarios) |
-| `.flowx redoflags` | — | Toggle all existing clearance flags off then back on (useful for newly joined controllers) |
-| `.flowx autorestore` | Yes | Toggle auto-restore on quick reconnect. When enabled, if a pilot disconnects and reconnects within 90 seconds with a matching flight plan (same callsign, pilot name, airports, aircraft type, route, squawk, and position within 1 nm), their clearance flag and ground state are automatically restored. |
-| `.flowx reset` | — | Reload `config.json` and reset all settings to defaults |
-| `.flowx nocheck` | — | Disable flight-plan validation checks (offline testing only — do not use live) |
+Strips are automatically placed into groups based on EuroScope ground state, clearance flag, and airborne status. Controllers can drag strips between groups to override placement (e.g. moving a strip to a "Standing By" or "Storage" group that has no EuroScope counterpart). The strip cache is rebuilt every tick so state changes are reflected immediately.
+
+Each strip shows callsign, aircraft type, stand, runway, SID/STAR, squawk, and status. Strips can render in collapsed (single-row) or expanded (two-row) variants depending on group configuration and available space.
+
+### Settings
+
+A dedicated settings window opened from Start → Settings. Organises all plugin toggles into four groups: **Assists** (Auto-Restore, Auto PARK, Auto-Clear Scratch, HP auto-scratch), **Notifications** (sound toggles for Airborne, GND Transfer, Ready T/O, No Route, Taxi Conflict), **Options** (Debug mode, Update check, Flash messages, Appr Est Colors, Fonts, BG opacity), and **Taxi** (Update/Clear TAXI info, Show TAXI network/labels/graph/routes, Log TAXI tests). Can be popped out into its own window.
 
 ---
 
 ## Start Menu
 
-Click the **FlowX** button in the bottom-right corner of the radar screen to open the start menu. It has three sections:
-
-**Windows** — toggle visibility of each custom window:
-Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
+Click the **FlowX** button in the bottom-right corner of the radar screen to open the start menu. It has two sections:
 
 **Commands** — one-shot actions:
 
 | Item | Description |
 |---|---|
-| Redo CLR flags | Toggles all existing clearance flags off then back on (same as `.flowx redoflags`) |
+| Redo CLR flags | Toggles all existing clearance flags off then back on |
 | Dismiss QNH | Bulk-clears all pending QNH change markers |
 | Save positions | Saves current window positions to `settings.json` |
 
-**Options** — persistent toggles (saved to `settings.json`):
+**Windows** — expandable submenu to toggle visibility of each custom window (Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS, DIFLIS).
 
-| Option | Default | Description |
-|---|---|---|
-| Debug mode | Off | Verbose debug logging in the Messages window |
-| Auto-Restore FPLN | Off | Auto-restores clearance flag and ground state on quick reconnect (within 90 s) |
-| Update check | On | Background check for a newer plugin version on startup |
-| Flash messages | Off | Flashes the unread message indicator for FlowX messages |
-| Auto Parked | On | Automatically sets arriving aircraft to PARK when they stop at their assigned stand |
-| Appr Est Colors | Off | Uses inbound-list colours in the Approach Estimate window instead of always-green |
-| Auto-Clear Scratch | Off | Automatically clears the scratchpad when this controller clicks LINEUP or DEPA, unless the content starts with a prefix in `scratchpadClearExclusions` |
-| HP auto-scratch | On | When a GND controller sets a scratchpad entry beginning with `.`, automatically assigns the matching holding point and confirms it via scratchpad |
-| Show TAXI routes | Off | Show all active taxi routes and push zone reservations on the radar screen (individual routes are always shown on hover regardless of this setting) |
-| Fonts | — | Increase / decrease font size offset for all custom windows |
-| BG opacity | 100% | Increase / decrease background opacity of all custom windows (20–100%) |
+**Settings...** — opens the [Settings](#settings) window where all plugin toggles, sound notifications, taxi overlays, and font/opacity controls are configured.
+
+---
+
+## Chat Commands
+
+All commands are entered in any EuroScope chat channel, prefixed with `.flowx`.
+Running `.flowx` alone prints the loaded version and a list of available commands.
+
+| Command | Description |
+|---|---|
+| `.flowx debugstats` | Print internal performance counters (position updates, tag item calls, timer ticks, stand launches/skips) to the Messages window |
+
+> **Note:** Most toggles that were previously chat commands (debug, update, flash, autorestore, etc.) have moved to the [Settings](#settings) window.
 
 ---
 
@@ -241,6 +237,9 @@ Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
 | `gndFreq` | string | Default ground frequency |
 | `defaultAppFreq` | string | Default approach frequency used when no SID-specific match exists |
 | `ctrStations` | array of strings | Centre primary frequencies in priority order. The first frequency that has at least one online centre station wins. |
+| `osmCenterLat` | number | Centre latitude (decimal degrees) for the Overpass API bounding circle used to fetch taxiway data |
+| `osmCenterLon` | number | Centre longitude (decimal degrees) for the Overpass API bounding circle |
+| `osmRadiusM` | integer | Radius in metres for the Overpass API bounding circle (default `6500`) |
 
 ```json
 "fieldElevation": 600,
@@ -248,7 +247,10 @@ Approach Estimate, DEP/H, TWR Outbound, TWR Inbound, WX/ATIS.
 "airborneTransferWarning": 3000,
 "gndFreq": "121.6",
 "defaultAppFreq": "134.675",
-"ctrStations": ["129.200", "134.440", "134.350", "132.600"]
+"ctrStations": ["129.200", "134.440", "134.350", "132.600"],
+"osmCenterLat": 48.1103,
+"osmCenterLon": 16.5697,
+"osmRadiusM": 6500
 ```
 
 ### `geoGndFreq`
@@ -344,10 +346,12 @@ Pairs of taxilane refs that are physically the same strip painted with two direc
 
 Taxiway direction rules that are always active, regardless of which runways are in use. Each rule specifies a preferred direction of travel on a named taxiway. The router applies a cost penalty to edges that go against the grain.
 
+Each rule may optionally include an `againstFlowMult` override that replaces the global `taxiNetworkConfig.flowRules.againstFlowMult` for that taxiway only.
+
 ```json
 "taxiFlowGeneric": [
     { "taxiway": "P", "direction": "N" },
-    { "taxiway": "Q", "direction": "S" }
+    { "taxiway": "Q", "direction": "S", "againstFlowMult": 5.0 }
 ]
 ```
 
@@ -438,17 +442,21 @@ A list of scratchpad prefixes that are exempt from the **Auto-Clear Scratch** fe
 
 ### `standRoutingTargets`
 
-Maps stand names to the label of an OSM holding position node. When an inbound aircraft is assigned one of these stands, the taxi router terminates at that holding position instead of routing to the centre of the stand polygon. Use this for uncontrolled aprons where the tower hands off to a marshaller at a defined point.
+Maps stand names to a routing override target. When an inbound aircraft is assigned one of these stands, the taxi router terminates at the override target instead of routing to the stand's own approach point. Two target types are supported:
 
-The label must match the `ref` tag of the OSM `aeroway=holding_position` node exactly.
+| Type | Description |
+|---|---|
+| `"hp"` | Target is a holding-point label (resolved via `HoldingPointByLabel`). Use for uncontrolled aprons where the tower hands off to a marshaller at a defined point. The label must match the `ref` tag of the OSM `aeroway=holding_position` node exactly. |
+| `"stand"` | Target is another stand name (resolved via `StandApproachPoint`). Use when two stands share a physical position and routing should use the co-located stand's approach point (e.g. G16 → F16). |
 
 ```json
 "standRoutingTargets": {
-    "GAC": "P1"
+    "GAC": { "type": "hp", "target": "P1" },
+    "G16": { "type": "stand", "target": "F16" }
 }
 ```
 
-If the label is not found in the OSM graph data, routing falls back to the stand centroid.
+If the target cannot be resolved (HP label not found in the OSM graph, or stand not in Ground Radar data), routing falls back to the original stand's approach point.
 
 ### `preferredRoutes`
 
@@ -502,8 +510,7 @@ Optional fine-tuning of the taxi graph builder, A\* router, interactive snapping
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `subdivisionIntervalM` | number | `15.0` | Long OSM way segments are subdivided into waypoint nodes at this interval (metres). |
-| `osmHoldingPositionSnapM` | number | `25.0` | Maximum radius (m) to snap an OSM stop-bar node onto the nearest taxiway waypoint and promote it to a HoldingPosition node. |
-| `configHoldingPointSnapM` | number | `40.0` | Maximum radius (m) to snap a config holding-point polygon centroid onto the nearest taxiway waypoint. Larger than the OSM value because centroids may sit a few metres back from the taxiway edge. |
+| `osmHoldingPositionSnapM` | number | `25.0` | Maximum radius (m) for projecting an OSM stop-bar node onto the nearest taxiway edge via edge splitting. The projected point becomes a HoldingPoint node at sub-metre accuracy on the taxiway centreline. |
 
 #### `edgeCosts` — base type multipliers
 
@@ -514,7 +521,7 @@ Applied at graph-build time to all edges of the corresponding aeroway type. High
 | `multIntersection` | number | `1.1` | Slight penalty for taxiway-intersection edges. |
 | `multTaxilane` | number | `3.0` | Stand-access taxilane edges are strongly discouraged vs main taxiways. |
 | `multRunway` | number | `20.0` | Runway edges are only traversed to vacate the runway; never preferred for taxi. |
-| `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding point / holding position node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
+| `multRunwayApproach` | number | `18.0` | Additional multiplier for edges arriving at a holding-point node (approaching the runway threshold). Slightly below `multRunway` so vacating via the HP is still preferred over remaining on the runway. |
 | `multWingspanAvoid` | number | `3.0` | Cost multiplier applied to `taxiWingspanAvoid` refs when the aircraft wingspan fits the avoid threshold. Higher values produce a stronger preference for the parallel narrower lane. |
 
 #### `flowRules` — direction enforcement
@@ -538,6 +545,7 @@ Controls how heavily active taxiway flow rules penalise against-flow routing.
 | `backwardSnapM` | number | `300.0` | Radius (m) used to collect up to 2 backward start-node candidates for A\*. |
 | `heuristicWeight` | number | `1.0` | Weight applied to the A\* heuristic. Values above 1.0 are more goal-directed but may expand nodes sub-optimally; 1.0 is correct for small graphs. |
 | `maxNodeExpansions` | integer | `5000` | Maximum number of nodes A\* expands before giving up. Higher values find better routes at greater CPU cost. |
+| `softTurnCostPerDeg` | number | `0.0` | Cost added per degree of bearing change at each edge transition; `0` disables. Penalises winding routes and favours straighter paths. |
 
 #### `snapping` — interactive planning
 
@@ -545,10 +553,11 @@ Snap radii when the controller clicks to set a waypoint. Higher-priority types a
 
 | Field | Type | Default | Priority | Description |
 |---|---|---|---|---|
-| `holdingPointM` | number | `30.0` | 1 (highest) | Snap to holding-point / holding-position nodes. |
+| `holdingPointM` | number | `45.0` | 1 (highest) | Snap to holding-point nodes. |
 | `intersectionM` | number | `15.0` | 2 | Snap to intersection waypoint nodes (labelled "Exit …"). |
 | `suggestedRouteM` | number | `20.0` | 3 | Snap to the suggested route polyline. |
-| `waypointM` | number | `40.0` | 4 (lowest) | Snap to any graph waypoint node. |
+| `waypointM` | number | `40.0` | 4 | Snap to any graph waypoint node. |
+| `goalSnapM` | number | `170.0` | — | Snap radius (m) for searching goal-node candidates near the destination stand; must cover the longest taxilane between a stand centroid and the nearest graph node. |
 
 #### `targetSelection` — goal-node selection around the destination stand
 
@@ -576,11 +585,11 @@ Six-tier search used when routing to a stand approach point. Tiers are tried in 
 
 ```json
 "taxiNetworkConfig": {
-    "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0, "configHoldingPointSnapM": 40.0 },
+    "graph":     { "subdivisionIntervalM": 15.0, "osmHoldingPositionSnapM": 25.0 },
     "edgeCosts": { "multIntersection": 1.1, "multTaxilane": 3.0, "multRunway": 20.0, "multRunwayApproach": 18.0, "multWingspanAvoid": 3.0 },
     "flowRules": { "withFlowMaxDeg": 45.0, "withFlowMult": 0.9, "againstFlowMinDeg": 135.0, "againstFlowMult": 3.0 },
-    "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000 },
-    "snapping":        { "holdingPointM": 30.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0 },
+    "routing":   { "hardTurnDeg": 50.0, "wayrefChangePenalty": 200.0, "forwardSnapM": 120.0, "backwardSnapM": 300.0, "heuristicWeight": 1.0, "maxNodeExpansions": 5000, "softTurnCostPerDeg": 0.0 },
+    "snapping":        { "holdingPointM": 45.0, "intersectionM": 15.0, "suggestedRouteM": 20.0, "waypointM": 40.0, "goalSnapM": 170.0 },
     "targetSelection": { "narrowConeDeg": 10.0, "mediumConeDeg": 20.0, "wideConeDeg": 90.0, "nearRadiusM": 80.0, "farRadiusM": 170.0 },
     "safety":          { "deviationThreshM": 40.0, "endpointDeviationThreshM": 80.0, "endpointRadiusM": 60.0, "minSpeedKt": 3.0, "maxPredictS": 60.0, "conflictDeltaS": 30.0, "sameDirDeg": 45.0 }
 }
@@ -652,9 +661,9 @@ Each holding point entry defines the polygon that detects when an aircraft is at
 }
 ```
 
-#### Vacate points
+#### Suggested vacate points
 
-Vacate points define recommended runway exit points for arriving aircraft based on their assigned stand and the gap to the following (trailing) inbound.
+Recommended runway exit points for arriving aircraft based on their assigned stand and the gap to the following (trailing) inbound.
 
 | Field | Type | Description |
 |---|---|---|
@@ -662,7 +671,7 @@ Vacate points define recommended runway exit points for arriving aircraft based 
 | `stands` | array of strings | Stand names (or glob-style patterns with `*`) associated with this vacate |
 
 ```json
-"vacatePoints": {
+"suggestedVacatePoints": {
     "A3": {
         "minGap": 5,
         "stands": ["F04", "F08", "H*", "K*"]
@@ -671,6 +680,23 @@ Vacate points define recommended runway exit points for arriving aircraft based 
         "minGap": 3,
         "stands": ["E*", "F*"]
     }
+}
+```
+
+#### Vacate points (exit restrictions)
+
+Allowed runway vacation exits with optional WTC restrictions. Unlisted HP refs are excluded from inbound taxi routing. Used by the taxi router to constrain which exits an arriving aircraft may vacate via.
+
+| Field | Type | Description |
+|---|---|---|
+| `excludeWtc` | array of strings | WTC categories that cannot use this exit (e.g. `["H", "J"]`) |
+| `excludeRef` | object | Per-WTC map of refs excluded when vacating via this exit (e.g. `{"H": ["D"]}`) |
+
+```json
+"vacatePoints": {
+    "A3": {},
+    "A4": { "excludeWtc": ["H", "J"] },
+    "A5": { "excludeRef": { "H": ["D"] } }
 }
 ```
 
@@ -697,6 +723,7 @@ A post-build event copies the required fixture files into the output directory a
 | `FlowXTests/fixtures/osm_taxiways_LOWW.json` | `$(OutDir)` | Snapshot of the OSM taxiway cache |
 | `FlowXTests/fixtures/Groundradar/ICAO_Aircraft.json` | `$(SolutionDir)Groundradar\` | Aircraft wingspan data |
 | `FlowXTests/fixtures/Groundradar/GRpluginStands.txt` | `$(SolutionDir)Groundradar\` | Stand polygon data |
+| `FlowXTests/fixtures/taxi-test.json` | `$(OutDir)` | Fixture-driven taxi route test cases |
 
 ### Running
 
@@ -711,7 +738,8 @@ A non-zero exit code means one or more tests failed. Pass `--help` for doctest o
 | File | Real source compiled | Coverage |
 |---|---|---|
 | `test_geometry.cpp` | `taxi_graph.h` | Haversine distance, bearing, bearing-diff, point-to-segment distance, segment intersection |
-| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan hard-exclusion and soft-avoidance |
+| `test_graph.cpp` | `taxi_graph.cpp` | Graph build from synthetic OSM data, A\* routing, flow-rule enforcement, wingspan hard-exclusion and soft-avoidance, edge splitting, preferred-route matching, goal selection, departure HP resolution |
+| `test_taxi_routes.cpp` | `taxi_graph.cpp` | Fixture-driven regression tests against the real LOWW TaxiGraph using `taxi-test.json` — verifies route validity, mustInclude/mustNotInclude wayref constraints, and distance ranges |
 | `test_osm.cpp` | `osm_taxiways.cpp` | OSM JSON parsing (taxiways, taxilanes, runways, holding positions, stands) |
 | `test_lookups.cpp` | `CFlowX_LookupsTools.cpp` | Point-in-polygon, colour parsing, holding-point annotation encoding, weight category ranking |
 | `test_helpers.cpp` | *(helpers are inline/header-only)* | String split/join, trim, upper-case, frequency annotation formatting |
