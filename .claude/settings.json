@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh label:*)"
+      "Bash(gh label:*)",
+      "Bash(git -C e:/FlowX log --oneline -5)",
+      "Bash(git -C e:/FlowX add *)",
+      "Bash(git -C e:/FlowX commit -m ' *)",
+      "Bash(git -C e:/FlowX push)"
     ]
   }
 }
