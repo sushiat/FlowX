@@ -13,6 +13,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
   - [Installation](#installation)
 - [Tag Items](#tag-items)
 - [Tag Functions](#tag-functions)
+- [Taxi Planning](#taxi-planning)
 - [Aircraft Ground Tags](#aircraft-ground-tags)
 - [Custom Windows](#custom-windows)
 - [Start Menu](#start-menu)
@@ -93,6 +94,78 @@ Only two tag functions are registered with EuroScope and can be assigned to tag 
 |---|---|
 | **Set ONFREQ/ST-UP/PUSH** | Sets the appropriate ground state. DEL position: sets ONFREQ. GND/TWR: detects push vs. taxi-out stand and sets ST-UP or ONFREQ accordingly. |
 | **Clear New QNH** | Removes the new-QNH flag from the flight strip so the orange `X` disappears. |
+
+---
+
+## Taxi Planning
+
+FlowX includes an interactive taxi router that computes A\*-based routes over the OSM taxiway graph. Planning is triggered directly on the radar screen — no separate menu is needed.
+
+### Starting a route
+
+Right-click any ground aircraft on the radar screen to enter taxi planning mode. The plugin automatically determines whether to start **taxi planning** or **pushback planning** based on the aircraft's current position:
+
+- **Inside a parking stand polygon** (and not in a taxi-out apron) → pushback planning
+- **Everywhere else** (taxi-out apron, rolling, inbounds) → taxi planning
+
+### Taxi route planning
+
+![Taxi planning](Screenshots/taxi_planning.png)
+
+When taxi planning starts, the router immediately computes a suggested route to the aircraft's destination — the assigned holding point for departures, or the assigned stand approach point for inbounds. This suggested route is shown as a **yellow line**.
+
+Moving the mouse across the taxiway network shows a **magenta line** — a live preview of the route the router would compute to wherever the cursor is snapped. The cursor snaps to nearby graph nodes, intersection waypoints, holding points, and the yellow suggested route itself.
+
+- **Left-click near the aircraft** (within ~80 px of the radar target) — accepts the **yellow suggested route**
+- **Left-click anywhere else** — accepts the **magenta manual route** to the cursor position
+- **Side mouse button (X1/X2)** — shortcut to accept the yellow suggested route from anywhere on screen
+- **Middle-click** — add a custom waypoint the route has to pass
+- **Middle-click + drag** — draw a custom waypoint path; the router threads the A\* route through the drawn points in sequence
+
+#### Custom waypoints
+
+![Custom waypoint](Screenshots/taxi_custom_waypoint.png)
+
+Pressing the middle mouse button places a waypoint at the cursor position. Multiple custom waypoints can be placed along the route.
+
+The controller can also draw a path: hold the middle button and drag across the taxiway network — the router collects nearby graph nodes as preferred nodes along the drawn path — then release to commit the waypoint. The route is immediately recomputed through all waypoints in order. Multiple waypoints can be placed this way; each gesture adds one.
+
+When waypoints are present, the router operates in **custom route mode**: all flow restrictions and preferred-route rules from `config.json` are disabled, and the router finds the geometrically shortest path through the waypoints. This lets the controller override both one-way taxiway flow and any configured preferred routing for that specific aircraft.
+
+### Approved route
+
+![Approved route](Screenshots/taxi_approved.png)
+
+Once a route is accepted (by any of the methods above), the line turns **green**. The ground state is automatically set to TAXI (for departures) or TXIN (for inbounds). The route is tracked and monitored for deviations and conflicts from this point on.
+
+Double right-clicking an aircraft clears its assigned route.
+
+#### Deviation monitoring
+
+![Route deviation warning](Screenshots/taxi_route_warning.png)
+
+Every 250 ms, each tracked aircraft's distance to its assigned route polyline is measured. If it exceeds `deviationThreshM` (default 40 m) while the ground speed is above `minSpeedKt` (default 3 kt), the aircraft is flagged. A relaxed threshold (`endpointDeviationThreshM`, default 80 m) applies within `endpointRadiusM` (60 m) of the route's start or end node, to account for stands and holding points sitting slightly off the graph. When deviation is detected, a yellow connector line is drawn from the aircraft to the nearest point on its route, and a yellow **`!ROUTE`** label appears next to the aircraft symbol.
+
+#### Conflict detection
+
+![Taxi conflict alert](Screenshots/taxi_conflict.png)
+
+For each tracked moving aircraft, a timed predicted path is built by projecting forward along its remaining route at the current ground speed, up to `maxPredictS` seconds (default 60 s). The system then performs a pairwise check across all predicted paths: when two paths cross, the estimated arrival times at the intersection are compared. If they differ by less than `conflictDeltaS` (default 30 s), it is flagged as a conflict. Same-direction paths (bearing difference < `sameDirDeg`, default 45°) are excluded to avoid false alerts on aircraft following each other.
+
+Conflicts are colour-coded by time-to-intersection:
+
+- **15–30 s**: yellow marker at the conflict point and a yellow **`CONFLICT`** label next to each aircraft involved.
+- **< 15 s**: marker and label both turn **red** — the most urgent tier.
+
+If `taxiConflict.wav` is present in the plugin directory and the **Taxi conflict sound** setting is enabled, an audio alert fires once per conflict pair as soon as the predicted separation drops below 15 s and has persisted for at least 2 seconds. The sound plays at most once per pair; it is re-armed only if the conflict clears and then reappears.
+
+### Pushback planning
+
+![Push planning — zone preview](Screenshots/push_planning.png) ![Push block confirmed](Screenshots/push_block.png)
+
+Right-clicking an aircraft at its parking stand enters pushback planning mode. The router computes viable taxiway pivot points in the aircraft's push direction (backwards from the aircraft heading), filtered by wingspan.
+
+Moving the mouse adjusts the **blue push-zone preview** — a line segment on the taxiway that the aircraft will occupy during the push. Left-clicking confirms the zone: the line turns **orange**, the segment is reserved as a push block, and the aircraft's ground state is set to PUSH. Other taxi routes will treat the orange block as an obstacle.
 
 ---
 
