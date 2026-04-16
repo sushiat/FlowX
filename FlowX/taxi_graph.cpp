@@ -99,6 +99,15 @@ int TaxiGraph::FindOrCreateNode(const GeoPoint& pos, double mergeThreshM,
                         nodes_[nid].wayPriority = wayPriority;
                     }
                 }
+                // Promote empty-ref nodes (stand/HP connectors) when a named
+                // taxiway node merges into them across the full mergeThreshM
+                // range.  Without this the connector swallows the named node
+                // and the taxiway loses goal-pool coverage next to the stand.
+                if (!wayRef.empty() && nodes_[nid].wayRef.empty())
+                {
+                    nodes_[nid].wayRef      = std::string(wayRef);
+                    nodes_[nid].wayPriority = wayPriority;
+                }
                 return nid;
             }
         }
@@ -1539,42 +1548,43 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
     // wide-body aircraft); if all candidates are excluded, keep them anyway.
     std::vector<int> goalCandidates;
     {
-        const double     goalSnapR = apt_.taxiNetworkConfig.snapping.goalSnapM;
+        const double goalSnapR = apt_.taxiNetworkConfig.snapping.goalSnapM;
+        const auto&  ts        = apt_.taxiNetworkConfig.targetSelection;
+
+        // Two-tier search (near then far) within the 90° wide cone, keeping
+        // only the node closest to the destination per wayRef.  This prevents
+        // A* from routing to a same-wayRef node closer to the origin (cheaper
+        // path but stops short of the gate) and ensures a closer taxilane
+        // always wins over a farther one.
+        auto bestPerRef = [&](const std::vector<int>& pool) -> std::vector<int>
+        {
+            std::map<std::string, int> best; // wayRef → node id closest to `to`
+            for (const int id : pool)
+            {
+                const auto& ref  = nodes_[id].wayRef;
+                const auto  dist = HaversineM(to, nodes_[id].pos);
+                auto        it   = best.find(ref);
+                if (it == best.end() || dist < HaversineM(to, nodes_[it->second].pos))
+                    best[ref] = id;
+            }
+            std::vector<int> result;
+            result.reserve(best.size());
+            for (const auto& [_, id] : best)
+                result.push_back(id);
+            return result;
+        };
+
         std::vector<int> goalPool;
-        // Combined alignment/distance tier search around the stand approach
-        // bearing. Tiers are tried in order and the first non-empty result
-        // wins: cones widen progressively (narrow → medium → wide) and within
-        // each cone the near radius is tried before the far radius. All six
-        // thresholds are tunable via taxiNetworkConfig.targetSelection.
-        //
-        // This avoids two failure modes of single-axis searches:
-        //  - a tight-cone-only search locks onto a far-but-aligned node
-        //    (144 m on one taxilane) while ignoring a closer off-axis node
-        //    (22 m on the taxilane right behind the stand);
-        //  - a wide-cone-only search picks off-axis nodes 50-100 m away that
-        //    are not actually behind the stand.
-        const auto&  ts    = apt_.taxiNetworkConfig.targetSelection;
-        const double nearR = ts.nearRadiusM;
-        const double farR  = ts.farRadiusM;
         if (goalBearingDeg >= 0.0)
         {
-            const std::pair<double, double> tiers[] = {
-                {ts.narrowConeDeg, nearR},
-                {ts.narrowConeDeg, farR},
-                {ts.mediumConeDeg, nearR},
-                {ts.mediumConeDeg, farR},
-                {ts.wideConeDeg, nearR},
-                {ts.wideConeDeg, farR},
-            };
-            for (const auto& [cone, radius] : tiers)
-            {
-                goalPool = NearestCandidateNodes(to, goalBearingDeg, radius, 0.0, 10, 0, cone);
-                if (!goalPool.empty())
-                    break;
-            }
+            goalPool = bestPerRef(
+                NearestCandidateNodes(to, goalBearingDeg, ts.nearRadiusM, 0.0, 20, 0, ts.wideConeDeg));
+            if (goalPool.empty())
+                goalPool = bestPerRef(
+                    NearestCandidateNodes(to, goalBearingDeg, ts.farRadiusM, 0.0, 20, 0, ts.wideConeDeg));
         }
         if (goalPool.empty())
-            goalPool = NearestCandidateNodes(to, -1.0, goalSnapR, 0.0, 10, 0);
+            goalPool = bestPerRef(NearestCandidateNodes(to, -1.0, goalSnapR, 0.0, 20, 0));
         if (goalPool.empty())
         {
             const int fb = NearestNode(to);
@@ -1582,30 +1592,15 @@ TaxiRoute TaxiGraph::FindRoute(const GeoPoint&                 from,
                 return {};
             goalPool.push_back(fb);
         }
-        std::vector<int>      goalFallback; // excluded candidates, used only if nothing else available
-        std::set<std::string> seenGoalRefs;
-        for (size_t i = 0; i < goalPool.size() && goalCandidates.size() < 3; ++i)
-        {
-            if (!excludedRefs.empty() && excludedRefs.contains(nodes_[goalPool[i]].wayRef))
-            {
-                goalFallback.push_back(goalPool[i]);
-                continue;
-            }
-            goalCandidates.push_back(goalPool[i]);
-            seenGoalRefs.insert(nodes_[goalPool[i]].wayRef);
-        }
+
+        // Separate excluded-wayRef candidates; use them only when nothing else is available.
+        std::vector<int> goalFallback;
         for (const int id : goalPool)
         {
-            const auto& ref = nodes_[id].wayRef;
-            if (ref.empty() || seenGoalRefs.count(ref))
-                continue;
-            if (!excludedRefs.empty() && excludedRefs.contains(ref))
-            {
+            if (!excludedRefs.empty() && excludedRefs.contains(nodes_[id].wayRef))
                 goalFallback.push_back(id);
-                continue;
-            }
-            goalCandidates.push_back(id);
-            seenGoalRefs.insert(ref);
+            else
+                goalCandidates.push_back(id);
         }
         if (goalCandidates.empty())
             goalCandidates = std::move(goalFallback);
