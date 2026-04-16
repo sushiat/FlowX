@@ -13,6 +13,7 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
   - [Installation](#installation)
 - [Tag Items](#tag-items)
 - [Tag Functions](#tag-functions)
+- [Aircraft Ground Tags](#aircraft-ground-tags)
 - [Custom Windows](#custom-windows)
 - [Start Menu](#start-menu)
 - [Chat Commands](#chat-commands)
@@ -59,6 +60,8 @@ The plugin ships with a `config.json` file that defines all airport-specific dat
 
 ## Tag Items
 
+![Tag Items](screenshots/tag_items.png)
+
 Tag items are added to EuroScope departure lists or tag definitions via **Tag Item Type = FlowX / \<name\>**. Only the following five items are registered with EuroScope. All other columns (HP, spacing, TTT, etc.) are rendered inside the custom GDI windows described below.
 
 | Tag Item | Typical display | Description |
@@ -93,23 +96,71 @@ Only two tag functions are registered with EuroScope and can be assigned to tag 
 
 ---
 
+## Aircraft Ground Tags
+
+FlowX draws additional overlays directly on the radar screen for ground-taxiing aircraft. These are rendered next to the GroundRadar plugin target.
+
+### Departure info tag
+
+![Outbound tag](screenshots/outbound_tag.png)
+
+Shown for every departing aircraft in TAXI or DEPA ground state. The tag is draggable and connected to the radar target by a leader line. It contains:
+
+- **Dep info text** — mirrors the DEP? column from TWR Outbound (e.g. spacing to the previous departure in seconds or NM), coloured green / yellow / red by readiness.
+- **SID colour dot** — a filled circle below the dep info text, coloured by the aircraft's SID group (same colour coding as the Same-SID tag item).
+- **HP label** — the assigned holding point (e.g. `A2`), shown to the right of the SID dot when one is assigned.
+- **`,T` suffix** — appended to the dep info text when the aircraft has not yet been transferred to TWR by the GND controller.
+- **Queue number** — when the aircraft has a departure queue position, its number is shown in a small box above the radar target dot.
+
+#### Departure sequencing
+
+![Departure sequencing](screenshots/departure_sequencing.png)
+
+Right-clicking the SID colour dot appends the aircraft to the end of the departure queue for its runway (next available number). Left-clicking the dot triggers a frequency transfer to TWR (GND controllers only).
+
+To insert an aircraft at a specific queue position, use the **#** column in the TWR Outbound list: left-click opens a popup to select any position (shifting others down), right-click appends to end.
+
+Queue positions auto-progress: once an aircraft transitions to LINE UP or DEPA state, it is automatically removed from the queue and all same-runway positions behind it are shifted down by one. This keeps the displayed numbers consistent without manual intervention.
+
+### GND transfer square
+
+![Inbound tag](screenshots/inbound_tag.png)
+
+Shown for landed inbound aircraft once their ground speed drops below 50 kt for the first time after touchdown. Indicates the aircraft is ready to be handed off to GND frequency. The square is clickable.
+
+| Colour | Meaning |
+|---|---|
+| Green | Just vacated — transfer is due |
+| Yellow | ~25 s elapsed — transfer is overdue |
+| Red | ~35 s elapsed — transfer is significantly overdue |
+
+---
+
 ## Custom Windows
 
 FlowX draws seven custom GDI windows on the radar screen. All windows are draggable by their title bar and persist their position between sessions via `settings.json` in the plugin directory. Most windows can be popped out into their own native Win32 window via the `^` button in the title bar.
 
 ### Approach Estimate
 
+![Approach Estimate](screenshots/approach_estimate.png)
+
 A vertical time bar showing all tracked inbound aircraft for up to two runway groups (left / right), ordered by estimated time to touchdown. Each runway's aircraft appear on the side configured via `estimateBarSide` in `config.json`. Aircraft labels are coloured by inbound-list colour when **Appr Est Colors** is enabled, or always green otherwise. Go-around aircraft are shown with a red background; TTT-frozen aircraft with yellow. The window is resizable by dragging its lower-right corner.
 
 ### DEP/H — Departure Rate
+
+![DEP/H](screenshots/departures.png)
 
 Shows the hourly departure count and 15-minute average spacing per runway. Rebuilds every second. No interaction.
 
 ### NAP Reminder
 
+![NAP Reminder](screenshots/nap_reminder.png)
+
 A modal overlay that appears at the configured local time (see `napReminder` in config) to alert controllers of the start of noise abatement procedures. `nap.wav` plays on appearance and stops on acknowledgement. Draggable; dismissed via the **ACK** button.
 
 ### TWR Outbound
+
+![TWR Outbound](screenshots/tower_outbound.png)
 
 Tracks all departing aircraft. Rows are sorted by a composite key (holding point position, then ground state, then callsign). Aircraft that have departed and are no longer being tracked are shown dimmed at reduced size.
 
@@ -144,6 +195,8 @@ Required time is derived from the holding point configuration (default 120 s).
 
 ### TWR Inbound
 
+![TWR Inbound](screenshots/tower_inbound.png)
+
 Tracks aircraft on approach, ordered by time to touchdown per runway. Aircraft furthest from the threshold are dimmed. Rows are grouped by runway with a blank separator between groups.
 
 | Column | Source | Description | Left click | Right click |
@@ -159,6 +212,8 @@ Tracks aircraft on approach, ordered by time to touchdown per runway. Aircraft f
 | RWY | FlowX | Assigned arrival runway; blinks red/yellow if tracked on a different runway than assigned | EuroScope runway selector | — |
 
 ### WX/ATIS
+
+![WX/ATIS](screenshots/wx_atis.png) ![WX/ATIS — unacknowledged QNH change](screenshots/wx_atis_new.png)
 
 Shows wind, QNH, ATIS letter, and RVR (when present) for every airport in `config.json`. Wind/QNH/RVR are parsed from METAR; the ATIS letter is polled from the VATSIM v3 data feed every 60 seconds. Clicking an airport row acknowledges any pending QNH change.
 
@@ -181,11 +236,15 @@ Each strip shows callsign, aircraft type, stand, runway, SID/STAR, squawk, and s
 
 ### Settings
 
+![Settings](screenshots/settings.png)
+
 A dedicated settings window opened from Start → Settings. Organises all plugin toggles into four groups: **Assists** (Auto-Restore, Auto PARK, Auto-Clear Scratch, HP auto-scratch), **Notifications** (sound toggles for Airborne, GND Transfer, Ready T/O, No Route, Taxi Conflict), **Options** (Debug mode, Update check, Flash messages, Appr Est Colors, Fonts, BG opacity), and **Taxi** (Update/Clear TAXI info, Show TAXI network/labels/graph/routes, Log TAXI tests). Can be popped out into its own window.
 
 ---
 
 ## Start Menu
+
+![Start Menu](screenshots/start_menu.png)
 
 Click the **FlowX** button in the bottom-right corner of the radar screen to open the start menu. It has two sections:
 
