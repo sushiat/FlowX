@@ -1721,6 +1721,80 @@ void CFlowX_Timers::ClearGndTransfer(const std::string& callsign)
     this->gndTransfer_soundPlayed.erase(callsign);
 }
 
+/// @brief Symmetric push/drain sampler for the tail-dot history ring buffers.
+/// Runs once per second from CFlowX::OnTimer. Moved targets grow their trail; stationary
+/// targets lose one sample per tick so a parked aircraft fades to nothing.
+void CFlowX_Timers::UpdateGndTailHistory()
+{
+    const int maxDots = this->gndTailDotCount;
+    if (maxDots <= 0)
+    {
+        if (!this->gndTailHistory.empty())
+            this->gndTailHistory.clear();
+        return;
+    }
+
+    std::set<std::string> live;
+    for (auto rt = this->RadarTargetSelectFirst(); rt.IsValid(); rt = this->RadarTargetSelectNext(rt))
+    {
+        if (!rt.GetPosition().IsValid())
+            continue;
+        std::string cs = rt.GetCallsign();
+        if (cs.empty())
+            continue;
+        live.insert(cs);
+
+        auto     curEs = rt.GetPosition().GetPosition();
+        GeoPoint cur   = {curEs.m_Latitude, curEs.m_Longitude};
+        auto&    buf   = this->gndTailHistory[cs];
+
+        // "Moving" is decided by reported ground speed, not inter-tick position delta: VATSIM
+        // sends position packets every ~5 s, so between packets the position is identical
+        // tick-to-tick even though the aircraft is actively taxiing. Draining on identical
+        // positions would empty the trail every second.
+        const int  gs     = rt.GetPosition().GetReportedGS();
+        const bool moving = gs > 1;
+
+        bool posChanged = true;
+        if (!buf.empty())
+        {
+            EuroScopePlugIn::CPosition lastEs;
+            lastEs.m_Latitude  = buf.back().lat;
+            lastEs.m_Longitude = buf.back().lon;
+            // DistanceTo returns NM; ~3 m ≈ 0.0016 NM. Guards against logging duplicate
+            // positions when no new packet has arrived since the last tick.
+            posChanged = curEs.DistanceTo(lastEs) > 0.0016;
+        }
+
+        if (moving)
+        {
+            if (posChanged)
+            {
+                buf.push_back(cur);
+                while ((int)buf.size() > maxDots)
+                    buf.pop_front();
+            }
+            // Moving but same position as last tick: keep trail, wait for next position packet.
+        }
+        else if (!buf.empty())
+        {
+            // Parked / very slow: drain one dot per second so the trail visibly fades away.
+            buf.pop_front();
+            if (buf.empty())
+                this->gndTailHistory.erase(cs);
+        }
+    }
+
+    // Drop entries for callsigns that no longer have a valid radar target.
+    for (auto it = this->gndTailHistory.begin(); it != this->gndTailHistory.end();)
+    {
+        if (live.find(it->first) == live.end())
+            it = this->gndTailHistory.erase(it);
+        else
+            ++it;
+    }
+}
+
 void CFlowX_Timers::AssignHoldingPoint(EuroScopePlugIn::CFlightPlan& fp, const std::string& hpName)
 {
     std::string callSign = fp.GetCallsign();

@@ -1290,6 +1290,14 @@ void RadarScreen::OnClickScreenObject(int ObjectType, const char* sObjectId, POI
                 {
                     settings->SetSettingsVisible(true);
                 }
+                else if (idx == 35) // GND tail dots -
+                {
+                    settings->DecreaseGndTailDotCount();
+                }
+                else if (idx == 36) // GND tail dots +
+                {
+                    settings->IncreaseGndTailDotCount();
+                }
             }
             // Keep the menu open while the user is toggling inside it (window toggles, submenu expand,
             // taxi overlay toggles). Close it for any one-shot action (commands, opening Settings, etc.).

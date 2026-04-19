@@ -28,74 +28,77 @@ class CFlowX_Settings : public CFlowX_Logging
     std::string            osmIcao_;     ///< ICAO code of the airport whose OSM data is currently loaded into osmData/osmGraph
 
   protected:
-    std::set<std::string>          activeArrRunways;              ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
-    std::set<std::string>          activeDepRunways;              ///< Runway designators currently active for departures (e.g. "16", "29"); refreshed by RefreshActiveRunways.
-    std::map<std::string, double>  aircraftWingspans;             ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
-    std::map<std::string, airport> airports;                      ///< Airport configurations keyed by ICAO code
-    bool                           apprEstColors         = false; ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
-    bool                           approachEstPoppedOut  = false; ///< Whether the Approach Estimate window is in standalone popout mode
-    int                            approachEstPopoutH    = -1;    ///< Last-saved standalone-window height; -1 = inherit in-screen height on first popout
-    int                            approachEstPopoutW    = -1;    ///< Last-saved standalone-window width;  -1 = inherit in-screen width on first popout
-    int                            approachEstPopoutX    = -1;    ///< Last-saved standalone-window screen X; -1 = seed from in-screen position on first popout
-    int                            approachEstPopoutY    = -1;    ///< Last-saved standalone-window screen Y; -1 = seed from in-screen position on first popout
-    bool                           approachEstVisible    = true;  ///< Whether the Approach Estimate window is visible; restored from settings.json
-    int                            approachEstWindowH    = 380;   ///< Saved height of the Approach Estimate window; default 380
-    int                            approachEstWindowW    = 260;   ///< Saved width of the Approach Estimate window; default 260
-    int                            approachEstWindowX    = -1;    ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
-    int                            approachEstWindowY    = -1;    ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
-    bool                           autoParked            = true;  ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
-    bool                           autoScratchpadClear   = true;  ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
-    bool                           autoRestore           = true;  ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
-    bool                           hpAutoScratch         = true;  ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
-    bool                           logTaxiTests          = false; ///< Whether assigned taxi routes are logged as JSON test case templates
-    bool                           settingsVisible       = false; ///< Whether the Settings window is currently open
-    bool                           settingsPoppedOut     = false; ///< Whether the Settings window is in standalone popout mode
-    int                            settingsWindowX       = -1;    ///< Last-saved X position of the Settings window (in-screen); -1 = not yet positioned
-    int                            settingsWindowY       = -1;    ///< Last-saved Y position of the Settings window (in-screen); -1 = not yet positioned
-    int                            settingsPopoutX       = -1;    ///< Last-saved standalone screen X; -1 = seed from in-screen position
-    int                            settingsPopoutY       = -1;    ///< Last-saved standalone screen Y; -1 = seed from in-screen position
-    bool                           showTaxiGraph         = false; ///< Whether the routing graph nodes and edges are drawn as a diagnostic overlay
-    bool                           showTaxiLabels        = false; ///< Whether taxiway name labels are drawn over the TAXI network overlay
-    bool                           showTaxiOverlay       = false; ///< Whether taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
-    bool                           showTaxiRoutes        = false; ///< Whether all assigned taxi routes are drawn persistently, clipped to the remaining portion
-    int                            bgOpacity             = 100;   ///< Background opacity for custom windows in percent (20–100); title bar always opaque
-    bool                           depRatePoppedOut      = false; ///< Whether the DEP/H window is in standalone popout mode
-    int                            depRatePopoutX        = -1;    ///< Last-saved standalone screen X; -1 = seed from in-screen position
-    int                            depRatePopoutY        = -1;    ///< Last-saved standalone screen Y; -1 = seed from in-screen position
-    bool                           depRateVisible        = true;  ///< Whether the DEP/H departure rate window is visible; restored from settings.json
-    int                            depRateWindowX        = -1;    ///< Last-saved X position of the departure rate window; -1 = not yet positioned
-    int                            depRateWindowY        = -1;    ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
-    bool                           diflisPopoutMaximized = false; ///< Whether the DIFLIS popout is currently in maximized (work-area-fill) state
-    int                            diflisPopoutH         = -1;    ///< Last-saved DIFLIS popout height; -1 = use default on first create
-    bool                           diflisPopoutTopmost   = true;  ///< Whether the DIFLIS popout is in always-on-top mode (off → window appears in taskbar)
-    int                            diflisPopoutW         = -1;    ///< Last-saved DIFLIS popout width;  -1 = use default on first create
-    int                            diflisPopoutX         = -1;    ///< Last-saved DIFLIS popout screen X; -1 = center on first create
-    int                            diflisPopoutY         = -1;    ///< Last-saved DIFLIS popout screen Y; -1 = center on first create
-    bool                           diflisVisible         = false; ///< Whether the DIFLIS window is visible; default off until explicitly enabled
-    int                            fontOffset            = 0;     ///< Font size offset for all custom-window data fonts; positive = larger
-    std::map<std::string, grStand> grStands;                      ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
-    std::future<std::string>       latestVersion;                 ///< Async future holding the fetched latest version string
-    std::string                    napLastDismissedDate;          ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
-    int                            napWindowX         = -1;       ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
-    int                            napWindowY         = -1;       ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
-    bool                           soundAirborne      = true;     ///< Whether the airborne audio alert is enabled
-    bool                           soundGndTransfer   = true;     ///< Whether the GND transfer audio alert is enabled
-    bool                           soundReadyTakeoff  = true;     ///< Whether the ready-for-takeoff audio alert is enabled
-    bool                           soundNoRoute       = true;     ///< Whether the no-route-found audio alert is enabled
-    bool                           soundTaxiConflict  = true;     ///< Whether the taxi conflict audio alert is enabled
-    bool                           twrInboundVisible  = true;     ///< Whether the TWR Inbound window is visible; restored from settings.json
-    int                            twrInboundWindowX  = -1;       ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
-    int                            twrInboundWindowY  = -1;       ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
-    bool                           twrOutboundVisible = true;     ///< Whether the TWR Outbound window is visible; restored from settings.json
-    int                            twrOutboundWindowX = -1;       ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
-    int                            twrOutboundWindowY = -1;       ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
-    bool                           updateCheck        = true;     ///< Whether the background update check is enabled
-    bool                           weatherPoppedOut   = false;    ///< Whether the WX/ATIS window is in standalone popout mode
-    int                            weatherPopoutX     = -1;       ///< Last-saved standalone screen X; -1 = seed from in-screen position
-    int                            weatherPopoutY     = -1;       ///< Last-saved standalone screen Y; -1 = seed from in-screen position
-    bool                           weatherVisible     = true;     ///< Whether the WX/ATIS window is visible; restored from settings.json
-    int                            weatherWindowX     = -1;       ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
-    int                            weatherWindowY     = -1;       ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
+    std::set<std::string>          activeArrRunways;                           ///< Runway designators currently active for arrivals (e.g. "34", "11"); refreshed by RefreshActiveRunways.
+    std::set<std::string>          activeDepRunways;                           ///< Runway designators currently active for departures (e.g. "16", "29"); refreshed by RefreshActiveRunways.
+    std::map<std::string, double>  aircraftWingspans;                          ///< Aircraft type ICAO → wingspan (m); missing entries filled with the per-WTC average at load time.
+    std::map<std::string, airport> airports;                                   ///< Airport configurations keyed by ICAO code
+    bool                           apprEstColors         = false;              ///< Whether the Approach Estimate window uses inbound-list colours (true) or always-green (false)
+    bool                           approachEstPoppedOut  = false;              ///< Whether the Approach Estimate window is in standalone popout mode
+    int                            approachEstPopoutH    = -1;                 ///< Last-saved standalone-window height; -1 = inherit in-screen height on first popout
+    int                            approachEstPopoutW    = -1;                 ///< Last-saved standalone-window width;  -1 = inherit in-screen width on first popout
+    int                            approachEstPopoutX    = -1;                 ///< Last-saved standalone-window screen X; -1 = seed from in-screen position on first popout
+    int                            approachEstPopoutY    = -1;                 ///< Last-saved standalone-window screen Y; -1 = seed from in-screen position on first popout
+    bool                           approachEstVisible    = true;               ///< Whether the Approach Estimate window is visible; restored from settings.json
+    int                            approachEstWindowH    = 380;                ///< Saved height of the Approach Estimate window; default 380
+    int                            approachEstWindowW    = 260;                ///< Saved width of the Approach Estimate window; default 260
+    int                            approachEstWindowX    = -1;                 ///< Last-saved X position of the Approach Estimate window; -1 = not yet positioned
+    int                            approachEstWindowY    = -1;                 ///< Last-saved Y position of the Approach Estimate window; -1 = not yet positioned
+    bool                           autoParked            = true;               ///< Whether arriving aircraft are automatically set to PARK when stopped at their assigned stand.
+    bool                           autoScratchpadClear   = true;               ///< Whether scratchpad is automatically cleared on LINEUP/DEPA click for non-excluded content
+    bool                           autoRestore           = true;               ///< Whether quick-reconnect auto-restore of clearance flag and ground state is enabled
+    bool                           hpAutoScratch         = true;               ///< Whether scratchpad HP shortcuts (.NAME / .NAME?) are active when logged in as TWR.
+    bool                           logTaxiTests          = false;              ///< Whether assigned taxi routes are logged as JSON test case templates
+    bool                           settingsVisible       = false;              ///< Whether the Settings window is currently open
+    bool                           settingsPoppedOut     = false;              ///< Whether the Settings window is in standalone popout mode
+    int                            settingsWindowX       = -1;                 ///< Last-saved X position of the Settings window (in-screen); -1 = not yet positioned
+    int                            settingsWindowY       = -1;                 ///< Last-saved Y position of the Settings window (in-screen); -1 = not yet positioned
+    int                            settingsPopoutX       = -1;                 ///< Last-saved standalone screen X; -1 = seed from in-screen position
+    int                            settingsPopoutY       = -1;                 ///< Last-saved standalone screen Y; -1 = seed from in-screen position
+    bool                           showTaxiGraph         = false;              ///< Whether the routing graph nodes and edges are drawn as a diagnostic overlay
+    bool                           showTaxiLabels        = false;              ///< Whether taxiway name labels are drawn over the TAXI network overlay
+    bool                           showTaxiOverlay       = false;              ///< Whether taxiway/taxilane geometry from osmData is drawn on the radar screen as a debug overlay
+    bool                           showTaxiRoutes        = false;              ///< Whether all assigned taxi routes are drawn persistently, clipped to the remaining portion
+    int                            bgOpacity             = 100;                ///< Background opacity for custom windows in percent (20–100); title bar always opaque
+    bool                           depRatePoppedOut      = false;              ///< Whether the DEP/H window is in standalone popout mode
+    int                            depRatePopoutX        = -1;                 ///< Last-saved standalone screen X; -1 = seed from in-screen position
+    int                            depRatePopoutY        = -1;                 ///< Last-saved standalone screen Y; -1 = seed from in-screen position
+    bool                           depRateVisible        = true;               ///< Whether the DEP/H departure rate window is visible; restored from settings.json
+    int                            depRateWindowX        = -1;                 ///< Last-saved X position of the departure rate window; -1 = not yet positioned
+    int                            depRateWindowY        = -1;                 ///< Last-saved Y position of the departure rate window; -1 = not yet positioned
+    bool                           diflisPopoutMaximized = false;              ///< Whether the DIFLIS popout is currently in maximized (work-area-fill) state
+    int                            diflisPopoutH         = -1;                 ///< Last-saved DIFLIS popout height; -1 = use default on first create
+    bool                           diflisPopoutTopmost   = true;               ///< Whether the DIFLIS popout is in always-on-top mode (off → window appears in taskbar)
+    int                            diflisPopoutW         = -1;                 ///< Last-saved DIFLIS popout width;  -1 = use default on first create
+    int                            diflisPopoutX         = -1;                 ///< Last-saved DIFLIS popout screen X; -1 = center on first create
+    int                            diflisPopoutY         = -1;                 ///< Last-saved DIFLIS popout screen Y; -1 = center on first create
+    bool                           diflisVisible         = false;              ///< Whether the DIFLIS window is visible; default off until explicitly enabled
+    int                            fontOffset            = 0;                  ///< Font size offset for all custom-window data fonts; positive = larger
+    COLORREF                       grColorArrival        = RGB(150, 215, 150); ///< Ground Radar arrival tag colour; loaded from GRpluginSettings.txt at startup, used to colour arrival tail dots.
+    COLORREF                       grColorDeparture      = RGB(255, 140, 0);   ///< Ground Radar departure tag colour; loaded from GRpluginSettings.txt at startup, used to colour departure tail dots.
+    int                            gndTailDotCount       = 8;                  ///< Number of tail-dot history samples drawn behind each aircraft; 0 disables the feature.
+    std::map<std::string, grStand> grStands;                                   ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
+    std::future<std::string>       latestVersion;                              ///< Async future holding the fetched latest version string
+    std::string                    napLastDismissedDate;                       ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
+    int                            napWindowX         = -1;                    ///< Last-saved X position of the NAP reminder window; -1 = not yet positioned
+    int                            napWindowY         = -1;                    ///< Last-saved Y position of the NAP reminder window; -1 = not yet positioned
+    bool                           soundAirborne      = true;                  ///< Whether the airborne audio alert is enabled
+    bool                           soundGndTransfer   = true;                  ///< Whether the GND transfer audio alert is enabled
+    bool                           soundReadyTakeoff  = true;                  ///< Whether the ready-for-takeoff audio alert is enabled
+    bool                           soundNoRoute       = true;                  ///< Whether the no-route-found audio alert is enabled
+    bool                           soundTaxiConflict  = true;                  ///< Whether the taxi conflict audio alert is enabled
+    bool                           twrInboundVisible  = true;                  ///< Whether the TWR Inbound window is visible; restored from settings.json
+    int                            twrInboundWindowX  = -1;                    ///< Last-saved X position of the TWR Inbound window; -1 = not yet positioned
+    int                            twrInboundWindowY  = -1;                    ///< Last-saved Y position of the TWR Inbound window; -1 = not yet positioned
+    bool                           twrOutboundVisible = true;                  ///< Whether the TWR Outbound window is visible; restored from settings.json
+    int                            twrOutboundWindowX = -1;                    ///< Last-saved X position of the TWR Outbound window; -1 = not yet positioned
+    int                            twrOutboundWindowY = -1;                    ///< Last-saved Y position of the TWR Outbound window; -1 = not yet positioned
+    bool                           updateCheck        = true;                  ///< Whether the background update check is enabled
+    bool                           weatherPoppedOut   = false;                 ///< Whether the WX/ATIS window is in standalone popout mode
+    int                            weatherPopoutX     = -1;                    ///< Last-saved standalone screen X; -1 = seed from in-screen position
+    int                            weatherPopoutY     = -1;                    ///< Last-saved standalone screen Y; -1 = seed from in-screen position
+    bool                           weatherVisible     = true;                  ///< Whether the WX/ATIS window is visible; restored from settings.json
+    int                            weatherWindowX     = -1;                    ///< Last-saved X position of the WX/ATIS window; -1 = not yet positioned
+    int                            weatherWindowY     = -1;                    ///< Last-saved Y position of the WX/ATIS window; -1 = not yet positioned
 
     /// @brief Compares the fetched latest version against the running version and logs a message if outdated.
     /// @note Must only be called after the @c latestVersion future has become ready.
@@ -108,6 +111,10 @@ class CFlowX_Settings : public CFlowX_Logging
     /// @brief Loads GRpluginStands.txt from the adjacent Groundradar folder into @c grStands.
     /// @note Only STAND/COORD/BLOCKS lines are parsed; STANDLIST, GROUP, and other directives are ignored.
     void LoadGroundRadarStands();
+
+    /// @brief Loads GRpluginSettings.txt from the adjacent Groundradar folder and parses Color_Arrival/Color_Departure.
+    /// @note Missing file or missing lines leave the defaults (pale green / orange) in place.
+    void LoadGroundRadarColors();
 
     /// @brief Parses config.json from the plugin directory and populates the @c airports map.
     /// @note Logs a message and returns early if the file cannot be read or parsed.
@@ -212,6 +219,38 @@ class CFlowX_Settings : public CFlowX_Logging
     [[nodiscard]] const std::map<std::string, grStand>& GetGrStands() const
     {
         return this->grStands;
+    }
+
+    /// @brief Returns the Ground Radar arrival tag colour (loaded from GRpluginSettings.txt, or default pale green).
+    [[nodiscard]] COLORREF GetGrColorArrival() const
+    {
+        return this->grColorArrival;
+    }
+
+    /// @brief Returns the Ground Radar departure tag colour (loaded from GRpluginSettings.txt, or default orange).
+    [[nodiscard]] COLORREF GetGrColorDeparture() const
+    {
+        return this->grColorDeparture;
+    }
+
+    /// @brief Returns the configured number of tail dots per aircraft; 0 disables the feature.
+    [[nodiscard]] int GetGndTailDotCount() const
+    {
+        return this->gndTailDotCount;
+    }
+
+    /// @brief Decreases the tail dot count by 1 (floor 0) and persists immediately.
+    void DecreaseGndTailDotCount()
+    {
+        this->gndTailDotCount = std::max(0, this->gndTailDotCount - 1);
+        SaveSettings();
+    }
+
+    /// @brief Increases the tail dot count by 1 (ceiling 30) and persists immediately.
+    void IncreaseGndTailDotCount()
+    {
+        this->gndTailDotCount = std::min(30, this->gndTailDotCount + 1);
+        SaveSettings();
     }
 
     /// @brief Returns whether Approach Estimate colors mode is enabled.

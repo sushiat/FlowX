@@ -197,6 +197,16 @@ To insert an aircraft at a specific queue position, use the **#** column in the 
 
 Queue positions auto-progress: once an aircraft transitions to LINE UP or DEPA state, it is automatically removed from the queue and all same-runway positions behind it are shifted down by one. This keeps the displayed numbers consistent without manual intervention.
 
+### GND tail dots
+
+A trail of small hollow squares drawn behind each correlated radar target on the ground, replacing (overlaying) the dim grey dots Ground Radar paints by default. Dots use the GroundRadar tag colour (`Color_Arrival` / `Color_Departure` from `GRpluginSettings.txt`, or built-in defaults if that file is missing) so the trail visually matches the rest of the ground radar picture.
+
+- Sampled once per second. When an aircraft stops moving its trail drains at one dot per second, so a parked aircraft visibly fades to nothing.
+- **Arrival** (flight plan destination is one of the configured airports) → pale green by default.
+- **Departure** (flight plan origin is one of the configured airports) → orange by default.
+- Older dots fade toward black; the newest dot keeps the full tag colour.
+- Configurable via **GND tail dots** in the Settings window (Taxi group). Range 0–30; setting **0** disables the feature entirely.
+
 ### GND transfer square
 
 ![Inbound tag](Screenshots/inbound_tag.png)

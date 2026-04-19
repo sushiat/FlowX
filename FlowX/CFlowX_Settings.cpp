@@ -165,6 +165,7 @@ CFlowX_Settings::CFlowX_Settings()
     this->LoadConfig();
     this->LoadAircraftData();
     this->LoadGroundRadarStands();
+    this->LoadGroundRadarColors();
 
     if (this->updateCheck)
     {
@@ -524,6 +525,7 @@ void CFlowX_Settings::LoadSettings()
             this->debug               = j["global"].value("debug", false);
             this->flashOnMessage      = j["global"].value("flashOnMessage", false);
             this->fontOffset          = j["global"].value("fontOffset", 0);
+            this->gndTailDotCount     = std::clamp(j["global"].value("gndTailDotCount", 8), 0, 30);
             this->soundAirborne       = j["global"].value("soundAirborne", true);
             this->soundGndTransfer    = j["global"].value("soundGndTransfer", true);
             this->soundReadyTakeoff   = j["global"].value("soundReadyTakeoff", true);
@@ -637,6 +639,7 @@ void CFlowX_Settings::SaveSettings()
         j["global"]["debug"]               = this->debug;
         j["global"]["flashOnMessage"]      = this->flashOnMessage;
         j["global"]["fontOffset"]          = this->fontOffset;
+        j["global"]["gndTailDotCount"]     = this->gndTailDotCount;
         j["global"]["soundAirborne"]       = this->soundAirborne;
         j["global"]["soundGndTransfer"]    = this->soundGndTransfer;
         j["global"]["soundReadyTakeoff"]   = this->soundReadyTakeoff;
@@ -915,6 +918,64 @@ void CFlowX_Settings::LoadGroundRadarStands()
     catch (std::exception& e)
     {
         this->LogMessage("Failed to load GRpluginStands.txt: " + std::string(e.what()), "Stands");
+    }
+}
+
+/// @brief Loads GRpluginSettings.txt from the adjacent Groundradar folder and parses Color_Arrival/Color_Departure.
+void CFlowX_Settings::LoadGroundRadarColors()
+{
+    try
+    {
+        std::filesystem::path path(GetPluginDirectory());
+        path = path.parent_path() / "Groundradar" / "GRpluginSettings.txt";
+
+        std::ifstream ifs(path);
+        if (!ifs.is_open())
+        {
+            this->LogMessage("GRpluginSettings.txt not found at: " + path.string() +
+                                 " — using default tail dot colours.",
+                             "TailDots");
+            return;
+        }
+
+        auto parseRgb = [](const std::string& rhs, COLORREF& out) -> bool
+        {
+            auto parts = split(rhs, ',');
+            if (parts.size() < 3)
+                return false;
+            int r = std::stoi(trim(parts[0]));
+            int g = std::stoi(trim(parts[1]));
+            int b = std::stoi(trim(parts[2]));
+            out   = RGB(std::clamp(r, 0, 255), std::clamp(g, 0, 255), std::clamp(b, 0, 255));
+            return true;
+        };
+
+        std::string line;
+        while (std::getline(ifs, line))
+        {
+            line = trim(line);
+            if (line.empty() || line[0] == '/')
+                continue;
+            auto eq = line.find('=');
+            if (eq == std::string::npos)
+                continue;
+            std::string key = trim(line.substr(0, eq));
+            std::string val = trim(line.substr(eq + 1));
+            if (key == "Color_Arrival")
+                parseRgb(val, this->grColorArrival);
+            else if (key == "Color_Departure")
+                parseRgb(val, this->grColorDeparture);
+        }
+
+        this->LogMessage(std::format("Loaded GR tail dot colours: arrival=({},{},{}) departure=({},{},{}).",
+                                     GetRValue(this->grColorArrival), GetGValue(this->grColorArrival),
+                                     GetBValue(this->grColorArrival), GetRValue(this->grColorDeparture),
+                                     GetGValue(this->grColorDeparture), GetBValue(this->grColorDeparture)),
+                         "TailDots");
+    }
+    catch (std::exception& e)
+    {
+        this->LogMessage("Failed to load GRpluginSettings.txt: " + std::string(e.what()), "TailDots");
     }
 }
 
