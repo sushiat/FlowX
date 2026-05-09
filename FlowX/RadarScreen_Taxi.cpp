@@ -782,6 +782,94 @@ void RadarScreen::DrawGndTransferSquares(HDC hDC)
     }
 }
 
+/// @brief Draws a trailing line of hollow squares behind each correlated radar target using
+/// Ground Radar's arrival/departure tag colours. Newest dot keeps the full colour; older dots
+/// fade toward black by linear RGB interpolation. Early-outs when the configured dot count is 0.
+void RadarScreen::DrawGndTailDots(HDC hDC)
+{
+    auto* settings = static_cast<CFlowX_Settings*>(this->GetPlugIn());
+    auto* timers   = static_cast<CFlowX_Timers*>(this->GetPlugIn());
+
+    const int maxDots = settings->GetGndTailDotCount();
+    if (maxDots <= 0)
+        return;
+
+    const auto& history  = timers->GetGndTailHistory();
+    const auto& airports = settings->GetAirports();
+    if (history.empty())
+        return;
+
+    const COLORREF colArrival   = settings->GetGrColorArrival();
+    const COLORREF colDeparture = settings->GetGrColorDeparture();
+
+    for (const auto& [cs, buf] : history)
+    {
+        if (buf.empty())
+            continue;
+
+        EuroScopePlugIn::CFlightPlan fp = GetPlugIn()->FlightPlanSelect(cs.c_str());
+        if (!fp.IsValid())
+            continue;
+
+        auto        fpd  = fp.GetFlightPlanData();
+        std::string dep  = fpd.GetOrigin();
+        std::string dest = fpd.GetDestination();
+        to_upper(dep);
+        to_upper(dest);
+
+        COLORREF baseColor = 0;
+        if (airports.find(dep) != airports.end())
+            baseColor = colDeparture;
+        else if (airports.find(dest) != airports.end())
+            baseColor = colArrival;
+        else
+            continue;
+
+        const int n     = static_cast<int>(buf.size());
+        const int baseR = GetRValue(baseColor);
+        const int baseG = GetGValue(baseColor);
+        const int baseB = GetBValue(baseColor);
+
+        // Render the sampled dots plus one synthesised midpoint between every consecutive pair,
+        // so the trail looks dense despite the low VATSIM position update rate.
+        // Step indices: 0, 1, 2, … where even steps = sampled positions, odd = midpoints.
+        // Fade oldest → newest; minAlpha floors the oldest dot at 50 % of the base colour.
+        constexpr double minAlpha   = 0.5;
+        const int        totalSteps = (n > 1) ? 2 * n - 1 : 1;
+
+        for (int s = 0; s < totalSteps; ++s)
+        {
+            const int    lo      = s / 2;
+            const int    hi      = lo + 1;
+            const bool   isMid   = (s % 2) != 0;
+            const double fracIdx = isMid ? static_cast<double>(lo) + 0.5 : static_cast<double>(lo);
+
+            GeoPoint gp;
+            if (isMid)
+                gp = {(buf[lo].lat + buf[hi].lat) * 0.5, (buf[lo].lon + buf[hi].lon) * 0.5};
+            else
+                gp = buf[lo];
+
+            const double   t     = (n > 1) ? fracIdx / static_cast<double>(n - 1) : 1.0;
+            const double   alpha = minAlpha + (1.0 - minAlpha) * t;
+            const int      r     = static_cast<int>(baseR * alpha);
+            const int      g     = static_cast<int>(baseG * alpha);
+            const int      b     = static_cast<int>(baseB * alpha);
+            const COLORREF col   = RGB(r, g, b);
+
+            EuroScopePlugIn::CPosition es;
+            es.m_Latitude  = gp.lat;
+            es.m_Longitude = gp.lon;
+            POINT pt       = ConvertCoordFromPositionToPixel(es);
+
+            RECT   sq    = {pt.x - 3, pt.y - 3, pt.x + 4, pt.y + 4};
+            HBRUSH brush = CreateSolidBrush(col);
+            FrameRect(hDC, &sq, brush);
+            DeleteObject(brush);
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Taxi safety monitoring
 // ─────────────────────────────────────────────────────────────────────────────

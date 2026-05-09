@@ -36,14 +36,14 @@ inline std::pair<int, int> SettingsWinSize(int fo)
 /// A single row inside a group box.
 struct SettingsRow
 {
-    const char* label;       ///< Text drawn to the right of the checkbox / next to the slider
-    int         menuIdx;     ///< Dispatched via SCREEN_OBJECT_START_MENU_ITEM and reused menu-dispatch handler
-    bool        hasCheckbox; ///< True for toggle rows; false for action rows and slider rows
-    bool        checked;     ///< Initial checkbox state (read at build time)
-    bool        disabled;    ///< Greyed out, not clickable
-    bool        isSlider;    ///< True for Fonts / BG opacity rows
-    int         sliderMinusIdx; ///< Menu idx dispatched when the - button is clicked
-    int         sliderPlusIdx;  ///< Menu idx dispatched when the + button is clicked
+    const char* label;           ///< Text drawn to the right of the checkbox / next to the slider
+    int         menuIdx;         ///< Dispatched via SCREEN_OBJECT_START_MENU_ITEM and reused menu-dispatch handler
+    bool        hasCheckbox;     ///< True for toggle rows; false for action rows and slider rows
+    bool        checked;         ///< Initial checkbox state (read at build time)
+    bool        disabled;        ///< Greyed out, not clickable
+    bool        isSlider;        ///< True for Fonts / BG opacity rows
+    int         sliderMinusIdx;  ///< Menu idx dispatched when the - button is clicked
+    int         sliderPlusIdx;   ///< Menu idx dispatched when the + button is clicked
     std::string sliderValueText; ///< Rendered value to show between label and buttons
 };
 
@@ -61,10 +61,10 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
     if (!settings->GetSettingsVisible())
         return;
 
-    const int TITLE_H    = 13;
-    const int X_BTN      = 11;
-    const int op         = settings->GetBgOpacity();
-    const int foEarly    = settings->GetFontOffset();
+    const int TITLE_H         = 13;
+    const int X_BTN           = 11;
+    const int op              = settings->GetBgOpacity();
+    const int foEarly         = settings->GetFontOffset();
     const auto [WIN_W, WIN_H] = SettingsWinSize(foEarly);
 
     if (this->settingsWindowPos.x == -1)
@@ -91,11 +91,11 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
     }
 
     // ── Title bar rects ──
-    RECT winRect   = {wx, wy, wx + WIN_W, wy + WIN_H};
-    RECT titleRect = {wx, wy, wx + WIN_W, wy + TITLE_H};
-    RECT xRect     = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
-    RECT popRect   = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
-    bool xHovered  = PtInRect(&xRect, cursor) != 0;
+    RECT winRect    = {wx, wy, wx + WIN_W, wy + WIN_H};
+    RECT titleRect  = {wx, wy, wx + WIN_W, wy + TITLE_H};
+    RECT xRect      = {wx + WIN_W - X_BTN - 1, wy + 1, wx + WIN_W - 1, wy + 1 + X_BTN};
+    RECT popRect    = {xRect.left - X_BTN - 1, wy + 1, xRect.left - 1, wy + 1 + X_BTN};
+    bool xHovered   = PtInRect(&xRect, cursor) != 0;
     bool popHovered = PtInRect(&popRect, cursor) != 0;
 
     // ── Background ──
@@ -147,8 +147,10 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
     const int fo   = settings->GetFontOffset();
     const int bgOp = settings->GetBgOpacity();
 
-    const std::string fontValStr = (fo > 0) ? std::format("+{}", fo) : std::format("{}", fo);
-    const std::string bgValStr   = std::format("{}%", bgOp);
+    const std::string fontValStr    = (fo > 0) ? std::format("+{}", fo) : std::format("{}", fo);
+    const std::string bgValStr      = std::format("{}%", bgOp);
+    const int         gndTailDots   = settings->GetGndTailDotCount();
+    const std::string gndTailValStr = (gndTailDots == 0) ? std::string("off") : std::format("{}", gndTailDots);
 
     std::vector<SettingsGroup> groups;
     groups.push_back({"Assists",
@@ -177,7 +179,8 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
                        {"Show TAXI labels", 24, true, settings->GetShowTaxiLabels(), false, false, 0, 0, {}},
                        {"Show TAXI graph", 29, true, settings->GetShowTaxiGraph(), false, false, 0, 0, {}},
                        {"Show TAXI routes", 25, true, settings->GetShowTaxiRoutes(), false, false, 0, 0, {}},
-                       {"Log TAXI tests", 31, true, settings->GetLogTaxiTests(), false, false, 0, 0, {}}}});
+                       {"Log TAXI tests", 31, true, settings->GetLogTaxiTests(), false, false, 0, 0, {}},
+                       {"GND tail dots", -1, false, false, false, true, 35, 36, gndTailValStr}}});
 
     // ── 2×2 grid layout inside the window body ──
     const int PAD       = 12;
@@ -187,14 +190,14 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
     const int BODY_H    = WIN_H - (TITLE_H + 2 * PAD);
     const int GROUP_W   = (BODY_W - GROUP_GAP) / 2;
     const int GROUP_H   = (BODY_H - GROUP_GAP) / 2;
-    const int HDR_INSET = 8;  ///< Horizontal gap around the group-box title inset into the top border
+    const int HDR_INSET = 8; ///< Horizontal gap around the group-box title inset into the top border
     const int ITEM_H    = 20 + fo;
     const int CBX_S     = 9 + fo;
     const int CBX_GAP   = 5;
 
-    HFONT hdrFont = CreateFontA(-11 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
+    HFONT hdrFont  = CreateFontA(-11 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
     HFONT itemFont = CreateFontA(-14 - fo, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Consolas");
@@ -302,7 +305,7 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
                     DeleteObject(btnBorder);
                 }
 
-                std::string full     = std::string(r.label) + " " + r.sliderValueText;
+                std::string full      = std::string(r.label) + " " + r.sliderValueText;
                 RECT        labelRect = {gx + 10, iy, minusR.left - 4, iy + ITEM_H};
                 SetTextColor(hDC, TAG_COLOR_LIST_GRAY);
                 DrawTextA(hDC, full.c_str(), -1, &labelRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -323,7 +326,7 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
             else
             {
                 // Action row — no checkbox, a framed button-style label spanning most of the width.
-                RECT btnRect = {gx + 10, iy + 2, rowRect.right - 6, iy + ITEM_H - 2};
+                RECT btnRect  = {gx + 10, iy + 2, rowRect.right - 6, iy + ITEM_H - 2};
                 auto btnBrush = CreateSolidBrush(r.disabled ? RGB(25, 25, 25)
                                                  : hov      ? RGB(45, 70, 115)
                                                             : RGB(35, 35, 35));
@@ -367,8 +370,8 @@ void RadarScreen::DrawSettingsWindow(HDC hDC)
 void RadarScreen::CreateSettingsPopout(CFlowX_Settings* s)
 {
     const auto [w, h] = SettingsWinSize(s->GetFontOffset());
-    int x = s->GetSettingsPopoutX();
-    int y = s->GetSettingsPopoutY();
+    int x             = s->GetSettingsPopoutX();
+    int y             = s->GetSettingsPopoutY();
     if (x == -1)
     {
         x = this->settingsWindowPos.x;

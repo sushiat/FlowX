@@ -171,6 +171,10 @@ class RadarScreen : public EuroScopePlugIn::CRadarScreen
     /// @brief Draws departure info overlays (text, SID dot, HP label, connector line).
     void DrawDepartureInfoTag(HDC hDC);
 
+    /// @brief Draws the per-aircraft ground tail dots (hollow squares) behind each correlated radar target.
+    /// Dots fade toward black with age; arrivals use the GR arrival color, departures use the GR departure color.
+    void DrawGndTailDots(HDC hDC);
+
     /// @brief Draws a green square near each aircraft in gndTransferSquares and registers it as a clickable screen object.
     void DrawGndTransferSquares(HDC hDC);
 

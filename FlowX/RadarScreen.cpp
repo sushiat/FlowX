@@ -279,6 +279,7 @@ void RadarScreen::OnRefresh(HDC hDC, int Phase)
             if (static_cast<CFlowX_Settings*>(this->GetPlugIn())->GetShowTaxiGraph())
                 this->DrawTaxiGraph(hDC);
             this->DrawTaxiOverlay(hDC);
+            this->DrawGndTailDots(hDC);
             this->DrawTaxiRoutes(hDC);
             this->DrawPlanningRoutes(hDC);
             this->UpdateTaxiSafety();

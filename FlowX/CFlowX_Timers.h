@@ -7,8 +7,10 @@
 
 #pragma once
 #include "CFlowX_LookupsTools.h"
+#include "osm_taxiways.h"
 #include "reconnectSnapshot.h"
 #include "tagInfo.h"
+#include <deque>
 #include <future>
 #include <map>
 #include <set>
@@ -89,6 +91,7 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     int                                               dbg_standSkips           = 0;     ///< Times UpdateOccupiedStands skipped launch (worker still running).
     int                                               dbg_tagItemCalls         = 0;     ///< Total OnGetTagItem calls.
     int                                               dbg_timerTicks           = 0;     ///< Total OnTimer calls.
+    std::map<std::string, std::deque<GeoPoint>>       gndTailHistory;                   ///< Callsign -> per-second position history used to draw tail dots behind each aircraft; grows when moving, drains when stopped.
     std::map<std::string, DepartureLiveSpacing>       dep_liveSpacing;                  ///< Callsign -> spacing data for the current departure; populated in two stages (see DepartureLiveSpacing).
     std::map<std::string, int>                        dep_queuePos;                     ///< Callsign -> departure queue position (1-based); absent = not queued.
     int                                               dep_sequenceCounter = 0;          ///< Global sequence counter incremented at each takeoff.
@@ -165,6 +168,11 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     /// @note Also rebuilds the ttt_sortedByRunway index after each full pass.
     void UpdateTWRInbound();
 
+    /// @brief Samples every correlated radar target once per second and maintains the per-aircraft tail history.
+    /// Moved (> ~3 m) → push_back current position and trim to the configured dot count.
+    /// Not moved → pop_front one sample, so a stopped aircraft's trail drains one dot per tick.
+    void UpdateGndTailHistory();
+
   public:
     /// @brief Records today's UTC date as the last NAP dismissal date and persists settings.
     /// @note Called by RadarScreen when the user clicks the ACK button on the NAP reminder window.
@@ -201,6 +209,12 @@ class CFlowX_Timers : public CFlowX_LookupsTools
     [[nodiscard]] const std::map<std::string, std::string>& GetStandAssignment() const
     {
         return this->standAssignment;
+    }
+
+    /// @brief Returns the per-aircraft tail-dot history map (callsign → ring buffer of recent positions).
+    [[nodiscard]] const std::map<std::string, std::deque<GeoPoint>>& GetGndTailHistory() const
+    {
+        return this->gndTailHistory;
     }
 
     /// @brief Returns the callsign→ground status map (plugin-specific states: ONFREQ, ST-UP, PUSH, TAXI, …).

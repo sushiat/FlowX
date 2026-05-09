@@ -268,6 +268,7 @@ void CFlowX::OnFlightPlanDisconnect(EuroScopePlugIn::CFlightPlan FlightPlan)
 
         this->standAssignment.erase(callSign);
         this->departureStand.erase(callSign);
+        this->gndTailHistory.erase(callSign);
     }
     catch (const std::exception& e)
     {
@@ -769,6 +770,7 @@ void CFlowX::OnTimer(int Counter)
         {
             this->UpdateTagCache();
             this->UpdateRadarTargetDepartureInfo();
+            this->UpdateGndTailHistory();
             this->DrainRedoFlagQueue();
         }
 
