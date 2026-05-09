@@ -75,7 +75,7 @@ class CFlowX_Settings : public CFlowX_Logging
     int                            fontOffset            = 0;                  ///< Font size offset for all custom-window data fonts; positive = larger
     COLORREF                       grColorArrival        = RGB(150, 215, 150); ///< Ground Radar arrival tag colour; loaded from GRpluginSettings.txt at startup, used to colour arrival tail dots.
     COLORREF                       grColorDeparture      = RGB(255, 140, 0);   ///< Ground Radar departure tag colour; loaded from GRpluginSettings.txt at startup, used to colour departure tail dots.
-    int                            gndTailDotCount       = 8;                  ///< Number of tail-dot history samples drawn behind each aircraft; 0 disables the feature.
+    int                            gndTailDotCount       = 5;                  ///< Number of tail-dot history samples drawn behind each aircraft; 0 disables the feature.
     std::map<std::string, grStand> grStands;                                   ///< Stand polygons keyed by "ICAO:StandName"; loaded from GRpluginStands.txt at startup.
     std::future<std::string>       latestVersion;                              ///< Async future holding the fetched latest version string
     std::string                    napLastDismissedDate;                       ///< UTC date (YYYY-MM-DD) on which the NAP reminder was last acknowledged
@@ -246,10 +246,10 @@ class CFlowX_Settings : public CFlowX_Logging
         SaveSettings();
     }
 
-    /// @brief Increases the tail dot count by 1 (ceiling 30) and persists immediately.
+    /// @brief Increases the tail dot count by 1 (ceiling 15) and persists immediately.
     void IncreaseGndTailDotCount()
     {
-        this->gndTailDotCount = std::min(30, this->gndTailDotCount + 1);
+        this->gndTailDotCount = std::min(15, this->gndTailDotCount + 1);
         SaveSettings();
     }
 

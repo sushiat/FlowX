@@ -525,7 +525,7 @@ void CFlowX_Settings::LoadSettings()
             this->debug               = j["global"].value("debug", false);
             this->flashOnMessage      = j["global"].value("flashOnMessage", false);
             this->fontOffset          = j["global"].value("fontOffset", 0);
-            this->gndTailDotCount     = std::clamp(j["global"].value("gndTailDotCount", 8), 0, 30);
+            this->gndTailDotCount     = std::clamp(j["global"].value("gndTailDotCount", 5), 0, 15);
             this->soundAirborne       = j["global"].value("soundAirborne", true);
             this->soundGndTransfer    = j["global"].value("soundGndTransfer", true);
             this->soundReadyTakeoff   = j["global"].value("soundReadyTakeoff", true);
