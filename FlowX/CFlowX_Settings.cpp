@@ -982,7 +982,7 @@ void CFlowX_Settings::LoadGroundRadarColors()
 /// @brief Parses config.json from the plugin directory and populates the airports map.
 void CFlowX_Settings::LoadConfig()
 {
-    json config;
+    nlohmann::ordered_json config;
     try
     {
         std::filesystem::path base(GetPluginDirectory());
@@ -990,7 +990,7 @@ void CFlowX_Settings::LoadConfig()
 
         std::ifstream ifs(base.c_str());
 
-        config = json::parse(ifs);
+        config = nlohmann::ordered_json::parse(ifs);
     }
     catch (std::exception& e)
     {
